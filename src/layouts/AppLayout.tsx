@@ -1,0 +1,172 @@
+import React, { useEffect, useState } from "react";
+import { Outlet, useLocation } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
+import Sidebar from "@/components/Sidebar";
+import ChatInput from "@/components/ChatInput";
+import ModelSelection from "@/components/ModelSelection";
+import { Analytics } from "@vercel/analytics/react";
+import { useChat } from "@/context/ChatContext";
+import { canSendChat } from "@/types/chat";
+import { cn } from "@/lib/utils";
+import { AppChromeHeader } from "@/components/AppChromeHeader";
+import { getWorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
+import ChatMessages from "@/components/ChatMessages";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+const SIDEBAR_COLLAPSED_KEY = "cogerphere-sidebar-collapsed";
+
+/**
+ * Persistent shell: sidebar + shared header + page content + global composer.
+ * Workspace routes keep you in-app; prompts include workspace-scoped system context.
+ */
+const AppLayout: React.FC = () => {
+  const { apiConfig, isLoadingConfig, isLoading, chats, currentChatId, createNewChat, setWorkspaceRouteAssist } =
+    useChat();
+  const location = useLocation();
+  const workspaceMeta = getWorkspaceRouteMeta(location.pathname);
+  const isMobile = useIsMobile();
+
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [showModelSelection, setShowModelSelection] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return typeof localStorage !== "undefined" && localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    if (!isLoadingConfig) {
+      setShowModelSelection(!canSendChat(apiConfig));
+    }
+  }, [isLoadingConfig, apiConfig]);
+
+  useEffect(() => {
+    if (!currentChatId && canSendChat(apiConfig)) {
+      createNewChat();
+    }
+  }, [currentChatId, createNewChat, apiConfig]);
+
+  useEffect(() => {
+    setWorkspaceRouteAssist(workspaceMeta?.systemAssist);
+  }, [workspaceMeta, setWorkspaceRouteAssist]);
+
+  const currentChat = chats.find((c) => c.id === currentChatId);
+  const messages = currentChat?.messages ?? [];
+
+  if (isLoadingConfig) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+          <p className="text-muted-foreground">Loading your workspace…</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
+      />
+      <Analytics />
+      {isMobileSidebarOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm md:hidden"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="fixed left-[280px] top-4 z-50 md:hidden"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <X size={20} />
+          </Button>
+        </>
+      )}
+
+      <main
+        className={cn(
+          "flex min-h-0 flex-1 flex-col transition-[margin] duration-300 ease-out",
+          sidebarCollapsed ? "md:ml-16" : "md:ml-72"
+        )}
+      >
+        <AppChromeHeader
+          onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+          sidebarCollapsed={sidebarCollapsed}
+          onExpandSidebar={() => setSidebarCollapsed(false)}
+          workspaceMeta={workspaceMeta}
+        />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {workspaceMeta && isMobile ? (
+            <Tabs defaultValue="thread" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <TabsList className="mx-2 mt-2 grid h-9 w-auto shrink-0 grid-cols-2 rounded-lg bg-muted/80 p-1">
+                <TabsTrigger value="thread" className="text-xs sm:text-sm">
+                  Thread
+                </TabsTrigger>
+                <TabsTrigger value="tools" className="text-xs sm:text-sm">
+                  Workspace
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="thread" className="mt-0 min-h-0 flex-1 overflow-hidden focus-visible:outline-none">
+                <div className="flex h-full min-h-0 flex-col border-t border-border/60">
+                  <ChatMessages messages={messages} isLoading={isLoading} />
+                </div>
+              </TabsContent>
+              <TabsContent value="tools" className="mt-0 min-h-0 flex-1 overflow-hidden focus-visible:outline-none">
+                <div className="h-full min-h-0 overflow-y-auto border-t border-border/60">
+                  <Outlet />
+                </div>
+              </TabsContent>
+            </Tabs>
+          ) : workspaceMeta ? (
+            <ResizablePanelGroup
+              direction="horizontal"
+              autoSaveId="cogerphere-workspace-thread-split-h"
+              className="min-h-0 flex-1"
+            >
+              <ResizablePanel defaultSize={40} minSize={22} maxSize={72} className="min-h-0 min-w-0">
+                <div className="flex h-full min-h-0 flex-col border-r border-border/70">
+                  <ChatMessages messages={messages} isLoading={isLoading} />
+                </div>
+              </ResizablePanel>
+              <ResizableHandle withHandle className="w-px shrink-0 bg-muted/40" />
+              <ResizablePanel defaultSize={60} minSize={28} className="min-h-0 min-w-0">
+                <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden">
+                  <Outlet />
+                </div>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          ) : (
+            <Outlet />
+          )}
+        </div>
+        <div className="shrink-0 bg-gradient-to-t from-card/90 to-background/95 backdrop-blur-sm">
+          <ChatInput isLoading={isLoading} workspaceMeta={workspaceMeta} />
+        </div>
+      </main>
+
+      {showModelSelection && <ModelSelection onComplete={() => setShowModelSelection(false)} />}
+    </div>
+  );
+};
+
+export default AppLayout;

@@ -8,6 +8,14 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      // Notebook: `npm run latex-compile` (pdflatex) — POST /compile
+      "/api/latex-compile": {
+        target: "http://127.0.0.1:8788",
+        changeOrigin: true,
+        rewrite: () => "/compile",
+      },
+    },
   },
   plugins: [
     react(),
@@ -18,5 +26,23 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  optimizeDeps: {
+    include: [
+      "mathjs",
+      "pdfjs-dist",
+      "katex",
+      "lz-string",
+      "html-to-image",
+      "jspdf",
+      "html2canvas",
+      "@google/generative-ai",
+      "@xenova/transformers",
+    ],
+  },
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.ts"],
+    globals: false,
   },
 }));

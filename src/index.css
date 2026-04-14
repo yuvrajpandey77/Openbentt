@@ -1,88 +1,90 @@
-@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,500&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* Research / lab light — clean white, subtle cool gray, teal accent */
   :root {
-    --background: 50 100% 97%;
-    --foreground: 20 20% 20%;
+    --background: 210 20% 99%;
+    --foreground: 222 47% 11%;
 
-    --card: 54 100% 96%;
-    --card-foreground: 20 20% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
 
-    --popover: 54 100% 96%;
-    --popover-foreground: 20 20% 20%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 42 90% 50%;
+    --primary: 187 72% 38%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 30 75% 85%;
-    --secondary-foreground: 20 20% 20%;
+    --secondary: 210 25% 94%;
+    --secondary-foreground: 222 40% 18%;
 
-    --muted: 30 50% 90%;
-    --muted-foreground: 20 30% 40%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 40%;
 
-    --accent: 30 95% 85%;
-    --accent-foreground: 20 20% 20%;
+    --accent: 210 30% 94%;
+    --accent-foreground: 222 40% 18%;
 
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 30 40% 85%;
-    --input: 30 40% 85%;
-    --ring: 42 90% 50%;
+    --border: 214 20% 88%;
+    --input: 214 20% 88%;
+    --ring: 187 72% 38%;
 
-    --radius: 1.25rem;
+    --radius: 0.875rem;
 
-    --sidebar-background: 60 60% 95%;
-    --sidebar-foreground: 20 20% 20%;
-    --sidebar-primary: 42 90% 50%;
+    --sidebar-background: 210 22% 97%;
+    --sidebar-foreground: 222 40% 15%;
+    --sidebar-primary: 187 72% 38%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 30 75% 85%;
-    --sidebar-accent-foreground: 20 20% 20%;
-    --sidebar-border: 30 40% 85%;
-    --sidebar-ring: 42 90% 50%;
+    --sidebar-accent: 210 25% 93%;
+    --sidebar-accent-foreground: 222 40% 18%;
+    --sidebar-border: 214 18% 88%;
+    --sidebar-ring: 187 72% 38%;
   }
 
+  /* Night / focus dark — deep slate + teal (not pure black) */
   .dark {
-    --background: 215 30% 12%;
-    --foreground: 210 40% 98%;
+    --background: 222 24% 9%;
+    --foreground: 210 36% 96%;
 
-    --card: 215 25% 15%;
-    --card-foreground: 210 40% 98%;
+    --card: 222 22% 11%;
+    --card-foreground: 210 36% 96%;
 
-    --popover: 215 25% 15%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 222 22% 10%;
+    --popover-foreground: 210 36% 96%;
 
-    --primary: 210 80% 60%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 172 55% 48%;
+    --primary-foreground: 222 24% 9%;
 
-    --secondary: 215 30% 20%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 222 18% 16%;
+    --secondary-foreground: 210 30% 92%;
 
-    --muted: 215 25% 25%;
-    --muted-foreground: 210 30% 70%;
+    --muted: 222 16% 18%;
+    --muted-foreground: 215 18% 62%;
 
-    --accent: 215 30% 20%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 222 18% 15%;
+    --accent-foreground: 210 36% 96%;
 
-    --destructive: 0 62.8% 40.6%;
+    --destructive: 0 58% 48%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 215 25% 25%;
-    --input: 215 25% 25%;
-    --ring: 210 80% 60%;
+    --border: 222 16% 20%;
+    --input: 222 16% 20%;
+    --ring: 172 55% 48%;
 
-    --sidebar-background: 215 35% 10%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 210 80% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 30% 20%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 215 25% 20%;
-    --sidebar-ring: 210 70% 60%;
+    --sidebar-background: 222 26% 7%;
+    --sidebar-foreground: 210 36% 96%;
+    --sidebar-primary: 172 55% 48%;
+    --sidebar-primary-foreground: 222 24% 9%;
+    --sidebar-accent: 222 18% 14%;
+    --sidebar-accent-foreground: 210 36% 96%;
+    --sidebar-border: 222 16% 16%;
+    --sidebar-ring: 172 55% 48%;
   }
 }
 
@@ -92,17 +94,17 @@
   }
 
   body {
-    @apply bg-background text-foreground font-cogerphere;
+    @apply bg-background text-foreground font-sans antialiased;
     background-image: radial-gradient(
-      rgba(251, 241, 199, 0.3) 1px, 
+      rgba(15, 80, 90, 0.06) 1px,
       transparent 1px
     );
-    background-size: 24px 24px;
+    background-size: 22px 22px;
   }
 
   .dark body {
     background-image: radial-gradient(
-      rgba(88, 114, 152, 0.15) 1px, 
+      rgba(120, 180, 190, 0.07) 1px,
       transparent 1px
     );
   }
@@ -110,24 +112,31 @@
 
 @layer components {
   .cogerphere-card {
-    @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-lg shadow-sm;
+    @apply bg-card/95 backdrop-blur-sm border border-border/70 rounded-lg shadow-sm;
   }
 
   .cogerphere-gradient {
-    @apply bg-gradient-to-br from-cogerphereYellow-100 to-cogerphereYellow-300;
+    @apply bg-gradient-to-br from-teal-50 to-cyan-100 dark:from-teal-950/40 dark:to-slate-900/80;
   }
 
   .cogerphere-button {
-    @apply bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 transform hover:scale-105 active:scale-95;
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200;
   }
 
   .cogerphere-input {
-    @apply bg-background/80 backdrop-blur-sm border border-border/50 focus:border-primary/50 transition-all duration-200;
+    @apply bg-background border border-border/90 rounded-xl font-sans focus:border-primary/45 focus:ring-2 focus:ring-primary/15 transition-all duration-200;
   }
 
-  /* Streaming animations */
+  .composer-shell {
+    @apply rounded-2xl border border-border/70 bg-background/95 shadow-[0_1px_0_rgba(15,80,90,0.06),0_8px_40px_-12px_rgba(15,55,65,0.18)] outline-none dark:border-border/60 dark:bg-card/90 dark:shadow-[0_1px_0_rgba(120,180,190,0.08),0_12px_48px_-16px_rgba(0,0,0,0.55)];
+  }
+
+  .composer-shell:focus-within {
+    @apply border-border/70 outline-none ring-0 ring-offset-0;
+  }
+
   .streaming-text {
-    animation: fadeInUp 0.1s ease-out;
+    animation: fadeInUp 0.08s ease-out;
   }
 
   .typing-cursor {
@@ -136,8 +145,8 @@
 
   @keyframes fadeInUp {
     from {
-      opacity: 0;
-      transform: translateY(2px);
+      opacity: 0.85;
+      transform: translateY(1px);
     }
     to {
       opacity: 1;
@@ -154,19 +163,18 @@
     }
   }
 
-  /* Smooth streaming effect */
   .streaming-message {
-    transition: all 0.1s ease-out;
+    transition: opacity 0.15s ease-out;
   }
 
   .streaming-message:last-child {
-    animation: slideInFromBottom 0.3s ease-out;
+    animation: slideInFromBottom 0.25s ease-out;
   }
 
   @keyframes slideInFromBottom {
     from {
       opacity: 0;
-      transform: translateY(10px);
+      transform: translateY(8px);
     }
     to {
       opacity: 1;

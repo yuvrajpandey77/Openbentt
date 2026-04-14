@@ -1,21 +1,60 @@
-import React, { createContext, useState, useContext, useEffect, useRef } from "react";
+import React, { createContext, useState, useContext, useEffect, useRef, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { Chat, Message, ApiKeyConfig } from "@/types/chat";
+import {
+  Chat,
+  Message,
+  ApiKeyConfig,
+  ComparisonResponse,
+  ResponseMetrics,
+  MessageAttachment,
+  ResearchSourceRef,
+  AgentTraceStep,
+  normalizeApiConfig,
+  defaultApiConfig,
+  dedupeModels,
+  canSendChat,
+} from "@/types/chat";
 import { useToast } from "@/components/ui/use-toast";
+import { buildChatCompletionMessages, isStreamHttpError, StreamHttpError } from "@/lib/openrouter";
+import { streamChatForConfig } from "@/lib/aiStream";
+import { createRafBatcher } from "@/lib/streamBatch";
+import { gatherResearchContext } from "@/lib/researchSources";
+import { buildSystemPrompts } from "@/lib/systemPrompts";
+import { substituteInlineCalc } from "@/lib/mathInline";
+import type { ProviderQuotaSnapshot } from "@/lib/providerRateLimits";
 
 interface ChatContextProps {
   chats: Chat[];
   currentChatId: string | null;
   isLoading: boolean;
-  isLoadingConfig: boolean; // New loading state for config
+  isLoadingConfig: boolean;
   apiConfig: ApiKeyConfig;
+  pendingComposer: { text: string; attachments: MessageAttachment[] } | null;
+  clearPendingComposer: () => void;
   createNewChat: () => string;
   selectChat: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
   clearChats: () => void;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (
+    content: string,
+    attachments?: MessageAttachment[],
+    options?: { workspaceAssistBlock?: string }
+  ) => Promise<void>;
+  regenerateLastResponse: () => Promise<void>;
+  beginEditUserMessage: (messageId: string) => void;
   setApiConfig: (config: ApiKeyConfig) => void;
   stopStreaming: () => void;
+  /** Load text into the main chat composer (Thread). Navigating to `/chat` is recommended. */
+  queuePromptInComposer: (text: string) => void;
+  /** Prompt tokens reported by the streaming API for the in-flight request (if any). */
+  streamingPromptTokens: number | null;
+  /** Rate-limit headers from the last completed chat response (current provider). */
+  providerQuotaSnapshot: ProviderQuotaSnapshot | null;
+  /**
+   * AppLayout sets this from the current route’s workspace meta so send/regenerate share the same
+   * “current workspace” system block without threading pathname through every caller.
+   */
+  setWorkspaceRouteAssist: (block: string | undefined) => void;
 }
 
 const ChatContext = createContext<ChatContextProps | undefined>(undefined);
@@ -26,24 +65,51 @@ const LOCAL_STORAGE_KEYS = {
   API_CONFIG: "cogerphere-api-config",
 };
 
-export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+function mergePdfIntoContent(text: string, attachments: MessageAttachment[]): string {
+  let t = text.trim();
+  for (const a of attachments) {
+    if (a.kind === "pdf") {
+      t += `\n\n--- PDF: ${a.name} ---\n${a.extractedText}`;
+    }
+  }
+  return t.trim();
+}
+
+interface PipelineExtras {
+  systemPrompts: string[];
+  researchSources?: ResearchSourceRef[];
+  agentTrace?: AgentTraceStep[];
+}
+
+export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [apiConfig, setApiConfigState] = useState<ApiKeyConfig>({
-    apiKey: "",
-    model: "mistralai/mistral-small-3.2-24b-instruct:free",
-  });
+  const [apiConfig, setApiConfigState] = useState<ApiKeyConfig>(defaultApiConfig);
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingConfig, setIsLoadingConfig] = useState(true); // New loading state for config
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+  const [pendingComposer, setPendingComposer] = useState<{
+    text: string;
+    attachments: MessageAttachment[];
+  } | null>(null);
+  const [streamingPromptTokens, setStreamingPromptTokens] = useState<number | null>(null);
+  const [providerQuotaSnapshot, setProviderQuotaSnapshot] = useState<ProviderQuotaSnapshot | null>(null);
   const { toast } = useToast();
 
-  // Add ref for AbortController to stop streaming
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const abortControllersRef = useRef<AbortController[]>([]);
+  /** Latest workspace assist from route (Notebook, Labs, …); merged into send + regenerate pipelines. */
+  const workspaceRouteAssistRef = useRef<string | undefined>(undefined);
+  const chatsRef = useRef(chats);
+  chatsRef.current = chats;
+
+  const setWorkspaceRouteAssist = useCallback((block: string | undefined) => {
+    workspaceRouteAssistRef.current = block;
+  }, []);
 
   useEffect(() => {
-    // Load data from localStorage
+    setProviderQuotaSnapshot(null);
+  }, [apiConfig.aiProvider]);
+
+  useEffect(() => {
     const savedChats = localStorage.getItem(LOCAL_STORAGE_KEYS.CHATS);
     const savedCurrentChatId = localStorage.getItem(LOCAL_STORAGE_KEYS.CURRENT_CHAT_ID);
     const savedApiConfig = localStorage.getItem(LOCAL_STORAGE_KEYS.API_CONFIG);
@@ -51,12 +117,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
     if (savedChats) {
       try {
         const parsedChats = JSON.parse(savedChats);
-        // Convert string dates back to Date objects
-        const processedChats = parsedChats.map((chat: any) => ({
+        const processedChats = parsedChats.map((chat: Chat & { messages: Message[] }) => ({
           ...chat,
           createdAt: new Date(chat.createdAt),
           updatedAt: new Date(chat.updatedAt),
-          messages: chat.messages.map((msg: any) => ({
+          messages: chat.messages.map((msg: Message) => ({
             ...msg,
             timestamp: new Date(msg.timestamp),
           })),
@@ -78,36 +143,19 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
 
     if (savedApiConfig) {
       try {
-        const config = JSON.parse(savedApiConfig);
-        // Preserve API key but force Mistral as model
-        const updatedConfig = {
-          apiKey: config.apiKey || "",
-          model: "mistralai/mistral-small-3.2-24b-instruct:free"
-        };
-        setApiConfigState(updatedConfig);
-        // Save the updated config back to localStorage
-        localStorage.setItem(LOCAL_STORAGE_KEYS.API_CONFIG, JSON.stringify(updatedConfig));
+        const config = JSON.parse(savedApiConfig) as Partial<ApiKeyConfig>;
+        setApiConfigState(normalizeApiConfig(config));
       } catch (error) {
         console.error("Failed to parse saved API config:", error);
-        // Set default model if parsing fails
-        setApiConfigState({
-          apiKey: "",
-          model: "mistralai/mistral-small-3.2-24b-instruct:free",
-        });
+        setApiConfigState(defaultApiConfig());
       }
     } else {
-      // Set default model if no config exists
-      setApiConfigState({
-        apiKey: "",
-        model: "mistralai/mistral-small-3.2-24b-instruct:free",
-      });
+      setApiConfigState(defaultApiConfig());
     }
 
-    // Set loading to false after all config is loaded
     setIsLoadingConfig(false);
   }, [toast]);
 
-  // Save chats and currentChatId to localStorage when they change
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEYS.CHATS, JSON.stringify(chats));
   }, [chats]);
@@ -118,20 +166,30 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [currentChatId]);
 
-  // Save API config to localStorage when it changes
   useEffect(() => {
     if (!isLoadingConfig) {
       localStorage.setItem(LOCAL_STORAGE_KEYS.API_CONFIG, JSON.stringify(apiConfig));
     }
   }, [apiConfig, isLoadingConfig]);
 
+  const clearPendingComposer = useCallback(() => setPendingComposer(null), []);
+
+  const queuePromptInComposer = useCallback(
+    (text: string) => {
+      setPendingComposer({ text, attachments: [] });
+      toast({
+        title: "Composer updated",
+        description: "Open Home chat to review and send, or continue editing there.",
+      });
+    },
+    [toast]
+  );
+
   const setApiConfig = (config: ApiKeyConfig) => {
-    setApiConfigState(config);
-    // Save to localStorage
-    localStorage.setItem(LOCAL_STORAGE_KEYS.API_CONFIG, JSON.stringify(config));
+    setApiConfigState(normalizeApiConfig(config));
     toast({
-      title: "API Key Updated",
-      description: "Your API configuration has been updated",
+      title: "Configuration updated",
+      description: "Your API settings have been saved locally.",
     });
   };
 
@@ -147,7 +205,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
 
     setChats((prevChats) => [...prevChats, newChat]);
     setCurrentChatId(newChat.id);
-    
+
     return newChat.id;
   };
 
@@ -157,12 +215,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const deleteChat = (chatId: string) => {
     setChats((prevChats) => prevChats.filter((chat) => chat.id !== chatId));
-    
+
     if (currentChatId === chatId) {
-      const remainingChats = chats.filter((chat) => chat.id !== chatId);
+      const remainingChats = chatsRef.current.filter((chat) => chat.id !== chatId);
       setCurrentChatId(remainingChats.length > 0 ? remainingChats[0].id : null);
     }
-    
+
     toast({
       title: "Chat Deleted",
       description: "The chat has been deleted",
@@ -172,90 +230,313 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   const clearChats = () => {
     setChats([]);
     setCurrentChatId(null);
-    localStorage.removeItem("chats");
-    localStorage.removeItem("currentChatId");
+    localStorage.removeItem(LOCAL_STORAGE_KEYS.CHATS);
+    localStorage.removeItem(LOCAL_STORAGE_KEYS.CURRENT_CHAT_ID);
   };
 
-  const updateChatTitle = (chatId: string, messages: Message[]) => {
-    if (messages.length === 0) return;
-
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage.role === "user") {
-      const title = lastMessage.content.slice(0, 50) + (lastMessage.content.length > 50 ? "..." : "");
-      setChats((prevChats) =>
-        prevChats.map((chat) =>
-          chat.id === chatId ? { ...chat, title } : chat
-        )
-      );
-    }
+  const updateChatTitleFromMessages = (chatId: string, messages: Message[]) => {
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    if (!lastUser) return;
+    const base = lastUser.content.trim() || (lastUser.attachments?.length ? "(attachment)" : "");
+    const title = base.slice(0, 50) + (base.length > 50 ? "..." : "");
+    setChats((prevChats) =>
+      prevChats.map((chat) => (chat.id === chatId ? { ...chat, title } : chat))
+    );
   };
 
   const stopStreaming = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
+    abortControllersRef.current.forEach((c) => c.abort());
+    abortControllersRef.current = [];
     setIsLoading(false);
   };
 
-  const sendMessage = async (content: string) => {
-    if (!content.trim()) return;
-    if (!apiConfig.apiKey) {
+  const buildPipelineExtras = async (
+    msgs: Message[],
+    cfg: ApiKeyConfig,
+    pipelineOpts?: { workspaceAssistBlock?: string }
+  ): Promise<PipelineExtras> => {
+    const ws = pipelineOpts?.workspaceAssistBlock;
+    if (!cfg.researchEnabled) {
+      return {
+        systemPrompts: buildSystemPrompts(cfg, { includeChartHint: false, workspaceAssistBlock: ws }),
+      };
+    }
+    const lastUser = [...msgs].reverse().find((m) => m.role === "user");
+    const q = lastUser?.content ?? "";
+    try {
+      const g = await gatherResearchContext(q, cfg);
+      if (g.warnings.length) {
+        const desc = g.warnings.slice(0, 4).join(" ");
+        toast({
+          title: g.contextBlock.trim() ? "Research: some sources skipped" : "Research: limited context",
+          description: desc.length > 280 ? `${desc.slice(0, 277)}…` : desc,
+          variant: g.contextBlock.trim() ? "default" : "destructive",
+        });
+      }
+      return {
+        systemPrompts: buildSystemPrompts(cfg, {
+          researchContextBlock: g.contextBlock,
+          includeChartHint: true,
+          workspaceAssistBlock: ws,
+        }),
+        researchSources: g.sources.length ? g.sources : undefined,
+        agentTrace: g.agentTrace.length ? g.agentTrace : undefined,
+      };
+    } catch (e) {
+      console.error(e);
       toast({
-        title: "API Key Required",
-        description: "Please set your API key in settings",
+        title: "Research pipeline error",
+        description: e instanceof Error ? e.message : "Could not load web context",
+        variant: "destructive",
+      });
+      return {
+        systemPrompts: buildSystemPrompts(cfg, { includeChartHint: false, workspaceAssistBlock: ws }),
+      };
+    }
+  };
+
+  const beginEditUserMessage = (messageId: string) => {
+    if (!currentChatId) return;
+    const chat = chatsRef.current.find((c) => c.id === currentChatId);
+    if (!chat) return;
+    const idx = chat.messages.findIndex((m) => m.id === messageId);
+    if (idx < 0) return;
+    const msg = chat.messages[idx];
+    if (msg.role !== "user") return;
+
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== currentChatId) return c;
+        return {
+          ...c,
+          messages: c.messages.slice(0, idx),
+          updatedAt: new Date(),
+        };
+      })
+    );
+
+    setPendingComposer({
+      text: msg.content,
+      attachments: msg.attachments ? [...msg.attachments] : [],
+    });
+  };
+
+  const regenerateLastResponse = async () => {
+    if (!canSendChat(apiConfig) || isLoading || !currentChatId) return;
+    const chat = chatsRef.current.find((c) => c.id === currentChatId);
+    if (!chat?.messages.length) return;
+    const msgs = [...chat.messages];
+    const last = msgs[msgs.length - 1];
+    if (last.role !== "assistant") {
+      toast({
+        title: "Nothing to retry",
+        description: "The last message is not an assistant reply.",
+        variant: "destructive",
+      });
+      return;
+    }
+    msgs.pop();
+    const u = msgs[msgs.length - 1];
+    if (!u || u.role !== "user") {
+      toast({
+        title: "Cannot retry",
+        description: "No user message found before the assistant reply.",
         variant: "destructive",
       });
       return;
     }
 
-    let activeChatId = currentChatId;
-    
-    // If no chat is selected, create a new one
-    if (!activeChatId) {
-      activeChatId = createNewChat();
-    }
-
-    const userMessage: Message = {
-      id: uuidv4(),
-      role: "user",
-      content,
-      timestamp: new Date(),
-    };
-
-    // Add user message to chat
-    setChats((prevChats) =>
-      prevChats.map((chat) => {
-        if (chat.id === activeChatId) {
-          return {
-            ...chat,
-            messages: [...chat.messages, userMessage],
-            updatedAt: new Date(),
-          };
-        }
-        return chat;
-      })
+    setChats((prev) =>
+      prev.map((c) =>
+        c.id === currentChatId ? { ...c, messages: msgs, updatedAt: new Date() } : c
+      )
     );
 
-    // Get all messages for context
-    const currentChat = chats.find((chat) => chat.id === activeChatId);
-    const chatMessages = currentChat ? [...currentChat.messages, userMessage] : [userMessage];
-    
+    const extras = await buildPipelineExtras(msgs, apiConfig, {
+      workspaceAssistBlock: workspaceRouteAssistRef.current,
+    });
+    await runAssistantPipeline(currentChatId, msgs, apiConfig, extras);
+  };
+
+  const runAssistantPipeline = async (
+    activeChatId: string,
+    chatMessages: Message[],
+    cfg: ApiKeyConfig,
+    extras: PipelineExtras
+  ) => {
+    const comparisonIds = dedupeModels(cfg.comparisonModelIds).slice(0, 4);
+    const useTiling =
+      cfg.comparisonEnabled && comparisonIds.length >= 2 && comparisonIds.every((id) => id.length > 0);
+    const targetModels = useTiling ? comparisonIds : [cfg.model];
+
+    const apiMessages = buildChatCompletionMessages(extras.systemPrompts, chatMessages);
+
     setIsLoading(true);
+    setStreamingPromptTokens(null);
+    abortControllersRef.current = [];
 
-    // Create a new AbortController for this request
-    abortControllerRef.current = new AbortController();
+    if (!useTiling) {
+      const controller = new AbortController();
+      abortControllersRef.current = [controller];
 
-    // Create a placeholder assistant message for streaming
+      const assistantMessageId = uuidv4();
+      const assistantMessage: Message = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: "",
+        timestamp: new Date(),
+      };
+
+      setChats((prevChats) =>
+        prevChats.map((chat) => {
+          if (chat.id === activeChatId) {
+            return {
+              ...chat,
+              messages: [...chat.messages, assistantMessage],
+              updatedAt: new Date(),
+            };
+          }
+          return chat;
+        })
+      );
+
+      const batcher = createRafBatcher((chunk) => {
+        setChats((prevChats) =>
+          prevChats.map((chat) => {
+            if (chat.id !== activeChatId) return chat;
+            return {
+              ...chat,
+              messages: chat.messages.map((msg) =>
+                msg.id === assistantMessageId ? { ...msg, content: msg.content + chunk } : msg
+              ),
+              updatedAt: new Date(),
+            };
+          })
+        );
+      });
+
+      try {
+        const { text, metrics, rateLimitHeaders } = await streamChatForConfig(
+          cfg,
+          cfg.model,
+          apiMessages,
+          controller.signal,
+          {
+            onDelta: (delta) => batcher.push(delta),
+            onUsage: (u) => {
+              if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
+            },
+          }
+        );
+        batcher.flushPending();
+        setProviderQuotaSnapshot({
+          provider: cfg.aiProvider,
+          rateLimitHeaders,
+          updatedAt: Date.now(),
+          limitMessage: undefined,
+          httpStatus: undefined,
+        });
+
+        const finalMetrics: ResponseMetrics = {
+          ttftMs: metrics.ttftMs,
+          totalMs: metrics.totalMs,
+          promptTokens: metrics.promptTokens,
+          completionTokens: metrics.completionTokens,
+          totalTokens: metrics.totalTokens,
+        };
+
+        setChats((prevChats) =>
+          prevChats.map((chat) => {
+            if (chat.id !== activeChatId) return chat;
+            return {
+              ...chat,
+              messages: chat.messages.map((msg) =>
+                msg.id === assistantMessageId
+                  ? {
+                      ...msg,
+                      content: text,
+                      metrics: finalMetrics,
+                      researchSources: extras.researchSources,
+                      agentTrace: extras.agentTrace,
+                    }
+                  : msg
+              ),
+              updatedAt: new Date(),
+            };
+          })
+        );
+
+        updateChatTitleFromMessages(activeChatId, [
+          ...chatMessages,
+          { ...assistantMessage, content: text, metrics: finalMetrics },
+        ]);
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          batcher.flushPending();
+          setChats((prevChats) =>
+            prevChats.map((chat) => {
+              if (chat.id !== activeChatId) return chat;
+              return {
+                ...chat,
+                messages: chat.messages.filter((msg) => msg.id !== assistantMessageId),
+                updatedAt: new Date(),
+              };
+            })
+          );
+          return;
+        }
+        console.error("Error sending message:", error);
+        if (isStreamHttpError(error)) {
+          setProviderQuotaSnapshot({
+            provider: cfg.aiProvider,
+            rateLimitHeaders: error.rateLimitHeaders,
+            updatedAt: Date.now(),
+            limitMessage: error.message,
+            httpStatus: error.status,
+          });
+        }
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to send message",
+          variant: "destructive",
+        });
+        batcher.flushPending();
+        setChats((prevChats) =>
+          prevChats.map((chat) => {
+            if (chat.id !== activeChatId) return chat;
+            return {
+              ...chat,
+              messages: chat.messages.filter((msg) => msg.id !== assistantMessageId),
+              updatedAt: new Date(),
+            };
+          })
+        );
+      } finally {
+        setStreamingPromptTokens(null);
+        setIsLoading(false);
+        abortControllersRef.current = [];
+      }
+      return;
+    }
+
+    const comparisonResponses: ComparisonResponse[] = targetModels.map((model) => ({
+      id: uuidv4(),
+      model,
+      content: "",
+      streaming: true,
+    }));
+
     const assistantMessageId = uuidv4();
     const assistantMessage: Message = {
       id: assistantMessageId,
       role: "assistant",
       content: "",
       timestamp: new Date(),
+      comparisonResponses: comparisonResponses.map((c) => ({ ...c })),
+      researchSources: extras.researchSources,
+      agentTrace: extras.agentTrace,
     };
 
-    // Add empty assistant message to chat for streaming
     setChats((prevChats) =>
       prevChats.map((chat) => {
         if (chat.id === activeChatId) {
@@ -269,141 +550,199 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
       })
     );
 
-    try {
-      // Using OpenRouter API for free models with streaming
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiConfig.apiKey}`,
-          "HTTP-Referer": window.location.origin,
-          "X-Title": "Cogerphere"
-        },
-        body: JSON.stringify({
-          model: apiConfig.model,
-          messages: chatMessages.map((msg) => ({
-            role: msg.role,
-            content: msg.content,
-          })),
-          temperature: 0.7,
-          stream: true, // Enable streaming
-        }),
-        signal: abortControllerRef.current.signal, // Add abort signal
-      });
+    const controllers = targetModels.map(() => {
+      const c = new AbortController();
+      abortControllersRef.current.push(c);
+      return c;
+    });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || "Failed to get response from API");
-      }
+    const batchers = new Map<string, ReturnType<typeof createRafBatcher>>();
 
-      // Handle streaming response
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedContent = "";
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) break;
-          
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              
-              if (data === '[DONE]') {
-                break;
-              }
-              
-              try {
-                const parsed = JSON.parse(data);
-                const delta = parsed.choices[0]?.delta?.content;
-                
-                if (delta) {
-                  accumulatedContent += delta;
-                  
-                  // Update the assistant message with accumulated content
-                  setChats((prevChats) =>
-                    prevChats.map((chat) => {
-                      if (chat.id === activeChatId) {
-                        return {
-                          ...chat,
-                          messages: chat.messages.map((msg) =>
-                            msg.id === assistantMessageId
-                              ? { ...msg, content: accumulatedContent }
-                              : msg
-                          ),
-                          updatedAt: new Date(),
-                        };
-                      }
-                      return chat;
-                    })
-                  );
-                }
-              } catch (e) {
-                // Skip malformed JSON chunks
-                continue;
-              }
-            }
-          }
-        }
-        
-        reader.releaseLock();
-      }
-
-      // Update chat title if needed
-      if (activeChatId) {
-        const updatedChat = chats.find((c) => c.id === activeChatId);
-        if (updatedChat) {
-          updateChatTitle(activeChatId, [...updatedChat.messages, { ...assistantMessage, content: accumulatedContent }]);
-        }
-      }
-    } catch (error) {
-      // Check if it's an abort error
-      if (error instanceof Error && error.name === 'AbortError') {
-        // Remove the assistant message if aborted
-        setChats((prevChats) =>
-          prevChats.map((chat) => {
-            if (chat.id === activeChatId) {
-              return {
-                ...chat,
-                messages: chat.messages.filter(msg => msg.id !== assistantMessageId),
-                updatedAt: new Date(),
-              };
-            }
-            return chat;
-          })
-        );
-        return;
-      }
-
-      console.error("Error sending message:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to send message",
-        variant: "destructive",
-      });
-
-      // Remove the assistant message if there was an error
+    const updateComparisonPart = (
+      modelId: string,
+      updater: (prev: ComparisonResponse) => ComparisonResponse
+    ) => {
       setChats((prevChats) =>
         prevChats.map((chat) => {
-          if (chat.id === activeChatId) {
-            return {
-              ...chat,
-              messages: chat.messages.filter(msg => msg.id !== assistantMessageId),
-              updatedAt: new Date(),
-            };
-          }
-          return chat;
+          if (chat.id !== activeChatId) return chat;
+          return {
+            ...chat,
+            messages: chat.messages.map((msg) => {
+              if (msg.id !== assistantMessageId || !msg.comparisonResponses) return msg;
+              return {
+                ...msg,
+                comparisonResponses: msg.comparisonResponses.map((part) =>
+                  part.model === modelId ? updater(part) : part
+                ),
+              };
+            }),
+            updatedAt: new Date(),
+          };
         })
       );
+    };
+
+    try {
+      const rateLimitSlices: Record<string, string>[] = [];
+      const streamHttpErrors: StreamHttpError[] = [];
+
+      await Promise.all(
+        targetModels.map(async (model, idx) => {
+          const signal = controllers[idx]!.signal;
+          let batcher = batchers.get(model);
+          if (!batcher) {
+            batcher = createRafBatcher((chunk) => {
+              updateComparisonPart(model, (part) => ({
+                ...part,
+                content: part.content + chunk,
+                streaming: true,
+              }));
+            });
+            batchers.set(model, batcher);
+          }
+          const b = batcher;
+          try {
+            const { text, metrics, rateLimitHeaders } = await streamChatForConfig(cfg, model, apiMessages, signal, {
+              onDelta: (delta) => b.push(delta),
+              onUsage: (u) => {
+                if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
+              },
+            });
+            b.flushPending();
+            if (Object.keys(rateLimitHeaders).length > 0) {
+              rateLimitSlices.push(rateLimitHeaders);
+            }
+            const finalMetrics: ResponseMetrics = {
+              ttftMs: metrics.ttftMs,
+              totalMs: metrics.totalMs,
+              promptTokens: metrics.promptTokens,
+              completionTokens: metrics.completionTokens,
+              totalTokens: metrics.totalTokens,
+            };
+            updateComparisonPart(model, () => ({
+              id: comparisonResponses.find((c) => c.model === model)!.id,
+              model,
+              content: text,
+              metrics: finalMetrics,
+              streaming: false,
+            }));
+          } catch (e) {
+            b.flushPending();
+            if (e instanceof Error && e.name === "AbortError") {
+              updateComparisonPart(model, (part) => ({ ...part, streaming: false }));
+              return;
+            }
+            if (isStreamHttpError(e)) {
+              streamHttpErrors.push(e);
+            }
+            const msg = e instanceof Error ? e.message : "Request failed";
+            updateComparisonPart(model, (part) => ({
+              ...part,
+              error: msg,
+              streaming: false,
+            }));
+          }
+        })
+      );
+
+      const mergedRateHeaders = rateLimitSlices.reduce<Record<string, string>>((acc, h) => ({ ...acc, ...h }), {});
+      if (streamHttpErrors.length > 0) {
+        const e = streamHttpErrors[0]!;
+        setProviderQuotaSnapshot({
+          provider: cfg.aiProvider,
+          rateLimitHeaders: { ...mergedRateHeaders, ...e.rateLimitHeaders },
+          updatedAt: Date.now(),
+          limitMessage: e.message,
+          httpStatus: e.status,
+        });
+      } else {
+        setProviderQuotaSnapshot({
+          provider: cfg.aiProvider,
+          rateLimitHeaders: mergedRateHeaders,
+          updatedAt: Date.now(),
+          limitMessage: undefined,
+          httpStatus: undefined,
+        });
+      }
+
+      setChats((prev) =>
+        prev.map((chat) => {
+          if (chat.id !== activeChatId) return chat;
+          return {
+            ...chat,
+            messages: chat.messages.map((m) =>
+              m.id === assistantMessageId && m.comparisonResponses
+                ? {
+                    ...m,
+                    comparisonResponses: m.comparisonResponses.map((p) => ({ ...p, streaming: false })),
+                  }
+                : m
+            ),
+            updatedAt: new Date(),
+          };
+        })
+      );
+      updateChatTitleFromMessages(activeChatId, chatMessages);
     } finally {
+      setStreamingPromptTokens(null);
       setIsLoading(false);
-      abortControllerRef.current = null;
+      abortControllersRef.current = [];
     }
+  };
+
+  const sendMessage = async (
+    content: string,
+    attachments: MessageAttachment[] = [],
+    options?: { workspaceAssistBlock?: string }
+  ) => {
+    const trimmed = content.trim();
+    if (!trimmed && attachments.length === 0) return;
+    if (!canSendChat(apiConfig)) {
+      toast({
+        title: "API key or local server required",
+        description: "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in settings.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    let activeChatId = currentChatId;
+
+    if (!activeChatId) {
+      activeChatId = createNewChat();
+    }
+
+    const mergedPdf = mergePdfIntoContent(trimmed, attachments);
+    const body = substituteInlineCalc(mergedPdf) || (attachments.length ? " " : "");
+
+    const userMessage: Message = {
+      id: uuidv4(),
+      role: "user",
+      content: body,
+      timestamp: new Date(),
+      attachments: attachments.length ? attachments : undefined,
+    };
+
+    const prior = chatsRef.current.find((c) => c.id === activeChatId);
+    const chatMessages = prior ? [...prior.messages, userMessage] : [userMessage];
+
+    setChats((prevChats) =>
+      prevChats.map((chat) => {
+        if (chat.id === activeChatId) {
+          return {
+            ...chat,
+            messages: [...chat.messages, userMessage],
+            updatedAt: new Date(),
+          };
+        }
+        return chat;
+      })
+    );
+
+    const extras = await buildPipelineExtras(chatMessages, apiConfig, {
+      workspaceAssistBlock: options?.workspaceAssistBlock ?? workspaceRouteAssistRef.current,
+    });
+    await runAssistantPipeline(activeChatId, chatMessages, apiConfig, extras);
   };
 
   const value: ChatContextProps = {
@@ -412,20 +751,24 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
     isLoading,
     isLoadingConfig,
     apiConfig,
+    pendingComposer,
+    clearPendingComposer,
     createNewChat,
     selectChat,
     deleteChat,
     clearChats,
     sendMessage,
+    regenerateLastResponse,
+    beginEditUserMessage,
     setApiConfig,
     stopStreaming,
+    queuePromptInComposer,
+    streamingPromptTokens,
+    providerQuotaSnapshot,
+    setWorkspaceRouteAssist,
   };
 
-  return (
-    <ChatContext.Provider value={value}>
-      {children}
-    </ChatContext.Provider>
-  );
+  return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 };
 
 export const useChat = () => {

@@ -146,9 +146,13 @@ export default {
 				'bounce-light': 'bounce-light 2s infinite'
 			},
 			fontFamily: {
-				'cogerphere': ['"Exo 2"', 'sans-serif'],
+				/* Primary UI: clean, readable (aligned with cogerphere.com marketing feel) */
+				sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+				cogerphere: ['"Plus Jakarta Sans"', '"Exo 2"', 'system-ui', 'sans-serif'],
+				display: ['"Exo 2"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+				mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
 			}
 		}
 	},
-	plugins: [require("tailwindcss-animate")],
+	plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
 } satisfies Config;

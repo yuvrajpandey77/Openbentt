@@ -1,57 +1,77 @@
-# Cogerphere AI - Project Info
+# Cogerphere
 
-## How can I edit this code?
+A **local-first** React chat app for **OpenRouter**: pick free (and custom) models, stream replies, compare **2–4 models** side by side with **latency and token metrics**. Your **API key stays in the browser** (localStorage).
 
-There are several ways of editing your Cogerphere AI application.
+## What this project offers
 
-### Use Your Preferred IDE
+| Capability | Description |
+|------------|-------------|
+| **OpenRouter chat** | Uses `https://openrouter.ai/api/v1/chat/completions` with streaming. |
+| **Model directory** | Loads models from OpenRouter’s API; highlights **free-tier** models (`:free` / $0-style pricing). |
+| **Custom model IDs** | Add any OpenRouter model id (including paid) in Settings. |
+| **Tiled comparison** | One user message → parallel requests to multiple models → **grid of answers** with per-model **TTFT**, **total ms**, **tokens** (when the API returns usage). |
+| **Chats** | Multiple conversations, titles from the first user message, persist locally. |
+| **Specs** | **Specs** button next to the model opens pricing, context, modalities, and link to OpenRouter. |
+| **Attachments** | Images, audio, and video (first-frame preview) → multimodal `messages` for OpenRouter. |
+| **Charts** | Assistant can output fenced ` ```cogerphere-chart` JSON → **Recharts** bar/line/area in the thread. |
+| **Retry / Edit** | **Retry** on the last assistant reply; **Edit** (pencil on user bubble) reloads the composer. |
+| **Theme** | **Light (research lab)** default; refined **slate + teal** dark mode in Settings. |
+| **Analytics** | Vercel Analytics (if deployed on Vercel). |
 
-If you want to work locally using your own IDE, you can clone this repo and push changes.
+### What’s new (vs. a basic OpenRouter chat)
 
-The only requirement is having Node.js & npm installed - install with nvm
+- Dynamic **model list** instead of only a hardcoded dropdown (plus **custom IDs**).
+- **Multi-model tiling** for research and comparison.
+- **Response metrics** (time-to-first-token, total time, token counts when available).
+- **Config normalization** so saved **primary model** and **comparison set** persist correctly.
+- **Research-focused** light/dark palettes, **model spec** dialog, **attachments**, **charts**, **retry/edit**, **smoother streaming** (RAF-batched updates).
 
-Follow these steps:
+### Out of scope (by design)
+
+- **Offline / Ollama** — not routed through OpenRouter; would need another backend or base URL.
+- **Server-side matplotlib** — charts are rendered in-browser (Recharts) from JSON the model emits.
+
+## Requirements
+
+- **Node.js** 18+ and **npm**
+- An **OpenRouter API key** ([openrouter.ai/keys](https://openrouter.ai/keys)) — optional until you send a message; required for API calls.
+
+No other API keys or env vars are required for local use.
+
+## Scripts
 
 ```bash
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+npm install    # dependencies
+npm run dev    # dev server (default: http://localhost:8080)
+npm run build  # production build
+npm run test   # unit tests (Vitest)
+npm run lint   # ESLint
 ```
 
-### Edit a File Directly in GitHub
+## Automated tests
 
-Navigate to the desired file(s).
+```bash
+npm run test
+```
 
-Click the "Edit" button (pencil icon) at the top right of the file view.
+Covers **pure helpers**: `normalizeApiConfig`, `dedupeModels`, OpenRouter **free-model heuristics**, and label shortening. UI and live API calls are **manual** (see below).
 
-Make your changes and commit the changes.
+## Manual testing checklist
 
-### Use GitHub Codespaces
+1. **First run**: Open the app → enter OpenRouter key in the modal or **Settings** → **Save**.
+2. **Single model**: Disable comparison → send a message → confirm streaming and **metrics** under the reply.
+3. **Model list**: Open model dropdown → list should populate (needs valid key). Try switching models.
+4. **Custom model**: Settings → add a model id (e.g. a paid id you have access to) → Save → appears in lists.
+5. **Tiled comparison**: **Compare** (or Settings) → enable **Tiled comparison** → select **2–4** models → same prompt → **grid** of answers + per-tile metrics.
+6. **Stop**: While streaming, **Stop** → stream aborts.
+7. **Persistence**: Reload page → key, model choice, and comparison settings should remain.
+8. **Theme**: Toggle dark/light in Settings.
+9. **Chats**: New chat, switch chats, delete chat, clear all chats.
 
-Navigate to the main page of your repository.
+## Edit / deploy
 
-Click on the "Code" button (green button) near the top right.
+Same as any Vite app: edit locally, `npm run build`, deploy the `dist/` folder (e.g. Vercel).
 
-Select the "Codespaces" tab.
+## Stack
 
-Click on "New codespace" to launch a new Codespace environment.
-
-Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-Cogerphere AI is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Vite, TypeScript, React, shadcn/ui, Tailwind CSS, TanStack Query, React Markdown, Vitest.
