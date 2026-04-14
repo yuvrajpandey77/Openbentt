@@ -217,7 +217,52 @@ const Sidebar: React.FC<SidebarProps> = ({
           )}
           {WORKSPACE_NAV_ITEMS.map((item) => {
             const active =
-              location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+              !item.disabled &&
+              (location.pathname === item.to || location.pathname.startsWith(`${item.to}/`));
+            const disabledClass =
+              "cursor-not-allowed opacity-50 text-sidebar-foreground/40 select-none";
+
+            if (item.disabled) {
+              return narrow ? (
+                <Tooltip key={item.to}>
+                  <TooltipTrigger asChild>
+                    <div
+                      className={cn(
+                        "flex h-10 w-10 items-center justify-center rounded-xl",
+                        disabledClass
+                      )}
+                      aria-disabled="true"
+                    >
+                      <item.Icon className="h-[18px] w-[18px]" strokeWidth={2} />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-[200px]">
+                    <p className="font-medium text-muted-foreground">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <Tooltip key={item.to}>
+                  <TooltipTrigger asChild>
+                    <div
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm",
+                        disabledClass
+                      )}
+                      aria-disabled="true"
+                    >
+                      <item.Icon className="h-4 w-4 shrink-0 text-sidebar-foreground/35" strokeWidth={2} />
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-[200px]">
+                    <p className="font-medium text-muted-foreground">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            }
+
             return narrow ? (
               <Tooltip key={item.to}>
                 <TooltipTrigger asChild>

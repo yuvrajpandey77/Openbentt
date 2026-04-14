@@ -165,16 +165,27 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading }) => {
                 and compare replies. Your keys stay in this browser.
               </p>
               <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-                {WORKSPACE_NAV_ITEMS.map((item) => (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/35 hover:bg-primary/5"
-                  >
-                    <item.Icon className="h-3.5 w-3.5 text-primary" strokeWidth={2} />
-                    {item.label}
-                  </Link>
-                ))}
+                {WORKSPACE_NAV_ITEMS.map((item) =>
+                  item.disabled ? (
+                    <span
+                      key={item.to}
+                      className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-full border border-border/40 bg-muted/15 px-3 py-1.5 text-xs font-medium text-muted-foreground/50 opacity-70"
+                      aria-disabled="true"
+                    >
+                      <item.Icon className="h-3.5 w-3.5 text-muted-foreground/45" strokeWidth={2} />
+                      {item.label}
+                    </span>
+                  ) : (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/35 hover:bg-primary/5"
+                    >
+                      <item.Icon className="h-3.5 w-3.5 text-primary" strokeWidth={2} />
+                      {item.label}
+                    </Link>
+                  )
+                )}
               </div>
               <p className="mt-4 text-[11px] text-muted-foreground/90 md:text-xs">
                 Open <strong className="text-foreground/90">Workspace</strong> in the sidebar for these tools — your{" "}

@@ -21,7 +21,7 @@ interface PlaygroundShellProps {
   className?: string;
 }
 
-/** Shared chrome for Notebook / Labs / LaTeX / Benchmark / WebGPU — shows the same AI pipeline as Home. */
+/** Shared chrome for Notebook / Labs / Benchmark / WebGPU — shows the same AI pipeline as Home. */
 export const PlaygroundShell: React.FC<PlaygroundShellProps> = ({ tag, title, subtitle, children, className }) => {
   const { apiConfig } = useChat();
   const provider = PROVIDER_LABEL[apiConfig.aiProvider] ?? apiConfig.aiProvider;

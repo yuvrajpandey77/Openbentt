@@ -1,43 +1,42 @@
 import type { LucideIcon } from "lucide-react";
-import { BookOpen, FlaskConical, Sigma, BarChart2, Cpu } from "lucide-react";
+import { BookOpen, FlaskConical, BarChart2, Cpu } from "lucide-react";
 
 export interface WorkspaceNavItem {
   to: string;
   label: string;
   description: string;
   Icon: LucideIcon;
+  /** Shown in sidebar but not navigable (muted). LaTeX lives under Notebook — no separate route here. */
+  disabled?: boolean;
 }
 
-/** Routes shown in the sidebar under “Workspace” (same tools that were in the chat header). */
+/** Routes under “Workspace” in the sidebar. */
 export const WORKSPACE_NAV_ITEMS: WorkspaceNavItem[] = [
   {
     to: "/notebook",
     label: "Notebook",
-    description: "Scratchpad, charts, send to chat",
+    description: "PDF, LaTeX source, compile & preview",
     Icon: BookOpen,
   },
   {
     to: "/labs",
     label: "Labs",
-    description: "Research experiments & prompts",
+    description: "Research experiments (coming later)",
     Icon: FlaskConical,
-  },
-  {
-    to: "/write",
-    label: "LaTeX",
-    description: "Math preview & export",
-    Icon: Sigma,
+    disabled: true,
   },
   {
     to: "/benchmark",
     label: "Benchmark",
-    description: "Latency & token runs",
+    description: "Latency runs (coming later)",
     Icon: BarChart2,
+    disabled: true,
   },
   {
     to: "/webgpu",
     label: "WebGPU",
-    description: "Browser GPU capability check",
+    description: "Browser GPU probe (coming later)",
     Icon: Cpu,
+    disabled: true,
   },
 ];

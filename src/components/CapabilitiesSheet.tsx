@@ -61,7 +61,7 @@ export const CapabilitiesSheet: React.FC = () => {
               </p>
             </section>
             <section>
-              <h3 className="mb-1 font-medium text-foreground">Notebook, Labs, LaTeX, Benchmark, WebGPU</h3>
+              <h3 className="mb-1 font-medium text-foreground">Notebook (PDF &amp; LaTeX), Labs, Benchmark, WebGPU</h3>
               <p>
                 These are <strong className="text-foreground">playgrounds</strong> that share your{" "}
                 <strong className="text-foreground">Home → Settings</strong> provider and{" "}
