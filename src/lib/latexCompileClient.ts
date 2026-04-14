@@ -1,23 +1,17 @@
 /**
- * Full LaTeX → PDF via optional HTTP service (local dev server or deployed compile URL).
- * Browser cannot run pdflatex; set VITE_LATEX_COMPILE_URL or use Vite dev proxy + `npm run latex-compile`.
+ * Full LaTeX → PDF via HTTP: same-origin `/api/latex-compile` (Vite proxy in dev, Vercel Edge proxy in prod),
+ * or override with VITE_LATEX_COMPILE_URL (any HTTPS compile URL).
  */
-export function getLatexCompileEndpoint(): string | null {
+export function getLatexCompileEndpoint(): string {
   const env = import.meta.env.VITE_LATEX_COMPILE_URL as string | undefined;
   if (env != null && String(env).trim() !== "") {
     return String(env).trim().replace(/\/$/, "");
   }
-  if (import.meta.env.DEV) return "/api/latex-compile";
-  return null;
+  return "/api/latex-compile";
 }
 
 export async function compileLatexToPdfBlob(tex: string): Promise<Blob> {
   const endpoint = getLatexCompileEndpoint();
-  if (!endpoint) {
-    throw new Error(
-      "LaTeX compile is not configured for this build. Set VITE_LATEX_COMPILE_URL to your HTTPS compile endpoint, or run the dev app with `npm run latex-compile` in another terminal (TeX Live / MacTeX must provide `pdflatex`)."
-    );
-  }
   const res = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "text/plain; charset=utf-8" },

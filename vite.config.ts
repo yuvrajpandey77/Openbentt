@@ -17,6 +17,15 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
+  preview: {
+    proxy: {
+      "/api/latex-compile": {
+        target: "http://127.0.0.1:8788",
+        changeOrigin: true,
+        rewrite: () => "/compile",
+      },
+    },
+  },
   plugins: [
     react(),
     mode === 'development' &&

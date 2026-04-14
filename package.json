@@ -12,7 +12,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "research-proxy": "node server/research-proxy.mjs",
-    "latex-compile": "node server/latex-compile.mjs"
+    "latex-compile": "node server/latex-compile.mjs",
+    "docker:build": "docker build -t cogerphere .",
+    "docker:up": "docker compose up --build"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

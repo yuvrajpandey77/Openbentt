@@ -1,0 +1,50 @@
+# Dependencies & build output
+node_modules
+dist
+.pnpm-store
+
+# Git & IDE
+.git
+.gitignore
+.cursor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Logs & caches
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.cache
+.turbo
+*.tsbuildinfo
+coverage
+.nyc_output
+
+# Env (inject at runtime / build args instead)
+.env
+.env.*
+!.env.example
+
+# Tests & tooling
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+vitest.config.*
+eslint.config.*
+.prettierrc*
+
+# Docs & misc (keep image smaller)
+*.md
+terminals
+agent-transcripts
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vercel / deploy metadata (not needed inside image)
+.vercel

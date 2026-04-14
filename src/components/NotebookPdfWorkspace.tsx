@@ -10,7 +10,6 @@ import { buildAssistantPlainText } from "@/lib/assistantPlainText";
 import { extractNotebookSourceFromPdf } from "@/lib/pdfText";
 import { renderPdfPages } from "@/lib/pdfCanvasRender";
 import { compileNotebookSourceToPdf } from "@/lib/compileNotebook";
-import { getLatexCompileEndpoint } from "@/lib/latexCompileClient";
 import { isLatexDocumentSource } from "@/lib/notebookSourceKind";
 import { NOTEBOOK_LATEX_BOOK_TEMPLATE } from "@/lib/notebookLatexTemplate";
 import { extractTexFromAssistantReply } from "@/lib/extractTexFromAssistantReply";
@@ -62,7 +61,6 @@ const NotebookPdfWorkspace: React.FC = () => {
   const texRef = useRef<HTMLInputElement>(null);
 
   const isLatexSource = useMemo(() => isLatexDocumentSource(sourceText), [sourceText]);
-  const latexCompileConfigured = getLatexCompileEndpoint() != null;
 
   const previewBuffer = useMemo(() => {
     if (!originalBytes && compiledBytes) return compiledBytes;
@@ -100,11 +98,7 @@ const NotebookPdfWorkspace: React.FC = () => {
     [lastAssistantPlain]
   );
 
-  const canUseReplyPreview = useMemo(() => {
-    if (!lastReplyExtracted.trim()) return false;
-    if (isLatexDocumentSource(lastReplyExtracted) && !latexCompileConfigured) return false;
-    return true;
-  }, [lastReplyExtracted, latexCompileConfigured]);
+  const canUseReplyPreview = useMemo(() => lastReplyExtracted.trim().length > 0, [lastReplyExtracted]);
 
   const diffRows = useMemo(() => {
     if (proposedText == null) return [];
@@ -256,14 +250,6 @@ const NotebookPdfWorkspace: React.FC = () => {
       toast({ title: "Nothing to apply", description: "The last reply was empty after extracting TeX.", variant: "destructive" });
       return;
     }
-    if (isLatexDocumentSource(next) && !latexCompileConfigured) {
-      toast({
-        title: "LaTeX compile not available",
-        description: "Run npm run latex-compile (dev) or set VITE_LATEX_COMPILE_URL.",
-        variant: "destructive",
-      });
-      return;
-    }
     setProposedText(null);
     setSourceText(next);
     setBusy(true);
@@ -374,12 +360,7 @@ const NotebookPdfWorkspace: React.FC = () => {
             type="button"
             size="sm"
             variant="outline"
-            disabled={busy || !sourceText.trim() || (isLatexSource && !latexCompileConfigured)}
-            title={
-              isLatexSource && !latexCompileConfigured
-                ? "LaTeX needs a compile service: run npm run latex-compile (dev) or set VITE_LATEX_COMPILE_URL"
-                : undefined
-            }
+            disabled={busy || !sourceText.trim()}
             onClick={() => void compilePdf()}
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
@@ -532,18 +513,14 @@ const NotebookPdfWorkspace: React.FC = () => {
             </p>
             {isLatexSource ? (
               <p className="text-[11px] leading-snug text-muted-foreground">
-                <strong className="text-foreground">LaTeX mode:</strong> Compile calls <strong className="font-medium">pdflatex</strong> (real PDF with chapters, lists, TOC). In development run{" "}
-                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">npm run latex-compile</code> and keep TeX Live on <code className="font-mono text-[10px]">PATH</code>. Production: set{" "}
-                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">VITE_LATEX_COMPILE_URL</code> to your compile endpoint.
+                <strong className="text-foreground">LaTeX mode:</strong> Compile POSTs to <code className="font-mono text-[10px]">/api/latex-compile</code>. Locally run{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">npm run latex-compile</code> (TeX Live on <code className="font-mono text-[10px]">PATH</code>). On Vercel, set server env{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">LATEX_UPSTREAM_URL</code> to your public pdflatex <code className="font-mono text-[10px]">/compile</code> URL, or set build-time{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">VITE_LATEX_COMPILE_URL</code> to any HTTPS compile API.
               </p>
             ) : (
               <p className="text-[11px] leading-snug text-muted-foreground">
                 <strong className="text-foreground">Plain / PDF extract:</strong> keep <code className="font-mono text-[10px]">--- PDF PAGE i / n ---</code> lines so Compile maps blocks to pages (simple text PDF). For a full book layout, use the Template or paste <code className="font-mono text-[10px]">\documentclass...</code> LaTeX.
-              </p>
-            )}
-            {isLatexSource && !latexCompileConfigured && (
-              <p className="rounded-md border border-amber-600/40 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-950 dark:text-amber-100">
-                LaTeX compile is not configured. Add <code className="font-mono text-[10px]">VITE_LATEX_COMPILE_URL</code>, or run the dev server with the local latex service (see above).
               </p>
             )}
             <Textarea

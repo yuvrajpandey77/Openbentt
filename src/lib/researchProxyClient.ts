@@ -6,9 +6,11 @@ export interface ProxyResearchResponse {
 }
 
 function isAllowedProxyBase(u: string): boolean {
-  if (u.startsWith("https://")) return true;
+  const t = u.trim();
+  if (t.startsWith("/")) return true;
+  if (t.startsWith("https://")) return true;
   try {
-    const parsed = new URL(u);
+    const parsed = new URL(t);
     if (parsed.protocol !== "http:") return false;
     const h = parsed.hostname;
     return h === "localhost" || h === "127.0.0.1" || h === "[::1]";

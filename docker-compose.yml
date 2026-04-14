@@ -1,0 +1,13 @@
+services:
+  cogerphere:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Same-origin research proxy (nginx → server/research-proxy.mjs)
+        VITE_RESEARCH_PROXY_URL: /api
+    ports:
+      - "8080:8080"
+    environment:
+      # Optional — enables Brave-backed search inside research proxy
+      BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
