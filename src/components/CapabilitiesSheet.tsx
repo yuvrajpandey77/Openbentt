@@ -23,7 +23,7 @@ export const CapabilitiesSheet: React.FC = () => {
       </SheetTrigger>
       <SheetContent side="right" className="flex w-full flex-col sm:max-w-md">
         <SheetHeader>
-          <SheetTitle className="font-display text-left">What Cogerphere does (and does not)</SheetTitle>
+          <SheetTitle className="font-display text-left">What Openbentt does (and does not)</SheetTitle>
           <SheetDescription className="text-left text-xs leading-relaxed">
             This is a browser client: your keys stay local; features are limited by CORS, bundle size, and no proprietary
             agent fleet on our servers.
@@ -72,7 +72,7 @@ export const CapabilitiesSheet: React.FC = () => {
             <section>
               <h3 className="mb-1 font-medium text-foreground">Charts &amp; tools</h3>
               <p>
-                Assistant replies can emit <code className="rounded bg-muted px-1 font-mono text-[11px]">cogerphere-chart</code>{" "}
+                Assistant replies can emit <code className="rounded bg-muted px-1 font-mono text-[11px]">openbentt-chart</code>{" "}
                 blocks. Richer analytics (dashboards, SQL, code execution) would need additional server sandboxes — not bundled
                 here.
               </p>

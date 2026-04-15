@@ -135,7 +135,7 @@ export async function fetchOpenRouterModels(apiKey: string): Promise<OpenRouterM
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "",
-      "X-Title": "Cogerphere",
+      "X-Title": "Openbentt",
     },
   });
   if (!res.ok) {
@@ -244,7 +244,7 @@ function chatRequestHeaders(apiKey: string, chatUrl: string): Record<string, str
   }
   if (isOpenRouterChatUrl(chatUrl)) {
     h["HTTP-Referer"] = typeof window !== "undefined" ? window.location.origin : "";
-    h["X-Title"] = "Cogerphere";
+    h["X-Title"] = "Openbentt";
   }
   return h;
 }

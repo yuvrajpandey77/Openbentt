@@ -6,6 +6,7 @@
  */
 
 import { briefCompileMessage, missingBundledFileHint } from "@/lib/latexErrorUi";
+import { sanitizeLatexUnicodeForPdflatex } from "@/lib/latexUnicodeSanitize";
 import { compileLatexWasmToPdf } from "@/lib/latexWasmCompile";
 
 export function getLatexCompileEndpoint(): string {
@@ -58,17 +59,18 @@ const ASSET_HINT =
   "If the log shows BusyTeX failing to load (not a normal LaTeX error), run: npm run download:busytex (~175MB into public/core).";
 
 export async function compileLatexToPdfBlob(tex: string): Promise<Blob> {
+  const texClean = sanitizeLatexUnicodeForPdflatex(tex);
   const forceRemote = import.meta.env.VITE_LATEX_REMOTE === "1";
   if (forceRemote) {
-    return compileLatexHttp(tex, getLatexCompileEndpoint());
+    return compileLatexHttp(texClean, getLatexCompileEndpoint());
   }
 
   try {
-    return await compileLatexWasmToPdf(tex);
+    return await compileLatexWasmToPdf(texClean);
   } catch (wasmErr) {
     const wasmMsg = wasmErr instanceof Error ? wasmErr.message : String(wasmErr);
     try {
-      return await compileLatexHttp(tex, getLatexCompileEndpoint());
+      return await compileLatexHttp(texClean, getLatexCompileEndpoint());
     } catch (httpErr) {
       const httpMsg = httpErr instanceof Error ? httpErr.message : String(httpErr);
       console.error("LaTeX WASM compile failed:", wasmErr);

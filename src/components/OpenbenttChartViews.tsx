@@ -13,15 +13,15 @@ import {
   YAxis,
   Legend,
 } from "recharts";
-import type { CogerphereChartSpec } from "@/lib/chartSpec";
+import type { OpenbenttChartSpec } from "@/lib/chartSpec";
 import { Card } from "@/components/ui/card";
 
-function pickColors(series: CogerphereChartSpec["series"], index: number): string {
+function pickColors(series: OpenbenttChartSpec["series"], index: number): string {
   const fallback = ["hsl(var(--primary))", "#6366f1", "#14b8a6", "#f97316", "#a855f7"];
   return series[index]?.color || fallback[index % fallback.length];
 }
 
-export const CogerphereChartViews: React.FC<{ charts: CogerphereChartSpec[] }> = ({ charts }) => {
+export const OpenbenttChartViews: React.FC<{ charts: OpenbenttChartSpec[] }> = ({ charts }) => {
   if (charts.length === 0) return null;
   return (
     <div className="space-y-4 mt-4">

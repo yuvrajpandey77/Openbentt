@@ -11,12 +11,12 @@ import { canSendChat } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { AppChromeHeader } from "@/components/AppChromeHeader";
 import { getWorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
+import { SIDEBAR_COLLAPSED_KEY } from "@/lib/storageMigrate";
 import ChatMessages from "@/components/ChatMessages";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-const SIDEBAR_COLLAPSED_KEY = "cogerphere-sidebar-collapsed";
 
 /**
  * Persistent shell: sidebar + shared header + page content + global composer.
@@ -146,7 +146,7 @@ const AppLayout: React.FC = () => {
           ) : workspaceMeta ? (
             <ResizablePanelGroup
               direction="horizontal"
-              autoSaveId="cogerphere-workspace-thread-split-h"
+              autoSaveId="openbentt-workspace-thread-split-h"
               className="min-h-0 flex-1"
             >
               <ResizablePanel defaultSize={40} minSize={22} maxSize={72} className="min-h-0 min-w-0">

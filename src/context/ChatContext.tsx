@@ -22,6 +22,7 @@ import { gatherResearchContext } from "@/lib/researchSources";
 import { buildSystemPrompts } from "@/lib/systemPrompts";
 import { substituteInlineCalc } from "@/lib/mathInline";
 import type { ProviderQuotaSnapshot } from "@/lib/providerRateLimits";
+import { LOCAL_STORAGE_KEYS } from "@/lib/storageMigrate";
 
 interface ChatContextProps {
   chats: Chat[];
@@ -60,12 +61,6 @@ interface ChatContextProps {
 }
 
 const ChatContext = createContext<ChatContextProps | undefined>(undefined);
-
-const LOCAL_STORAGE_KEYS = {
-  CHATS: "cogerphere-chats",
-  CURRENT_CHAT_ID: "cogerphere-current-chat-id",
-  API_CONFIG: "cogerphere-api-config",
-};
 
 function mergePdfIntoContent(text: string, attachments: MessageAttachment[]): string {
   let t = text.trim();

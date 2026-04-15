@@ -69,7 +69,7 @@ const AssistantRoleContent: React.FC<{
             {message.comparisonResponses.map((part) => (
               <div
                 key={part.id}
-                className="rounded-lg border border-border/70 bg-background/50 p-3 min-h-[120px] flex flex-col"
+                className="rounded-lg border border-border/70 bg-background/50 p-3 min-h-[120px] flex flex-col text-foreground"
               >
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="text-xs font-semibold truncate" title={part.model}>
@@ -158,7 +158,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading }) => {
                 <Sparkles className="h-6 w-6" aria-hidden />
               </div>
               <h2 className="font-display text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
-                Welcome to Cogerphere
+                Welcome to Openbentt
               </h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground md:text-base">
                 A local-first AI workspace: choose a model, attach files, turn on <strong>research</strong> in Settings,
@@ -192,7 +192,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading }) => {
                 <strong className="text-foreground/90">chats</strong> stay listed below them.
               </p>
               <div className="mt-10 grid grid-cols-1 gap-4 text-left sm:grid-cols-2">
-                <div className="cogerphere-card rounded-xl border border-border/80 p-4">
+                <div className="openbentt-card rounded-xl border border-border/80 p-4">
                   <h3 className="mb-2 font-medium text-foreground">Chat tips</h3>
                   <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
                     <li>
@@ -203,12 +203,12 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading }) => {
                       • <strong className="text-foreground/90">Retry</strong> on the last reply; <strong className="text-foreground/90">Edit</strong> on your message to tweak and resend.
                     </li>
                     <li>
-                      • Charts: fenced <code className="rounded bg-muted px-1 text-[11px]">cogerphere-chart</code> JSON
+                      • Charts: fenced <code className="rounded bg-muted px-1 text-[11px]">openbentt-chart</code> JSON
                       blocks render as live charts.
                     </li>
                   </ul>
                 </div>
-                <div className="cogerphere-card rounded-xl border border-border/80 p-4">
+                <div className="openbentt-card rounded-xl border border-border/80 p-4">
                   <h3 className="mb-2 font-medium text-foreground">Multimodal</h3>
                   <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
                     <li>• Images &amp; video (first frame) — pick a vision-capable model.</li>
@@ -239,7 +239,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading }) => {
               >
                 <div
                   className={cn(
-                    "cogerphere-card p-4 border border-border/80 shadow-sm",
+                    "openbentt-card p-4 border border-border/80 shadow-sm",
                     message.role === "user" ? "bg-secondary/40" : "bg-card w-full max-w-full"
                   )}
                 >
@@ -265,8 +265,8 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading }) => {
                   )}
 
                   {message.role === "user" ? (
-                    <div className="prose prose-sm max-w-none dark:prose-invert text-left">
-                      <p className="whitespace-pre-wrap m-0">{message.content.trim() || "\u00a0"}</p>
+                    <div className="prose prose-sm max-w-none text-foreground dark:prose-invert prose-p:text-foreground text-left">
+                      <p className="m-0 whitespace-pre-wrap text-foreground">{message.content.trim() || "\u00a0"}</p>
                     </div>
                   ) : (
                     <>
@@ -319,7 +319,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading }) => {
             <div className="p-2 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
               <Bot size={16} />
             </div>
-            <div className="cogerphere-card p-4 max-w-[85%] bg-card/90 border border-border/80">
+            <div className="openbentt-card p-4 max-w-[85%] bg-card/90 border border-border/80">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Generating</span>
                 <div className="flex gap-1">

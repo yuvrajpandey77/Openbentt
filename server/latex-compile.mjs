@@ -89,7 +89,7 @@ const server = http.createServer((req, res) => {
         send(res, 400, "Empty body\n", "text/plain; charset=utf-8");
         return;
       }
-      dir = fs.mkdtempSync(path.join(os.tmpdir(), "cogerphere-tex-"));
+      dir = fs.mkdtempSync(path.join(os.tmpdir(), "openbentt-tex-"));
       const mainPath = path.join(dir, "main.tex");
       fs.writeFileSync(mainPath, tex, "utf8");
       const { log, status } = runPdflatex(dir);

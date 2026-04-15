@@ -1,6 +1,5 @@
 import { WORKSPACE_ROUTE_META } from "@/config/workspaceRouteMeta";
-
-const MAX_SOURCE_CHARS = 28_000;
+import { MAX_CHARS_ASSIST_SNAPSHOT } from "@/lib/pdfText";
 
 /** Base Notebook route system assist (static workflow + LaTeX rules). */
 export function getNotebookBaseWorkspaceAssist(): string {
@@ -37,8 +36,8 @@ export function buildNotebookLiveSnapshot(params: {
   const src = sourceText ?? "";
   let body = src;
   let truncated = false;
-  if (body.length > MAX_SOURCE_CHARS) {
-    body = body.slice(0, MAX_SOURCE_CHARS);
+  if (body.length > MAX_CHARS_ASSIST_SNAPSHOT) {
+    body = body.slice(0, MAX_CHARS_ASSIST_SNAPSHOT);
     truncated = true;
   }
 
@@ -61,7 +60,7 @@ export function buildNotebookLiveSnapshot(params: {
       : `- **Review**: no pending proposal.`,
     "",
     truncated
-      ? `**Source text (truncated to ${MAX_SOURCE_CHARS} chars; user may have more below the fold)**`
+      ? `**Source text (truncated to ${MAX_CHARS_ASSIST_SNAPSHOT.toLocaleString()} chars in this system prompt; full Source is still in the editor)**`
       : `**Current Source buffer**`,
     "",
     "```",

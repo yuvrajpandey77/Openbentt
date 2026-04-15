@@ -30,6 +30,6 @@ export async function exportElementToPdf(el: HTMLElement, fileBaseName: string):
     heightLeft -= pageH;
   }
 
-  const safe = fileBaseName.replace(/[^\w\-]+/g, "-").slice(0, 80) || "cogerphere-message";
+  const safe = fileBaseName.replace(/[^\w-]+/g, "-").slice(0, 80) || "openbentt-message";
   pdf.save(`${safe}.pdf`);
 }

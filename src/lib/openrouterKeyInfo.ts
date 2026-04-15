@@ -23,7 +23,7 @@ export async function fetchOpenRouterKeyInfo(apiKey: string): Promise<OpenRouter
     headers: {
       Authorization: `Bearer ${k}`,
       "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "",
-      "X-Title": "Cogerphere",
+      "X-Title": "Openbentt",
     },
   });
   if (!res.ok) return null;

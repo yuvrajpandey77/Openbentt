@@ -243,7 +243,7 @@ const SettingsPanel: React.FC = () => {
               <Switch id="theme-toggle" checked={theme === "dark"} onCheckedChange={toggleTheme} />
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Typography uses Plus Jakarta Sans for UI and JetBrains Mono for code fields — aligned with the Cogerphere
+              Typography uses Plus Jakarta Sans for UI and JetBrains Mono for code fields — Openbentt uses a
               research-lab aesthetic.
             </p>
           </CardContent>
@@ -260,7 +260,7 @@ const SettingsPanel: React.FC = () => {
             <div className="space-y-2">
               <Label>AI provider</Label>
               <Select value={localAiProvider} onValueChange={(v) => setLocalAiProvider(v as AiProvider)}>
-                <SelectTrigger className="cogerphere-input h-11">
+                <SelectTrigger className="openbentt-input h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -305,7 +305,7 @@ const SettingsPanel: React.FC = () => {
                 }
                 value={localApiKey}
                 onChange={(e) => setLocalApiKey(e.target.value)}
-                className="cogerphere-input h-11 font-mono text-sm"
+                className="openbentt-input h-11 font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground">Stored only in localStorage on this device.</p>
             </div>
@@ -325,7 +325,7 @@ const SettingsPanel: React.FC = () => {
                     placeholder="https://api.x.ai/v1 or http://127.0.0.1:11434/v1"
                     value={localCompatBase}
                     onChange={(e) => setLocalCompatBase(e.target.value)}
-                    className="cogerphere-input font-mono text-sm"
+                    className="openbentt-input font-mono text-sm"
                   />
                 </div>
               </>
@@ -347,7 +347,7 @@ const SettingsPanel: React.FC = () => {
               value={localReasoningPreference}
               onValueChange={(v) => setLocalReasoningPreference(v as ReasoningPreference)}
             >
-              <SelectTrigger className="cogerphere-input h-11">
+              <SelectTrigger className="openbentt-input h-11">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -367,7 +367,7 @@ const SettingsPanel: React.FC = () => {
             <div className="space-y-2">
               <Label htmlFor="model">Primary model</Label>
               <Select value={localModel} onValueChange={setLocalModel}>
-                <SelectTrigger id="model" className="cogerphere-input h-11">
+                <SelectTrigger id="model" className="openbentt-input h-11">
                   <SelectValue placeholder="Select a model" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
@@ -406,7 +406,7 @@ const SettingsPanel: React.FC = () => {
                   value={customInput}
                   onChange={(e) => setCustomInput(e.target.value)}
                   placeholder="org/model-name"
-                  className="cogerphere-input font-mono text-sm"
+                  className="openbentt-input font-mono text-sm"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -470,7 +470,7 @@ const SettingsPanel: React.FC = () => {
                 onValueChange={(v) => setLocalResearchDepth(v as ResearchDepth)}
                 disabled={!localResearchEnabled}
               >
-                <SelectTrigger className="cogerphere-input h-11">
+                <SelectTrigger className="openbentt-input h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -496,7 +496,7 @@ const SettingsPanel: React.FC = () => {
                 placeholder="BSA... (for proxy / future use)"
                 value={localBraveKey}
                 onChange={(e) => setLocalBraveKey(e.target.value)}
-                className="cogerphere-input font-mono text-sm"
+                className="openbentt-input font-mono text-sm"
               />
             </div>
 
@@ -506,7 +506,7 @@ const SettingsPanel: React.FC = () => {
                 placeholder="https://… or http://127.0.0.1:8787 (npm run research-proxy)"
                 value={localProxyUrl}
                 onChange={(e) => setLocalProxyUrl(e.target.value)}
-                className="cogerphere-input text-sm"
+                className="openbentt-input text-sm"
               />
             </div>
 
@@ -521,7 +521,7 @@ const SettingsPanel: React.FC = () => {
                 placeholder="arxiv.org, wikipedia.org, semanticscholar.org"
                 value={localResearchApprovedDomains}
                 onChange={(e) => setLocalResearchApprovedDomains(e.target.value)}
-                className="cogerphere-input font-mono text-sm"
+                className="openbentt-input font-mono text-sm"
               />
             </div>
 
@@ -564,7 +564,7 @@ const SettingsPanel: React.FC = () => {
                 placeholder="Preset name"
                 value={presetName}
                 onChange={(e) => setPresetName(e.target.value)}
-                className="cogerphere-input sm:flex-1"
+                className="openbentt-input sm:flex-1"
               />
               <Button type="button" variant="secondary" className="sm:w-auto" onClick={handleSavePreset}>
                 Save preset
@@ -646,7 +646,7 @@ const SettingsPanel: React.FC = () => {
       </TabsContent>
 
       <div className="sticky bottom-0 mt-6 border-t border-border/60 bg-background/95 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <Button className="cogerphere-button h-11 w-full text-base font-semibold shadow-sm" onClick={handleSave}>
+        <Button className="openbentt-button h-11 w-full text-base font-semibold shadow-sm" onClick={handleSave}>
           Save settings
         </Button>
       </div>

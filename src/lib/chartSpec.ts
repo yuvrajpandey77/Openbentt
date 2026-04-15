@@ -1,8 +1,9 @@
 /**
  * Assistant messages can include fenced blocks the model (or user) outputs:
- * ```cogerphere-chart
+ * ```openbentt-chart
  * { JSON }
  * ```
+ * Legacy ```cogerphere-chart``` is still parsed for backward compatibility.
  * Renders as Recharts in the UI (matplotlib-style workflow: model emits data → chart).
  */
 
@@ -14,7 +15,7 @@ export interface ChartSeries {
   color?: string;
 }
 
-export interface CogerphereChartSpec {
+export interface OpenbenttChartSpec {
   kind: ChartKind;
   title?: string;
   /** Row key for X axis labels */
@@ -23,13 +24,16 @@ export interface CogerphereChartSpec {
   rows: Record<string, string | number>[];
 }
 
-const BLOCK_RE = /```cogerphere-chart\s*([\s\S]*?)```/gi;
+/** @deprecated Use {@link OpenbenttChartSpec} */
+export type CogerphereChartSpec = OpenbenttChartSpec;
 
-export function extractChartBlocks(markdown: string): { displayText: string; charts: CogerphereChartSpec[] } {
-  const charts: CogerphereChartSpec[] = [];
+const BLOCK_RE = /```(?:openbentt-chart|cogerphere-chart)\s*([\s\S]*?)```/gi;
+
+export function extractChartBlocks(markdown: string): { displayText: string; charts: OpenbenttChartSpec[] } {
+  const charts: OpenbenttChartSpec[] = [];
   const displayText = markdown.replace(BLOCK_RE, (_full, jsonRaw: string) => {
     try {
-      const parsed = JSON.parse(jsonRaw.trim()) as CogerphereChartSpec;
+      const parsed = JSON.parse(jsonRaw.trim()) as OpenbenttChartSpec;
       if (
         parsed &&
         typeof parsed === "object" &&

@@ -79,7 +79,7 @@ export default {
 					dark: 'hsl(var(--card-dark))',
 					'dark-foreground': 'hsl(var(--card-dark-foreground))'
 				},
-				cogerphereYellow: {
+				openbenttYellow: {
 					'50': '#fefce8',
 					'100': '#fef9c3',
 					'200': '#fef08a',
@@ -146,9 +146,9 @@ export default {
 				'bounce-light': 'bounce-light 2s infinite'
 			},
 			fontFamily: {
-				/* Primary UI: clean, readable (aligned with cogerphere.com marketing feel) */
+				/* Primary UI: clean, readable */
 				sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
-				cogerphere: ['"Plus Jakarta Sans"', '"Exo 2"', 'system-ui', 'sans-serif'],
+				openbentt: ['"Plus Jakarta Sans"', '"Exo 2"', 'system-ui', 'sans-serif'],
 				display: ['"Exo 2"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
 				mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
 			}

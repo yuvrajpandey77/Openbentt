@@ -41,7 +41,7 @@ const LatexWorkspacePage: React.FC = () => {
       } else {
         pdf.addImage(img, "PNG", 20, y, imgW, imgH);
       }
-      pdf.save("cogerphere-katex.pdf");
+      pdf.save("openbentt-katex.pdf");
       toast({ title: "PDF saved", description: "Raster export from KaTeX preview (not full TeX)." });
     } catch (e) {
       toast({

@@ -12,7 +12,7 @@ import { substituteInlineCalc } from "@/lib/mathInline";
 
 const CHART_TEMPLATE = `Use quantitative comparisons where helpful. Valid JSON inside:
 
-\`\`\`cogerphere-chart
+\`\`\`openbentt-chart
 {"kind":"bar","title":"Example","xKey":"x","series":[{"key":"y","name":"Y"}],"rows":[{"x":"A","y":1},{"x":"B","y":2}]}
 \`\`\`
 `;

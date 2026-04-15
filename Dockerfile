@@ -1,11 +1,11 @@
-# Cogerphere: Vite SPA (LaTeX compiles in-browser via WASM) + nginx + research proxy.
+# Openbentt: Vite SPA (LaTeX compiles in-browser via WASM) + nginx + research proxy.
 #
 # Builder downloads BusyTeX assets (~175MB) so `public/core/busytex` is baked into dist.
 #
 # Build:
-#   docker build -t cogerphere .
+#   docker build -t openbentt .
 # Run:
-#   docker run --rm -p 8080:8080 -e BRAVE_SEARCH_API_KEY=optional cogerphere
+#   docker run --rm -p 8080:8080 -e BRAVE_SEARCH_API_KEY=optional openbentt
 
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app

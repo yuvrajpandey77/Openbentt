@@ -2,7 +2,7 @@ import type { ApiKeyConfig, ResearchDepth } from "@/types/chat";
 
 const CHART_HINT = `When you compare numbers or categories, include one or more fenced blocks:
 
-\`\`\`cogerphere-chart
+\`\`\`openbentt-chart
 {"kind":"bar","title":"Title","xKey":"label","series":[{"key":"v","name":"Value"}],"rows":[{"label":"A","v":1}]}
 \`\`\`
 

@@ -1,8 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import type { ApiKeyConfig } from "@/types/chat";
 import { normalizeApiConfig } from "@/types/chat";
-
-const KEY = "cogerphere-experiment-presets";
+import { EXPERIMENT_PRESETS_KEY } from "@/lib/storageMigrate";
 
 export interface ExperimentPreset {
   id: string;
@@ -23,7 +22,7 @@ function readRaw(): ExperimentPreset[] {
 }
 
 function writeRaw(list: ExperimentPreset[]) {
-  localStorage.setItem(KEY, JSON.stringify(list));
+  localStorage.setItem(EXPERIMENT_PRESETS_KEY, JSON.stringify(list));
 }
 
 export function listExperimentPresets(): ExperimentPreset[] {

@@ -1,5 +1,5 @@
 services:
-  cogerphere:
+  openbentt:
     build:
       context: .
       dockerfile: Dockerfile

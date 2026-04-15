@@ -1,7 +1,7 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "openbentt",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "research-proxy": "node server/research-proxy.mjs",
     "latex-compile": "node server/latex-compile.mjs",
-    "docker:build": "docker build -t cogerphere .",
+    "docker:build": "docker build -t openbentt .",
     "docker:up": "docker compose up --build",
     "download:busytex": "texlyre-busytex download-assets public/core"
   },

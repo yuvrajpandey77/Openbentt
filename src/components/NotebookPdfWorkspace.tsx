@@ -280,7 +280,16 @@ const NotebookPdfWorkspace: React.FC = () => {
       setSourceText(text);
       setPdfScale(ZOOM_DEFAULT);
       setMainTab("preview");
-      toast({ title: "PDF loaded" });
+      const extractionLimited =
+        text.includes("further page(s) not included") ||
+        text.includes("Source truncated at") ||
+        text.includes("truncated at");
+      toast({
+        title: "PDF loaded",
+        description: extractionLimited
+          ? "Text in Source may be capped for very large PDFs — see any [Note:] at the bottom of Source."
+          : undefined,
+      });
     } catch (err) {
       toast({
         title: "Load failed",
@@ -496,7 +505,7 @@ const NotebookPdfWorkspace: React.FC = () => {
           </p>
           <ResizablePanelGroup
             direction="vertical"
-            autoSaveId="cogerphere-notebook-review"
+            autoSaveId="openbentt-notebook-review"
             className="min-h-[160px] flex-1 rounded-lg border border-border/50 bg-muted/10"
           >
             <ResizablePanel defaultSize={38} minSize={18} className="min-h-0">
@@ -811,7 +820,7 @@ const NotebookPdfWorkspace: React.FC = () => {
             {compiledBytes && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button type="button" size="icon" variant="ghost" className="h-9 w-9 shrink-0" onClick={() => downloadBlob(compiledBytes, "cogerphere-compiled.pdf")} aria-label="Download compiled PDF">
+                  <Button type="button" size="icon" variant="ghost" className="h-9 w-9 shrink-0" onClick={() => downloadBlob(compiledBytes, "openbentt-compiled.pdf")} aria-label="Download compiled PDF">
                     <ArrowDownToLine className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -825,7 +834,7 @@ const NotebookPdfWorkspace: React.FC = () => {
           <ResizablePanelGroup
             key={`${splitDirection}-split`}
             direction={splitDirection}
-            autoSaveId={`cogerphere-notebook-split-${splitDirection}`}
+            autoSaveId={`openbentt-notebook-split-${splitDirection}`}
             className="min-h-0 w-full flex-1"
           >
             <ResizablePanel defaultSize={58} minSize={splitDirection === "horizontal" ? 32 : 28} className="min-h-0 min-w-0">

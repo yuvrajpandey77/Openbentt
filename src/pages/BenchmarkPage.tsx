@@ -77,7 +77,7 @@ const BenchmarkPage: React.FC = () => {
     const blob = new Blob([header + body], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "cogerphere-benchmark.csv";
+    a.download = "openbentt-benchmark.csv";
     a.click();
   };
 

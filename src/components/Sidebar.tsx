@@ -101,12 +101,12 @@ const Sidebar: React.FC<SidebarProps> = ({
             )}
           >
             <Avatar className={cn("h-9 w-9 shrink-0", narrow && "h-8 w-8")}>
-              <AvatarImage src="/cogerphere-logo.png" alt="Cogerphere" />
-              <AvatarFallback className="font-display text-xs">CG</AvatarFallback>
+              <AvatarImage src="/openbentt-logo.svg" alt="Openbentt" />
+              <AvatarFallback className="font-display text-xs">OB</AvatarFallback>
             </Avatar>
             {!narrow && (
               <h1 className="ml-2 truncate font-display text-lg font-semibold tracking-tight text-sidebar-foreground">
-                Cogerphere
+                Openbentt
               </h1>
             )}
           </div>
@@ -137,7 +137,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <Button
               variant="default"
               className={cn(
-                "cogerphere-button mb-3 flex shrink-0 items-center gap-2 bg-primary",
+                "openbentt-button mb-3 flex shrink-0 items-center gap-2 bg-primary",
                 narrow ? "h-10 w-10 justify-center p-0" : "w-full justify-center"
               )}
               onClick={handleNewChat}
