@@ -1,6 +1,12 @@
 # Openbentt
 
-A **local-first** React app for **OpenRouter**: pick free (and custom) models, stream replies, compare **2–4 models** side by side with **latency and token metrics**. Your **API key stays in the browser** (localStorage).
+A **local-first** React app for **[OpenRouter](https://openrouter.ai/)**: pick free and custom models, stream replies, and compare **2–4 models** side by side with **latency and token metrics**. Your **OpenRouter API key stays in the browser** (localStorage); the UI never sends it to this project’s servers—there is **no backend account system** in the app.
+
+## Who it’s for
+
+- **Developers and power users** who want a polished OpenRouter client with **multi-model comparison**, **research-oriented workspaces**, and **Notebook LaTeX → PDF** flows—without handing keys to a third-party chat product.
+- **Privacy-minded users** who prefer **local chat history** (localStorage) and **bring-your-own-key** usage.
+- **Teams self-hosting** a static or Docker deployment behind their own domain (see **Production** below).
 
 ## What this project offers
 
@@ -16,7 +22,7 @@ A **local-first** React app for **OpenRouter**: pick free (and custom) models, s
 | **Charts** | Assistant can output fenced ` ```openbentt-chart` JSON → **Recharts** bar/line/area in the thread. Legacy ` ```cogerphere-chart` fences are still parsed. |
 | **Workspaces** | **Notebook** (LaTeX/PDF), **Research labs**, **LaTeX preview**, **Benchmark**, **WebGPU** — route-aware system prompts. |
 | **Retry / Edit** | **Retry** on the last assistant reply; **Edit** (pencil on user bubble) reloads the composer. |
-| **Thread tools (Home)** | **Search** the current chat, **Export .md** (full conversation), **Shortcuts** sheet; composer **Snippets** (saved prompts, local only). |
+| **Thread tools (Home)** | **Search** (with **in-message highlights**), **Export .md**, **Shortcuts**; composer **Snippets** (saved prompts, local only). |
 | **Theme** | Light default; dark mode in Settings. |
 | **Analytics** | Vercel Analytics (if deployed on Vercel). |
 
@@ -26,51 +32,85 @@ The product name is **Openbentt**. Older localStorage keys and chart fences may 
 
 ## Requirements
 
-- **Node.js** 18+ and **npm**
+- **Node.js** 18+ (repo uses **22** in Docker) and **npm**
 - An **OpenRouter API key** ([openrouter.ai/keys](https://openrouter.ai/keys)) — optional until you send a message; required for API calls.
 
-No other API keys or env vars are required for local use.
+No server-side OpenRouter key is required to **run** the app; keys are entered in the UI.
 
 ## Scripts
 
 ```bash
-npm install    # dependencies
-npm run dev    # dev server (default: http://localhost:8080)
-npm run build  # production build
-npm run test   # unit tests (Vitest)
-npm run lint   # ESLint
+npm install       # dependencies
+npm run dev       # dev server (http://localhost:8080)
+npm run build     # production bundle → dist/
+npm run preview   # serve dist/ locally (same port config as dev; useful before deploy)
+npm run test      # unit tests (Vitest)
+npm run lint      # ESLint
 ```
 
-## Docker
+## Production (instant setup paths)
+
+Pick one; all assume `npm ci` (or `npm install`) has run at least once.
+
+### A. Static hosting (Vercel, Netlify, Cloudflare Pages, S3 + CDN, any nginx)
+
+1. **Set build-time env** (see **Environment variables**): at minimum plan **`VITE_PUBLIC_SITE_URL`** for correct canonical and social preview URLs.
+2. Build: `npm run build`.
+3. Deploy the **`dist/`** folder. Configure the host for a **single-page app**: every unknown path should serve **`index.html`** (history fallback).
+
+**Note:** Chat and OpenRouter calls are **from the user’s browser**. Optional features that need a small server (**research proxy**, **remote LaTeX compile**) are not included in a plain static upload unless you add those endpoints and set the matching `VITE_*` values or in-app URLs.
+
+### B. Docker (static UI + nginx + research proxy)
+
+Includes **nginx** on **:8080** and the **research** proxy (Brave search optional).
 
 ```bash
-npm run docker:build
+npm run docker:build    # or: docker build -t openbentt .
 docker compose up --build
 ```
 
-Service name: **openbentt** (see `docker-compose.yml`).
+- Service name: **openbentt** (see `docker-compose.yml`).
+- **Optional:** set `BRAVE_SEARCH_API_KEY` in the compose environment (or `.env` next to compose) for Brave-backed search in the bundled proxy.
+- The image bakes **`VITE_RESEARCH_PROXY_URL=/api`** so the browser calls same-origin `/api/research` → nginx → `server/research-proxy.mjs`.
+
+Rebuild the image if you change `VITE_*` build args.
+
+### C. Self-check before tagging a release
+
+- `npm run build` and `npm run test`
+- **`PRODUCTION_CHECKLIST.md`** — host-specific items (env, smoke tests, Lighthouse)
+
+## Environment variables
+
+| Variable | When to set | Purpose |
+|----------|-------------|---------|
+| `VITE_PUBLIC_SITE_URL` | **Build** (CI / `npm run build`) | Canonical URL, Open Graph / Twitter **absolute** image URLs. No trailing slash. |
+| `VITE_RESEARCH_PROXY_URL` | Build (optional) | Base URL for the research HTTP proxy; Docker defaults to same-origin `/api`. |
+| `VITE_LATEX_COMPILE_URL` | Build (optional) | Remote `POST /compile` endpoint for full-document LaTeX PDF (see `server/latex-compile.mjs`). |
+| `VITE_LATEX_REMOTE` | Build (optional) | Set to `1` to prefer HTTP compile over in-browser WASM. |
+| `BRAVE_SEARCH_API_KEY` | **Runtime** (Docker / proxy host only) | Not a `VITE_` var; enables Brave search inside `server/research-proxy.mjs`. |
+
+Authoritative commented template: **`.env.example`**.
 
 ## Stack
 
 Vite, TypeScript, React, shadcn/ui, Tailwind CSS, TanStack Query, React Markdown, Vitest.
-
-See **`PRODUCTION_CHECKLIST.md`** for a pre-release verification list.
 
 ## Open source
 
 This repo is suitable for **public open source**: there is **no server-side login** in the app; users bring their own **OpenRouter** key (stored in the browser). Before publishing:
 
 - Add a **`LICENSE`** file (e.g. MIT) with your copyright line.
-- Do **not** commit `.env` files with real API keys; use **`.env.example`** as a template.
+- Do **not** commit `.env` with real secrets; start from **`.env.example`**.
 - Review **third-party scripts** and analytics (e.g. Vercel Analytics) for your policy.
 
 ## SEO & social previews
 
-Build injects **canonical**, **Open Graph**, **Twitter Card**, **theme-color**, **Web App Manifest**, **`robots.txt`**, and **JSON-LD** (`WebApplication`). For best link previews on Slack/X/LinkedIn, set at build time:
+Build injects **canonical**, **Open Graph**, **Twitter Card**, **theme-color**, **Web App Manifest**, **`robots.txt`**, and **JSON-LD** (`WebApplication`). Example:
 
 ```bash
 export VITE_PUBLIC_SITE_URL=https://your.domain
 npm run build
 ```
 
-See `.env.example`. **Lighthouse “SEO”** is usually **100** on a static deploy with a real `<title>`, meta description, crawlable document, and valid `robots.txt`; scores can vary with route structure and third-party scripts—verify in Chrome DevTools → Lighthouse on your production URL.
+**Lighthouse “SEO”** is usually strong on a static deploy with a real `<title>`, meta description, crawlable document, and valid `robots.txt`; verify on your production URL in Chrome DevTools → Lighthouse.
