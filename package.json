@@ -14,7 +14,8 @@
     "research-proxy": "node server/research-proxy.mjs",
     "latex-compile": "node server/latex-compile.mjs",
     "docker:build": "docker build -t cogerphere .",
-    "docker:up": "docker compose up --build"
+    "docker:up": "docker compose up --build",
+    "download:busytex": "texlyre-busytex download-assets public/core"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -80,6 +81,7 @@
     "sonner": "^1.5.0",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
+    "texlyre-busytex": "^0.1.4-alpha",
     "uuid": "^11.1.0",
     "vaul": "^0.9.3",
     "vercel": "^41.4.1",

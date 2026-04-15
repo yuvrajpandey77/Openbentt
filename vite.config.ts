@@ -38,6 +38,7 @@ export default defineConfig(({ mode }) => ({
   },
   optimizeDeps: {
     include: [
+      "texlyre-busytex",
       "mathjs",
       "pdfjs-dist",
       "katex",

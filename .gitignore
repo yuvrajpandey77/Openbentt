@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Client LaTeX WASM (~175MB). CI/Docker: run npm run download:busytex before build.
+public/core/busytex/

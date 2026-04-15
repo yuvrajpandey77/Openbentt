@@ -55,6 +55,8 @@ interface ChatContextProps {
    * “current workspace” system block without threading pathname through every caller.
    */
   setWorkspaceRouteAssist: (block: string | undefined) => void;
+  /** Notebook: register a function that returns full workspace assist with current Source (for send/regenerate). */
+  registerNotebookAssistSync: (fn: (() => string) | null) => void;
 }
 
 const ChatContext = createContext<ChatContextProps | undefined>(undefined);
@@ -98,11 +100,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const abortControllersRef = useRef<AbortController[]>([]);
   /** Latest workspace assist from route (Notebook, Labs, …); merged into send + regenerate pipelines. */
   const workspaceRouteAssistRef = useRef<string | undefined>(undefined);
+  /** Notebook registers a sync builder so sends use latest Source (debounced assist may lag typing). */
+  const notebookAssistSyncRef = useRef<(() => string) | null>(null);
   const chatsRef = useRef(chats);
   chatsRef.current = chats;
 
   const setWorkspaceRouteAssist = useCallback((block: string | undefined) => {
     workspaceRouteAssistRef.current = block;
+  }, []);
+
+  const registerNotebookAssistSync = useCallback((fn: (() => string) | null) => {
+    notebookAssistSyncRef.current = fn;
   }, []);
 
   useEffect(() => {
@@ -127,6 +135,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           })),
         }));
         setChats(processedChats);
+
+        /** Saved current id must point at a real chat or messages never attach (orphaned id). */
+        if (savedCurrentChatId && processedChats.some((c: Chat) => c.id === savedCurrentChatId)) {
+          setCurrentChatId(savedCurrentChatId);
+        } else if (savedCurrentChatId && processedChats.length > 0) {
+          setCurrentChatId(processedChats[0].id);
+        } else if (!savedCurrentChatId && processedChats.length > 0) {
+          setCurrentChatId(processedChats[0].id);
+        } else {
+          setCurrentChatId(null);
+        }
       } catch (error) {
         console.error("Failed to parse saved chats:", error);
         toast({
@@ -135,10 +154,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           variant: "destructive",
         });
       }
-    }
-
-    if (savedCurrentChatId) {
-      setCurrentChatId(savedCurrentChatId);
+    } else if (savedCurrentChatId) {
+      setCurrentChatId(null);
     }
 
     if (savedApiConfig) {
@@ -352,8 +369,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       )
     );
 
+    const workspaceBlock = notebookAssistSyncRef.current?.() ?? workspaceRouteAssistRef.current;
     const extras = await buildPipelineExtras(msgs, apiConfig, {
-      workspaceAssistBlock: workspaceRouteAssistRef.current,
+      workspaceAssistBlock: workspaceBlock,
     });
     await runAssistantPipeline(currentChatId, msgs, apiConfig, extras);
   };
@@ -706,8 +724,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    /** Stale or deleted id → no chat row matches; messages would be dropped. */
     let activeChatId = currentChatId;
-
+    if (activeChatId && !chatsRef.current.some((c) => c.id === activeChatId)) {
+      activeChatId = null;
+    }
     if (!activeChatId) {
       activeChatId = createNewChat();
     }
@@ -739,8 +760,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
     );
 
+    const workspaceBlock =
+      options?.workspaceAssistBlock ??
+      notebookAssistSyncRef.current?.() ??
+      workspaceRouteAssistRef.current;
+
     const extras = await buildPipelineExtras(chatMessages, apiConfig, {
-      workspaceAssistBlock: options?.workspaceAssistBlock ?? workspaceRouteAssistRef.current,
+      workspaceAssistBlock: workspaceBlock,
     });
     await runAssistantPipeline(activeChatId, chatMessages, apiConfig, extras);
   };
@@ -766,6 +792,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     streamingPromptTokens,
     providerQuotaSnapshot,
     setWorkspaceRouteAssist,
+    registerNotebookAssistSync,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

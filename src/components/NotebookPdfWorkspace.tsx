@@ -4,35 +4,45 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/components/ui/use-toast";
 import { useChat } from "@/context/ChatContext";
 import { buildAssistantPlainText } from "@/lib/assistantPlainText";
 import { extractNotebookSourceFromPdf } from "@/lib/pdfText";
 import { renderPdfPages } from "@/lib/pdfCanvasRender";
 import { compileNotebookSourceToPdf } from "@/lib/compileNotebook";
+import { formatCompileFailureToast } from "@/lib/latexErrorUi";
 import { isLatexDocumentSource } from "@/lib/notebookSourceKind";
 import { NOTEBOOK_LATEX_BOOK_TEMPLATE } from "@/lib/notebookLatexTemplate";
 import { extractTexFromAssistantReply } from "@/lib/extractTexFromAssistantReply";
 import { diffLineRows, mergeProposalLines } from "@/lib/diffLines";
+import { buildNotebookFullWorkspaceAssist } from "@/lib/notebookChatContext";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
+  ArrowDownToLine,
+  ArrowRightCircle,
   BookOpen,
-  Check,
+  CheckCheck,
   Download,
+  FileCode2,
   FileText,
-  FileType,
   FileUp,
   GitCompare,
+  LayoutTemplate,
+  ListChecks,
   Loader2,
-  PlayCircle,
+  MessageSquareQuote,
   RotateCcw,
-  Sparkles,
+  Wand2,
   X,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type MainTab = "preview" | "source" | "review";
+type MainTab = "preview" | "source";
 /** Which PDF bytes drive the canvas — original upload vs text-compiled (images/layout only on Original). */
 type PreviewVariant = "original" | "compiled";
 
@@ -43,7 +53,7 @@ const ZOOM_DEFAULT = 1.1;
 
 const NotebookPdfWorkspace: React.FC = () => {
   const { toast } = useToast();
-  const { chats, currentChatId } = useChat();
+  const { chats, currentChatId, setWorkspaceRouteAssist, registerNotebookAssistSync } = useChat();
 
   const [fileName, setFileName] = useState<string | null>(null);
   const [originalBytes, setOriginalBytes] = useState<ArrayBuffer | null>(null);
@@ -57,10 +67,27 @@ const NotebookPdfWorkspace: React.FC = () => {
   const [previewVariant, setPreviewVariant] = useState<PreviewVariant>("original");
 
   const previewRef = useRef<HTMLDivElement>(null);
+  /** Scroll container for PDF preview (wheel zoom + scroll anchoring). */
+  const pdfScrollRef = useRef<HTMLDivElement>(null);
+  const pdfScaleRef = useRef(pdfScale);
+  const pendingPdfZoomRef = useRef<{
+    ox: number;
+    oy: number;
+    px: number;
+    py: number;
+    prevScale: number;
+  } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const texRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    pdfScaleRef.current = pdfScale;
+  }, [pdfScale]);
+
   const isLatexSource = useMemo(() => isLatexDocumentSource(sourceText), [sourceText]);
+
+  /** Debounce Source in system context so typing does not rewrite a huge string every keystroke. */
+  const debouncedSourceForAssist = useDebouncedValue(sourceText, 400);
 
   const previewBuffer = useMemo(() => {
     if (!originalBytes && compiledBytes) return compiledBytes;
@@ -73,6 +100,70 @@ const NotebookPdfWorkspace: React.FC = () => {
   }, [originalBytes, compiledBytes]);
 
   const proposedLines = useMemo(() => (proposedText ?? "").split("\n"), [proposedText]);
+
+  const notebookAssistParams = useMemo(
+    () => ({
+      fileName,
+      sourceText: debouncedSourceForAssist,
+      hasOriginalPdf: originalBytes != null,
+      hasCompiledPdf: compiledBytes != null,
+      previewVariant,
+      mainTab,
+      hasProposal: proposedText != null,
+      proposedLineCount: proposedLines.length,
+      isLatexSource,
+    }),
+    [
+      compiledBytes,
+      debouncedSourceForAssist,
+      fileName,
+      isLatexSource,
+      mainTab,
+      originalBytes,
+      previewVariant,
+      proposedLines.length,
+      proposedText,
+    ]
+  );
+
+  useEffect(() => {
+    setWorkspaceRouteAssist(buildNotebookFullWorkspaceAssist(notebookAssistParams));
+  }, [notebookAssistParams, setWorkspaceRouteAssist]);
+
+  const notebookAssistParamsLive = useMemo(
+    () => ({
+      fileName,
+      sourceText,
+      hasOriginalPdf: originalBytes != null,
+      hasCompiledPdf: compiledBytes != null,
+      previewVariant,
+      mainTab,
+      hasProposal: proposedText != null,
+      proposedLineCount: proposedLines.length,
+      isLatexSource,
+    }),
+    [
+      compiledBytes,
+      fileName,
+      isLatexSource,
+      mainTab,
+      originalBytes,
+      previewVariant,
+      proposedLines.length,
+      proposedText,
+      sourceText,
+    ]
+  );
+
+  const getLatestNotebookAssist = useCallback(
+    () => buildNotebookFullWorkspaceAssist(notebookAssistParamsLive),
+    [notebookAssistParamsLive]
+  );
+
+  useEffect(() => {
+    registerNotebookAssistSync(getLatestNotebookAssist);
+    return () => registerNotebookAssistSync(null);
+  }, [getLatestNotebookAssist, registerNotebookAssistSync]);
 
   useEffect(() => {
     if (!proposedText) {
@@ -107,12 +198,21 @@ const NotebookPdfWorkspace: React.FC = () => {
 
   const runPreviewRender = useCallback(async () => {
     const el = previewRef.current;
+    const scrollEl = pdfScrollRef.current;
     if (!el || !previewBuffer) return;
     el.innerHTML = '<p class="text-sm text-muted-foreground p-6 text-center">Rendering…</p>';
     try {
       await renderPdfPages(previewBuffer, el, pdfScale);
+      const pending = pendingPdfZoomRef.current;
+      if (pending && scrollEl && Math.abs(pending.prevScale - pdfScale) > 1e-6) {
+        const r = pdfScale / pending.prevScale;
+        scrollEl.scrollLeft = Math.max(0, pending.ox * r - pending.px);
+        scrollEl.scrollTop = Math.max(0, pending.oy * r - pending.py);
+      }
+      pendingPdfZoomRef.current = null;
     } catch (e) {
       el.innerHTML = "";
+      pendingPdfZoomRef.current = null;
       toast({
         title: "PDF preview failed",
         description: e instanceof Error ? e.message : "Could not render PDF",
@@ -126,6 +226,33 @@ const NotebookPdfWorkspace: React.FC = () => {
     if (mainTab !== "preview") return;
     void runPreviewRender();
   }, [runPreviewRender, mainTab]);
+
+  /** Ctrl/Cmd + wheel: zoom toward cursor (requires non-passive listener). */
+  useEffect(() => {
+    if (mainTab !== "preview" || !previewBuffer) return;
+    const el = pdfScrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const prevScale = pdfScaleRef.current;
+      const factor = Math.exp(-e.deltaY * 0.002);
+      const next = Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, prevScale * factor)) * 100) / 100;
+      if (next === prevScale) return;
+      const rect = el.getBoundingClientRect();
+      pendingPdfZoomRef.current = {
+        ox: e.clientX - rect.left + el.scrollLeft,
+        oy: e.clientY - rect.top + el.scrollTop,
+        px: e.clientX - rect.left,
+        py: e.clientY - rect.top,
+        prevScale,
+      };
+      setPdfScale(next);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [mainTab, previewBuffer]);
 
   const nudgeZoom = (delta: number) => {
     setPdfScale((s) => {
@@ -189,11 +316,8 @@ const NotebookPdfWorkspace: React.FC = () => {
     try {
       await doCompile(sourceText);
     } catch (err) {
-      toast({
-        title: "Compile failed",
-        description: err instanceof Error ? err.message : "error",
-        variant: "destructive",
-      });
+      const { title, description } = formatCompileFailureToast(err);
+      toast({ title, description, variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -236,8 +360,7 @@ const NotebookPdfWorkspace: React.FC = () => {
     }
     const extracted = extractTexFromAssistantReply(lastAssistantPlain);
     setProposedText(extracted);
-    setMainTab("review");
-    toast({ title: "Proposal loaded", description: "Fenced ```latex blocks are unwrapped for Review." });
+    toast({ title: "Proposal loaded", description: "Review panel → fenced ```latex blocks unwrapped." });
   };
 
   const applyLastReplyAndPreview = async () => {
@@ -256,11 +379,8 @@ const NotebookPdfWorkspace: React.FC = () => {
     try {
       await doCompile(next);
     } catch (err) {
-      toast({
-        title: "Compile failed",
-        description: err instanceof Error ? err.message : "error",
-        variant: "destructive",
-      });
+      const { title, description } = formatCompileFailureToast(err);
+      toast({ title, description, variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -275,11 +395,8 @@ const NotebookPdfWorkspace: React.FC = () => {
     try {
       await doCompile(next);
     } catch (err) {
-      toast({
-        title: "Compile failed",
-        description: err instanceof Error ? err.message : "error",
-        variant: "destructive",
-      });
+      const { title, description } = formatCompileFailureToast(err);
+      toast({ title, description, variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -294,11 +411,8 @@ const NotebookPdfWorkspace: React.FC = () => {
     try {
       await doCompile(merged);
     } catch (err) {
-      toast({
-        title: "Compile failed",
-        description: err instanceof Error ? err.message : "error",
-        variant: "destructive",
-      });
+      const { title, description } = formatCompileFailureToast(err);
+      toast({ title, description, variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -318,103 +432,159 @@ const NotebookPdfWorkspace: React.FC = () => {
     URL.revokeObjectURL(a.href);
   };
 
-  return (
-    <Card className="overflow-hidden border-border/80 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 bg-card px-3 py-2.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <FileText className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold leading-tight">Notebook PDF</h2>
-            {fileName ? (
-              <p className="truncate text-[11px] text-muted-foreground" title={fileName}>
-                {fileName}
-                {isLatexSource && (
-                  <span className="ml-1.5 rounded border border-primary/30 bg-primary/10 px-1 py-px text-[9px] font-medium uppercase text-primary">
-                    LaTeX
-                  </span>
-                )}
-              </p>
-            ) : (
-              <p className="text-[11px] text-muted-foreground">Open a PDF or .tex, or insert a LaTeX template</p>
-            )}
-          </div>
+  const [splitDirection, setSplitDirection] = useState<"horizontal" | "vertical">(() =>
+    typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches ? "horizontal" : "vertical"
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setSplitDirection(mq.matches ? "horizontal" : "vertical");
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const showReviewPanel = proposedText != null;
+
+  const reviewColumn = (
+    <div className="flex h-full min-h-0 flex-col border-border/40 bg-muted/5 lg:border-l">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border/60 bg-muted/20 px-3 py-2">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <GitCompare className="h-4 w-4" />
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => void onPickPdf(e)} />
-          <input ref={texRef} type="file" accept=".tex,text/plain" className="hidden" onChange={(e) => void onPickTex(e)} />
-          <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => fileRef.current?.click()}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
-            <span className="ml-1.5 hidden sm:inline">PDF</span>
-          </Button>
-          <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => texRef.current?.click()}>
-            <FileType className="h-4 w-4" />
-            <span className="ml-1.5 hidden sm:inline">.tex</span>
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={insertLatexTemplate} disabled={busy}>
-            <BookOpen className="h-3.5 w-3.5" />
-            <span className="ml-1.5 hidden sm:inline">Template</span>
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={busy || !sourceText.trim()}
-            onClick={() => void compilePdf()}
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            <span className="ml-1.5">Compile</span>
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={pullLastAssistant} disabled={!lastAssistantPlain.trim()}>
-            <Sparkles className="h-3.5 w-3.5" />
-            <span className="ml-1.5 hidden sm:inline">Last reply</span>
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            disabled={busy || !canUseReplyPreview}
-            title="Put the last assistant output into Source (unwraps ```latex blocks), compile, and open Preview."
-            onClick={() => void applyLastReplyAndPreview()}
-          >
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
-            <span className="ml-1.5">Apply reply</span>
-          </Button>
-          {originalBytes && (
-            <Button type="button" size="sm" variant="ghost" className="hidden sm:inline-flex" onClick={() => downloadBlob(originalBytes, fileName || "original.pdf")}>
-              <Download className="h-3.5 w-3.5" />
-            </Button>
-          )}
-          {compiledBytes && (
-            <Button type="button" size="sm" variant="ghost" onClick={() => downloadBlob(compiledBytes, "cogerphere-compiled.pdf")}>
-              <Download className="h-3.5 w-3.5 sm:mr-1" />
-              <span className="hidden sm:inline">Compiled</span>
-            </Button>
-          )}
+        <div className="min-w-0">
+          <h3 className="text-xs font-semibold leading-tight">Review</h3>
+          <p className="truncate text-[10px] text-muted-foreground">Diff vs Source · merge proposal</p>
         </div>
       </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-2 py-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="button" size="icon" variant="default" className="h-8 w-8" onClick={acceptAllProposal} aria-label="Accept all proposed lines">
+                  <CheckCheck className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Accept all (replace Source)</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="button" size="icon" variant="secondary" className="h-8 w-8" onClick={acceptIncludedLines} aria-label="Merge selected lines">
+                  <ListChecks className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Merge checked lines only</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="button" size="icon" variant="outline" className="h-8 w-8" onClick={rejectProposal} aria-label="Reject proposal">
+                  <X className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Reject · back to Source only</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => setProposedText(null)} aria-label="Clear proposal">
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Clear proposal</TooltipContent>
+            </Tooltip>
+          </div>
+          <p className="shrink-0 px-0.5 text-[10px] leading-snug text-muted-foreground">
+            Uncheck lines to exclude. Drag the handle between Diff and Proposed.
+          </p>
+          <ResizablePanelGroup
+            direction="vertical"
+            autoSaveId="cogerphere-notebook-review"
+            className="min-h-[160px] flex-1 rounded-lg border border-border/50 bg-muted/10"
+          >
+            <ResizablePanel defaultSize={38} minSize={18} className="min-h-0">
+              <div className="flex h-full min-h-0 flex-col gap-1.5 p-2">
+                <div className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Diff</div>
+                <ScrollArea className="min-h-0 flex-1 rounded-md border border-border/50 bg-muted/25 p-2">
+                  <div className="space-y-0.5 font-mono text-[11px] leading-snug">
+                    {diffRows.map((row, i) => (
+                      <div
+                        key={`d-${i}`}
+                        className={cn(
+                          "flex items-start gap-2 rounded px-1 py-0.5",
+                          row.kind === "add" && "bg-emerald-500/15 text-emerald-900 dark:text-emerald-100",
+                          row.kind === "remove" && "bg-rose-500/15 text-rose-900 line-through dark:text-rose-100"
+                        )}
+                      >
+                        <span className="w-12 shrink-0 text-[10px] uppercase text-muted-foreground">{row.kind}</span>
+                        <span className="min-w-0 break-words">{row.line || " "}</span>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </ResizablePanel>
+            <ResizableHandle withHandle className="bg-border/80" />
+            <ResizablePanel defaultSize={62} minSize={22} className="min-h-0">
+              <div className="flex h-full min-h-0 flex-col gap-1.5 p-2">
+                <div className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Proposed</div>
+                <ScrollArea className="min-h-0 flex-1 rounded-md border border-border/50 bg-background/80 p-2">
+                  <div className="space-y-1.5">
+                    {proposedLines.map((line, idx) => (
+                      <label key={`pl-${idx}`} className="flex cursor-pointer items-start gap-2 rounded border border-transparent px-1 py-0.5 hover:bg-muted/50">
+                        <Checkbox
+                          checked={lineInclude[idx] !== false}
+                          onCheckedChange={(v) =>
+                            setLineInclude((prev) => {
+                              const next = [...prev];
+                              next[idx] = v === true;
+                              return next;
+                            })
+                          }
+                          className="mt-0.5"
+                        />
+                        <span className="font-mono text-[11px] leading-relaxed text-foreground">{line || " "}</span>
+                      </label>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+      </div>
+    </div>
+  );
 
-      <div className="flex flex-wrap gap-1 border-b border-border/60 bg-muted/20 px-2 py-1.5">
-        <Button type="button" size="sm" variant={mainTab === "preview" ? "secondary" : "ghost"} className="h-8 gap-1.5 px-2.5" onClick={() => setMainTab("preview")}>
-          <FileText className="h-3.5 w-3.5" />
+  const mainWorkspaceColumn = (
+    <div
+      className={cn(
+        "flex h-full min-h-0 flex-col overflow-hidden border-border/50 bg-card",
+        showReviewPanel && "lg:border-r"
+      )}
+    >
+      <div className="flex shrink-0 gap-1 border-b border-border/60 bg-muted/25 px-2 py-1.5">
+        <Button
+          type="button"
+          size="sm"
+          variant={mainTab === "preview" ? "secondary" : "ghost"}
+          className="h-8 flex-1 gap-1.5 sm:flex-initial sm:px-4"
+          onClick={() => setMainTab("preview")}
+        >
+          <FileText className="h-3.5 w-3.5 shrink-0" />
           Preview
         </Button>
-        <Button type="button" size="sm" variant={mainTab === "source" ? "secondary" : "ghost"} className="h-8 gap-1.5 px-2.5" onClick={() => setMainTab("source")}>
-          <BookOpen className="h-3.5 w-3.5" />
+        <Button
+          type="button"
+          size="sm"
+          variant={mainTab === "source" ? "secondary" : "ghost"}
+          className="h-8 flex-1 gap-1.5 sm:flex-initial sm:px-4"
+          onClick={() => setMainTab("source")}
+        >
+          <BookOpen className="h-3.5 w-3.5 shrink-0" />
           Source
         </Button>
-        {proposedText != null && (
-          <Button type="button" size="sm" variant={mainTab === "review" ? "secondary" : "ghost"} className="h-8 gap-1.5 px-2.5" onClick={() => setMainTab("review")}>
-            <GitCompare className="h-3.5 w-3.5" />
-            Review
-          </Button>
-        )}
       </div>
 
-      <div className="min-h-[260px] max-h-[min(58vh,560px)]">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {mainTab === "preview" && (
-          <div className="flex h-[min(58vh,560px)] flex-col">
+          <div className="flex h-full min-h-0 flex-col">
             {previewBuffer ? (
               <>
                 <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-2 py-1.5">
@@ -445,53 +615,58 @@ const NotebookPdfWorkspace: React.FC = () => {
                       <span className="text-[10px] text-muted-foreground">Compiled PDF (no original upload)</span>
                     ) : null}
                   </div>
-                  <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-background/90 p-0.5 shadow-sm">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      aria-label="Zoom out"
-                      onClick={() => nudgeZoom(-ZOOM_STEP)}
-                      disabled={pdfScale <= ZOOM_MIN + 0.01}
-                    >
-                      <ZoomOut className="h-4 w-4" />
-                    </Button>
-                    <button
-                      type="button"
-                      className="min-w-[3.25rem] rounded px-1.5 py-1 text-center text-xs font-medium tabular-nums text-foreground hover:bg-muted/80"
-                      onClick={() => setPdfScale(ZOOM_DEFAULT)}
-                      title="Reset zoom"
-                    >
-                      {Math.round(pdfScale * 100)}%
-                    </button>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      aria-label="Zoom in"
-                      onClick={() => nudgeZoom(ZOOM_STEP)}
-                      disabled={pdfScale >= ZOOM_MAX - 0.01}
-                    >
-                      <ZoomIn className="h-4 w-4" />
-                    </Button>
+                  <div className="flex flex-wrap items-center justify-end gap-1">
+                    <span className="hidden text-[10px] text-muted-foreground sm:inline" title="Hold Ctrl (or ⌘) and scroll to zoom toward the cursor">
+                      Ctrl+scroll
+                    </span>
+                    <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-background/90 p-0.5 shadow-sm">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        aria-label="Zoom out"
+                        onClick={() => nudgeZoom(-ZOOM_STEP)}
+                        disabled={pdfScale <= ZOOM_MIN + 0.01}
+                      >
+                        <ZoomOut className="h-4 w-4" />
+                      </Button>
+                      <button
+                        type="button"
+                        className="min-w-[3.25rem] rounded px-1.5 py-1 text-center text-xs font-medium tabular-nums text-foreground hover:bg-muted/80"
+                        onClick={() => setPdfScale(ZOOM_DEFAULT)}
+                        title="Reset zoom (Ctrl/Cmd + scroll on the page)"
+                      >
+                        {Math.round(pdfScale * 100)}%
+                      </button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        aria-label="Zoom in"
+                        onClick={() => nudgeZoom(ZOOM_STEP)}
+                        disabled={pdfScale >= ZOOM_MAX - 0.01}
+                      >
+                        <ZoomIn className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-                <ScrollArea className="min-h-0 flex-1">
+                <div ref={pdfScrollRef} className="min-h-0 flex-1 overflow-auto">
                   <div className="bg-muted/40 p-3 md:p-4">
                     <div ref={previewRef} className="mx-auto flex max-w-full flex-col items-center gap-0 pb-2" />
                   </div>
-                </ScrollArea>
+                </div>
               </>
             ) : (
-              <div className="flex min-h-[220px] flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
+              <div className="flex min-h-[200px] flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
                 <div className="rounded-2xl border border-dashed border-border/80 bg-muted/20 p-8">
                   <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
                   <p className="mt-3 text-sm font-medium text-foreground">No PDF yet</p>
                   <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-                    Open a PDF for Original vs Compiled, or load / paste <strong className="font-medium">.tex</strong> and Compile for a real LaTeX PDF (run{" "}
-                    <code className="rounded bg-muted px-1 py-0.5 text-[10px]">npm run latex-compile</code> in dev).
+                    Open a PDF for Original vs Compiled, or load <strong className="font-medium">.tex</strong> and Compile (run{" "}
+                    <code className="rounded bg-muted px-1 py-0.5 text-[10px]">npm run latex-compile</code> for HTTP fallback in dev).
                   </p>
                   <Button type="button" size="sm" className="mt-4" variant="secondary" onClick={() => fileRef.current?.click()}>
                     <FileUp className="mr-2 h-4 w-4" />
@@ -504,98 +679,168 @@ const NotebookPdfWorkspace: React.FC = () => {
         )}
 
         {mainTab === "source" && (
-          <div className="flex h-[min(58vh,560px)] flex-col gap-2 px-3 py-3">
-            <p className="text-[11px] leading-snug text-muted-foreground">
-              <strong className="text-foreground">From chat:</strong> ask the assistant in the main composer for a full{" "}
-              <code className="font-mono text-[10px]">.tex</code> (ideally one{" "}
-              <code className="font-mono text-[10px]">```latex</code> block), then press{" "}
-              <strong className="font-medium text-foreground">Apply reply</strong> in the toolbar to load Source, compile, and open Preview—no manual paste required.
+          <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden px-3 py-3">
+            <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
+              <strong className="text-foreground">From chat:</strong> ask for <code className="font-mono text-[10px]">.tex</code> (e.g.{" "}
+              <code className="font-mono text-[10px]">```latex</code>), then <strong className="text-foreground">Apply reply</strong> on the toolbar.
             </p>
             {isLatexSource ? (
-              <p className="text-[11px] leading-snug text-muted-foreground">
-                <strong className="text-foreground">LaTeX mode:</strong> Compile POSTs to <code className="font-mono text-[10px]">/api/latex-compile</code>. Locally run{" "}
-                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">npm run latex-compile</code> (TeX Live on <code className="font-mono text-[10px]">PATH</code>). On Vercel, set server env{" "}
-                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">LATEX_UPSTREAM_URL</code> to your public pdflatex <code className="font-mono text-[10px]">/compile</code> URL, or set build-time{" "}
-                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">VITE_LATEX_COMPILE_URL</code> to any HTTPS compile API.
+              <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
+                <strong className="text-foreground">LaTeX:</strong> BusyTeX in-browser · <code className="rounded bg-muted px-1 font-mono text-[10px]">npm run download:busytex</code> once.
               </p>
             ) : (
-              <p className="text-[11px] leading-snug text-muted-foreground">
-                <strong className="text-foreground">Plain / PDF extract:</strong> keep <code className="font-mono text-[10px]">--- PDF PAGE i / n ---</code> lines so Compile maps blocks to pages (simple text PDF). For a full book layout, use the Template or paste <code className="font-mono text-[10px]">\documentclass...</code> LaTeX.
+              <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
+                <strong className="text-foreground">Extract:</strong> keep <code className="font-mono text-[10px]">--- PDF PAGE i / n ---</code> markers, or paste full LaTeX.
               </p>
             )}
             <Textarea
               value={sourceText}
               onChange={(e) => setSourceText(e.target.value)}
               className="min-h-0 flex-1 resize-none border-border/60 font-mono text-xs leading-relaxed"
-              placeholder={`Full LaTeX (\\documentclass ... \\begin{document} ...) for pdflatex, OR plain text with "--- PDF PAGE i / n ---" markers from PDF extract.`}
+              placeholder={`Full LaTeX (\\documentclass …) or plain text with page markers.`}
               spellCheck={false}
             />
           </div>
         )}
-
-        {mainTab === "review" && proposedText != null && (
-          <div className="flex h-[min(58vh,560px)] flex-col gap-2 px-3 py-3">
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" onClick={acceptAllProposal}>
-                <Check className="mr-1 h-3.5 w-3.5" />
-                Accept all
-              </Button>
-              <Button type="button" size="sm" variant="secondary" onClick={acceptIncludedLines}>
-                <Check className="mr-1 h-3.5 w-3.5" />
-                Selected lines
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={rejectProposal}>
-                <X className="mr-1 h-3.5 w-3.5" />
-                Reject
-              </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setProposedText(null)}>
-                <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                Clear
-              </Button>
-            </div>
-            <p className="text-[11px] text-muted-foreground">Uncheck lines to drop them, then merge. Accept all replaces Source.</p>
-            <ScrollArea className="max-h-36 rounded-md border border-border/60 bg-muted/20 p-2">
-              <div className="space-y-0.5 font-mono text-[11px] leading-snug">
-                {diffRows.map((row, i) => (
-                  <div
-                    key={`d-${i}`}
-                    className={cn(
-                      "flex items-start gap-2 rounded px-1 py-0.5",
-                      row.kind === "add" && "bg-emerald-500/15 text-emerald-900 dark:text-emerald-100",
-                      row.kind === "remove" && "bg-rose-500/15 text-rose-900 line-through dark:text-rose-100"
-                    )}
-                  >
-                    <span className="w-12 shrink-0 text-[10px] uppercase text-muted-foreground">{row.kind}</span>
-                    <span className="min-w-0 break-words">{row.line || " "}</span>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-            <div className="text-[10px] font-medium uppercase text-muted-foreground">Proposed lines</div>
-            <ScrollArea className="min-h-0 flex-1 rounded-md border border-border/60 p-2">
-              <div className="space-y-1.5">
-                {proposedLines.map((line, idx) => (
-                  <label key={`pl-${idx}`} className="flex cursor-pointer items-start gap-2 rounded border border-transparent px-1 py-0.5 hover:bg-muted/50">
-                    <Checkbox
-                      checked={lineInclude[idx] !== false}
-                      onCheckedChange={(v) =>
-                        setLineInclude((prev) => {
-                          const next = [...prev];
-                          next[idx] = v === true;
-                          return next;
-                        })
-                      }
-                      className="mt-0.5"
-                    />
-                    <span className="font-mono text-[11px] leading-snug text-foreground">{line || " "}</span>
-                  </label>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-        )}
       </div>
-    </Card>
+    </div>
+  );
+
+  return (
+    <TooltipProvider delayDuration={400}>
+      <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/80 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 bg-card/95 px-2 py-2 sm:px-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <FileText className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-semibold leading-tight">Notebook</h2>
+              {fileName ? (
+                <p className="truncate text-[11px] text-muted-foreground" title={fileName}>
+                  {fileName}
+                  {isLatexSource && (
+                    <span className="ml-1.5 rounded border border-primary/30 bg-primary/10 px-1 py-px text-[9px] font-medium uppercase text-primary">
+                      LaTeX
+                    </span>
+                  )}
+                </p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">PDF · .tex · template</p>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-0.5 sm:gap-1">
+            <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => void onPickPdf(e)} />
+            <input ref={texRef} type="file" accept=".tex,text/plain" className="hidden" onChange={(e) => void onPickTex(e)} />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="button" size="icon" variant="secondary" className="h-9 w-9 shrink-0" disabled={busy} onClick={() => fileRef.current?.click()} aria-label="Open PDF">
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Open PDF</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="button" size="icon" variant="secondary" className="h-9 w-9 shrink-0" disabled={busy} onClick={() => texRef.current?.click()} aria-label="Open TeX file">
+                  <FileCode2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Open .tex file</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="button" size="icon" variant="outline" className="h-9 w-9 shrink-0" onClick={insertLatexTemplate} disabled={busy} aria-label="Insert LaTeX template">
+                  <LayoutTemplate className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Insert book template</TooltipContent>
+            </Tooltip>
+            <Separator orientation="vertical" className="mx-0.5 hidden h-7 sm:block" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="h-9 w-9 shrink-0"
+                  disabled={busy || !sourceText.trim()}
+                  onClick={() => void compilePdf()}
+                  aria-label="Compile to PDF"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Compile source → PDF</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="button" size="icon" variant="outline" className="h-9 w-9 shrink-0" onClick={pullLastAssistant} disabled={!lastAssistantPlain.trim()} aria-label="Load last reply to Review">
+                  <MessageSquareQuote className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Load last reply into Review</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  disabled={busy || !canUseReplyPreview}
+                  onClick={() => void applyLastReplyAndPreview()}
+                  aria-label="Apply reply and compile"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightCircle className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Apply reply to Source & compile</TooltipContent>
+            </Tooltip>
+            {(originalBytes || compiledBytes) && <Separator orientation="vertical" className="mx-0.5 hidden h-7 sm:block" />}
+            {originalBytes && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button type="button" size="icon" variant="ghost" className="h-9 w-9 shrink-0" onClick={() => downloadBlob(originalBytes, fileName || "original.pdf")} aria-label="Download original PDF">
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Download original PDF</TooltipContent>
+              </Tooltip>
+            )}
+            {compiledBytes && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button type="button" size="icon" variant="ghost" className="h-9 w-9 shrink-0" onClick={() => downloadBlob(compiledBytes, "cogerphere-compiled.pdf")} aria-label="Download compiled PDF">
+                    <ArrowDownToLine className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Download compiled PDF</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </div>
+
+        {showReviewPanel ? (
+          <ResizablePanelGroup
+            key={`${splitDirection}-split`}
+            direction={splitDirection}
+            autoSaveId={`cogerphere-notebook-split-${splitDirection}`}
+            className="min-h-0 w-full flex-1"
+          >
+            <ResizablePanel defaultSize={58} minSize={splitDirection === "horizontal" ? 32 : 28} className="min-h-0 min-w-0">
+              {mainWorkspaceColumn}
+            </ResizablePanel>
+            <ResizableHandle withHandle className="w-2 bg-border/70 data-[panel-group-direction=vertical]:h-2 data-[panel-group-direction=vertical]:w-full" />
+            <ResizablePanel defaultSize={42} minSize={splitDirection === "horizontal" ? 22 : 24} className="min-h-0 min-w-0">
+              {reviewColumn}
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        ) : (
+          <div className="flex min-h-0 w-full flex-1 flex-col">{mainWorkspaceColumn}</div>
+        )}
+      </Card>
+    </TooltipProvider>
   );
 };
 
