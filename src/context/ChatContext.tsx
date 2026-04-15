@@ -58,6 +58,17 @@ interface ChatContextProps {
   setWorkspaceRouteAssist: (block: string | undefined) => void;
   /** Notebook: register a function that returns full workspace assist with current Source (for send/regenerate). */
   registerNotebookAssistSync: (fn: (() => string) | null) => void;
+  /** From chat code blocks: queue text for Notebook Source (see NotebookPdfWorkspace). */
+  notebookLatexInsertRequest: NotebookLatexInsertRequest | null;
+  requestNotebookLatexInsert: (latex: string, options?: { autoCompile?: boolean }) => void;
+  clearNotebookLatexInsertRequest: () => void;
+}
+
+export interface NotebookLatexInsertRequest {
+  id: number;
+  latex: string;
+  /** When true, Notebook runs Compile after insert (LaTeX → PDF when valid). */
+  autoCompile?: boolean;
 }
 
 const ChatContext = createContext<ChatContextProps | undefined>(undefined);
@@ -90,6 +101,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   } | null>(null);
   const [streamingPromptTokens, setStreamingPromptTokens] = useState<number | null>(null);
   const [providerQuotaSnapshot, setProviderQuotaSnapshot] = useState<ProviderQuotaSnapshot | null>(null);
+  const [notebookLatexInsertRequest, setNotebookLatexInsertRequest] = useState<NotebookLatexInsertRequest | null>(null);
   const { toast } = useToast();
 
   const abortControllersRef = useRef<AbortController[]>([]);
@@ -196,6 +208,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     [toast]
   );
+
+  const requestNotebookLatexInsert = useCallback((latex: string, options?: { autoCompile?: boolean }) => {
+    setNotebookLatexInsertRequest({
+      id: Date.now(),
+      latex,
+      autoCompile: options?.autoCompile ?? true,
+    });
+  }, []);
+
+  const clearNotebookLatexInsertRequest = useCallback(() => {
+    setNotebookLatexInsertRequest(null);
+  }, []);
 
   const setApiConfig = (config: ApiKeyConfig) => {
     setApiConfigState(normalizeApiConfig(config));
@@ -788,6 +812,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     providerQuotaSnapshot,
     setWorkspaceRouteAssist,
     registerNotebookAssistSync,
+    notebookLatexInsertRequest,
+    requestNotebookLatexInsert,
+    clearNotebookLatexInsertRequest,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

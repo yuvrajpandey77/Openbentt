@@ -1,0 +1,17 @@
+{
+  "name": "Openbentt",
+  "short_name": "Openbentt",
+  "description": "Local-first OpenRouter chat with multi-model comparison and research workspaces.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0d9488",
+  "icons": [
+    {
+      "src": "/openbentt-favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

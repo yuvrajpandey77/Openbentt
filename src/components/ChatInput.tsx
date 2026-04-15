@@ -30,6 +30,7 @@ import { readFileAsDataUrl, extractVideoFrameDataUrl, assertImageSize } from "@/
 import { extractTextFromPdfFile } from "@/lib/pdfText";
 import { ModelSpecDialog } from "@/components/ModelSpecDialog";
 import { ToolsPopover } from "@/components/ToolsPopover";
+import { PromptSnippetsMenu } from "@/components/PromptSnippetsMenu";
 import { ModelCapabilityBadges } from "@/components/ModelCapabilityBadges";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { WorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
@@ -154,6 +155,11 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Escape" && isLoading) {
+      e.preventDefault();
+      stopStreaming();
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -446,6 +452,12 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
             <ModelSpecDialog modelId={apiConfig.model} models={models} />
 
             <ToolsPopover message={message} setMessage={setMessage} />
+
+            <PromptSnippetsMenu
+              onInsert={(text) => {
+                setMessage((prev) => (prev.trim() ? `${prev.trim()}\n\n${text}` : text));
+              }}
+            />
 
             <Popover>
               <PopoverTrigger asChild>

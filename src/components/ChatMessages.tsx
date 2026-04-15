@@ -13,10 +13,23 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { MessageReferences } from "@/components/MessageReferences";
 import { AssistantMessageToolbar } from "@/components/AssistantMessageToolbar";
 import { buildAssistantPlainText } from "@/lib/assistantPlainText";
+import { highlightSearchInText } from "@/lib/highlightSearch";
+
+function messageMatchesSearch(m: Message, q: string): boolean {
+  const t = q.trim().toLowerCase();
+  if (!t) return true;
+  if (m.role === "user") {
+    if (m.content.toLowerCase().includes(t)) return true;
+    return m.attachments?.some((a) => a.name.toLowerCase().includes(t)) ?? false;
+  }
+  return buildAssistantPlainText(m).toLowerCase().includes(t);
+}
 
 interface ChatMessagesProps {
   messages: Message[];
   isLoading: boolean;
+  /** Filter which messages render (Home thread search). */
+  searchQuery?: string;
 }
 
 function MetricsBar({ metrics }: { metrics: NonNullable<Message["metrics"]> }) {
@@ -40,7 +53,8 @@ const AssistantRoleContent: React.FC<{
   messages: Message[];
   isLoading: boolean;
   showAgentTraces: boolean;
-}> = ({ message, idx, messages, isLoading, showAgentTraces }) => {
+  highlightQuery?: string;
+}> = ({ message, idx, messages, isLoading, showAgentTraces, highlightQuery }) => {
   const exportRef = useRef<HTMLDivElement>(null);
   const plainText = useMemo(() => buildAssistantPlainText(message), [message]);
   const toolsDisabled =
@@ -80,10 +94,18 @@ const AssistantRoleContent: React.FC<{
                   )}
                 </div>
                 {part.error ? (
-                  <p className="text-sm text-destructive">{part.error}</p>
+                  <p className="text-sm text-destructive">
+                    {highlightQuery?.trim()
+                      ? highlightSearchInText(part.error, highlightQuery)
+                      : part.error}
+                  </p>
                 ) : (
                   <div className="flex-1">
-                    <AssistantContent content={part.content} streaming={part.streaming} />
+                    <AssistantContent
+                      content={part.content}
+                      streaming={part.streaming}
+                      highlightQuery={highlightQuery}
+                    />
                   </div>
                 )}
                 {part.metrics && <MetricsBar metrics={part.metrics} />}
@@ -105,7 +127,11 @@ const AssistantRoleContent: React.FC<{
   return (
     <>
       <div ref={exportRef}>
-        <AssistantContent content={message.content} streaming={streamingSingle} />
+        <AssistantContent
+          content={message.content}
+          streaming={streamingSingle}
+          highlightQuery={highlightQuery}
+        />
         <MessageReferences sources={message.researchSources ?? []} />
       </div>
       {message.metrics && <MetricsBar metrics={message.metrics} />}
@@ -134,16 +160,20 @@ const AssistantRoleContent: React.FC<{
   );
 };
 
-const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading }) => {
+const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading, searchQuery = "" }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const { beginEditUserMessage, regenerateLastResponse, apiConfig } = useChat();
 
+  const visibleMessages = useMemo(() => {
+    if (!searchQuery.trim()) return messages;
+    return messages.filter((m) => messageMatchesSearch(m, searchQuery));
+  }, [messages, searchQuery]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, visibleMessages.length]);
 
   const hasAssistant = messages.some((m) => m.role === "assistant");
-  const lastAssistantIdx = [...messages].map((m, i) => ({ m, i })).filter((x) => x.m.role === "assistant").pop()?.i;
   const lastMsg = messages[messages.length - 1];
   const showRetry =
     lastMsg?.role === "assistant" && !lastMsg.comparisonResponses && !isLoading;
@@ -151,6 +181,13 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading }) => {
   return (
     <ScrollArea className="flex-1 p-4 overflow-y-auto">
       <div className="max-w-5xl mx-auto space-y-8">
+        {messages.length > 0 && visibleMessages.length === 0 && searchQuery.trim() ? (
+          <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+            No messages match <span className="font-medium text-foreground">“{searchQuery.trim()}”</span>. Clear the search
+            box to see the full thread.
+          </div>
+        ) : null}
+
         {messages.length === 0 ? (
           <div className="flex min-h-[min(70vh,560px)] items-center justify-center py-12">
             <div className="w-full max-w-2xl px-4 text-center">
@@ -206,6 +243,9 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading }) => {
                       • Charts: fenced <code className="rounded bg-muted px-1 text-[11px]">openbentt-chart</code> JSON
                       blocks render as live charts.
                     </li>
+                    <li>
+                      • <strong className="text-foreground/90">Search / Export .md</strong> — bar above the thread on Home.
+                    </li>
                   </ul>
                 </div>
                 <div className="openbentt-card rounded-xl border border-border/80 p-4">
@@ -223,7 +263,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading }) => {
             </div>
           </div>
         ) : (
-          messages.map((message, idx) => (
+          visibleMessages.map((message) => (
             <div
               key={message.id}
               className={cn(
@@ -266,18 +306,23 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading }) => {
 
                   {message.role === "user" ? (
                     <div className="prose prose-sm max-w-none text-foreground dark:prose-invert prose-p:text-foreground text-left">
-                      <p className="m-0 whitespace-pre-wrap text-foreground">{message.content.trim() || "\u00a0"}</p>
+                      <p className="m-0 whitespace-pre-wrap text-foreground">
+                        {searchQuery.trim()
+                          ? highlightSearchInText(message.content.trim() || "\u00a0", searchQuery)
+                          : message.content.trim() || "\u00a0"}
+                      </p>
                     </div>
                   ) : (
                     <>
                       <AssistantRoleContent
                         message={message}
-                        idx={idx}
+                        idx={messages.indexOf(message)}
                         messages={messages}
                         isLoading={isLoading}
                         showAgentTraces={apiConfig.showAgentTraces}
+                        highlightQuery={searchQuery}
                       />
-                      {showRetry && idx === lastAssistantIdx && (
+                      {showRetry && message.id === lastMsg?.id && (
                         <div className="mt-3 flex flex-wrap gap-2">
                           <Button
                             type="button"

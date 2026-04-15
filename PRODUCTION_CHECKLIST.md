@@ -20,7 +20,9 @@ Use this before tagging a release or deploying. Mark items as you complete them.
 
 - [x] `index.html`: title, description, favicon (`/openbentt-favicon.svg`)
 - [x] Sidebar logo: `/openbentt-logo.svg`
-- [ ] Optional: set `og:image` / `twitter:image` to a hosted preview image
+- [x] SEO build plugin: canonical, OG/Twitter, JSON-LD, `robots.txt`, `site.webmanifest`, `/openbentt-og.svg`
+- [ ] Production: set **`VITE_PUBLIC_SITE_URL`** so Open Graph images use **absolute** URLs (see `.env.example`)
+- [ ] Run **Lighthouse** (SEO + Best practices) on the **production** URL and fix any regressions
 
 ## Runtime behavior
 

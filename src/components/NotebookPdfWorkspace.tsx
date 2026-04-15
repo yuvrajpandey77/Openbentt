@@ -53,7 +53,14 @@ const ZOOM_DEFAULT = 1.1;
 
 const NotebookPdfWorkspace: React.FC = () => {
   const { toast } = useToast();
-  const { chats, currentChatId, setWorkspaceRouteAssist, registerNotebookAssistSync } = useChat();
+  const {
+    chats,
+    currentChatId,
+    setWorkspaceRouteAssist,
+    registerNotebookAssistSync,
+    notebookLatexInsertRequest,
+    clearNotebookLatexInsertRequest,
+  } = useChat();
 
   const [fileName, setFileName] = useState<string | null>(null);
   const [originalBytes, setOriginalBytes] = useState<ArrayBuffer | null>(null);
@@ -319,6 +326,31 @@ const NotebookPdfWorkspace: React.FC = () => {
     },
     [fileName, toast, originalBytes]
   );
+
+  /** Chat code blocks → Notebook Source (+ optional compile). */
+  useEffect(() => {
+    const req = notebookLatexInsertRequest;
+    if (!req) return;
+    clearNotebookLatexInsertRequest();
+    setSourceText(req.latex);
+    setProposedText(null);
+    setMainTab("source");
+    if (req.autoCompile === false) {
+      toast({ title: "Inserted in Notebook", description: "Review Source, then Compile." });
+      return;
+    }
+    setBusy(true);
+    void (async () => {
+      try {
+        await doCompile(req.latex);
+      } catch (err) {
+        const { title, description } = formatCompileFailureToast(err);
+        toast({ title, description, variant: "destructive" });
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, [notebookLatexInsertRequest?.id, clearNotebookLatexInsertRequest, doCompile, toast]);
 
   const compilePdf = async () => {
     setBusy(true);
