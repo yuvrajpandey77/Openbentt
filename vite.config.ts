@@ -13,7 +13,7 @@ function openbenttSeoPlugin(): Plugin {
       const canonical = site ? `${site}/` : "/";
       const ogImage = site ? `${site}/openbentt-og.svg` : "/openbentt-og.svg";
       const ogDesc =
-        "Local-first OpenRouter chat: multi-model comparison, research workspaces, Notebook LaTeX/PDF. Your API key stays in the browser.";
+        "Openbentt is a local-first workspace for multi-model chat, research threads, and Notebook LaTeX or PDF workflows. Your API keys stay in the browser.";
       const lines = [
         `    <link rel="canonical" href="${canonical}" />`,
         `    <meta name="theme-color" content="#0d9488" />`,
@@ -21,16 +21,16 @@ function openbenttSeoPlugin(): Plugin {
         `    <link rel="manifest" href="/site.webmanifest" />`,
         `    <meta name="application-name" content="Openbentt" />`,
         `    <meta property="og:type" content="website" />`,
-        `    <meta property="og:title" content="Openbentt — OpenRouter chat &amp; multi-model workspaces" />`,
+        `    <meta property="og:title" content="Openbentt · AI workspace for chat, research, and documents" />`,
         `    <meta property="og:description" content="${ogDesc.replace(/"/g, "&quot;")}" />`,
         `    <meta property="og:image" content="${ogImage}" />`,
         `    <meta property="og:image:width" content="1200" />`,
         `    <meta property="og:image:height" content="630" />`,
-        `    <meta property="og:image:alt" content="Openbentt — local-first OpenRouter client" />`,
+        `    <meta property="og:image:alt" content="Openbentt workspace" />`,
         `    <meta property="og:site_name" content="Openbentt" />`,
         `    <meta property="og:locale" content="en_US" />`,
         `    <meta name="twitter:card" content="summary_large_image" />`,
-        `    <meta name="twitter:title" content="Openbentt — OpenRouter chat &amp; multi-model workspaces" />`,
+        `    <meta name="twitter:title" content="Openbentt · AI workspace for chat, research, and documents" />`,
         `    <meta name="twitter:description" content="${ogDesc.replace(/"/g, "&quot;")}" />`,
         `    <meta name="twitter:image" content="${ogImage}" />`,
       ];
@@ -42,7 +42,7 @@ function openbenttSeoPlugin(): Plugin {
         "@type": "WebApplication",
         name: "Openbentt",
         description:
-          "Local-first browser client for OpenRouter: multi-model comparison, research workspaces, Notebook LaTeX/PDF.",
+          "Local-first workspace for multi-model chat, research, and Notebook LaTeX or PDF workflows.",
         applicationCategory: "DeveloperApplication",
         operatingSystem: "Any",
         browserRequirements: "Requires JavaScript. Modern evergreen browser recommended.",

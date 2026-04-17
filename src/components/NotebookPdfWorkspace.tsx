@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +15,7 @@ import { extractNotebookSourceFromPdf } from "@/lib/pdfText";
 import { renderPdfPages } from "@/lib/pdfCanvasRender";
 import { compileNotebookSourceToPdf } from "@/lib/compileNotebook";
 import { formatCompileFailureToast } from "@/lib/latexErrorUi";
+import { applyNotebookLatexAutofix, isInvalidPdfStructureMessage } from "@/lib/notebookLatexAutofix";
 import { isLatexDocumentSource } from "@/lib/notebookSourceKind";
 import { NOTEBOOK_LATEX_BOOK_TEMPLATE } from "@/lib/notebookLatexTemplate";
 import { extractTexFromAssistantReply } from "@/lib/extractTexFromAssistantReply";
@@ -70,6 +72,8 @@ const NotebookPdfWorkspace: React.FC = () => {
   const [lineInclude, setLineInclude] = useState<boolean[]>([]);
   const [mainTab, setMainTab] = useState<MainTab>("preview");
   const [busy, setBusy] = useState(false);
+  /** Offer “Apply fixes & recompile” after bad PDF output or failed LaTeX compile. */
+  const [latexRecovery, setLatexRecovery] = useState(false);
   const [pdfScale, setPdfScale] = useState(ZOOM_DEFAULT);
   const [previewVariant, setPreviewVariant] = useState<PreviewVariant>("original");
 
@@ -210,6 +214,7 @@ const NotebookPdfWorkspace: React.FC = () => {
     el.innerHTML = '<p class="text-sm text-muted-foreground p-6 text-center">Rendering…</p>';
     try {
       await renderPdfPages(previewBuffer, el, pdfScale);
+      setLatexRecovery(false);
       const pending = pendingPdfZoomRef.current;
       if (pending && scrollEl && Math.abs(pending.prevScale - pdfScale) > 1e-6) {
         const r = pdfScale / pending.prevScale;
@@ -220,13 +225,17 @@ const NotebookPdfWorkspace: React.FC = () => {
     } catch (e) {
       el.innerHTML = "";
       pendingPdfZoomRef.current = null;
+      const msg = e instanceof Error ? e.message : String(e);
+      if (isLatexSource && isInvalidPdfStructureMessage(msg)) {
+        setLatexRecovery(true);
+      }
       toast({
         title: "PDF preview failed",
-        description: e instanceof Error ? e.message : "Could not render PDF",
+        description: msg,
         variant: "destructive",
       });
     }
-  }, [previewBuffer, pdfScale, toast]);
+  }, [previewBuffer, pdfScale, toast, isLatexSource]);
 
   /** Re-render when buffer/scale changes, and when returning to Preview (tab unmount clears the canvas). */
   useEffect(() => {
@@ -315,6 +324,7 @@ const NotebookPdfWorkspace: React.FC = () => {
       setCompiledBytes(buf.slice(0));
       setPreviewVariant("compiled");
       setMainTab("preview");
+      setLatexRecovery(false);
       const kind = isLatexDocumentSource(text) ? "pdflatex PDF" : "text PDF";
       toast({
         title: "Compiled",
@@ -326,6 +336,25 @@ const NotebookPdfWorkspace: React.FC = () => {
     },
     [fileName, toast, originalBytes]
   );
+
+  const runAutofixAndRecompile = useCallback(async () => {
+    if (!isLatexDocumentSource(sourceText)) {
+      toast({ title: "Autofix applies to LaTeX source", description: "Switch Source to a full LaTeX document, then try again." });
+      return;
+    }
+    const next = applyNotebookLatexAutofix(sourceText);
+    setSourceText(next);
+    setBusy(true);
+    try {
+      await doCompile(next);
+    } catch (err) {
+      setLatexRecovery(true);
+      const { title, description } = formatCompileFailureToast(err);
+      toast({ title, description, variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }, [sourceText, doCompile, toast]);
 
   /** Chat code blocks → Notebook Source (+ optional compile). */
   useEffect(() => {
@@ -344,6 +373,7 @@ const NotebookPdfWorkspace: React.FC = () => {
       try {
         await doCompile(req.latex);
       } catch (err) {
+        if (isLatexDocumentSource(req.latex)) setLatexRecovery(true);
         const { title, description } = formatCompileFailureToast(err);
         toast({ title, description, variant: "destructive" });
       } finally {
@@ -357,6 +387,7 @@ const NotebookPdfWorkspace: React.FC = () => {
     try {
       await doCompile(sourceText);
     } catch (err) {
+      if (isLatexSource) setLatexRecovery(true);
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
@@ -420,6 +451,7 @@ const NotebookPdfWorkspace: React.FC = () => {
     try {
       await doCompile(next);
     } catch (err) {
+      if (isLatexDocumentSource(next)) setLatexRecovery(true);
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
@@ -436,6 +468,7 @@ const NotebookPdfWorkspace: React.FC = () => {
     try {
       await doCompile(next);
     } catch (err) {
+      if (isLatexDocumentSource(next)) setLatexRecovery(true);
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
@@ -452,6 +485,7 @@ const NotebookPdfWorkspace: React.FC = () => {
     try {
       await doCompile(merged);
     } catch (err) {
+      if (isLatexDocumentSource(merged)) setLatexRecovery(true);
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
@@ -622,6 +656,31 @@ const NotebookPdfWorkspace: React.FC = () => {
           Source
         </Button>
       </div>
+
+      {latexRecovery && isLatexSource && (
+        <div className="shrink-0 border-b border-amber-500/35 bg-amber-500/[0.08] px-3 py-2.5 dark:bg-amber-950/25">
+          <Alert className="border-amber-500/40 bg-background/90">
+            <Wand2 className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+            <AlertTitle>Fix LaTeX and try again</AlertTitle>
+            <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                If the model produced TeX that compiles to a broken PDF, or preview says invalid structure, run autofix:
+                unicode cleanup, safe figure placeholders, and draft graphics.
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                className="shrink-0 gap-1.5"
+                onClick={() => void runAutofixAndRecompile()}
+                disabled={busy}
+              >
+                <Wand2 className="h-3.5 w-3.5" />
+                Apply fixes &amp; recompile
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {mainTab === "preview" && (

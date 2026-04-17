@@ -132,6 +132,7 @@
     "appId": "com.openbentt.desktop",
     "productName": "Openbentt",
     "copyright": "Copyright © Openbentt contributors",
+    "icon": "build/icon.png",
     "directories": {
       "output": "release"
     },
@@ -140,6 +141,7 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "build/icon.png",
       "package.json",
       "!node_modules",
       "!node_modules/**/*"

@@ -55,7 +55,16 @@ function registerAppProtocolHandler() {
   });
 }
 
+/** Near app light background (210 20% 99%) so the native title bar area matches the shell before paint. */
+const WINDOW_BG = "#fafbfc";
+
+function windowIconPath() {
+  const p = path.resolve(__dirname, "..", "build", "icon.png");
+  return fs.existsSync(p) ? p : undefined;
+}
+
 function createWindow() {
+  const icon = windowIconPath();
   const win = new BrowserWindow({
     width: 1280,
     height: 840,
@@ -63,6 +72,8 @@ function createWindow() {
     minHeight: 600,
     show: false,
     title: "Openbentt",
+    ...(icon ? { icon } : {}),
+    backgroundColor: WINDOW_BG,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -79,7 +90,8 @@ function createWindow() {
     });
     win.webContents.openDevTools({ mode: "detach" });
   } else {
-    win.loadURL("app://./index.html");
+    // Use a normal path `/` so React Router sees `/` (not `/index.html`, which would 404 in-app).
+    win.loadURL("app://openbentt/");
   }
 }
 

@@ -16,6 +16,7 @@ Use this before tagging a release or deploying. Mark items as you complete them.
 
 - [ ] **OpenRouter**: production keys only via in-app Settings; never commit keys
 - [ ] **Vercel / host**: environment variables set (`VITE_PUBLIC_SITE_URL`, optional `VITE_LATEX_COMPILE_URL`, `VITE_LATEX_REMOTE`, `VITE_RESEARCH_PROXY_URL`)
+- [ ] **Download page**: `VITE_GITHUB_REPO=owner/repo` and optional `VITE_DESKTOP_ASSET_VERSION` match published release filenames (see `.env.example`)
 - [ ] **Research proxy**: `BRAVE_SEARCH_API_KEY` set only in Docker / host env if Brave search is required; **not** a `VITE_*` var so it never lands in the bundle
 - [ ] **CSP / headers**: reverse proxy ok (nginx sets `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`). Add a stricter CSP at the edge if your deployment allows it (WASM + dynamic imports require permissive `script-src`/`worker-src`)
 
@@ -37,8 +38,10 @@ Use this before tagging a release or deploying. Mark items as you complete them.
 
 ## Runtime behavior
 
+- [ ] **Electron / desktop**: first load shows home at `/` (not 404); packaged app loads `app://openbentt/` so the SPA route is `/`
+- [ ] **Window chrome**: `build/icon.png` present; `package.json` `build.icon` set; taskbar/window uses Openbentt artwork
 - [ ] Tiled comparison: 2+ models, grid + metrics
-- [ ] Notebook: PDF load, compile path (BusyTeX or `npm run latex-compile`)
+- [ ] Notebook: PDF load, compile path (BusyTeX or `npm run latex-compile`); invalid PDF preview shows **Apply fixes & recompile** for LaTeX source
 - [ ] Legacy users: existing chats load after `cogerphere-*` → `openbentt-*` migration (first visit)
 - [ ] Thread search: filters messages **and** highlights matches with a yellow background (user + assistant text; not fenced code)
 

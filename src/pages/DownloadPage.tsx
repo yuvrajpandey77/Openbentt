@@ -151,11 +151,9 @@ const DownloadPage: React.FC = () => {
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
           <Link
             to="/"
-            className="group flex items-center gap-2 font-display text-lg font-semibold tracking-tight text-foreground"
+            className="group flex items-center gap-2.5 font-display text-lg font-semibold tracking-tight text-foreground"
           >
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
-              <Sparkles className="h-4 w-4" aria-hidden />
-            </span>
+            <img src="/openbentt-logo.svg" alt="" width={32} height={32} className="rounded-lg shadow-sm" />
             Openbentt
           </Link>
           <nav className="flex flex-wrap items-center gap-1 text-xs font-medium text-muted-foreground md:text-sm">
@@ -191,16 +189,16 @@ const DownloadPage: React.FC = () => {
             Release channel · v{DESKTOP_ASSET_VERSION} assets
           </Badge>
           <h1 className="font-display text-4xl font-bold tracking-tight md:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
-            A calmer home for{" "}
+            Install{" "}
             <span className="bg-gradient-to-r from-primary via-teal-600 to-cyan-600 bg-clip-text text-transparent dark:from-primary dark:via-teal-400 dark:to-cyan-400">
-              OpenRouter
-            </span>
-            <br />
-            — on the web or on your machine.
+              Openbentt
+            </span>{" "}
+            for your operating system
           </h1>
           <p className="max-w-2xl text-lg text-muted-foreground md:text-xl">
-            Compare models, keep your API key in the client, and use notebooks &amp; workspaces. Pick a build below;
-            we highlight the best match for this browser when we can.
+            Production builds for Windows, Linux, and macOS, plus a static bundle for self-hosting. Your suggested
+            download is highlighted from this browser when we can detect the platform. Verify checksums on GitHub if you
+            need supply-chain assurance.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button size="lg" className="gap-2 rounded-xl shadow-md shadow-primary/10" asChild>
