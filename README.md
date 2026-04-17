@@ -13,7 +13,7 @@ A **local-first** React app for **[OpenRouter](https://openrouter.ai/)**: pick f
 | Capability | Description |
 |------------|-------------|
 | **OpenRouter chat** | Uses `https://openrouter.ai/api/v1/chat/completions` with streaming. |
-| **Model directory** | Loads models from OpenRouter’s API; highlights **free-tier** models (`:free` / $0-style pricing). |
+| **Model directory** | Loads models from OpenRouter’s API (public `/models` endpoint → works **without** an API key on first visit). Highlights **free-tier** models (`:free` / $0-style pricing). Curated fallback list when offline. |
 | **Custom model IDs** | Add any OpenRouter model id (including paid) in Settings. |
 | **Tiled comparison** | One user message → parallel requests to multiple models → **grid of answers** with per-model **TTFT**, **total ms**, **tokens** (when the API returns usage). |
 | **Chats** | Multiple conversations, titles from the first user message, persist locally. |
@@ -48,6 +48,18 @@ npm run test      # unit tests (Vitest)
 npm run lint      # ESLint
 ```
 
+### Desktop (Electron)
+
+The **same UI** runs in a desktop window; the shell lives under `electron/` and does **not** modify `src/`.
+
+```bash
+npm run electron:dev    # Vite + Electron (hot reload; DevTools open)
+npm run electron:start  # npm run build, then open Electron loading dist/ (app://)
+npm run electron:build  # production web build + installers → release/
+```
+
+Details: **`electron/README.md`**.
+
 ## Production (instant setup paths)
 
 Pick one; all assume `npm ci` (or `npm install`) has run at least once.
@@ -65,9 +77,13 @@ Pick one; all assume `npm ci` (or `npm install`) has run at least once.
 Includes **nginx** on **:8080** and the **research** proxy (Brave search optional).
 
 ```bash
-npm run docker:build    # or: docker build -t openbentt .
-docker compose up --build
+DOCKER_BUILDKIT=1 docker compose up --build
+# or: npm run docker:build && docker run --rm -p 8080:8080 openbentt
 ```
+
+**Why the first build feels slow:** the image runs `npm ci` and, unless BusyTeX is already present, downloads **~175MB** of WASM assets (`texlyre-busytex`). Expect **several minutes** the first time; later builds reuse Docker layer cache. To **skip the download** on your machine, run once in the repo root: `npm run download:busytex` (creates `public/core/busytex/`), then build again — the Dockerfile detects `busytex.wasm` and skips fetching.
+
+For everyday UI work, **`npm run dev`** is much faster than rebuilding the image.
 
 - Service name: **openbentt** (see `docker-compose.yml`).
 - **Optional:** set `BRAVE_SEARCH_API_KEY` in the compose environment (or `.env` next to compose) for Brave-backed search in the bundled proxy.
@@ -103,6 +119,13 @@ This repo is suitable for **public open source**: there is **no server-side logi
 - Add a **`LICENSE`** file (e.g. MIT) with your copyright line.
 - Do **not** commit `.env` with real secrets; start from **`.env.example`**.
 - Review **third-party scripts** and analytics (e.g. Vercel Analytics) for your policy.
+
+### GitHub: CI and releases
+
+- **CI** (`.github/workflows/ci.yml`) runs lint, tests, and `vite build` on pushes and PRs to `main` / `master`.
+- **Releases** (`.github/workflows/release.yml`): push a tag `v1.2.3` to publish a GitHub Release with **`openbentt-web-dist.zip`** plus **Linux** Electron artifacts (AppImage + deb). Optional repo variable **`VITE_PUBLIC_SITE_URL`** for canonical/OG URLs in release builds.
+
+Full steps: **`RELEASING.md`**.
 
 ## SEO & social previews
 

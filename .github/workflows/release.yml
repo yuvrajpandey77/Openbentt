@@ -1,0 +1,60 @@
+name: Release
+
+# Pushing a tag like v1.2.3 builds web + Linux desktop installers and attaches them to a GitHub Release.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Cache BusyTeX WASM (~175MB)
+        id: busytex-cache
+        uses: actions/cache@v4
+        with:
+          path: public/core/busytex
+          key: busytex-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Download BusyTeX assets
+        if: steps.busytex-cache.outputs.cache-hit != 'true'
+        run: npm run download:busytex
+
+      - name: Build web (Vite)
+        run: npm run build
+        env:
+          VITE_PUBLIC_SITE_URL: ${{ vars.VITE_PUBLIC_SITE_URL }}
+
+      - name: Zip static dist (for Netlify / S3 / nginx)
+        run: (cd dist && zip -r "$GITHUB_WORKSPACE/openbentt-web-dist.zip" .)
+
+      - name: Package Electron (Linux AppImage + deb)
+        run: npx electron-builder --linux --publish never
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          generate_release_notes: true
+          files: |
+            openbentt-web-dist.zip
+            release/*.AppImage
+            release/*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
