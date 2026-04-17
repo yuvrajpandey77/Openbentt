@@ -1,6 +1,6 @@
 name: Release
 
-# Pushing a tag like v1.2.3 builds web + Linux desktop installers and attaches them to a GitHub Release.
+# Push tag v* → build static zip + Electron for Linux, Windows, macOS; publish one GitHub Release.
 on:
   push:
     tags:
@@ -10,7 +10,8 @@ permissions:
   contents: write
 
 jobs:
-  publish:
+  # Web zip + Linux AppImage/deb (single runner to avoid duplicate BusyTeX + Vite work for Linux).
+  build-linux-web:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -22,8 +23,18 @@ jobs:
           node-version: "22"
           cache: npm
 
+      # If this log still shows "npx electron-builder", GitHub is running an old workflow file — push .github/workflows/release.yml from this repo.
+      - name: Confirm release workflow uses npm scripts (not npx)
+        run: grep -q "electron:pack:linux" .github/workflows/release.yml && grep -q "npm run electron:pack:linux" .github/workflows/release.yml
+
+      # electron + electron-builder are in dependencies (always installed). NODE_ENV kept explicit for clarity.
       - name: Install
         run: npm ci
+        env:
+          NODE_ENV: development
+
+      - name: Verify Electron packages
+        run: node -e "require('fs').accessSync('node_modules/electron/package.json'); require('fs').accessSync('node_modules/electron-builder/package.json'); console.log('electron', require('electron/package.json').version)"
 
       - name: Cache BusyTeX WASM (~175MB)
         id: busytex-cache
@@ -39,22 +50,153 @@ jobs:
       - name: Build web (Vite)
         run: npm run build
         env:
+          NODE_ENV: production
           VITE_PUBLIC_SITE_URL: ${{ vars.VITE_PUBLIC_SITE_URL }}
 
-      - name: Zip static dist (for Netlify / S3 / nginx)
+      - name: Zip static dist
         run: (cd dist && zip -r "$GITHUB_WORKSPACE/openbentt-web-dist.zip" .)
 
-      - name: Package Electron (Linux AppImage + deb)
-        run: npx electron-builder --linux --publish never
+      - name: Package Electron (Linux)
+        run: npm run electron:pack:linux
+
+      - name: Upload Linux + web artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-linux-web
+          path: |
+            openbentt-web-dist.zip
+            release/
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Confirm release workflow uses npm scripts (not npx)
+        run: Select-String -Path .github/workflows/release.yml -Pattern "electron:pack:win" | Select-Object -First 1
+
+      - name: Install
+        run: npm ci
+        env:
+          NODE_ENV: development
+
+      - name: Verify Electron packages
+        run: node -e "require('fs').accessSync('node_modules/electron/package.json'); require('fs').accessSync('node_modules/electron-builder/package.json'); console.log('electron', require('electron/package.json').version)"
+
+      - name: Cache BusyTeX WASM
+        id: busytex-cache
+        uses: actions/cache@v4
+        with:
+          path: public/core/busytex
+          key: busytex-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Download BusyTeX assets
+        if: steps.busytex-cache.outputs.cache-hit != 'true'
+        run: npm run download:busytex
+
+      - name: Build web (Vite)
+        run: npm run build
+        env:
+          NODE_ENV: production
+          VITE_PUBLIC_SITE_URL: ${{ vars.VITE_PUBLIC_SITE_URL }}
+
+      - name: Package Electron (Windows)
+        run: npm run electron:pack:win
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-windows
+          path: release/
+
+  build-macos:
+    runs-on: macos-latest
+    env:
+      # Unsigned build on CI (no Apple Developer cert). Users may see Gatekeeper warnings.
+      CSC_IDENTITY_AUTO_DISCOVERY: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Confirm release workflow uses npm scripts (not npx)
+        run: grep -q "electron:pack:mac" .github/workflows/release.yml && grep -q "npm run electron:pack:mac" .github/workflows/release.yml
+
+      - name: Install
+        run: npm ci
+        env:
+          NODE_ENV: development
+
+      - name: Verify Electron packages
+        run: node -e "require('fs').accessSync('node_modules/electron/package.json'); require('fs').accessSync('node_modules/electron-builder/package.json'); console.log('electron', require('electron/package.json').version)"
+
+      - name: Cache BusyTeX WASM
+        id: busytex-cache
+        uses: actions/cache@v4
+        with:
+          path: public/core/busytex
+          key: busytex-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Download BusyTeX assets
+        if: steps.busytex-cache.outputs.cache-hit != 'true'
+        run: npm run download:busytex
+
+      - name: Build web (Vite)
+        run: npm run build
+        env:
+          NODE_ENV: production
+          VITE_PUBLIC_SITE_URL: ${{ vars.VITE_PUBLIC_SITE_URL }}
+
+      - name: Package Electron (macOS)
+        run: npm run electron:pack:mac
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-macos
+          path: release/
+
+  publish:
+    needs: [build-linux-web, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: combined
+          pattern: release-assets-*
+          merge-multiple: true
+
+      - name: Flatten files for GitHub Release
+        run: |
+          mkdir -p upload
+          find combined -type f \( \
+            -name '*.zip' -o \
+            -name '*.AppImage' -o \
+            -name '*.deb' -o \
+            -name '*.exe' -o \
+            -name '*.dmg' -o \
+            -name 'latest*.yml' \
+          \) -exec cp -f {} upload/ \;
+          ls -la upload/
 
       - name: GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           draft: false
           generate_release_notes: true
-          files: |
-            openbentt-web-dist.zip
-            release/*.AppImage
-            release/*.deb
+          files: upload/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

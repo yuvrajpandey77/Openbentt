@@ -1,8 +1,14 @@
 {
   "name": "openbentt",
+  "productName": "Openbentt",
+  "description": "Local-first OpenRouter chat and workspaces (web + optional desktop shell).",
+  "author": {
+    "name": "Openbentt contributors"
+  },
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "main": "electron/main.mjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -15,7 +21,14 @@
     "latex-compile": "node server/latex-compile.mjs",
     "docker:build": "docker build -t openbentt .",
     "docker:up": "docker compose up --build",
-    "download:busytex": "texlyre-busytex download-assets public/core"
+    "download:busytex": "texlyre-busytex download-assets public/core",
+    "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http-get://127.0.0.1:8080 && cross-env OPENBENTT_ELECTRON_DEV=1 electron .\"",
+    "electron:start": "npm run build && electron .",
+    "electron:build": "npm run build && electron-builder",
+    "electron:pack": "electron-builder",
+    "electron:pack:linux": "electron-builder --linux --publish never",
+    "electron:pack:win": "electron-builder --win --publish never",
+    "electron:pack:mac": "electron-builder --mac --publish never"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -57,6 +70,8 @@
     "cmdk": "^1.0.0",
     "date-fns": "^3.6.0",
     "diff": "^9.0.0",
+    "electron": "^41.2.1",
+    "electron-builder": "^26.8.1",
     "embla-carousel-react": "^8.3.0",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
@@ -97,6 +112,8 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react-swc": "^3.5.0",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "eslint": "^9.9.0",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.9",
@@ -107,6 +124,44 @@
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
     "vite": "^5.4.1",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "wait-on": "^9.0.5"
+  },
+  "build": {
+    "appId": "com.openbentt.desktop",
+    "productName": "Openbentt",
+    "copyright": "Copyright © Openbentt contributors",
+    "directories": {
+      "output": "release"
+    },
+    "asar": true,
+    "npmRebuild": false,
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json",
+      "!node_modules",
+      "!node_modules/**/*"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Office"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    }
   }
 }
