@@ -9,8 +9,10 @@ interface ImportMetaEnv {
   readonly VITE_LATEX_REMOTE?: string;
   /** `owner/repo` for GitHub Releases + docs links on /download */
   readonly VITE_GITHUB_REPO?: string;
-  /** Version string inside published asset names (e.g. 1.0.0 in Openbentt-1.0.0.AppImage) */
+  /** Version string inside published asset names (e.g. 2.0.2 in Openbentt-2.0.2.AppImage) */
   readonly VITE_DESKTOP_ASSET_VERSION?: string;
+  /** Injected from package.json in vite.config (semver for release asset filenames). */
+  readonly VITE_APP_VERSION?: string;
 }
 
 interface ImportMeta {

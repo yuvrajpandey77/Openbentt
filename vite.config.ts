@@ -1,8 +1,13 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import type { Plugin } from "vite";
 import { componentTagger } from "lovable-tagger";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const packageJson = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf-8")) as { version: string };
 
 /** Injects canonical, OG/Twitter, theme-color, robots, manifest, JSON-LD. Set VITE_PUBLIC_SITE_URL for absolute social URLs. */
 function openbenttSeoPlugin(): Plugin {
@@ -62,6 +67,10 @@ function openbenttSeoPlugin(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    /** Synced from package.json so /download asset names match electron-builder output without duplicating the version. */
+    "import.meta.env.VITE_APP_VERSION": JSON.stringify(packageJson.version),
+  },
   server: {
     host: "::",
     port: 8080,

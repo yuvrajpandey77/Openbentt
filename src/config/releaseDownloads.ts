@@ -10,10 +10,13 @@ const trim = (s: string | undefined) => (s ?? "").trim();
 export const GITHUB_REPO = trim(import.meta.env.VITE_GITHUB_REPO);
 
 /**
- * Version segment in desktop/web zip filenames from electron-builder / CI (e.g. 1.0.0 in `Openbentt-1.0.0.AppImage`).
- * Bump when your release assets change names; Git tag can differ (e.g. v1.0.5 ships 1.0.0-named builds until you bump app version).
+ * Version segment in desktop/web zip filenames from electron-builder / CI (e.g. 2.0.2 in `Openbentt-2.0.2.AppImage`).
+ * Defaults to `package.json` via `VITE_APP_VERSION` at build time; override with `VITE_DESKTOP_ASSET_VERSION` if filenames ever diverge.
  */
-export const DESKTOP_ASSET_VERSION = trim(import.meta.env.VITE_DESKTOP_ASSET_VERSION) || "1.0.0";
+export const DESKTOP_ASSET_VERSION =
+  trim(import.meta.env.VITE_DESKTOP_ASSET_VERSION) ||
+  trim(import.meta.env.VITE_APP_VERSION) ||
+  "2.0.2";
 
 export function githubReleasesLatestUrl(): string | null {
   if (!GITHUB_REPO) return null;
