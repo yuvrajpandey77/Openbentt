@@ -1,9 +1,12 @@
+# syntax=docker/dockerfile:1.4
 # Openbentt: Vite SPA (LaTeX compiles in-browser via WASM) + nginx + research proxy.
 #
-# Builder downloads BusyTeX assets (~175MB) so `public/core/busytex` is baked into dist.
+# First build is slow (~3–8 min): `npm ci` + BusyTeX assets (~175MB). After that, layers cache.
+# Faster local builds: run `npm run download:busytex` once so `public/core/busytex/` exists — the
+# conditional step below skips the download when `busytex.wasm` is present in the build context.
 #
 # Build:
-#   docker build -t openbentt .
+#   DOCKER_BUILDKIT=1 docker build -t openbentt .
 # Run:
 #   docker run --rm -p 8080:8080 -e BRAVE_SEARCH_API_KEY=optional openbentt
 
@@ -11,11 +14,22 @@ FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci && npx texlyre-busytex download-assets public/core
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 COPY . .
+
 ARG VITE_RESEARCH_PROXY_URL=/api
 ENV VITE_RESEARCH_PROXY_URL=${VITE_RESEARCH_PROXY_URL}
+
+# Skip ~175MB download when BusyTeX is already in context (e.g. after `npm run download:busytex`).
+RUN if [ ! -f public/core/busytex/busytex.wasm ]; then \
+      echo "[docker] BusyTeX assets missing — downloading (~175MB, one-time)…"; \
+      npx texlyre-busytex download-assets public/core; \
+    else \
+      echo "[docker] Using public/core/busytex from build context — skipping download."; \
+    fi
+
 RUN npm run build
 
 FROM node:22-bookworm-slim AS runtime

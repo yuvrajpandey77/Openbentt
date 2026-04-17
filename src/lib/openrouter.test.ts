@@ -5,6 +5,8 @@ import {
   shortModelLabel,
   resolveChatCompletionsUrl,
   OPENROUTER_CHAT_URL,
+  CURATED_FREE_MODEL_IDS,
+  curatedFreeModels,
   type OpenRouterModel,
 } from "./openrouter";
 
@@ -43,5 +45,26 @@ describe("resolveChatCompletionsUrl", () => {
 
   it("appends chat/completions to OpenAI base", () => {
     expect(resolveChatCompletionsUrl("http://127.0.0.1:11434/v1")).toBe("http://127.0.0.1:11434/v1/chat/completions");
+  });
+});
+
+describe("CURATED_FREE_MODEL_IDS", () => {
+  it("has non-empty entries and every id ends with :free", () => {
+    expect(CURATED_FREE_MODEL_IDS.length).toBeGreaterThan(5);
+    for (const id of CURATED_FREE_MODEL_IDS) {
+      expect(id).toMatch(/:free$/);
+      expect(isFreeModelId(id)).toBe(true);
+    }
+  });
+
+  it("is deduplicated and alphabetically sorted", () => {
+    const arr = [...CURATED_FREE_MODEL_IDS];
+    expect(new Set(arr).size).toBe(arr.length);
+    expect(arr).toEqual([...arr].sort());
+  });
+
+  it("curatedFreeModels() mirrors the id list", () => {
+    const models = curatedFreeModels();
+    expect(models.map((m) => m.id)).toEqual([...CURATED_FREE_MODEL_IDS]);
   });
 });

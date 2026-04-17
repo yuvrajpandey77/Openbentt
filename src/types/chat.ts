@@ -81,7 +81,18 @@ export interface Chat {
   updatedAt: Date;
 }
 
-export const DEFAULT_MODEL_ID = "mistralai/mistral-small-3.2-24b-instruct:free";
+/**
+ * Current recommended free default. Llama 3.3 70B Instruct (free tier) is widely available on
+ * OpenRouter today and handles general chat, code, and research prompts reasonably.
+ * `DEPRECATED_DEFAULT_MODEL_IDS` migrates users off ids that OpenRouter no longer serves.
+ */
+export const DEFAULT_MODEL_ID = "meta-llama/llama-3.3-70b-instruct:free";
+
+/** Old app defaults that OpenRouter removed; `normalizeApiConfig` bumps them to the current default. */
+export const DEPRECATED_DEFAULT_MODEL_IDS: readonly string[] = [
+  "mistralai/mistral-small-3.2-24b-instruct:free",
+  "mistralai/mistral-7b-instruct:free",
+];
 
 /** Where API calls are routed. OpenRouter aggregates many vendors with one key; others use vendor keys or compatible bases. */
 export type AiProvider =
@@ -173,7 +184,8 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
     typeof raw.aiProvider === "string" && allowed.includes(raw.aiProvider as AiProvider)
       ? (raw.aiProvider as AiProvider)
       : base.aiProvider;
-  const model = typeof raw.model === "string" && raw.model ? raw.model : base.model;
+  const rawModel = typeof raw.model === "string" && raw.model ? raw.model : base.model;
+  const model = DEPRECATED_DEFAULT_MODEL_IDS.includes(rawModel) ? base.model : rawModel;
   const customModelIds = Array.isArray(raw.customModelIds)
     ? (raw.customModelIds as string[])
         .filter((s) => typeof s === "string" && s.trim())

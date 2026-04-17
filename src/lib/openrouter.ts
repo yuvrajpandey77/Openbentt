@@ -130,20 +130,72 @@ export function isLikelyFreeModel(m: OpenRouterModel): boolean {
   return false;
 }
 
+/**
+ * Curated free-tier OpenRouter IDs used as a **fallback** when the live `/models` call fails
+ * (e.g. offline first visit) and as **seed** so the primary picker always shows known-good entries.
+ *
+ * Keep in alphabetical order. Update periodically: we don't want to ship a list that's so far out
+ * of date that users see only broken ids.
+ */
+export const CURATED_FREE_MODEL_IDS: readonly string[] = [
+  "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+  "google/gemma-3-12b-it:free",
+  "google/gemma-3-27b-it:free",
+  "google/gemma-3-4b-it:free",
+  "google/gemma-3n-e2b-it:free",
+  "google/gemma-3n-e4b-it:free",
+  "liquid/lfm-2.5-1.2b-instruct:free",
+  "liquid/lfm-2.5-1.2b-thinking:free",
+  "meta-llama/llama-3.2-3b-instruct:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "meta-llama/llama-guard-4-12b:free",
+  "minimax/minimax-m2.5:free",
+  "nousresearch/hermes-3-llama-3.1-405b:free",
+  "nvidia/nemotron-3-nano-30b-a3b:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "nvidia/nemotron-nano-12b-v2-vl:free",
+  "nvidia/nemotron-nano-9b-v2:free",
+  "openai/gpt-oss-120b:free",
+  "openai/gpt-oss-20b:free",
+  "qwen/qwen3-coder:free",
+  "qwen/qwen3-next-80b-a3b-instruct:free",
+  "z-ai/glm-4.5-air:free",
+];
+
+/** Synthesize `OpenRouterModel[]` from curated ids (used as fallback list). */
+export function curatedFreeModels(): OpenRouterModel[] {
+  return CURATED_FREE_MODEL_IDS.map((id) => ({ id, name: shortModelLabel(id) }));
+}
+
 export async function fetchOpenRouterModels(apiKey: string): Promise<OpenRouterModel[]> {
-  const res = await fetch(OPENROUTER_MODELS_URL, {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "",
-      "X-Title": "Openbentt",
-    },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: { message?: string } }).error?.message || `Models request failed (${res.status})`);
+  /**
+   * The `/models` endpoint is public (no Authorization needed) — always try it so first-time users
+   * without an API key still see the full model list. Auth is only required to *chat*.
+   */
+  const headers: Record<string, string> = {
+    "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "",
+    "X-Title": "Openbentt",
+  };
+  if (apiKey.trim()) {
+    headers.Authorization = `Bearer ${apiKey.trim()}`;
   }
-  const json = (await res.json()) as OpenRouterModelsResponse;
-  return json.data ?? [];
+  try {
+    const res = await fetch(OPENROUTER_MODELS_URL, { headers });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(
+        (err as { error?: { message?: string } }).error?.message || `Models request failed (${res.status})`
+      );
+    }
+    const json = (await res.json()) as OpenRouterModelsResponse;
+    const data = json.data ?? [];
+    if (data.length === 0) return curatedFreeModels();
+    return data;
+  } catch (e) {
+    // Fallback so the UI is never empty (first visit, offline, or CORS edge cases).
+    if (typeof console !== "undefined") console.warn("fetchOpenRouterModels fell back to curated list:", e);
+    return curatedFreeModels();
+  }
 }
 
 export function shortModelLabel(id: string): string {

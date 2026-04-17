@@ -107,6 +107,25 @@ export default defineConfig(({ mode }) => ({
       "@xenova/transformers",
     ],
   },
+  build: {
+    chunkSizeWarningLimit: 1800,
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("@xenova/transformers") || id.includes("onnxruntime")) return "transformers";
+          if (id.includes("texlyre-busytex") || id.includes("busytex")) return "busytex";
+          if (id.includes("pdfjs-dist")) return "pdfjs";
+          if (id.includes("katex")) return "katex";
+          if (id.includes("recharts")) return "recharts";
+          if (id.includes("mathjs")) return "mathjs";
+          if (id.includes("react-markdown") || id.includes("remark-") || id.includes("micromark")) return "markdown";
+          if (id.includes("@radix-ui") || id.includes("lucide-react") || id.includes("cmdk")) return "ui-vendor";
+          return undefined;
+        },
+      },
+    },
+  },
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],

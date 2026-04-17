@@ -40,7 +40,7 @@ Shared steps on each builder: restore or download **BusyTeX** (`npm run download
 
 ## Troubleshooting
 
-- **`Cannot compute electron version from installed node modules` in CI** — Usually `electron` was missing because `NODE_ENV=production` skips **devDependencies**. This repo lists **`electron` and `electron-builder` under `dependencies`** so `npm ci` always installs them. The release workflow also uses **`npm run electron:pack`** (never `npx electron-builder` alone). **Push the latest `package.json`, `package-lock.json`, and `.github/workflows/release.yml`** before tagging—old workflows still show `npx electron-builder` in the log.
+- **`Cannot compute electron version from installed node modules` in CI** — Usually `electron` was missing because `NODE_ENV=production` skips **devDependencies**. **`electron` and `electron-builder` must stay in `devDependencies`** (electron-builder rejects them in `dependencies`). The release workflow runs **`npm ci` with `NODE_ENV=development`** so dev deps install, and uses **`npm run electron:pack:…`** (not `npx electron-builder` alone). **Push the latest `package.json`, `package-lock.json`, and `.github/workflows/release.yml`** before tagging—old workflows still show `npx electron-builder` in the log.
 
 ## Manual checks before tagging
 

@@ -40,7 +40,10 @@ export function useOpenRouterModels(
         ? Boolean(compat)
         : aiProvider === "anthropic"
           ? true
-          : Boolean(apiKey?.trim()),
+          : // `/models` on OpenRouter is public → always load so first-time users without a key see options.
+            aiProvider === "openrouter"
+            ? true
+            : Boolean(apiKey?.trim()),
     staleTime: 10 * 60 * 1000,
     retry: 1,
   });

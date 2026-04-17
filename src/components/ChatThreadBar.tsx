@@ -23,7 +23,7 @@ export const ChatThreadBar: React.FC<ChatThreadBarProps> = ({ searchQuery, onSea
       return;
     }
     const md = buildChatMarkdownExport(chat);
-    const safe = chat.title.replace(/[^\w\-]+/g, "-").slice(0, 48) || "chat";
+    const safe = chat.title.replace(/[^\w-]+/g, "-").slice(0, 48) || "chat";
     const stamp = new Date().toISOString().slice(0, 10);
     downloadTextFile(`openbentt-${safe}-${stamp}.md`, md);
     toast({ title: "Markdown exported", description: "File download started." });

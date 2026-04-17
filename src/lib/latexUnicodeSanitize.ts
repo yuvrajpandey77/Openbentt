@@ -4,7 +4,11 @@
  * "Unicode character … not set up for use with LaTeX" near unrelated lines.
  */
 
-/** Zero-width, BOM, and joiners — remove entirely. */
+/**
+ * Zero-width, BOM, and joiners — remove entirely. `\u034F` is a combining grapheme joiner; we still
+ * strip it and silence the "misleading character class" lint since it's intentional.
+ */
+// eslint-disable-next-line no-misleading-character-class
 const UNICODE_INVISIBLE = /[\uFEFF\u200B-\u200D\u2060\u2066-\u2069\u034F]/g;
 
 /** All Unicode "space separator" (Zs) code points → ASCII space (requires `u` flag). */

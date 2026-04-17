@@ -35,7 +35,7 @@ const LatexWorkspacePage: React.FC = () => {
       const img = canvas.toDataURL("image/png");
       const imgW = pageW - 40;
       const imgH = (canvas.height * imgW) / canvas.width;
-      let y = 20;
+      const y = 20;
       if (imgH + y > pageH - 20) {
         pdf.addImage(img, "PNG", 20, y, imgW, Math.min(imgH, pageH - y - 20));
       } else {

@@ -123,7 +123,7 @@ This repo is suitable for **public open source**: there is **no server-side logi
 ### GitHub: CI and releases
 
 - **CI** (`.github/workflows/ci.yml`) runs lint, tests, and `vite build` on pushes and PRs to `main` / `master`.
-- **Releases** (`.github/workflows/release.yml`): push a tag `v1.2.3` to publish a GitHub Release with **`openbentt-web-dist.zip`** plus **Linux** Electron artifacts (AppImage + deb). Optional repo variable **`VITE_PUBLIC_SITE_URL`** for canonical/OG URLs in release builds.
+- **Releases** (`.github/workflows/release.yml`): push a tag `v1.2.3` to publish a GitHub Release with **`openbentt-web-dist.zip`**, **Linux** (AppImage + deb), **Windows** (NSIS `.exe`), and **macOS** (`.dmg` / `.zip`). Optional repo variable **`VITE_PUBLIC_SITE_URL`** for canonical/OG URLs. macOS CI builds are unsigned (no Apple cert); see **`RELEASING.md`** for signing/notarization notes.
 
 Full steps: **`RELEASING.md`**.
 

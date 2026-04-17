@@ -27,7 +27,7 @@ jobs:
       - name: Confirm release workflow uses npm scripts (not npx)
         run: grep -q "electron:pack:linux" .github/workflows/release.yml && grep -q "npm run electron:pack:linux" .github/workflows/release.yml
 
-      # electron + electron-builder are in dependencies (always installed). NODE_ENV kept explicit for clarity.
+      # electron + electron-builder are devDependencies; NODE_ENV=development ensures npm ci installs them.
       - name: Install
         run: npm ci
         env:

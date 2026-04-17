@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { dedupeModels, normalizeApiConfig, defaultApiConfig, DEFAULT_MODEL_ID } from "./chat";
+import {
+  dedupeModels,
+  normalizeApiConfig,
+  defaultApiConfig,
+  DEFAULT_MODEL_ID,
+  DEPRECATED_DEFAULT_MODEL_IDS,
+} from "./chat";
 
 describe("dedupeModels", () => {
   it("trims, dedupes, preserves order", () => {
@@ -41,5 +47,23 @@ describe("normalizeApiConfig", () => {
 describe("DEFAULT_MODEL_ID", () => {
   it("is a :free id", () => {
     expect(DEFAULT_MODEL_ID).toContain(":free");
+  });
+
+  it("is not itself listed as deprecated", () => {
+    expect(DEPRECATED_DEFAULT_MODEL_IDS).not.toContain(DEFAULT_MODEL_ID);
+  });
+});
+
+describe("normalizeApiConfig migrations", () => {
+  it("rewrites deprecated default model ids to current default", () => {
+    for (const stale of DEPRECATED_DEFAULT_MODEL_IDS) {
+      const n = normalizeApiConfig({ model: stale });
+      expect(n.model).toBe(DEFAULT_MODEL_ID);
+    }
+  });
+
+  it("does not rewrite user-selected model ids that aren't deprecated", () => {
+    const n = normalizeApiConfig({ model: "some/user-picked:free" });
+    expect(n.model).toBe("some/user-picked:free");
   });
 });
