@@ -7,7 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_LATEX_COMPILE_URL?: string;
   /** Set to "1" to skip client WASM and use HTTP compile only */
   readonly VITE_LATEX_REMOTE?: string;
-  /** `owner/repo` for GitHub Releases + docs links on /download */
+  /** Optional `owner/repo` for GitHub Releases (defaults to the public upstream if unset) */
   readonly VITE_GITHUB_REPO?: string;
   /** Version string inside published asset names (e.g. 2.0.2 in Openbentt-2.0.2.AppImage) */
   readonly VITE_DESKTOP_ASSET_VERSION?: string;
@@ -17,4 +17,14 @@ interface ImportMetaEnv {
 
 interface ImportMeta {
   readonly env: ImportMetaEnv;
+}
+
+/** Exposed from `electron/preload.cjs` in the desktop shell only. */
+interface OpenbenttDesktopApi {
+  readonly isElectron: boolean;
+  readonly platform: string;
+}
+
+interface Window {
+  readonly openbenttDesktop?: OpenbenttDesktopApi;
 }

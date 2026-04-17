@@ -1,8 +1,10 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTheme } from "@/context/ThemeContext";
+import { releaseAssets } from "@/config/releaseDownloads";
+import { getClientPlatform } from "@/lib/detectClientPlatform";
 import { cn } from "@/lib/utils";
 import {
   ArrowRight,
@@ -70,9 +72,15 @@ const pillars = [
 
 const HomeLandingPage: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
+  const [windowsInstallerHref, setWindowsInstallerHref] = useState<string | null>(null);
 
   useEffect(() => {
     document.title = "Openbentt · Workspace for AI chat, research, and documents";
+  }, []);
+
+  useEffect(() => {
+    if (getClientPlatform() !== "windows") return;
+    setWindowsInstallerHref(releaseAssets.windowsNsis());
   }, []);
 
   return (
@@ -142,10 +150,17 @@ const HomeLandingPage: React.FC = () => {
               </p>
               <div className="flex flex-wrap gap-3">
                 <Button size="lg" className="h-12 rounded-xl px-7 text-base shadow-md shadow-primary/15" asChild>
-                  <Link to="/download" className="gap-2">
-                    <Download className="h-5 w-5" />
-                    Get the desktop app
-                  </Link>
+                  {windowsInstallerHref ? (
+                    <a href={windowsInstallerHref} className="gap-2" rel="noreferrer" target="_blank">
+                      <Download className="h-5 w-5" />
+                      Get the desktop app
+                    </a>
+                  ) : (
+                    <Link to="/download" className="gap-2">
+                      <Download className="h-5 w-5" />
+                      Get the desktop app
+                    </Link>
+                  )}
                 </Button>
                 <Button size="lg" variant="outline" className="h-12 rounded-xl border-border/80" asChild>
                   <Link to="/chat" className="gap-2">

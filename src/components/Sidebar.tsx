@@ -16,6 +16,7 @@ import {
   MessagesSquare,
   Download,
 } from "lucide-react";
+import { appHomePath } from "@/lib/appHomePath";
 import { cn } from "@/lib/utils";
 import { WORKSPACE_NAV_ITEMS } from "@/config/workspaceNav";
 import {
@@ -97,7 +98,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           )}
         >
           <Link
-            to="/"
+            to={appHomePath()}
             onClick={onCloseMobile}
             className={cn(
               "flex min-w-0 items-center rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-sidebar-ring",

@@ -14,6 +14,9 @@ const VITE_DEV_URL = process.env.VITE_DEV_SERVER_URL || "http://localhost:8080";
 /** When true, load the Vite dev server (use `npm run electron:dev`). Otherwise load built `dist/` via app:// */
 const useViteDevServer = process.env.OPENBENTT_ELECTRON_DEV === "1";
 
+/** Open the workspace shell, not `/` (marketing landing). Same routes as the web app; desktop is product-first. */
+const START_PATH = "/chat";
+
 /** Must run before app.ready (Electron requirement). */
 protocol.registerSchemesAsPrivileged([
   {
@@ -85,13 +88,15 @@ function createWindow() {
   win.once("ready-to-show", () => win.show());
 
   if (useViteDevServer) {
-    win.loadURL(VITE_DEV_URL).catch((err) => {
-      console.error(`[electron] Failed to load ${VITE_DEV_URL}. Is Vite running? (npm run dev)`, err);
+    const devBase = VITE_DEV_URL.replace(/\/$/, "");
+    const devStart = `${devBase}${START_PATH}`;
+    win.loadURL(devStart).catch((err) => {
+      console.error(`[electron] Failed to load ${devStart}. Is Vite running? (npm run dev)`, err);
     });
     win.webContents.openDevTools({ mode: "detach" });
   } else {
-    // Use a normal path `/` so React Router sees `/` (not `/index.html`, which would 404 in-app).
-    win.loadURL("app://openbentt/");
+    // Path must match React Router (e.g. `/chat` → workspace); `app://` has no pathname → would show `/` landing.
+    win.loadURL(`app://openbentt${START_PATH}`);
   }
 }
 

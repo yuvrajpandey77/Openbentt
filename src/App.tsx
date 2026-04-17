@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
 import { ChatProvider } from "./context/ChatContext";
 import AppLayout from "./layouts/AppLayout";
@@ -26,6 +26,14 @@ const RouteFallback = () => (
   <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground text-sm">Loading module…</div>
 );
 
+/** Web: marketing landing. Electron: never show it — send users to the workspace. */
+function RootMarketingOrElectronRedirect() {
+  if (typeof window !== "undefined" && window.openbenttDesktop?.isElectron) {
+    return <Navigate to="/chat" replace />;
+  }
+  return <HomeLandingPage />;
+}
+
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
@@ -36,7 +44,7 @@ const App = () => (
           <BrowserRouter>
             <Suspense fallback={<RouteFallback />}>
               <Routes>
-                <Route path="/" element={<HomeLandingPage />} />
+                <Route path="/" element={<RootMarketingOrElectronRedirect />} />
                 <Route path="/download" element={<DownloadPage />} />
                 <Route path="/share" element={<ShareViewPage />} />
                 <Route

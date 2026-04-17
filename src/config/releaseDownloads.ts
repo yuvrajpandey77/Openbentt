@@ -1,13 +1,16 @@
 /**
  * GitHub Releases download URLs. Set at build time:
- * - VITE_GITHUB_REPO — `owner/repo` (required for working links)
+ * - VITE_GITHUB_REPO — `owner/repo` (optional; defaults to the public upstream so /download works without extra env)
  * - VITE_DESKTOP_ASSET_VERSION — version string in artifact filenames (default matches package.json installers)
  */
 
 const trim = (s: string | undefined) => (s ?? "").trim();
 
+/** Public upstream releases. Self-hosts and forks: set `VITE_GITHUB_REPO` to your `owner/repo`. */
+const DEFAULT_GITHUB_REPO = "yuvrajpandey77/SecuredChatCogerphere";
+
 /** e.g. `myorg/SecuredChatCogerphere` */
-export const GITHUB_REPO = trim(import.meta.env.VITE_GITHUB_REPO);
+export const GITHUB_REPO = trim(import.meta.env.VITE_GITHUB_REPO) || DEFAULT_GITHUB_REPO;
 
 /**
  * Version segment in desktop/web zip filenames from electron-builder / CI (e.g. 2.0.2 in `Openbentt-2.0.2.AppImage`).

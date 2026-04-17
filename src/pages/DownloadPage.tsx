@@ -3,19 +3,17 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import {
   releaseAssets,
   githubReleasesLatestUrl,
   githubBlobMain,
-  GITHUB_REPO,
   DESKTOP_ASSET_VERSION,
 } from "@/config/releaseDownloads";
+import { appHomePath } from "@/lib/appHomePath";
 import { getClientPlatform, type ClientPlatform } from "@/lib/detectClientPlatform";
 import { cn } from "@/lib/utils";
 import {
-  AlertTriangle,
   Apple,
   ArrowRight,
   BookOpen,
@@ -150,7 +148,7 @@ const DownloadPage: React.FC = () => {
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
           <Link
-            to="/"
+            to={appHomePath()}
             className="group flex items-center gap-2.5 font-display text-lg font-semibold tracking-tight text-foreground"
           >
             <img src="/openbentt-logo.svg" alt="" width={32} height={32} className="rounded-lg shadow-sm" />
@@ -215,19 +213,6 @@ const DownloadPage: React.FC = () => {
             </Button>
           </div>
         </section>
-
-        {!GITHUB_REPO && (
-          <Alert className="mt-10 border-amber-500/40 bg-amber-500/5" id="configure">
-            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            <AlertTitle>Configure GitHub release links</AlertTitle>
-            <AlertDescription className="text-muted-foreground">
-              Set <code className="rounded bg-muted px-1 py-0.5 text-xs">VITE_GITHUB_REPO=owner/repo</code> at build
-              time so download buttons point at your GitHub Releases. Optional:{" "}
-              <code className="rounded bg-muted px-1 py-0.5 text-xs">VITE_DESKTOP_ASSET_VERSION</code> must match the
-              filenames published with each release.
-            </AlertDescription>
-          </Alert>
-        )}
 
         <section id="downloads" className="scroll-mt-28 pt-16">
           <div className="mb-8 flex flex-col gap-2">
