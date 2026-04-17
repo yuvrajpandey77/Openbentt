@@ -86,7 +86,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div
         className={cn(
           "flex h-full flex-col p-3",
-          narrow && "items-center px-2 py-3 md:items-stretch"
+          /** Keep cross-axis centering at all breakpoints; `items-stretch` was shifting icon-only controls (e.g. New chat) left in the rail. */
+          narrow && "items-center px-2 py-3"
         )}
       >
         <div
@@ -136,24 +137,26 @@ const Sidebar: React.FC<SidebarProps> = ({
           </Tooltip>
         </div>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="default"
-              className={cn(
-                "openbentt-button mb-3 flex shrink-0 items-center gap-2 bg-primary",
-                narrow ? "h-10 w-10 justify-center p-0" : "w-full justify-center"
-              )}
-              onClick={handleNewChat}
-            >
-              <PlusCircle size={narrow ? 18 : 16} />
-              {!narrow && <span>New chat</span>}
-            </Button>
-          </TooltipTrigger>
-          {narrow && (
-            <TooltipContent side="right">New chat</TooltipContent>
-          )}
-        </Tooltip>
+        <div className={cn("mb-3 flex w-full shrink-0", narrow && "justify-center")}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default"
+                className={cn(
+                  "openbentt-button flex items-center gap-2 bg-primary",
+                  narrow ? "h-10 w-10 shrink-0 justify-center p-0" : "w-full justify-center"
+                )}
+                onClick={handleNewChat}
+              >
+                <PlusCircle size={narrow ? 18 : 16} />
+                {!narrow && <span>New chat</span>}
+              </Button>
+            </TooltipTrigger>
+            {narrow && (
+              <TooltipContent side="right">New chat</TooltipContent>
+            )}
+          </Tooltip>
+        </div>
 
         <div className={cn("mb-2 shrink-0 space-y-1", narrow && "flex flex-col items-center")}>
           {!narrow && (
