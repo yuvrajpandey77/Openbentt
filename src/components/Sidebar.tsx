@@ -1,5 +1,5 @@
 import React from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -14,6 +14,7 @@ import {
   ChevronRight,
   LayoutGrid,
   MessagesSquare,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WORKSPACE_NAV_ITEMS } from "@/config/workspaceNav";
@@ -94,14 +95,17 @@ const Sidebar: React.FC<SidebarProps> = ({
             narrow ? "flex-col gap-2" : "justify-between"
           )}
         >
-          <div
+          <Link
+            to="/"
+            onClick={onCloseMobile}
             className={cn(
-              "flex min-w-0 items-center",
+              "flex min-w-0 items-center rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-sidebar-ring",
               narrow && "flex-col"
             )}
+            aria-label="Openbentt home"
           >
             <Avatar className={cn("h-9 w-9 shrink-0", narrow && "h-8 w-8")}>
-              <AvatarImage src="/openbentt-logo.svg" alt="Openbentt" />
+              <AvatarImage src="/openbentt-logo.svg" alt="" />
               <AvatarFallback className="font-display text-xs">OB</AvatarFallback>
             </Avatar>
             {!narrow && (
@@ -109,7 +113,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 Openbentt
               </h1>
             )}
-          </div>
+          </Link>
 
           <Tooltip>
             <TooltipTrigger asChild>
@@ -202,6 +206,52 @@ const Sidebar: React.FC<SidebarProps> = ({
                     strokeWidth={2}
                   />
                   <span className="min-w-0 flex-1 truncate">Thread</span>
+                </>
+              )}
+            </NavLink>
+          )}
+          {narrow ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <NavLink
+                  to="/download"
+                  onClick={onCloseMobile}
+                  className={cn(
+                    "mt-1 flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
+                    location.pathname === "/download"
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                      : "text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  )}
+                  aria-current={location.pathname === "/download" ? "page" : undefined}
+                >
+                  <Download className="h-[18px] w-[18px]" strokeWidth={2} />
+                </NavLink>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-[200px]">
+                <p className="font-medium">Download</p>
+                <p className="text-xs text-muted-foreground">Desktop installers &amp; docs</p>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <NavLink
+              to="/download"
+              onClick={onCloseMobile}
+              className={({ isActive }) =>
+                cn(
+                  "mt-1 flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-colors",
+                  isActive
+                    ? "bg-sidebar-primary/12 font-medium text-sidebar-primary"
+                    : "text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <Download
+                    className={cn("h-4 w-4 shrink-0", isActive ? "text-sidebar-primary" : "text-sidebar-foreground/70")}
+                    strokeWidth={2}
+                  />
+                  <span className="min-w-0 flex-1 truncate">Download</span>
                 </>
               )}
             </NavLink>
