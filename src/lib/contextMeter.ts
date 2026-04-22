@@ -59,6 +59,7 @@ export function resolveContextLimit(
   if (/^gpt-4o|^o[134]|^gpt-5|^chatgpt-4o/i.test(modelId)) return 128000;
   if (/gemini-2|gemini-1\.5|gemini-2\.0/i.test(modelId)) return 1000000;
   if (/gemini/i.test(modelId)) return 32000;
+  if (/openbentt\/local-gemma/i.test(modelId)) return 128000;
   return DEFAULT_FALLBACK_CONTEXT;
 }
 

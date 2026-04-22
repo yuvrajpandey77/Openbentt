@@ -6,6 +6,7 @@ import {
   DEFAULT_MODEL_ID,
   DEPRECATED_DEFAULT_MODEL_IDS,
 } from "./chat";
+import { DEFAULT_LOCAL_GEMMA_MODEL_ID } from "@/lib/gemmaWebGpu/models";
 
 describe("dedupeModels", () => {
   it("trims, dedupes, preserves order", () => {
@@ -65,5 +66,17 @@ describe("normalizeApiConfig migrations", () => {
   it("does not rewrite user-selected model ids that aren't deprecated", () => {
     const n = normalizeApiConfig({ model: "some/user-picked:free" });
     expect(n.model).toBe("some/user-picked:free");
+  });
+
+  it("normalizes webgpu_gemma to local model and disables comparison", () => {
+    const n = normalizeApiConfig({
+      aiProvider: "webgpu_gemma",
+      model: "meta-llama/llama-3.3-70b-instruct:free",
+      comparisonEnabled: true,
+      comparisonModelIds: ["a", "b"],
+    });
+    expect(n.model).toBe(DEFAULT_LOCAL_GEMMA_MODEL_ID);
+    expect(n.comparisonEnabled).toBe(false);
+    expect(n.comparisonModelIds).toEqual([DEFAULT_LOCAL_GEMMA_MODEL_ID]);
   });
 });

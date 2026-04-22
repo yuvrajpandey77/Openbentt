@@ -28,3 +28,8 @@ interface OpenbenttDesktopApi {
 interface Window {
   readonly openbenttDesktop?: OpenbenttDesktopApi;
 }
+
+/** WebGPU (Chrome / Edge / Electron); optional until DOM lib catches up. */
+interface Navigator {
+  readonly gpu?: GPU;
+}

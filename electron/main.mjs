@@ -10,6 +10,20 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * WebGPU for on-device Gemma (@huggingface/transformers): on many Linux / Mesa / hybrid setups
+ * Chromium refuses `navigator.gpu.requestAdapter()` unless this switch is set. Must run before
+ * app.ready (see Chromium "Failed to get GPU adapter" / "enable-unsafe-webgpu").
+ * Set OPENBENTT_DISABLE_WEBGPU_FLAGS=1 to opt out for debugging.
+ */
+if (!process.env.OPENBENTT_DISABLE_WEBGPU_FLAGS) {
+  app.commandLine.appendSwitch("enable-unsafe-webgpu");
+  /** Many integrated / Mesa drivers are blocklisted for WebGPU until this is set. */
+  if (process.platform === "linux") {
+    app.commandLine.appendSwitch("ignore-gpu-blocklist");
+  }
+}
+
 const VITE_DEV_URL = process.env.VITE_DEV_SERVER_URL || "http://localhost:8080";
 /** When true, load the Vite dev server (use `npm run electron:dev`). Otherwise load built `dist/` via app:// */
 const useViteDevServer = process.env.OPENBENTT_ELECTRON_DEV === "1";

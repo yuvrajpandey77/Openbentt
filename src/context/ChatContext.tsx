@@ -17,12 +17,14 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { buildChatCompletionMessages, isStreamHttpError, StreamHttpError } from "@/lib/openrouter";
 import { streamChatForConfig } from "@/lib/aiStream";
+import { abortLocalGemmaGeneration } from "@/lib/gemmaWebGpu/streamLocalGemma";
 import { createRafBatcher } from "@/lib/streamBatch";
 import { gatherResearchContext } from "@/lib/researchSources";
 import { buildSystemPrompts } from "@/lib/systemPrompts";
 import { substituteInlineCalc } from "@/lib/mathInline";
 import type { ProviderQuotaSnapshot } from "@/lib/providerRateLimits";
 import { LOCAL_STORAGE_KEYS } from "@/lib/storageMigrate";
+import { formatUserFacingError } from "@/lib/userFacingError";
 
 interface ChatContextProps {
   chats: Chat[];
@@ -62,6 +64,11 @@ interface ChatContextProps {
   notebookLatexInsertRequest: NotebookLatexInsertRequest | null;
   requestNotebookLatexInsert: (latex: string, options?: { autoCompile?: boolean }) => void;
   clearNotebookLatexInsertRequest: () => void;
+  /**
+   * While the WebGPU Gemma weights are downloading (0–100). `null` when idle or generating tokens only.
+   * ONNX Runtime assets load from the CDN version bundled with `@huggingface/transformers` (needs network once).
+   */
+  webgpuModelDownloadProgress: number | null;
 }
 
 export interface NotebookLatexInsertRequest {
@@ -102,6 +109,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [streamingPromptTokens, setStreamingPromptTokens] = useState<number | null>(null);
   const [providerQuotaSnapshot, setProviderQuotaSnapshot] = useState<ProviderQuotaSnapshot | null>(null);
   const [notebookLatexInsertRequest, setNotebookLatexInsertRequest] = useState<NotebookLatexInsertRequest | null>(null);
+  const [webgpuModelDownloadProgress, setWebgpuModelDownloadProgress] = useState<number | null>(null);
   const { toast } = useToast();
 
   const abortControllersRef = useRef<AbortController[]>([]);
@@ -281,8 +289,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const stopStreaming = () => {
+    abortLocalGemmaGeneration();
     abortControllersRef.current.forEach((c) => c.abort());
     abortControllersRef.current = [];
+    setWebgpuModelDownloadProgress(null);
     setIsLoading(false);
   };
 
@@ -292,7 +302,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     pipelineOpts?: { workspaceAssistBlock?: string }
   ): Promise<PipelineExtras> => {
     const ws = pipelineOpts?.workspaceAssistBlock;
-    if (!cfg.researchEnabled) {
+    const researchOn = cfg.aiProvider !== "webgpu_gemma" && cfg.researchEnabled;
+    if (!researchOn) {
       return {
         systemPrompts: buildSystemPrompts(cfg, { includeChartHint: false, workspaceAssistBlock: ws }),
       };
@@ -322,7 +333,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error(e);
       toast({
         title: "Research pipeline error",
-        description: e instanceof Error ? e.message : "Could not load web context",
+        description: formatUserFacingError(e, "Could not load web context"),
         variant: "destructive",
       });
       return {
@@ -403,7 +414,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     const comparisonIds = dedupeModels(cfg.comparisonModelIds).slice(0, 4);
     const useTiling =
-      cfg.comparisonEnabled && comparisonIds.length >= 2 && comparisonIds.every((id) => id.length > 0);
+      cfg.aiProvider !== "webgpu_gemma" &&
+      cfg.comparisonEnabled &&
+      comparisonIds.length >= 2 &&
+      comparisonIds.every((id) => id.length > 0);
     const targetModels = useTiling ? comparisonIds : [cfg.model];
 
     const apiMessages = buildChatCompletionMessages(extras.systemPrompts, chatMessages);
@@ -453,18 +467,25 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       try {
-        const { text, metrics, rateLimitHeaders } = await streamChatForConfig(
-          cfg,
-          cfg.model,
-          apiMessages,
-          controller.signal,
-          {
-            onDelta: (delta) => batcher.push(delta),
-            onUsage: (u) => {
-              if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
-            },
-          }
-        );
+        const { text, metrics, rateLimitHeaders } =
+          cfg.aiProvider === "webgpu_gemma"
+            ? await import("@/lib/gemmaWebGpu/streamLocalGemma").then(({ streamLocalGemmaChat }) =>
+                streamLocalGemmaChat(cfg, apiMessages, controller.signal, {
+                  onDelta: (delta) => batcher.push(delta),
+                  onUsage: (u) => {
+                    if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
+                  },
+                  onModelDownloadProgress: (pct) => {
+                    setWebgpuModelDownloadProgress(pct);
+                  },
+                })
+              )
+            : await streamChatForConfig(cfg, cfg.model, apiMessages, controller.signal, {
+                onDelta: (delta) => batcher.push(delta),
+                onUsage: (u) => {
+                  if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
+                },
+              });
         batcher.flushPending();
         setProviderQuotaSnapshot({
           provider: cfg.aiProvider,
@@ -508,7 +529,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           { ...assistantMessage, content: text, metrics: finalMetrics },
         ]);
       } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") {
+        const aborted =
+          (error instanceof Error || (typeof DOMException !== "undefined" && error instanceof DOMException)) &&
+          (error as { name?: string }).name === "AbortError";
+        if (aborted) {
           batcher.flushPending();
           setChats((prevChats) =>
             prevChats.map((chat) => {
@@ -534,7 +558,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         toast({
           title: "Error",
-          description: error instanceof Error ? error.message : "Failed to send message",
+          description: formatUserFacingError(error, "Failed to send message"),
           variant: "destructive",
         });
         batcher.flushPending();
@@ -550,6 +574,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
       } finally {
         setStreamingPromptTokens(null);
+        setWebgpuModelDownloadProgress(null);
         setIsLoading(false);
         abortControllersRef.current = [];
       }
@@ -665,14 +690,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }));
           } catch (e) {
             b.flushPending();
-            if (e instanceof Error && e.name === "AbortError") {
+            const abortedTile =
+              (e instanceof Error || (typeof DOMException !== "undefined" && e instanceof DOMException)) &&
+              (e as { name?: string }).name === "AbortError";
+            if (abortedTile) {
               updateComparisonPart(model, (part) => ({ ...part, streaming: false }));
               return;
             }
             if (isStreamHttpError(e)) {
               streamHttpErrors.push(e);
             }
-            const msg = e instanceof Error ? e.message : "Request failed";
+            const msg = formatUserFacingError(e, "Request failed");
             updateComparisonPart(model, (part) => ({
               ...part,
               error: msg,
@@ -722,6 +750,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateChatTitleFromMessages(activeChatId, chatMessages);
     } finally {
       setStreamingPromptTokens(null);
+      setWebgpuModelDownloadProgress(null);
       setIsLoading(false);
       abortControllersRef.current = [];
     }
@@ -736,8 +765,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!trimmed && attachments.length === 0) return;
     if (!canSendChat(apiConfig)) {
       toast({
-        title: "API key or local server required",
-        description: "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in settings.",
+        title: "Cannot send yet",
+        description:
+          apiConfig.aiProvider === "webgpu_gemma"
+            ? "WebGPU is not available in this browser. Use Chrome/Edge or the desktop build, or switch to OpenRouter in Settings."
+            : "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in Settings.",
         variant: "destructive",
       });
       return;
@@ -815,6 +847,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     notebookLatexInsertRequest,
     requestNotebookLatexInsert,
     clearNotebookLatexInsertRequest,
+    webgpuModelDownloadProgress,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

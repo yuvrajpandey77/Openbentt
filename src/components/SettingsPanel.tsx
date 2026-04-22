@@ -23,6 +23,11 @@ import {
   type ResearchDepth,
   type ReasoningPreference,
 } from "@/types/chat";
+import {
+  DEFAULT_LOCAL_GEMMA_MODEL_ID,
+  isLocalGemmaModelId,
+  LOCAL_GEMMA_SELECTABLE_MODELS,
+} from "@/lib/gemmaWebGpu/models";
 import { ModelCapabilityBadges } from "@/components/ModelCapabilityBadges";
 import {
   listExperimentPresets,
@@ -93,11 +98,21 @@ const SettingsPanel: React.FC = () => {
     setLocalReasoningPreference(apiConfig.reasoningPreference);
   }, [apiConfig]);
 
+  useEffect(() => {
+    if (localAiProvider === "webgpu_gemma" && !isLocalGemmaModelId(localModel)) {
+      setLocalModel(DEFAULT_LOCAL_GEMMA_MODEL_ID);
+    }
+  }, [localAiProvider, localModel]);
+
   const selectable = useMemo(
     () =>
-      buildSelectableModels(models, localCustomIds, [localModel, ...localComparisonIds], {
-        includeAllFromApi: localAiProvider !== "openrouter",
-      }),
+      localAiProvider === "webgpu_gemma"
+        ? buildSelectableModels(LOCAL_GEMMA_SELECTABLE_MODELS, localCustomIds, [localModel, ...localComparisonIds], {
+            includeAllFromApi: true,
+          })
+        : buildSelectableModels(models, localCustomIds, [localModel, ...localComparisonIds], {
+            includeAllFromApi: localAiProvider !== "openrouter",
+          }),
     [models, localCustomIds, localModel, localComparisonIds, localAiProvider]
   );
 
@@ -264,6 +279,7 @@ const SettingsPanel: React.FC = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="webgpu_gemma">Gemma 4 on-device (WebGPU, no API key)</SelectItem>
                   <SelectItem value="openrouter">OpenRouter (many models, one key)</SelectItem>
                   <SelectItem value="openai_direct">OpenAI (api.openai.com)</SelectItem>
                   <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
@@ -279,36 +295,49 @@ const SettingsPanel: React.FC = () => {
               </p>
             </div>
 
-            <Separator />
+            {localAiProvider !== "webgpu_gemma" && <Separator />}
 
-            <div className="space-y-2">
-              <Label htmlFor="api-key">
-                {localAiProvider === "google"
-                  ? "Google AI Studio API key"
-                  : localAiProvider === "anthropic"
-                    ? "Anthropic API key"
-                    : localAiProvider === "openai_direct"
-                      ? "OpenAI API key"
-                      : localAiProvider === "openrouter"
-                        ? "OpenRouter API key"
-                        : "API key (if required by server)"}
-              </Label>
-              <Input
-                id="api-key"
-                type="password"
-                placeholder={
-                  localAiProvider === "google"
-                    ? "AIza…"
+            {localAiProvider !== "webgpu_gemma" && (
+              <div className="space-y-2">
+                <Label htmlFor="api-key">
+                  {localAiProvider === "google"
+                    ? "Google AI Studio API key"
                     : localAiProvider === "anthropic"
-                      ? "sk-ant-…"
-                      : "sk-…"
-                }
-                value={localApiKey}
-                onChange={(e) => setLocalApiKey(e.target.value)}
-                className="openbentt-input h-11 font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">Stored only in localStorage on this device.</p>
-            </div>
+                      ? "Anthropic API key"
+                      : localAiProvider === "openai_direct"
+                        ? "OpenAI API key"
+                        : localAiProvider === "openrouter"
+                          ? "OpenRouter API key"
+                          : "API key (if required by server)"}
+                </Label>
+                <Input
+                  id="api-key"
+                  type="password"
+                  placeholder={
+                    localAiProvider === "google"
+                      ? "AIza…"
+                      : localAiProvider === "anthropic"
+                        ? "sk-ant-…"
+                        : "sk-…"
+                  }
+                  value={localApiKey}
+                  onChange={(e) => setLocalApiKey(e.target.value)}
+                  className="openbentt-input h-11 font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">Stored only in localStorage on this device.</p>
+              </div>
+            )}
+
+            {localAiProvider === "webgpu_gemma" && (
+              <Alert className="border-teal-500/30 bg-teal-500/[0.06]">
+                <AlertTitle className="text-sm">On-device Gemma 4</AlertTitle>
+                <AlertDescription className="text-[11px] leading-relaxed text-muted-foreground">
+                  Weights download once from Hugging Face (~500MB for E2B, ~1.5GB for E4B) and cache in this browser.
+                  Research (Wikipedia / URL fetch) is off during local inference so context stays private; turn it back
+                  on after switching to a cloud provider if you need it.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {localAiProvider === "openai_compatible" && (
               <>
@@ -383,13 +412,15 @@ const SettingsPanel: React.FC = () => {
                 <ModelCapabilityBadges modelId={localModel} meta={primaryModelMeta} />
               </div>
               <p className="text-xs text-muted-foreground">
-                {modelsLoading
+                {modelsLoading && localAiProvider !== "webgpu_gemma"
                   ? "Loading models…"
-                  : localAiProvider === "openrouter"
-                    ? "Free-tier OpenRouter IDs plus custom entries."
-                    : localAiProvider === "openai_compatible"
-                      ? "Models from your server plus custom IDs."
-                      : "Directory or curated list — add custom IDs below if needed."}
+                  : localAiProvider === "webgpu_gemma"
+                    ? "E2B is the default (smaller download). E4B is larger and may be slower on modest GPUs."
+                    : localAiProvider === "openrouter"
+                      ? "Free-tier OpenRouter IDs plus custom entries."
+                      : localAiProvider === "openai_compatible"
+                        ? "Models from your server plus custom IDs."
+                        : "Directory or curated list — add custom IDs below if needed."}
               </p>
             </div>
 
@@ -616,8 +647,15 @@ const SettingsPanel: React.FC = () => {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
               <Label className="text-sm font-medium">Enable tiled comparison</Label>
-              <Switch checked={localComparisonEnabled} onCheckedChange={setLocalComparisonEnabled} />
+              <Switch
+                checked={localComparisonEnabled}
+                onCheckedChange={setLocalComparisonEnabled}
+                disabled={localAiProvider === "webgpu_gemma"}
+              />
             </div>
+            {localAiProvider === "webgpu_gemma" && (
+              <p className="text-[11px] text-muted-foreground">Tiled comparison is not available with on-device Gemma.</p>
+            )}
             <ScrollArea className="h-44 rounded-xl border border-border/60">
               <div className="space-y-1 p-3">
                 {selectable.map((m) => {

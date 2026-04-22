@@ -12,7 +12,7 @@ export interface ExperimentPreset {
 
 function readRaw(): ExperimentPreset[] {
   try {
-    const s = localStorage.getItem(KEY);
+    const s = localStorage.getItem(EXPERIMENT_PRESETS_KEY);
     if (!s) return [];
     const j = JSON.parse(s) as ExperimentPreset[];
     return Array.isArray(j) ? j : [];

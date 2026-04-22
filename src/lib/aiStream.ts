@@ -249,6 +249,8 @@ export async function streamChatForConfig(
       return streamAnthropicChat(cfg.apiKey, model, messages, signal, callbacks);
     case "google":
       return streamGeminiChat(cfg.apiKey, model, messages, signal, callbacks);
+    case "webgpu_gemma":
+      throw new Error("streamChatForConfig: webgpu_gemma is handled by streamLocalGemmaChat in ChatContext.");
     default:
       return streamOpenRouterChat(cfg.apiKey, model, messages, signal, callbacks, {
         chatCompletionsUrl: OPENROUTER_CHAT_URL,

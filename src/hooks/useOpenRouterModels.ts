@@ -21,6 +21,8 @@ export function useOpenRouterModels(
     queryKey: ["chat-models", aiProvider, compat || "", apiKey],
     queryFn: async () => {
       switch (aiProvider) {
+        case "webgpu_gemma":
+          return [];
         case "openrouter":
           return fetchOpenRouterModels(apiKey);
         case "openai_direct":
@@ -36,14 +38,16 @@ export function useOpenRouterModels(
       }
     },
     enabled:
-      aiProvider === "openai_compatible"
-        ? Boolean(compat)
-        : aiProvider === "anthropic"
-          ? true
-          : // `/models` on OpenRouter is public → always load so first-time users without a key see options.
-            aiProvider === "openrouter"
+      aiProvider === "webgpu_gemma"
+        ? false
+        : aiProvider === "openai_compatible"
+          ? Boolean(compat)
+          : aiProvider === "anthropic"
             ? true
-            : Boolean(apiKey?.trim()),
+            : // `/models` on OpenRouter is public → always load so first-time users without a key see options.
+              aiProvider === "openrouter"
+              ? true
+              : Boolean(apiKey?.trim()),
     staleTime: 10 * 60 * 1000,
     retry: 1,
   });

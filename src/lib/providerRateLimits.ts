@@ -88,6 +88,7 @@ export function parseRequestWindow(headers: Record<string, string>): ParsedReque
 }
 
 export const PROVIDER_LABEL: Record<AiProvider, string> = {
+  webgpu_gemma: "Gemma 4 (WebGPU)",
   openrouter: "OpenRouter",
   openai_direct: "OpenAI",
   openai_compatible: "Compatible API",

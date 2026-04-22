@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowUp, Bot, ChevronDown, Columns2, Paperclip, Square, ImageIcon, Mic, Film, FileText } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
@@ -24,6 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRouterModels";
 import { shortModelLabel } from "@/lib/openrouter";
 import { dedupeModels, normalizeApiConfig, canSendChat, type MessageAttachment } from "@/types/chat";
+import { LOCAL_GEMMA_SELECTABLE_MODELS } from "@/lib/gemmaWebGpu/models";
 import { useToast } from "@/components/ui/use-toast";
 import { v4 as uuidv4 } from "uuid";
 import { readFileAsDataUrl, extractVideoFrameDataUrl, assertImageSize } from "@/lib/media";
@@ -62,6 +64,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
     apiConfig,
     setApiConfig,
     stopStreaming,
+    webgpuModelDownloadProgress,
     isLoadingConfig,
     sendMessage,
     pendingComposer,
@@ -76,12 +79,17 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
 
   const selectable = useMemo(
     () =>
-      buildSelectableModels(
-        models,
-        apiConfig.customModelIds,
-        [apiConfig.model, ...apiConfig.comparisonModelIds],
-        { includeAllFromApi: apiConfig.aiProvider !== "openrouter" }
-      ),
+      apiConfig.aiProvider === "webgpu_gemma"
+        ? buildSelectableModels(LOCAL_GEMMA_SELECTABLE_MODELS, apiConfig.customModelIds, [
+            apiConfig.model,
+            ...apiConfig.comparisonModelIds,
+          ], { includeAllFromApi: true })
+        : buildSelectableModels(
+            models,
+            apiConfig.customModelIds,
+            [apiConfig.model, ...apiConfig.comparisonModelIds],
+            { includeAllFromApi: apiConfig.aiProvider !== "openrouter" }
+          ),
     [models, apiConfig.customModelIds, apiConfig.model, apiConfig.comparisonModelIds, apiConfig.aiProvider]
   );
 
@@ -369,6 +377,20 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+        {isLoading && apiConfig.aiProvider === "webgpu_gemma" && webgpuModelDownloadProgress != null && (
+          <div className="rounded-xl border border-teal-500/25 bg-teal-500/[0.06] px-3 py-2.5 space-y-2">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="font-medium text-foreground">Downloading on-device model (one-time cache)</span>
+              <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
+                {webgpuModelDownloadProgress}%
+              </span>
+            </div>
+            <Progress value={webgpuModelDownloadProgress} className="h-2" />
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              Hugging Face weights (~500MB for E2B). After this, loads are fast. Keep this tab open.
+            </p>
           </div>
         )}
         <div className="composer-shell relative p-1.5 sm:p-2">

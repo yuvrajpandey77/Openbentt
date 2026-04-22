@@ -113,6 +113,7 @@ export default defineConfig(({ mode }) => ({
       "jspdf",
       "html2canvas",
       "@google/generative-ai",
+      "@huggingface/transformers",
       "@xenova/transformers",
     ],
   },
@@ -122,7 +123,8 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id: string) {
           if (!id.includes("node_modules")) return undefined;
-          if (id.includes("@xenova/transformers") || id.includes("onnxruntime")) return "transformers";
+          if (id.includes("@huggingface/transformers") || id.includes("@xenova/transformers") || id.includes("onnxruntime"))
+            return "transformers";
           if (id.includes("texlyre-busytex") || id.includes("busytex")) return "busytex";
           if (id.includes("pdfjs-dist")) return "pdfjs";
           if (id.includes("katex")) return "katex";

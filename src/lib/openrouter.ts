@@ -199,6 +199,8 @@ export async function fetchOpenRouterModels(apiKey: string): Promise<OpenRouterM
 }
 
 export function shortModelLabel(id: string): string {
+  if (id.includes("openbentt/local-gemma-4-e2b")) return "Gemma 4 E2B (local)";
+  if (id.includes("openbentt/local-gemma-4-e4b")) return "Gemma 4 E4B (local)";
   const parts = id.split("/");
   const last = parts[parts.length - 1] || id;
   return last.replace(/:free$/, "").slice(0, 48);

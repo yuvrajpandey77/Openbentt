@@ -7,7 +7,7 @@
     "email": "openbentt-contributors@users.noreply.github.com"
   },
   "private": true,
-  "version": "2.0.3",
+  "version": "2.0.6",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
@@ -34,6 +34,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.9.0",
+    "@huggingface/transformers": "^4.0.1",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
     "@radix-ui/react-aspect-ratio": "^1.1.0",

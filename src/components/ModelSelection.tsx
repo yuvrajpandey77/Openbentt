@@ -57,7 +57,24 @@ const ModelSelection: React.FC<ModelSelectionProps> = ({ onComplete }) => {
     onComplete();
   };
 
-  const useLocalOllama = () => {
+  const chooseWebGpuGemma = () => {
+    if (typeof navigator === "undefined" || !navigator.gpu) {
+      toast({
+        title: "WebGPU not available",
+        description: "Try Chrome or Edge, HTTPS or localhost, or the desktop app. You can still use OpenRouter below.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setApiConfig(normalizeApiConfig({ ...defaultApiConfig() }));
+    toast({
+      title: "On-device Gemma 4",
+      description: "First chat will download model weights (~500MB for E2B). Change variant in Settings anytime.",
+    });
+    onComplete();
+  };
+
+  const chooseLocalOllama = () => {
     setApiConfig(
       normalizeApiConfig({
         ...defaultApiConfig(),
@@ -81,7 +98,8 @@ const ModelSelection: React.FC<ModelSelectionProps> = ({ onComplete }) => {
           <div className="space-y-2">
             <h2 className="text-2xl font-bold">Setup Your Chat</h2>
             <p className="text-muted-foreground">
-              OpenRouter cloud models, or a local OpenAI-compatible server (Ollama, LM Studio).
+              Default is on-device Gemma 4 via WebGPU (no key). You can add OpenRouter for cloud models, or use a local
+              OpenAI-compatible server (Ollama, LM Studio).
             </p>
           </div>
 
@@ -99,6 +117,19 @@ const ModelSelection: React.FC<ModelSelectionProps> = ({ onComplete }) => {
                   Get an OpenRouter key
                 </a>
               </div>
+            </div>
+          </div>
+
+          <Button type="button" className="w-full" onClick={() => void chooseWebGpuGemma()}>
+            Use Gemma 4 on-device (WebGPU)
+          </Button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">Or cloud</span>
             </div>
           </div>
 
@@ -139,7 +170,7 @@ const ModelSelection: React.FC<ModelSelectionProps> = ({ onComplete }) => {
                 Sets base URL to <code className="text-[10px]">http://127.0.0.1:11434/v1</code> and model{" "}
                 <code className="text-[10px]">llama3.2</code>. Adjust in Settings after start.
               </p>
-              <Button type="button" className="w-full" onClick={useLocalOllama}>
+              <Button type="button" className="w-full" onClick={chooseLocalOllama}>
                 Connect to Ollama
               </Button>
             </div>

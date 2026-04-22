@@ -1,3 +1,5 @@
+import { DEFAULT_LOCAL_GEMMA_MODEL_ID, isLocalGemmaModelId } from "@/lib/gemmaWebGpu/models";
+
 export type Role = "assistant" | "user" | "system";
 
 /** Multimodal / PDF parts for user messages. */
@@ -96,6 +98,7 @@ export const DEPRECATED_DEFAULT_MODEL_IDS: readonly string[] = [
 
 /** Where API calls are routed. OpenRouter aggregates many vendors with one key; others use vendor keys or compatible bases. */
 export type AiProvider =
+  | "webgpu_gemma"
   | "openrouter"
   | "openai_direct"
   | "openai_compatible"
@@ -151,13 +154,13 @@ export interface ApiKeyConfig {
 
 export function defaultApiConfig(): ApiKeyConfig {
   return {
-    aiProvider: "openrouter",
+    aiProvider: "webgpu_gemma",
     apiKey: "",
-    model: DEFAULT_MODEL_ID,
+    model: DEFAULT_LOCAL_GEMMA_MODEL_ID,
     customModelIds: [],
     comparisonEnabled: false,
-    comparisonModelIds: [DEFAULT_MODEL_ID],
-    researchEnabled: true,
+    comparisonModelIds: [DEFAULT_LOCAL_GEMMA_MODEL_ID],
+    researchEnabled: false,
     researchDepth: "standard",
     reasoningPreference: "default",
     braveSearchApiKey: "",
@@ -174,30 +177,58 @@ export function defaultApiConfig(): ApiKeyConfig {
 export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
   const base = defaultApiConfig();
   const allowed: AiProvider[] = [
+    "webgpu_gemma",
     "openrouter",
     "openai_direct",
     "openai_compatible",
     "anthropic",
     "google",
   ];
-  const aiProvider =
-    typeof raw.aiProvider === "string" && allowed.includes(raw.aiProvider as AiProvider)
-      ? (raw.aiProvider as AiProvider)
-      : base.aiProvider;
-  const rawModel = typeof raw.model === "string" && raw.model ? raw.model : base.model;
-  const model = DEPRECATED_DEFAULT_MODEL_IDS.includes(rawModel) ? base.model : rawModel;
+  const rawProvider = typeof raw.aiProvider === "string" ? raw.aiProvider.trim() : "";
+  const aiProvider: AiProvider =
+    rawProvider && allowed.includes(rawProvider as AiProvider)
+      ? (rawProvider as AiProvider)
+      : typeof raw.model === "string" && raw.model.trim() && isLocalGemmaModelId(raw.model.trim())
+        ? "webgpu_gemma"
+        : typeof raw.openAiCompatibleBaseUrl === "string" && raw.openAiCompatibleBaseUrl.trim()
+          ? "openai_compatible"
+          : typeof raw.model === "string" &&
+              raw.model.trim() &&
+              raw.model.includes("/") &&
+              !raw.model.trim().startsWith("openbentt/")
+            ? "openrouter"
+            : base.aiProvider;
+
+  const defaultModelForProvider = (p: AiProvider): string =>
+    p === "webgpu_gemma" ? DEFAULT_LOCAL_GEMMA_MODEL_ID : DEFAULT_MODEL_ID;
+
+  const rawModel =
+    typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : defaultModelForProvider(aiProvider);
+
+  let model = rawModel;
+  if (aiProvider === "webgpu_gemma") {
+    if (!isLocalGemmaModelId(model)) {
+      model = DEFAULT_LOCAL_GEMMA_MODEL_ID;
+    }
+  } else if (DEPRECATED_DEFAULT_MODEL_IDS.includes(rawModel)) {
+    model = DEFAULT_MODEL_ID;
+  }
   const customModelIds = Array.isArray(raw.customModelIds)
     ? (raw.customModelIds as string[])
         .filter((s) => typeof s === "string" && s.trim())
         .map((s) => (s as string).trim())
     : base.customModelIds;
-  const comparisonEnabled = typeof raw.comparisonEnabled === "boolean" ? raw.comparisonEnabled : base.comparisonEnabled;
+  let comparisonEnabled = typeof raw.comparisonEnabled === "boolean" ? raw.comparisonEnabled : base.comparisonEnabled;
   let comparisonModelIds = Array.isArray(raw.comparisonModelIds)
     ? (raw.comparisonModelIds as string[])
         .filter((s) => typeof s === "string" && s.trim())
         .map((s) => (s as string).trim())
     : base.comparisonModelIds;
   if (comparisonModelIds.length === 0) {
+    comparisonModelIds = [model];
+  }
+  if (aiProvider === "webgpu_gemma") {
+    comparisonEnabled = false;
     comparisonModelIds = [model];
   }
   const researchEnabled =
@@ -255,6 +286,8 @@ export function dedupeModels(ids: string[]): string[] {
 /** User can run chat for the selected provider (key and/or compatible base URL). */
 export function canSendChat(cfg: ApiKeyConfig): boolean {
   switch (cfg.aiProvider) {
+    case "webgpu_gemma":
+      return typeof navigator !== "undefined" && Boolean((navigator as unknown as { gpu?: unknown }).gpu);
     case "openrouter":
     case "openai_direct":
     case "anthropic":

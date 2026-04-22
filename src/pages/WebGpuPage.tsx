@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { normalizeApiConfig, defaultApiConfig } from "@/types/chat";
+import { formatUserFacingError } from "@/lib/userFacingError";
 
 interface GpuInfo {
   vendor?: string;
@@ -29,6 +32,9 @@ const WebGpuPage: React.FC = () => {
   const [noWebGpu, setNoWebGpu] = useState<string | null>(null);
   const [probeBusy, setProbeBusy] = useState(false);
   const [probeResult, setProbeResult] = useState<string | null>(null);
+  const [gemmaBusy, setGemmaBusy] = useState(false);
+  const [gemmaResult, setGemmaResult] = useState<string | null>(null);
+  const [gemmaDownloadPct, setGemmaDownloadPct] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,6 +71,45 @@ const WebGpuPage: React.FC = () => {
     };
   }, []);
 
+  const runGemmaSmokeTest = async () => {
+    if (!navigator.gpu) {
+      toast({ title: "No WebGPU", description: "Use Chrome/Edge with GPU access.", variant: "destructive" });
+      return;
+    }
+    setGemmaBusy(true);
+    setGemmaResult(null);
+    setGemmaDownloadPct(null);
+    const ac = new AbortController();
+    try {
+      const { streamLocalGemmaChat } = await import("@/lib/gemmaWebGpu/streamLocalGemma");
+      const cfg = normalizeApiConfig(defaultApiConfig());
+      let acc = "";
+      const { text, metrics } = await streamLocalGemmaChat(
+        cfg,
+        [{ role: "user", content: "Reply in one short sentence confirming WebGPU Gemma works." }],
+        ac.signal,
+        {
+          onDelta: (d) => {
+            acc += d;
+          },
+          onModelDownloadProgress: (pct) => {
+            setGemmaDownloadPct(pct);
+          },
+        }
+      );
+      const body = `Done in ${metrics.totalMs} ms (ttft ${metrics.ttftMs ?? "—"} ms).\n\n${text || acc}`;
+      setGemmaResult(body);
+      toast({ title: "Gemma smoke test", description: "Model ran in this browser." });
+    } catch (e) {
+      const msg = formatUserFacingError(e, "Gemma test failed");
+      setGemmaResult(`Failed: ${msg}`);
+      toast({ title: "Gemma test failed", description: msg, variant: "destructive" });
+    } finally {
+      setGemmaDownloadPct(null);
+      setGemmaBusy(false);
+    }
+  };
+
   const runTransformersProbe = async () => {
     setProbeBusy(true);
     setProbeResult(null);
@@ -85,7 +130,7 @@ const WebGpuPage: React.FC = () => {
       );
       toast({ title: "Probe finished", description: "MiniLM embedding ran in-browser." });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = formatUserFacingError(e, "Probe failed");
       setProbeResult(`Failed: ${msg}`);
       toast({ title: "Probe failed", description: msg, variant: "destructive" });
     } finally {
@@ -162,6 +207,29 @@ const WebGpuPage: React.FC = () => {
             Run embedding probe
           </Button>
           {probeResult && <pre className="text-xs whitespace-pre-wrap bg-muted/30 p-3 rounded-md">{probeResult}</pre>}
+        </Card>
+
+        <Card className="p-4 space-y-3">
+          <h2 className="font-semibold">Gemma 4 (same stack as Home chat)</h2>
+          <p className="text-xs text-muted-foreground">
+            Loads <code className="rounded bg-muted px-1 font-mono text-[10px]">onnx-community/gemma-4-E2B-it-ONNX</code>{" "}
+            via <code className="rounded bg-muted px-1 font-mono text-[10px]">@huggingface/transformers</code> + WebGPU.
+            First run downloads ~500MB (cached afterward).
+          </p>
+          <Button type="button" size="sm" onClick={() => void runGemmaSmokeTest()} disabled={gemmaBusy || Boolean(noWebGpu)}>
+            {gemmaBusy && <Loader2 className="h-4 w-4 mr-2 animate-spin inline" />}
+            Run Gemma 4 smoke reply
+          </Button>
+          {gemmaDownloadPct != null && (
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Download progress</span>
+                <span className="font-mono tabular-nums">{gemmaDownloadPct}%</span>
+              </div>
+              <Progress value={gemmaDownloadPct} className="h-2" />
+            </div>
+          )}
+          {gemmaResult && <pre className="text-xs whitespace-pre-wrap bg-muted/30 p-3 rounded-md">{gemmaResult}</pre>}
         </Card>
 
         <Card className="p-4 space-y-2">
