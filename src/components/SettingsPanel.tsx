@@ -22,6 +22,7 @@ import {
   type AiProvider,
   type ResearchDepth,
   type ReasoningPreference,
+  type LocalInferenceProfile,
 } from "@/types/chat";
 import {
   DEFAULT_LOCAL_GEMMA_MODEL_ID,
@@ -69,6 +70,8 @@ const SettingsPanel: React.FC = () => {
   const [localReasoningPreference, setLocalReasoningPreference] = useState<ReasoningPreference>(
     apiConfig.reasoningPreference
   );
+  const [localInferenceProfile, setLocalInferenceProfile] = useState<LocalInferenceProfile>(apiConfig.localInferenceProfile);
+  const [localResearchWithLocal, setLocalResearchWithLocal] = useState(apiConfig.researchWithLocalModel);
   const [presetName, setPresetName] = useState("");
   const [presets, setPresets] = useState<ExperimentPreset[]>(() => listExperimentPresets());
 
@@ -96,6 +99,8 @@ const SettingsPanel: React.FC = () => {
     setLocalShowTrace(apiConfig.showAgentTraces);
     setLocalResearchDepth(apiConfig.researchDepth);
     setLocalReasoningPreference(apiConfig.reasoningPreference);
+    setLocalInferenceProfile(apiConfig.localInferenceProfile);
+    setLocalResearchWithLocal(apiConfig.researchWithLocalModel);
   }, [apiConfig]);
 
   useEffect(() => {
@@ -141,6 +146,8 @@ const SettingsPanel: React.FC = () => {
         openAiCompatibleBaseUrl: localCompatBase,
         redTeamModeEnabled: localRedTeam,
         showAgentTraces: localShowTrace,
+        localInferenceProfile: localInferenceProfile,
+        researchWithLocalModel: localResearchWithLocal,
       })
     );
   };
@@ -168,6 +175,8 @@ const SettingsPanel: React.FC = () => {
         openAiCompatibleBaseUrl: localCompatBase,
         redTeamModeEnabled: localRedTeam,
         showAgentTraces: localShowTrace,
+        localInferenceProfile: localInferenceProfile,
+        researchWithLocalModel: localResearchWithLocal,
       })
     );
     setPresetName("");
@@ -193,6 +202,8 @@ const SettingsPanel: React.FC = () => {
     setLocalShowTrace(c.showAgentTraces);
     setLocalResearchDepth(c.researchDepth ?? "standard");
     setLocalReasoningPreference(c.reasoningPreference ?? "default");
+    setLocalInferenceProfile(c.localInferenceProfile ?? "balanced");
+    setLocalResearchWithLocal(c.researchWithLocalModel ?? true);
   };
 
   const addCustomModel = () => {
@@ -329,14 +340,44 @@ const SettingsPanel: React.FC = () => {
             )}
 
             {localAiProvider === "webgpu_gemma" && (
-              <Alert className="border-teal-500/30 bg-teal-500/[0.06]">
-                <AlertTitle className="text-sm">On-device Gemma 4</AlertTitle>
-                <AlertDescription className="text-[11px] leading-relaxed text-muted-foreground">
-                  Weights download once from Hugging Face (~500MB for E2B, ~1.5GB for E4B) and cache in this browser.
-                  Research (Wikipedia / URL fetch) is off during local inference so context stays private; turn it back
-                  on after switching to a cloud provider if you need it.
-                </AlertDescription>
-              </Alert>
+              <>
+                <Alert className="border-teal-500/30 bg-teal-500/[0.06]">
+                  <AlertTitle className="text-sm">On-device model</AlertTitle>
+                  <AlertDescription className="text-[11px] leading-relaxed text-muted-foreground">
+                    Weights are cached only after you allow it in the bar above the composer. Catalog includes Qwen
+                    0.5B, Qwen 1.5B, Gemma E2B, and Gemma E4B. Openbentt can auto-pick a smaller run if the GPU buffer is
+                    too small. <strong>Research</strong> can still run in the background when enabled (see Research tab)
+                    if you turn on <strong>Research with on-device</strong> below.
+                  </AlertDescription>
+                </Alert>
+                <div className="space-y-2 rounded-xl border border-border/60 bg-muted/15 p-4">
+                  <Label className="text-sm">On-device resource profile</Label>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Eco uses less RAM and smaller effective context. Performance requests WebGPU more aggressively
+                    (longer output, more GPU work when the device supports it).
+                  </p>
+                  <Select
+                    value={localInferenceProfile}
+                    onValueChange={(v) => setLocalInferenceProfile(v as LocalInferenceProfile)}
+                  >
+                    <SelectTrigger className="openbentt-input h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="eco">Eco (lowest RAM, shorter context &amp; replies)</SelectItem>
+                      <SelectItem value="balanced">Balanced (default for mixed use)</SelectItem>
+                      <SelectItem value="performance">Performance (heavier GPU, longer outputs)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
+                  <div>
+                    <Label className="text-sm">Research with on-device</Label>
+                    <p className="text-[11px] text-muted-foreground">Fetch Wikipedia/URLs/Brave and inject when Research is on.</p>
+                  </div>
+                  <Switch checked={localResearchWithLocal} onCheckedChange={setLocalResearchWithLocal} />
+                </div>
+              </>
             )}
 
             {localAiProvider === "openai_compatible" && (
@@ -415,7 +456,7 @@ const SettingsPanel: React.FC = () => {
                 {modelsLoading && localAiProvider !== "webgpu_gemma"
                   ? "Loading models…"
                   : localAiProvider === "webgpu_gemma"
-                    ? "E2B is the default (smaller download). E4B is larger and may be slower on modest GPUs."
+                    ? "Default is the smallest (Qwen 0.5B) in new installs. Pick Gemma E2B/E4B or Qwen 1.5B for better quality when you have RAM. Openbentt auto-downgrades when needed."
                     : localAiProvider === "openrouter"
                       ? "Free-tier OpenRouter IDs plus custom entries."
                       : localAiProvider === "openai_compatible"

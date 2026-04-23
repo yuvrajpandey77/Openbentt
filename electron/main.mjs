@@ -18,9 +18,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  */
 if (!process.env.OPENBENTT_DISABLE_WEBGPU_FLAGS) {
   app.commandLine.appendSwitch("enable-unsafe-webgpu");
-  /** Many integrated / Mesa drivers are blocklisted for WebGPU until this is set. */
   if (process.platform === "linux") {
+    /** Many integrated / Mesa drivers are blocklisted for WebGPU until this is set. */
     app.commandLine.appendSwitch("ignore-gpu-blocklist");
+    /**
+     * Without Vulkan + ANGLE defaults, Chromium often logs "Device failed at creation" and WebGPU
+     * sessions fail (ORT may surface an opaque numeric code). See gpuweb/gpuweb#5022.
+     * Set OPENBENTT_LINUX_WEBGPU_SKIP_VULKAN_FEATURES=1 if this causes regressions on your GPU.
+     */
+    if (!process.env.OPENBENTT_LINUX_WEBGPU_SKIP_VULKAN_FEATURES) {
+      app.commandLine.appendSwitch(
+        "enable-features",
+        "Vulkan,VulkanFromANGLE,DefaultANGLEVulkan"
+      );
+    }
   }
 }
 

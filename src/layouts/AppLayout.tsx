@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import ChatInput from "@/components/ChatInput";
+import LocalOnDeviceModelBar from "@/components/LocalOnDeviceModelBar";
 import ModelSelection from "@/components/ModelSelection";
 import { Analytics } from "@vercel/analytics/react";
 import { useChat } from "@/context/ChatContext";
@@ -166,6 +167,7 @@ const AppLayout: React.FC = () => {
           )}
         </div>
         <div className="shrink-0 bg-gradient-to-t from-card/90 to-background/95 backdrop-blur-sm">
+          <LocalOnDeviceModelBar />
           <ChatInput isLoading={isLoading} workspaceMeta={workspaceMeta} />
         </div>
       </main>

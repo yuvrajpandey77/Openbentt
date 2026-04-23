@@ -25,6 +25,7 @@ import { substituteInlineCalc } from "@/lib/mathInline";
 import type { ProviderQuotaSnapshot } from "@/lib/providerRateLimits";
 import { LOCAL_STORAGE_KEYS } from "@/lib/storageMigrate";
 import { formatUserFacingError } from "@/lib/userFacingError";
+import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
 
 interface ChatContextProps {
   chats: Chat[];
@@ -302,7 +303,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     pipelineOpts?: { workspaceAssistBlock?: string }
   ): Promise<PipelineExtras> => {
     const ws = pipelineOpts?.workspaceAssistBlock;
-    const researchOn = cfg.aiProvider !== "webgpu_gemma" && cfg.researchEnabled;
+    const researchOn =
+      cfg.researchEnabled && (cfg.aiProvider !== "webgpu_gemma" || cfg.researchWithLocalModel);
     if (!researchOn) {
       return {
         systemPrompts: buildSystemPrompts(cfg, { includeChartHint: false, workspaceAssistBlock: ws }),
@@ -370,6 +372,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const regenerateLastResponse = async () => {
     if (!canSendChat(apiConfig) || isLoading || !currentChatId) return;
+    if (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
+      toast({
+        title: "On-device model not enabled",
+        description: "Allow model download in the bar above the composer first.",
+        variant: "destructive",
+      });
+      return;
+    }
     const chat = chatsRef.current.find((c) => c.id === currentChatId);
     if (!chat?.messages.length) return;
     const msgs = [...chat.messages];
@@ -477,6 +487,46 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   },
                   onModelDownloadProgress: (pct) => {
                     setWebgpuModelDownloadProgress(pct);
+                  },
+                  onBackendPicked: (backend) => {
+                    if (backend.device === "wasm") {
+                      toast({
+                        title: "On-device model running on CPU",
+                        description:
+                          backend.reason === "buffer-too-small"
+                            ? "Your GPU can't fit this model; falling back to WASM/CPU. If it feels too slow, pick the tiny Qwen 0.5B model in Settings."
+                            : "WebGPU unavailable; running via WASM/CPU. The tiny model (Qwen 0.5B) is the fastest fallback here.",
+                      });
+                    }
+                  },
+                  onModelAutoSwitched: ({ from, to, reason }) => {
+                    /** Persist the auto-pick so ChatInput / Settings reflect the model actually loaded. */
+                    setApiConfigState((prev) =>
+                      prev.aiProvider === "webgpu_gemma" && prev.model === from.storedId
+                        ? normalizeApiConfig({
+                            ...prev,
+                            model: to.storedId,
+                            comparisonModelIds: [to.storedId],
+                          })
+                        : prev
+                    );
+                    toast({
+                      title: `Switched to ${to.displayName}`,
+                      description:
+                        reason === "gpu-buffer"
+                          ? `Your GPU can't fit ${from.displayName}; running the next-smaller model that does fit.`
+                          : reason === "cpu-ram"
+                            ? `Not enough RAM for ${from.displayName}; using a smaller model so generations stay responsive.`
+                            : reason === "no-webgpu"
+                              ? "WebGPU isn't available here, so we picked the smallest model for WASM/CPU inference."
+                              : `Auto-selected a lighter model to keep chats responsive.`,
+                    });
+                  },
+                  onDtypeFallback: ({ from, to }) => {
+                    toast({
+                      title: "Adjusting model precision",
+                      description: `Retrying with ${to.toUpperCase()} after ${from.toUpperCase()} couldn't run on this device.`,
+                    });
                   },
                 })
               )
@@ -770,6 +820,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           apiConfig.aiProvider === "webgpu_gemma"
             ? "WebGPU is not available in this browser. Use Chrome/Edge or the desktop build, or switch to OpenRouter in Settings."
             : "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in Settings.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
+      toast({
+        title: "On-device model not enabled",
+        description:
+          "Choose which model to cache and confirm the download in the on-device bar above the composer (or use the download button).",
         variant: "destructive",
       });
       return;

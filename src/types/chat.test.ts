@@ -6,7 +6,7 @@ import {
   DEFAULT_MODEL_ID,
   DEPRECATED_DEFAULT_MODEL_IDS,
 } from "./chat";
-import { DEFAULT_LOCAL_GEMMA_MODEL_ID } from "@/lib/gemmaWebGpu/models";
+import { LOCAL_TINY_MODEL_ID } from "@/lib/gemmaWebGpu/models";
 
 describe("dedupeModels", () => {
   it("trims, dedupes, preserves order", () => {
@@ -75,8 +75,8 @@ describe("normalizeApiConfig migrations", () => {
       comparisonEnabled: true,
       comparisonModelIds: ["a", "b"],
     });
-    expect(n.model).toBe(DEFAULT_LOCAL_GEMMA_MODEL_ID);
+    expect(n.model).toBe(LOCAL_TINY_MODEL_ID);
     expect(n.comparisonEnabled).toBe(false);
-    expect(n.comparisonModelIds).toEqual([DEFAULT_LOCAL_GEMMA_MODEL_ID]);
+    expect(n.comparisonModelIds).toEqual([LOCAL_TINY_MODEL_ID]);
   });
 });

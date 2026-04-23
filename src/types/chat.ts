@@ -1,4 +1,4 @@
-import { DEFAULT_LOCAL_GEMMA_MODEL_ID, isLocalGemmaModelId } from "@/lib/gemmaWebGpu/models";
+import { isLocalGemmaModelId, LOCAL_TINY_MODEL_ID } from "@/lib/gemmaWebGpu/models";
 
 export type Role = "assistant" | "user" | "system";
 
@@ -111,6 +111,12 @@ export type ResearchDepth = "quick" | "standard" | "deep";
 /** Extra system emphasis on step-by-step reasoning (all providers). Vendor-native “thinking” APIs vary; this is the portable layer. */
 export type ReasoningPreference = "default" | "more";
 
+/**
+ * On-device (WebGPU / WASM) resource profile. Eco limits tokens and context to reduce RAM/VRAM use;
+ * performance matches model defaults and keeps more history in the prompt.
+ */
+export type LocalInferenceProfile = "eco" | "balanced" | "performance";
+
 export interface ApiKeyConfig {
   aiProvider: AiProvider;
   /** API key (OpenRouter, OpenAI, Anthropic, Google AI Studio, xAI, Moonshot, etc. depending on provider). */
@@ -150,16 +156,20 @@ export interface ApiKeyConfig {
   redTeamModeEnabled: boolean;
   /** Show collapsible research/tool trace on assistant messages */
   showAgentTraces: boolean;
+  /** WebGPU / WASM: lower = less RAM, smaller effective context and max output unless you choose Performance. */
+  localInferenceProfile: LocalInferenceProfile;
+  /** If true, research can run while using the on-device model (uses network; context is still built client-side). */
+  researchWithLocalModel: boolean;
 }
 
 export function defaultApiConfig(): ApiKeyConfig {
   return {
     aiProvider: "webgpu_gemma",
     apiKey: "",
-    model: DEFAULT_LOCAL_GEMMA_MODEL_ID,
+    model: LOCAL_TINY_MODEL_ID,
     customModelIds: [],
     comparisonEnabled: false,
-    comparisonModelIds: [DEFAULT_LOCAL_GEMMA_MODEL_ID],
+    comparisonModelIds: [LOCAL_TINY_MODEL_ID],
     researchEnabled: false,
     researchDepth: "standard",
     reasoningPreference: "default",
@@ -171,6 +181,8 @@ export function defaultApiConfig(): ApiKeyConfig {
     openAiCompatibleBaseUrl: "",
     redTeamModeEnabled: false,
     showAgentTraces: false,
+    localInferenceProfile: "eco",
+    researchWithLocalModel: true,
   };
 }
 
@@ -200,7 +212,7 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
             : base.aiProvider;
 
   const defaultModelForProvider = (p: AiProvider): string =>
-    p === "webgpu_gemma" ? DEFAULT_LOCAL_GEMMA_MODEL_ID : DEFAULT_MODEL_ID;
+    p === "webgpu_gemma" ? LOCAL_TINY_MODEL_ID : DEFAULT_MODEL_ID;
 
   const rawModel =
     typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : defaultModelForProvider(aiProvider);
@@ -208,7 +220,7 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
   let model = rawModel;
   if (aiProvider === "webgpu_gemma") {
     if (!isLocalGemmaModelId(model)) {
-      model = DEFAULT_LOCAL_GEMMA_MODEL_ID;
+      model = LOCAL_TINY_MODEL_ID;
     }
   } else if (DEPRECATED_DEFAULT_MODEL_IDS.includes(rawModel)) {
     model = DEFAULT_MODEL_ID;
@@ -257,6 +269,13 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
     typeof raw.redTeamModeEnabled === "boolean" ? raw.redTeamModeEnabled : base.redTeamModeEnabled;
   const showAgentTraces =
     typeof raw.showAgentTraces === "boolean" ? raw.showAgentTraces : base.showAgentTraces;
+  const localProfileRaw = raw.localInferenceProfile;
+  const localInferenceProfile: LocalInferenceProfile =
+    localProfileRaw === "eco" || localProfileRaw === "balanced" || localProfileRaw === "performance"
+      ? localProfileRaw
+      : base.localInferenceProfile;
+  const researchWithLocalModel =
+    typeof raw.researchWithLocalModel === "boolean" ? raw.researchWithLocalModel : base.researchWithLocalModel;
 
   return {
     aiProvider,
@@ -276,6 +295,8 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
     openAiCompatibleBaseUrl,
     redTeamModeEnabled,
     showAgentTraces,
+    localInferenceProfile,
+    researchWithLocalModel,
   };
 }
 
@@ -287,7 +308,8 @@ export function dedupeModels(ids: string[]): string[] {
 export function canSendChat(cfg: ApiKeyConfig): boolean {
   switch (cfg.aiProvider) {
     case "webgpu_gemma":
-      return typeof navigator !== "undefined" && Boolean((navigator as unknown as { gpu?: unknown }).gpu);
+      /** WASM (CPU) fallback keeps on-device Gemma usable even when WebGPU is missing. */
+      return typeof navigator !== "undefined";
     case "openrouter":
     case "openai_direct":
     case "anthropic":

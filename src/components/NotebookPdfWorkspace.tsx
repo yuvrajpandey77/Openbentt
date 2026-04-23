@@ -15,12 +15,13 @@ import { extractNotebookSourceFromPdf } from "@/lib/pdfText";
 import { renderPdfPages } from "@/lib/pdfCanvasRender";
 import { compileNotebookSourceToPdf } from "@/lib/compileNotebook";
 import { formatCompileFailureToast } from "@/lib/latexErrorUi";
-import { applyNotebookLatexAutofix, isInvalidPdfStructureMessage } from "@/lib/notebookLatexAutofix";
+import { applyNotebookLatexAutofix } from "@/lib/notebookLatexAutofix";
 import { isLatexDocumentSource } from "@/lib/notebookSourceKind";
 import { NOTEBOOK_LATEX_BOOK_TEMPLATE } from "@/lib/notebookLatexTemplate";
 import { extractTexFromAssistantReply } from "@/lib/extractTexFromAssistantReply";
 import { diffLineRows, mergeProposalLines } from "@/lib/diffLines";
 import { buildNotebookFullWorkspaceAssist } from "@/lib/notebookChatContext";
+import { buildNotebookLatexFixPrompt, type NotebookLatexFailureSource } from "@/lib/notebookLatexFixPrompt";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   ArrowDownToLine,
@@ -62,6 +63,7 @@ const NotebookPdfWorkspace: React.FC = () => {
     registerNotebookAssistSync,
     notebookLatexInsertRequest,
     clearNotebookLatexInsertRequest,
+    queuePromptInComposer,
   } = useChat();
 
   const [fileName, setFileName] = useState<string | null>(null);
@@ -74,6 +76,11 @@ const NotebookPdfWorkspace: React.FC = () => {
   const [busy, setBusy] = useState(false);
   /** Offer “Apply fixes & recompile” after bad PDF output or failed LaTeX compile. */
   const [latexRecovery, setLatexRecovery] = useState(false);
+  /** Last failure message for the same “ask chat to fix” path as the recovery bar (cleared on successful compile). */
+  const [lastLatexFailure, setLastLatexFailure] = useState<{
+    raw: string;
+    source: NotebookLatexFailureSource;
+  } | null>(null);
   const [pdfScale, setPdfScale] = useState(ZOOM_DEFAULT);
   const [previewVariant, setPreviewVariant] = useState<PreviewVariant>("original");
 
@@ -215,6 +222,7 @@ const NotebookPdfWorkspace: React.FC = () => {
     try {
       await renderPdfPages(previewBuffer, el, pdfScale);
       setLatexRecovery(false);
+      setLastLatexFailure(null);
       const pending = pendingPdfZoomRef.current;
       if (pending && scrollEl && Math.abs(pending.prevScale - pdfScale) > 1e-6) {
         const r = pdfScale / pending.prevScale;
@@ -226,8 +234,9 @@ const NotebookPdfWorkspace: React.FC = () => {
       el.innerHTML = "";
       pendingPdfZoomRef.current = null;
       const msg = e instanceof Error ? e.message : String(e);
-      if (isLatexSource && isInvalidPdfStructureMessage(msg)) {
+      if (isLatexSource) {
         setLatexRecovery(true);
+        setLastLatexFailure({ raw: msg, source: "pdf_render" });
       }
       toast({
         title: "PDF preview failed",
@@ -294,6 +303,7 @@ const NotebookPdfWorkspace: React.FC = () => {
       setProposedText(null);
       const text = await extractNotebookSourceFromPdf(f);
       setSourceText(text);
+      setLastLatexFailure(null);
       setPdfScale(ZOOM_DEFAULT);
       setMainTab("preview");
       const extractionLimited =
@@ -325,6 +335,7 @@ const NotebookPdfWorkspace: React.FC = () => {
       setPreviewVariant("compiled");
       setMainTab("preview");
       setLatexRecovery(false);
+      setLastLatexFailure(null);
       const kind = isLatexDocumentSource(text) ? "pdflatex PDF" : "text PDF";
       toast({
         title: "Compiled",
@@ -349,12 +360,34 @@ const NotebookPdfWorkspace: React.FC = () => {
       await doCompile(next);
     } catch (err) {
       setLatexRecovery(true);
+      setLastLatexFailure({
+        raw: err instanceof Error ? err.message : String(err),
+        source: "compile",
+      });
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
       setBusy(false);
     }
   }, [sourceText, doCompile, toast]);
+
+  const loadFixPromptInChat = useCallback(() => {
+    if (!lastLatexFailure?.raw) {
+      toast({
+        title: "No captured error",
+        description: "Compile (or use Apply reply) so a failure is recorded, then try this again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    queuePromptInComposer(
+      buildNotebookLatexFixPrompt({
+        sourceText,
+        errorRaw: lastLatexFailure.raw,
+        failure: lastLatexFailure.source,
+      })
+    );
+  }, [lastLatexFailure, sourceText, queuePromptInComposer, toast]);
 
   /** Chat code blocks → Notebook Source (+ optional compile). */
   useEffect(() => {
@@ -374,6 +407,10 @@ const NotebookPdfWorkspace: React.FC = () => {
         await doCompile(req.latex);
       } catch (err) {
         if (isLatexDocumentSource(req.latex)) setLatexRecovery(true);
+        setLastLatexFailure({
+          raw: err instanceof Error ? err.message : String(err),
+          source: "compile",
+        });
         const { title, description } = formatCompileFailureToast(err);
         toast({ title, description, variant: "destructive" });
       } finally {
@@ -388,6 +425,10 @@ const NotebookPdfWorkspace: React.FC = () => {
       await doCompile(sourceText);
     } catch (err) {
       if (isLatexSource) setLatexRecovery(true);
+      setLastLatexFailure({
+        raw: err instanceof Error ? err.message : String(err),
+        source: "compile",
+      });
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
@@ -403,6 +444,7 @@ const NotebookPdfWorkspace: React.FC = () => {
     try {
       const text = await f.text();
       setSourceText(text);
+      setLastLatexFailure(null);
       setProposedText(null);
       setFileName(f.name);
       setMainTab("source");
@@ -452,6 +494,10 @@ const NotebookPdfWorkspace: React.FC = () => {
       await doCompile(next);
     } catch (err) {
       if (isLatexDocumentSource(next)) setLatexRecovery(true);
+      setLastLatexFailure({
+        raw: err instanceof Error ? err.message : String(err),
+        source: "compile",
+      });
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
@@ -469,6 +515,10 @@ const NotebookPdfWorkspace: React.FC = () => {
       await doCompile(next);
     } catch (err) {
       if (isLatexDocumentSource(next)) setLatexRecovery(true);
+      setLastLatexFailure({
+        raw: err instanceof Error ? err.message : String(err),
+        source: "compile",
+      });
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
@@ -486,6 +536,10 @@ const NotebookPdfWorkspace: React.FC = () => {
       await doCompile(merged);
     } catch (err) {
       if (isLatexDocumentSource(merged)) setLatexRecovery(true);
+      setLastLatexFailure({
+        raw: err instanceof Error ? err.message : String(err),
+        source: "compile",
+      });
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
@@ -662,21 +716,37 @@ const NotebookPdfWorkspace: React.FC = () => {
           <Alert className="border-amber-500/40 bg-background/90">
             <Wand2 className="h-4 w-4 text-amber-700 dark:text-amber-400" />
             <AlertTitle>Fix LaTeX and try again</AlertTitle>
-            <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <AlertDescription className="flex flex-col gap-3">
               <span>
-                If the model produced TeX that compiles to a broken PDF, or preview says invalid structure, run autofix:
-                unicode cleanup, safe figure placeholders, and draft graphics.
+                <strong>Apply fixes &amp; recompile</strong> runs the same deterministic cleanup (unicode, draft graphics, fonts,
+                figure placeholders) on the <strong>current Source</strong>, then compiles.{" "}
+                <strong>Open fix prompt in chat</strong> loads the <strong>same Source buffer</strong> and the{" "}
+                <strong>same captured error</strong> into the main composer so the model can revise the .tex. Both use what
+                you see in Source right now; after Apply, that includes autofixed text.
               </span>
-              <Button
-                type="button"
-                size="sm"
-                className="shrink-0 gap-1.5"
-                onClick={() => void runAutofixAndRecompile()}
-                disabled={busy}
-              >
-                <Wand2 className="h-3.5 w-3.5" />
-                Apply fixes &amp; recompile
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="shrink-0 gap-1.5"
+                  onClick={() => loadFixPromptInChat()}
+                  disabled={busy || !lastLatexFailure}
+                >
+                  <MessageSquareQuote className="h-3.5 w-3.5" />
+                  Open fix prompt in chat
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="shrink-0 gap-1.5"
+                  onClick={() => void runAutofixAndRecompile()}
+                  disabled={busy}
+                >
+                  <Wand2 className="h-3.5 w-3.5" />
+                  Apply fixes &amp; recompile
+                </Button>
+              </div>
             </AlertDescription>
           </Alert>
         </div>

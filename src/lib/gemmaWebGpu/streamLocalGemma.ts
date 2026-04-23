@@ -1,31 +1,37 @@
 import type { ApiKeyConfig } from "@/types/chat";
 import type { StreamMetrics } from "@/lib/openrouter";
 import type { StreamLocalGemmaChatCallbacks } from "@/lib/gemmaWebGpu/streamLocalGemmaTypes";
-import { chatCompletionMessagesToGemmaPrompt } from "@/lib/gemmaWebGpu/gemmaPrompt";
 import {
   abortLocalGemmaGeneration,
+  buildLocalPrompt,
+  countTokensLocalGemma,
+  currentLocalTokenizer,
   ensureLocalGemmaLoaded,
   generateLocalGemma,
-  countTokensLocalGemma,
 } from "@/lib/gemmaWebGpu/localGemmaInference";
+import { trimApiMessagesForLocal } from "@/lib/gemmaWebGpu/trimForLocalContext";
+import type { LocalGemmaBackendPreference } from "@/lib/gemmaWebGpu/webGpuCaps";
 import { stripSpecialTokens } from "@/lib/gemmaWebGpu/stripGemmaStreamChunk";
-import { expandNumericRuntimeMessage } from "@/lib/userFacingError";
+import { expandRuntimeInferenceMessage } from "@/lib/userFacingError";
 
 export { abortLocalGemmaGeneration } from "@/lib/gemmaWebGpu/localGemmaInference";
 
 function enhanceWebGpuBackendError(err: unknown): Error {
   const original = err instanceof Error ? err.message.trim() : String(err);
   if (
-    /no available backend|Failed to get GPU adapter|enable-unsafe-webgpu|\[webgpu\]/i.test(original)
+    /no available backend|Failed to get GPU adapter|enable-unsafe-webgpu|\[webgpu\]|device failed at creation|requires f16 but the device does not support|exceeds the max buffer size limit|GPU buffer too small|WebGPU validation failed|Could not find an implementation for GatherBlockQuantized/i.test(
+      original
+    )
   ) {
     return new Error(
       `${original}\n\n` +
-        "Openbentt desktop: fully quit and relaunch the app (Electron enables WebGPU-related Chromium flags). " +
-        "Browser: try launching Chrome/Edge with flag --enable-unsafe-webgpu, or enable the WebGPU / unsafe WebGPU flag in chrome://flags. " +
-        "Linux: update Mesa/Vulkan GPU drivers if the adapter still fails."
+        "Openbentt tried the available fallbacks (smaller model → WASM/CPU) and still couldn't start. " +
+        "Desktop: fully quit and relaunch (Electron enables WebGPU-related Chromium flags). " +
+        "Browser: launch Chrome/Edge with --enable-unsafe-webgpu, or enable the WebGPU flag in chrome://flags. " +
+        "Linux: install/update Mesa and Vulkan drivers; \"Device failed at creation\" usually clears after a desktop-build restart."
     );
   }
-  const raw = expandNumericRuntimeMessage(original);
+  const raw = expandRuntimeInferenceMessage(original);
   return err instanceof Error ? new Error(raw) : new Error(raw);
 }
 
@@ -35,10 +41,6 @@ export async function streamLocalGemmaChat(
   signal: AbortSignal,
   callbacks: StreamLocalGemmaChatCallbacks
 ): Promise<{ text: string; metrics: StreamMetrics; rateLimitHeaders: Record<string, string> }> {
-  if (typeof navigator === "undefined" || !navigator.gpu) {
-    throw new Error("WebGPU is not available in this environment. Try Chrome/Edge or the desktop app, or switch to a cloud provider in Settings.");
-  }
-
   const t0 = performance.now();
   let ttftMs: number | null = null;
   let accumulated = "";
@@ -48,6 +50,11 @@ export async function streamLocalGemmaChat(
   };
   signal.addEventListener("abort", onInternalAbort);
 
+  const profile = cfg.localInferenceProfile ?? "balanced";
+  const backendPreference: LocalGemmaBackendPreference =
+    profile === "performance" ? "webgpu" : "auto";
+  const scopedMessages = trimApiMessagesForLocal(apiMessages, profile);
+
   try {
     callbacks.onModelDownloadProgress?.(0);
     await ensureLocalGemmaLoaded(
@@ -55,11 +62,22 @@ export async function streamLocalGemmaChat(
       (pct) => {
         callbacks.onModelDownloadProgress?.(pct);
       },
-      signal
+      signal,
+      {
+        backendPreference,
+        onBackendPicked: (backend) => callbacks.onBackendPicked?.(backend),
+        onModelAutoSwitched: (info) => callbacks.onModelAutoSwitched?.(info),
+        onDtypeFallback: (info) => callbacks.onDtypeFallback?.(info),
+      }
     );
     callbacks.onModelDownloadProgress?.(null);
 
-    const prompt = chatCompletionMessagesToGemmaPrompt(apiMessages);
+    const tokenizer = currentLocalTokenizer();
+    const prompt = tokenizer
+      ? buildLocalPrompt(tokenizer, scopedMessages)
+      : /** Tokenizer should exist once `ensureLocalGemmaLoaded` resolves; guard is belt-and-braces. */
+        scopedMessages.map((m) => `${m.role}: ${String(m.content ?? "")}`).join("\n");
+
     let promptTokens: number | undefined;
     try {
       promptTokens = await countTokensLocalGemma(prompt);
@@ -69,7 +87,7 @@ export async function streamLocalGemmaChat(
     }
 
     const { raw, visible } = await generateLocalGemma(prompt, {
-      maxTokens: 1024,
+      inferenceProfile: profile,
       onChunk: (piece) => {
         if (ttftMs == null && piece.length > 0) ttftMs = Math.round(performance.now() - t0);
         accumulated += piece;

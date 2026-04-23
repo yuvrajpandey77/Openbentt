@@ -3,7 +3,19 @@ import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowUp, Bot, ChevronDown, Columns2, Paperclip, Square, ImageIcon, Mic, Film, FileText } from "lucide-react";
+import {
+  ArrowUp,
+  Bot,
+  ChevronDown,
+  Columns2,
+  Download,
+  Paperclip,
+  Square,
+  ImageIcon,
+  Mic,
+  Film,
+  FileText,
+} from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import {
   Tooltip,
@@ -11,6 +23,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,7 +44,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRouterModels";
 import { shortModelLabel } from "@/lib/openrouter";
 import { dedupeModels, normalizeApiConfig, canSendChat, type MessageAttachment } from "@/types/chat";
-import { LOCAL_GEMMA_SELECTABLE_MODELS } from "@/lib/gemmaWebGpu/models";
+import { ensureLocalGemmaLoaded } from "@/lib/gemmaWebGpu/localGemmaInference";
+import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
+import { DEFAULT_LOCAL_GEMMA_MODEL_ID, LOCAL_GEMMA_SELECTABLE_MODELS, LOCAL_MODEL_CATALOG, type LocalModelEntry } from "@/lib/gemmaWebGpu/models";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { v4 as uuidv4 } from "uuid";
 import { readFileAsDataUrl, extractVideoFrameDataUrl, assertImageSize } from "@/lib/media";
@@ -76,6 +105,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
     apiConfig.openAiCompatibleBaseUrl,
     apiConfig.aiProvider
   );
+  const [localDownloadOpen, setLocalDownloadOpen] = useState(false);
+  const [localPrewarmId, setLocalPrewarmId] = useState(() => DEFAULT_LOCAL_GEMMA_MODEL_ID);
+  const [localPrewarmPct, setLocalPrewarmPct] = useState<number | null>(null);
+  const [localPrewarmBusy, setLocalPrewarmBusy] = useState(false);
 
   const selectable = useMemo(
     () =>
@@ -97,6 +130,12 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
     () => selectable.find((m) => m.id === apiConfig.model),
     [selectable, apiConfig.model]
   );
+
+  useEffect(() => {
+    if (apiConfig.aiProvider === "webgpu_gemma" && apiConfig.model) {
+      setLocalPrewarmId(apiConfig.model);
+    }
+  }, [apiConfig.aiProvider, apiConfig.model]);
 
   useEffect(() => {
     if (pendingComposer) {
@@ -176,6 +215,49 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
 
   const handleStop = () => {
     stopStreaming();
+  };
+
+  const runLocalPrewarmFromDialog = async () => {
+    if (apiConfig.aiProvider !== "webgpu_gemma") return;
+    if (!getLocalWeightsConsent()) {
+      toast({
+        title: "Allow on-device model first",
+        description: "Use the setup bar above the composer to choose a model and accept the download, or we cannot cache weights.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setApiConfig(
+      normalizeApiConfig({
+        ...apiConfig,
+        model: localPrewarmId,
+        comparisonModelIds: [localPrewarmId],
+      })
+    );
+    setLocalPrewarmBusy(true);
+    setLocalPrewarmPct(0);
+    const ac = new AbortController();
+    try {
+      await ensureLocalGemmaLoaded(
+        localPrewarmId,
+        (p) => setLocalPrewarmPct(p),
+        ac.signal,
+        { backendPreference: apiConfig.localInferenceProfile === "performance" ? "webgpu" : "auto" }
+      );
+      const label = (LOCAL_MODEL_CATALOG as readonly LocalModelEntry[]).find((e) => e.storedId === localPrewarmId)?.displayName ?? "Model";
+      toast({ title: "Model cached", description: `${label} is ready for offline use.` });
+      setLocalDownloadOpen(false);
+    } catch (e) {
+      if ((e as { name?: string })?.name === "AbortError") return;
+      toast({
+        title: "Cache failed",
+        description: e instanceof Error ? e.message : "Could not load model",
+        variant: "destructive",
+      });
+    } finally {
+      setLocalPrewarmBusy(false);
+      setLocalPrewarmPct(null);
+    }
   };
 
   const handleModelChange = (newModel: string) => {
@@ -389,7 +471,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
             </div>
             <Progress value={webgpuModelDownloadProgress} className="h-2" />
             <p className="text-[11px] leading-snug text-muted-foreground">
-              Hugging Face weights (~500MB for E2B). After this, loads are fast. Keep this tab open.
+              Hugging Face weights (~400&nbsp;MB Qwen 0.5B · ~500&nbsp;MB Gemma E2B · ~1.5&nbsp;GB Gemma E4B). After
+              this, loads are fast. Keep this tab open.
             </p>
           </div>
         )}
@@ -591,6 +674,27 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
                 <TooltipContent>Video → frame preview</TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            {apiConfig.aiProvider === "webgpu_gemma" && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 w-9 p-0 bg-background/80 border border-border/60"
+                      type="button"
+                      onClick={() => setLocalDownloadOpen(true)}
+                      disabled={isLoading}
+                    >
+                      <Download size={15} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Download / pre-cache a chosen on-device model (HF cache)</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
 
           <div className="absolute bottom-2 right-2">
@@ -600,7 +704,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
                   <Button
                     onClick={isLoading ? handleStop : handleSendMessage}
                     disabled={
-                      (!message.trim() && attachments.length === 0) || !canSendChat(apiConfig) || isLoadingConfig
+                      (!message.trim() && attachments.length === 0) ||
+                      !canSendChat(apiConfig) ||
+                      isLoadingConfig ||
+                      (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())
                     }
                     size="sm"
                     className={`h-9 w-9 p-0 ${
@@ -620,6 +727,61 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
           </div>
         </div>
       </div>
+
+      <Dialog open={localDownloadOpen} onOpenChange={setLocalDownloadOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>On-device model cache</DialogTitle>
+            <DialogDescription>
+              Pick which Hugging Face ONNX bundle to store in this browser. You must allow downloads in the bar above
+              first.
+            </DialogDescription>
+          </DialogHeader>
+          {!getLocalWeightsConsent() ? (
+            <p className="text-sm text-muted-foreground">
+              Open the teal <strong>Set up on-device model</strong> bar above, accept the terms, and choose{" "}
+              <strong>Allow and continue</strong> before pre-caching.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Model</Label>
+                <Select value={localPrewarmId} onValueChange={setLocalPrewarmId}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {LOCAL_MODEL_CATALOG.map((e) => (
+                      <SelectItem key={e.storedId} value={e.storedId}>
+                        {e.displayName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {localPrewarmPct != null && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] text-muted-foreground">
+                    <span>Progress</span>
+                    <span>{localPrewarmPct}%</span>
+                  </div>
+                  <Progress value={localPrewarmPct} className="h-2" />
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setLocalDownloadOpen(false)} disabled={localPrewarmBusy}>
+              Close
+            </Button>
+            {getLocalWeightsConsent() && (
+              <Button type="button" onClick={() => void runLocalPrewarmFromDialog()} disabled={localPrewarmBusy}>
+                {localPrewarmBusy ? "Loading…" : "Download to cache"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
