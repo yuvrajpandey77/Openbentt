@@ -22,6 +22,7 @@ export function useOpenRouterModels(
     queryFn: async () => {
       switch (aiProvider) {
         case "webgpu_gemma":
+        case "local_gguf":
           return [];
         case "openrouter":
           return fetchOpenRouterModels(apiKey);
@@ -38,7 +39,7 @@ export function useOpenRouterModels(
       }
     },
     enabled:
-      aiProvider === "webgpu_gemma"
+      aiProvider === "webgpu_gemma" || aiProvider === "local_gguf"
         ? false
         : aiProvider === "openai_compatible"
           ? Boolean(compat)

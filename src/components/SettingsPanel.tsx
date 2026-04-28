@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useChat } from "@/context/ChatContext";
 import { useTheme } from "../context/ThemeContext";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Moon, Sun, Plus, Trash2, Sparkles, Cpu, Search, FlaskConical } from "lucide-react";
 import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRouterModels";
+import { useLocalGgufRegistryModels } from "@/hooks/useLocalGgufRegistryModels";
 import { shortModelLabel } from "@/lib/openrouter";
 import {
   dedupeModels,
@@ -29,6 +31,7 @@ import {
   isLocalGemmaModelId,
   LOCAL_GEMMA_SELECTABLE_MODELS,
 } from "@/lib/gemmaWebGpu/models";
+import { GGUF_MODEL_NONE } from "@/lib/localGguf/ids";
 import { ModelCapabilityBadges } from "@/components/ModelCapabilityBadges";
 import {
   listExperimentPresets,
@@ -42,11 +45,16 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/use-toast";
+import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
 
 const MAX_COMPARE = 4;
 
 const SettingsPanel: React.FC = () => {
   const { apiConfig, setApiConfig } = useChat();
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const { theme, toggleTheme } = useTheme();
   const [localAiProvider, setLocalAiProvider] = useState<AiProvider>(apiConfig.aiProvider);
   const [localApiKey, setLocalApiKey] = useState(apiConfig.apiKey);
@@ -72,6 +80,8 @@ const SettingsPanel: React.FC = () => {
   );
   const [localInferenceProfile, setLocalInferenceProfile] = useState<LocalInferenceProfile>(apiConfig.localInferenceProfile);
   const [localResearchWithLocal, setLocalResearchWithLocal] = useState(apiConfig.researchWithLocalModel);
+  const [localGgufBinaryPath, setLocalGgufBinaryPath] = useState(apiConfig.localGgufBinaryPath);
+  const [localHuggingFaceToken, setLocalHuggingFaceToken] = useState(apiConfig.huggingFaceToken);
   const [presetName, setPresetName] = useState("");
   const [presets, setPresets] = useState<ExperimentPreset[]>(() => listExperimentPresets());
 
@@ -80,6 +90,18 @@ const SettingsPanel: React.FC = () => {
     localCompatBase,
     localAiProvider
   );
+  const { data: ggufModels, isLoading: ggufModelsLoading } = useLocalGgufRegistryModels(localAiProvider === "local_gguf");
+
+  const { data: hfSecretStatus } = useQuery({
+    queryKey: ["hf-secret-status"],
+    queryFn: async () => {
+      const a = getLocalGgufApi();
+      if (!a?.hfSecretStatus) return { stored: false, encryptionAvailable: false };
+      return a.hfSecretStatus();
+    },
+    enabled: localAiProvider === "local_gguf" && Boolean(getLocalGgufApi()),
+    staleTime: 15_000,
+  });
 
   useEffect(() => {
     setLocalAiProvider(apiConfig.aiProvider);
@@ -101,6 +123,8 @@ const SettingsPanel: React.FC = () => {
     setLocalReasoningPreference(apiConfig.reasoningPreference);
     setLocalInferenceProfile(apiConfig.localInferenceProfile);
     setLocalResearchWithLocal(apiConfig.researchWithLocalModel);
+    setLocalGgufBinaryPath(apiConfig.localGgufBinaryPath);
+    setLocalHuggingFaceToken(apiConfig.huggingFaceToken);
   }, [apiConfig]);
 
   useEffect(() => {
@@ -115,10 +139,14 @@ const SettingsPanel: React.FC = () => {
         ? buildSelectableModels(LOCAL_GEMMA_SELECTABLE_MODELS, localCustomIds, [localModel, ...localComparisonIds], {
             includeAllFromApi: true,
           })
-        : buildSelectableModels(models, localCustomIds, [localModel, ...localComparisonIds], {
-            includeAllFromApi: localAiProvider !== "openrouter",
-          }),
-    [models, localCustomIds, localModel, localComparisonIds, localAiProvider]
+        : localAiProvider === "local_gguf"
+          ? buildSelectableModels(ggufModels, localCustomIds, [localModel, ...localComparisonIds], {
+              includeAllFromApi: true,
+            })
+          : buildSelectableModels(models, localCustomIds, [localModel, ...localComparisonIds], {
+              includeAllFromApi: localAiProvider !== "openrouter",
+            }),
+    [models, ggufModels, localCustomIds, localModel, localComparisonIds, localAiProvider]
   );
 
   const primaryModelMeta = useMemo(
@@ -126,12 +154,50 @@ const SettingsPanel: React.FC = () => {
     [selectable, localModel]
   );
 
-  const handleSave = () => {
+  const persistHfTokenToDesktopSecret = async (): Promise<void> => {
+    const api = getLocalGgufApi();
+    const plain = localHuggingFaceToken.trim();
+    if (
+      !plain ||
+      typeof window.openbenttDesktop?.isElectron !== "boolean" ||
+      !window.openbenttDesktop.isElectron ||
+      !api?.hfSecretSet
+    ) {
+      return;
+    }
+    await api.hfSecretSet(plain);
+    setLocalHuggingFaceToken("");
+    void qc.invalidateQueries({ queryKey: ["hf-secret-status"] });
+    toast({
+      title: "Hugging Face token",
+      description: "Saved with OS-backed encryption where available.",
+    });
+  };
+
+  const handleSave = async () => {
+    const primaryModel =
+      localModel.trim() ||
+      (localAiProvider === "local_gguf"
+        ? GGUF_MODEL_NONE
+        : localAiProvider === "webgpu_gemma"
+          ? DEFAULT_LOCAL_GEMMA_MODEL_ID
+          : DEFAULT_MODEL_ID);
+    try {
+      await persistHfTokenToDesktopSecret();
+    } catch (e) {
+      toast({
+        title: "Could not save HF token",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+      return;
+    }
+    const electron = typeof window.openbenttDesktop?.isElectron === "boolean" && window.openbenttDesktop.isElectron;
     setApiConfig(
       normalizeApiConfig({
         aiProvider: localAiProvider,
         apiKey: localApiKey,
-        model: localModel || DEFAULT_MODEL_ID,
+        model: primaryModel,
         customModelIds: dedupeModels(localCustomIds),
         comparisonEnabled: localComparisonEnabled,
         comparisonModelIds: dedupeModels(localComparisonIds).slice(0, MAX_COMPARE),
@@ -148,19 +214,34 @@ const SettingsPanel: React.FC = () => {
         showAgentTraces: localShowTrace,
         localInferenceProfile: localInferenceProfile,
         researchWithLocalModel: localResearchWithLocal,
+        localGgufBinaryPath: localGgufBinaryPath,
+        huggingFaceToken: electron ? "" : localHuggingFaceToken.trim(),
       })
     );
   };
 
   const refreshPresets = () => setPresets(listExperimentPresets());
 
-  const handleSavePreset = () => {
+  const handleSavePreset = async () => {
+    try {
+      await persistHfTokenToDesktopSecret();
+    } catch {
+      /* ignore preset if secret save fails */
+    }
+    const electron = typeof window.openbenttDesktop?.isElectron === "boolean" && window.openbenttDesktop.isElectron;
+    const primaryModel =
+      localModel.trim() ||
+      (localAiProvider === "local_gguf"
+        ? GGUF_MODEL_NONE
+        : localAiProvider === "webgpu_gemma"
+          ? DEFAULT_LOCAL_GEMMA_MODEL_ID
+          : DEFAULT_MODEL_ID);
     saveExperimentPreset(
       presetName,
       normalizeApiConfig({
         aiProvider: localAiProvider,
         apiKey: localApiKey,
-        model: localModel || DEFAULT_MODEL_ID,
+        model: primaryModel,
         customModelIds: dedupeModels(localCustomIds),
         comparisonEnabled: localComparisonEnabled,
         comparisonModelIds: dedupeModels(localComparisonIds).slice(0, MAX_COMPARE),
@@ -177,6 +258,8 @@ const SettingsPanel: React.FC = () => {
         showAgentTraces: localShowTrace,
         localInferenceProfile: localInferenceProfile,
         researchWithLocalModel: localResearchWithLocal,
+        localGgufBinaryPath,
+        huggingFaceToken: electron ? "" : localHuggingFaceToken.trim(),
       })
     );
     setPresetName("");
@@ -204,6 +287,8 @@ const SettingsPanel: React.FC = () => {
     setLocalReasoningPreference(c.reasoningPreference ?? "default");
     setLocalInferenceProfile(c.localInferenceProfile ?? "balanced");
     setLocalResearchWithLocal(c.researchWithLocalModel ?? true);
+    setLocalGgufBinaryPath(c.localGgufBinaryPath ?? "");
+    setLocalHuggingFaceToken(c.huggingFaceToken ?? "");
   };
 
   const addCustomModel = () => {
@@ -291,6 +376,7 @@ const SettingsPanel: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="webgpu_gemma">Gemma 4 on-device (WebGPU, no API key)</SelectItem>
+                  <SelectItem value="local_gguf">Local GGUF — desktop (llama-server, Hugging Face)</SelectItem>
                   <SelectItem value="openrouter">OpenRouter (many models, one key)</SelectItem>
                   <SelectItem value="openai_direct">OpenAI (api.openai.com)</SelectItem>
                   <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
@@ -306,9 +392,9 @@ const SettingsPanel: React.FC = () => {
               </p>
             </div>
 
-            {localAiProvider !== "webgpu_gemma" && <Separator />}
+            {localAiProvider !== "webgpu_gemma" && localAiProvider !== "local_gguf" && <Separator />}
 
-            {localAiProvider !== "webgpu_gemma" && (
+            {localAiProvider !== "webgpu_gemma" && localAiProvider !== "local_gguf" && (
               <div className="space-y-2">
                 <Label htmlFor="api-key">
                   {localAiProvider === "google"
@@ -337,6 +423,89 @@ const SettingsPanel: React.FC = () => {
                 />
                 <p className="text-xs text-muted-foreground">Stored only in localStorage on this device.</p>
               </div>
+            )}
+
+            {localAiProvider === "local_gguf" && (
+              <>
+                <Alert className="border-amber-500/30 bg-amber-500/[0.06]">
+                  <AlertTitle className="flex flex-wrap items-center gap-2 text-sm">
+                    Local GGUF (desktop){" "}
+                    <Badge variant="secondary" className="font-normal">
+                      Beta
+                    </Badge>
+                  </AlertTitle>
+                  <AlertDescription className="text-[11px] leading-relaxed text-muted-foreground">
+                    Requires the <strong>Openbentt desktop</strong> build, a working{" "}
+                    <code className="rounded bg-muted px-1 py-0.5 text-[10px]">llama-server</code> binary (PATH,{" "}
+                    <code className="font-mono text-[10px]">OPENBENTT_LLAMA_SERVER_PATH</code>,{" "}
+                    <code className="font-mono text-[10px]">resources/llama/&lt;platform&gt;/</code>), and at least one
+                    GGUF downloaded from <strong>Labs → Local GGUF hub</strong>. Inference binds to{" "}
+                    <code className="font-mono text-[10px]">127.0.0.1</code> only. You are responsible for model licenses.
+                  </AlertDescription>
+                </Alert>
+                <div className="space-y-2">
+                  <Label htmlFor="llama-bin">Optional: path to llama-server</Label>
+                  <Input
+                    id="llama-bin"
+                    placeholder="Leave blank to auto-detect (PATH / env / bundled)"
+                    value={localGgufBinaryPath}
+                    onChange={(e) => setLocalGgufBinaryPath(e.target.value)}
+                    className="openbentt-input font-mono text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="hf-token">Hugging Face token (optional)</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Required for gated models and helpful for rate limits. On the <strong>desktop app</strong>, saving
+                    stores the token with <strong>OS encryption</strong> (Electron{" "}
+                    <code className="text-[10px]">safeStorage</code>) instead of plaintext in localStorage. Validate via{" "}
+                    <code className="text-[10px]">whoami</code> in Labs.
+                  </p>
+                  {hfSecretStatus?.stored ? (
+                    <p className="text-[11px] text-teal-600 dark:text-teal-400">
+                      A token is already stored securely
+                      {!hfSecretStatus.encryptionAvailable ? " (encryption unavailable — restricted file fallback)." : "."}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      id="hf-token"
+                      type="password"
+                      placeholder={
+                        hfSecretStatus?.stored && !localHuggingFaceToken.trim()
+                          ? "Paste a new hf_… token to replace"
+                          : "hf_…"
+                      }
+                      value={localHuggingFaceToken}
+                      onChange={(e) => setLocalHuggingFaceToken(e.target.value)}
+                      className="openbentt-input min-w-[200px] flex-1 font-mono text-sm"
+                    />
+                    {getLocalGgufApi()?.hfSecretClear ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          await getLocalGgufApi()?.hfSecretClear();
+                          void qc.invalidateQueries({ queryKey: ["hf-secret-status"] });
+                          toast({ title: "Stored Hugging Face token cleared" });
+                        }}
+                      >
+                        Clear stored
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
+                  <div>
+                    <Label className="text-sm">Research with local GGUF</Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Allows Wikipedia/URLs/Brave when Research is enabled (network in background).
+                    </p>
+                  </div>
+                  <Switch checked={localResearchWithLocal} onCheckedChange={setLocalResearchWithLocal} />
+                </div>
+              </>
             )}
 
             {localAiProvider === "webgpu_gemma" && (
@@ -453,10 +622,13 @@ const SettingsPanel: React.FC = () => {
                 <ModelCapabilityBadges modelId={localModel} meta={primaryModelMeta} />
               </div>
               <p className="text-xs text-muted-foreground">
-                {modelsLoading && localAiProvider !== "webgpu_gemma"
+                {(modelsLoading || (localAiProvider === "local_gguf" && ggufModelsLoading)) &&
+                localAiProvider !== "webgpu_gemma"
                   ? "Loading models…"
                   : localAiProvider === "webgpu_gemma"
                     ? "Default is the smallest (Qwen 0.5B) in new installs. Pick Gemma E2B/E4B or Qwen 1.5B for better quality when you have RAM. Openbentt auto-downgrades when needed."
+                  : localAiProvider === "local_gguf"
+                    ? "Download GGUF weights in Labs, then choose the registry entry here. Pick “GGUF (pick a model)” until you add one."
                     : localAiProvider === "openrouter"
                       ? "Free-tier OpenRouter IDs plus custom entries."
                       : localAiProvider === "openai_compatible"
@@ -691,11 +863,14 @@ const SettingsPanel: React.FC = () => {
               <Switch
                 checked={localComparisonEnabled}
                 onCheckedChange={setLocalComparisonEnabled}
-                disabled={localAiProvider === "webgpu_gemma"}
+                disabled={localAiProvider === "webgpu_gemma" || localAiProvider === "local_gguf"}
               />
             </div>
-            {localAiProvider === "webgpu_gemma" && (
-              <p className="text-[11px] text-muted-foreground">Tiled comparison is not available with on-device Gemma.</p>
+            {(localAiProvider === "webgpu_gemma" || localAiProvider === "local_gguf") && (
+              <p className="text-[11px] text-muted-foreground">
+                Tiled comparison is not available with{" "}
+                {localAiProvider === "local_gguf" ? "local GGUF inference." : "on-device Gemma."}
+              </p>
             )}
             <ScrollArea className="h-44 rounded-xl border border-border/60">
               <div className="space-y-1 p-3">

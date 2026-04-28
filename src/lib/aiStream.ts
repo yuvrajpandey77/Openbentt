@@ -251,6 +251,8 @@ export async function streamChatForConfig(
       return streamGeminiChat(cfg.apiKey, model, messages, signal, callbacks);
     case "webgpu_gemma":
       throw new Error("streamChatForConfig: webgpu_gemma is handled by streamLocalGemmaChat in ChatContext.");
+    case "local_gguf":
+      throw new Error("streamChatForConfig: local_gguf is handled by streamLocalGgufChat in ChatContext.");
     default:
       return streamOpenRouterChat(cfg.apiKey, model, messages, signal, callbacks, {
         chatCompletionsUrl: OPENROUTER_CHAT_URL,

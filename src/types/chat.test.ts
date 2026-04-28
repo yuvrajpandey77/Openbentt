@@ -7,6 +7,7 @@ import {
   DEPRECATED_DEFAULT_MODEL_IDS,
 } from "./chat";
 import { LOCAL_TINY_MODEL_ID } from "@/lib/gemmaWebGpu/models";
+import { GGUF_MODEL_NONE } from "@/lib/localGguf/ids";
 
 describe("dedupeModels", () => {
   it("trims, dedupes, preserves order", () => {
@@ -66,6 +67,16 @@ describe("normalizeApiConfig migrations", () => {
   it("does not rewrite user-selected model ids that aren't deprecated", () => {
     const n = normalizeApiConfig({ model: "some/user-picked:free" });
     expect(n.model).toBe("some/user-picked:free");
+  });
+
+  it("normalizes local_gguf invalid model id to none", () => {
+    const n = normalizeApiConfig({
+      aiProvider: "local_gguf",
+      model: "not-a-uuid",
+      comparisonEnabled: true,
+    });
+    expect(n.model).toBe(GGUF_MODEL_NONE);
+    expect(n.comparisonEnabled).toBe(false);
   });
 
   it("normalizes webgpu_gemma to local model and disables comparison", () => {

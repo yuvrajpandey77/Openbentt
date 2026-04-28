@@ -31,7 +31,8 @@ When the user wants a proper book or paper, prefer **complete .tex** (fenced) an
   "/labs": {
     tag: "Labs",
     title: "Research labs",
-    subtitle: "BibTeX, citation graph, Hugging Face dataset cards — prompts reference this tooling.",
+    subtitle:
+      "BibTeX, citation graph, Hugging Face dataset cards — in-app GGUF downloads planned (see docs/local-model-lab-roadmap.md).",
     composerPlaceholder:
       "Ask about papers, BibTeX, citation links, or HF datasets you loaded in this page…",
     systemAssist: `The user is in **Research labs**: BibTeX parsing, mini citation graphs, and Hugging Face dataset card previews may be relevant. Help summarize literature, suggest related work, debug BibTeX, and interpret dataset metadata. Be precise about what is inferred vs loaded.`,

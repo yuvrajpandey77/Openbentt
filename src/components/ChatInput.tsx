@@ -42,6 +42,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRouterModels";
+import { useLocalGgufRegistryModels } from "@/hooks/useLocalGgufRegistryModels";
 import { shortModelLabel } from "@/lib/openrouter";
 import { dedupeModels, normalizeApiConfig, canSendChat, type MessageAttachment } from "@/types/chat";
 import { ensureLocalGemmaLoaded } from "@/lib/gemmaWebGpu/localGemmaInference";
@@ -105,6 +106,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
     apiConfig.openAiCompatibleBaseUrl,
     apiConfig.aiProvider
   );
+  const { data: ggufModels } = useLocalGgufRegistryModels(apiConfig.aiProvider === "local_gguf");
   const [localDownloadOpen, setLocalDownloadOpen] = useState(false);
   const [localPrewarmId, setLocalPrewarmId] = useState(() => DEFAULT_LOCAL_GEMMA_MODEL_ID);
   const [localPrewarmPct, setLocalPrewarmPct] = useState<number | null>(null);
@@ -117,13 +119,20 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
             apiConfig.model,
             ...apiConfig.comparisonModelIds,
           ], { includeAllFromApi: true })
-        : buildSelectableModels(
-            models,
-            apiConfig.customModelIds,
-            [apiConfig.model, ...apiConfig.comparisonModelIds],
-            { includeAllFromApi: apiConfig.aiProvider !== "openrouter" }
-          ),
-    [models, apiConfig.customModelIds, apiConfig.model, apiConfig.comparisonModelIds, apiConfig.aiProvider]
+        : apiConfig.aiProvider === "local_gguf"
+          ? buildSelectableModels(
+              ggufModels,
+              apiConfig.customModelIds,
+              [apiConfig.model, ...apiConfig.comparisonModelIds],
+              { includeAllFromApi: true }
+            )
+          : buildSelectableModels(
+              models,
+              apiConfig.customModelIds,
+              [apiConfig.model, ...apiConfig.comparisonModelIds],
+              { includeAllFromApi: apiConfig.aiProvider !== "openrouter" }
+            ),
+    [models, ggufModels, apiConfig.customModelIds, apiConfig.model, apiConfig.comparisonModelIds, apiConfig.aiProvider]
   );
 
   const selectedModelMeta = useMemo(

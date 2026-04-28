@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { useChat } from "@/context/ChatContext";
 import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRouterModels";
+import { useLocalGgufRegistryModels } from "@/hooks/useLocalGgufRegistryModels";
 import {
   contextFillRatio,
   estimateTokensFromMessagesRough,
@@ -18,6 +19,7 @@ export const ContextMeter: React.FC = () => {
     apiConfig.openAiCompatibleBaseUrl,
     apiConfig.aiProvider
   );
+  const { data: ggufModels } = useLocalGgufRegistryModels(apiConfig.aiProvider === "local_gguf");
 
   const selectable = useMemo(
     () =>
@@ -26,13 +28,18 @@ export const ContextMeter: React.FC = () => {
             apiConfig.model,
             ...apiConfig.comparisonModelIds,
           ], { includeAllFromApi: true })
-        : buildSelectableModels(
-            models,
-            apiConfig.customModelIds,
-            [apiConfig.model, ...apiConfig.comparisonModelIds],
-            { includeAllFromApi: apiConfig.aiProvider !== "openrouter" }
-          ),
-    [models, apiConfig.customModelIds, apiConfig.model, apiConfig.comparisonModelIds, apiConfig.aiProvider]
+        : apiConfig.aiProvider === "local_gguf"
+          ? buildSelectableModels(ggufModels, apiConfig.customModelIds, [
+              apiConfig.model,
+              ...apiConfig.comparisonModelIds,
+            ], { includeAllFromApi: true })
+          : buildSelectableModels(
+              models,
+              apiConfig.customModelIds,
+              [apiConfig.model, ...apiConfig.comparisonModelIds],
+              { includeAllFromApi: apiConfig.aiProvider !== "openrouter" }
+            ),
+    [models, ggufModels, apiConfig.customModelIds, apiConfig.model, apiConfig.comparisonModelIds, apiConfig.aiProvider]
   );
 
   const meta = useMemo(

@@ -54,6 +54,7 @@ The **same UI** runs in a desktop window; the shell lives under `electron/` and 
 
 ```bash
 npm run electron:dev    # Vite + Electron (hot reload; DevTools open)
+npm run electron:dev:safe  # same; OPENBENTT_DISABLE_GPU=1 if GPU process crashes (Linux/NVIDIA)
 npm run electron:start  # npm run build, then open Electron loading dist/ (app://)
 npm run electron:build  # production web build + installers → release/
 ```

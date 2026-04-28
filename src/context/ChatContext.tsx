@@ -26,6 +26,7 @@ import type { ProviderQuotaSnapshot } from "@/lib/providerRateLimits";
 import { LOCAL_STORAGE_KEYS } from "@/lib/storageMigrate";
 import { formatUserFacingError } from "@/lib/userFacingError";
 import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
+import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
 
 interface ChatContextProps {
   chats: Chat[];
@@ -95,6 +96,18 @@ interface PipelineExtras {
   systemPrompts: string[];
   researchSources?: ResearchSourceRef[];
   agentTrace?: AgentTraceStep[];
+}
+
+function isElectronDesktopShell(): boolean {
+  return typeof window !== "undefined" && window.openbenttDesktop?.isElectron === true;
+}
+
+/** Hugging Face token is stored in the main process on desktop; never persist plaintext in localStorage. */
+function apiConfigForBrowserStorage(cfg: ApiKeyConfig): ApiKeyConfig {
+  if (isElectronDesktopShell()) {
+    return { ...cfg, huggingFaceToken: "" };
+  }
+  return cfg;
 }
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -174,19 +187,41 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentChatId(null);
     }
 
-    if (savedApiConfig) {
-      try {
-        const config = JSON.parse(savedApiConfig) as Partial<ApiKeyConfig>;
-        setApiConfigState(normalizeApiConfig(config));
-      } catch (error) {
-        console.error("Failed to parse saved API config:", error);
+    let cancelled = false;
+
+    void (async () => {
+      if (savedApiConfig) {
+        try {
+          const parsed = JSON.parse(savedApiConfig) as Partial<ApiKeyConfig>;
+          let normalized = normalizeApiConfig(parsed);
+          const api = getLocalGgufApi();
+          const plain = normalized.huggingFaceToken.trim();
+          if (isElectronDesktopShell() && plain && api?.hfSecretSet) {
+            await api.hfSecretSet(plain);
+            normalized = normalizeApiConfig({ ...parsed, huggingFaceToken: "" });
+            try {
+              localStorage.setItem(
+                LOCAL_STORAGE_KEYS.API_CONFIG,
+                JSON.stringify(apiConfigForBrowserStorage(normalized))
+              );
+            } catch {
+              /* quota */
+            }
+          }
+          if (!cancelled) setApiConfigState(normalized);
+        } catch (error) {
+          console.error("Failed to parse saved API config:", error);
+          if (!cancelled) setApiConfigState(defaultApiConfig());
+        }
+      } else if (!cancelled) {
         setApiConfigState(defaultApiConfig());
       }
-    } else {
-      setApiConfigState(defaultApiConfig());
-    }
+      if (!cancelled) setIsLoadingConfig(false);
+    })();
 
-    setIsLoadingConfig(false);
+    return () => {
+      cancelled = true;
+    };
   }, [toast]);
 
   useEffect(() => {
@@ -201,7 +236,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!isLoadingConfig) {
-      localStorage.setItem(LOCAL_STORAGE_KEYS.API_CONFIG, JSON.stringify(apiConfig));
+      localStorage.setItem(
+        LOCAL_STORAGE_KEYS.API_CONFIG,
+        JSON.stringify(apiConfigForBrowserStorage(apiConfig))
+      );
     }
   }, [apiConfig, isLoadingConfig]);
 
@@ -304,7 +342,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ): Promise<PipelineExtras> => {
     const ws = pipelineOpts?.workspaceAssistBlock;
     const researchOn =
-      cfg.researchEnabled && (cfg.aiProvider !== "webgpu_gemma" || cfg.researchWithLocalModel);
+      cfg.researchEnabled &&
+      ((cfg.aiProvider !== "webgpu_gemma" && cfg.aiProvider !== "local_gguf") || cfg.researchWithLocalModel);
     if (!researchOn) {
       return {
         systemPrompts: buildSystemPrompts(cfg, { includeChartHint: false, workspaceAssistBlock: ws }),
@@ -425,6 +464,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const comparisonIds = dedupeModels(cfg.comparisonModelIds).slice(0, 4);
     const useTiling =
       cfg.aiProvider !== "webgpu_gemma" &&
+      cfg.aiProvider !== "local_gguf" &&
       cfg.comparisonEnabled &&
       comparisonIds.length >= 2 &&
       comparisonIds.every((id) => id.length > 0);
@@ -478,8 +518,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       try {
         const { text, metrics, rateLimitHeaders } =
-          cfg.aiProvider === "webgpu_gemma"
-            ? await import("@/lib/gemmaWebGpu/streamLocalGemma").then(({ streamLocalGemmaChat }) =>
+          cfg.aiProvider === "local_gguf"
+            ? await import("@/lib/localGguf/streamLocalGguf").then(({ streamLocalGgufChat }) =>
+                streamLocalGgufChat(cfg, cfg.model, apiMessages, controller.signal, {
+                  onDelta: (delta) => batcher.push(delta),
+                  onUsage: (u) => {
+                    if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
+                  },
+                })
+              )
+            : cfg.aiProvider === "webgpu_gemma"
+              ? await import("@/lib/gemmaWebGpu/streamLocalGemma").then(({ streamLocalGemmaChat }) =>
                 streamLocalGemmaChat(cfg, apiMessages, controller.signal, {
                   onDelta: (delta) => batcher.push(delta),
                   onUsage: (u) => {
@@ -530,12 +579,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   },
                 })
               )
-            : await streamChatForConfig(cfg, cfg.model, apiMessages, controller.signal, {
-                onDelta: (delta) => batcher.push(delta),
-                onUsage: (u) => {
-                  if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
-                },
-              });
+              : await streamChatForConfig(cfg, cfg.model, apiMessages, controller.signal, {
+                  onDelta: (delta) => batcher.push(delta),
+                  onUsage: (u) => {
+                    if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
+                  },
+                });
         batcher.flushPending();
         setProviderQuotaSnapshot({
           provider: cfg.aiProvider,
@@ -819,7 +868,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description:
           apiConfig.aiProvider === "webgpu_gemma"
             ? "WebGPU is not available in this browser. Use Chrome/Edge or the desktop build, or switch to OpenRouter in Settings."
-            : "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in Settings.",
+            : apiConfig.aiProvider === "local_gguf"
+              ? "Use the Openbentt desktop app, install llama-server on PATH (or set a binary path), download a GGUF in Labs, and pick it in Settings."
+              : "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in Settings.",
         variant: "destructive",
       });
       return;

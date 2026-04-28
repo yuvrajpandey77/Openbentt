@@ -1,4 +1,6 @@
 import { isLocalGemmaModelId, LOCAL_TINY_MODEL_ID } from "@/lib/gemmaWebGpu/models";
+import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
+import { GGUF_MODEL_NONE, parseGgufRegistryId } from "@/lib/localGguf/ids";
 
 export type Role = "assistant" | "user" | "system";
 
@@ -99,6 +101,7 @@ export const DEPRECATED_DEFAULT_MODEL_IDS: readonly string[] = [
 /** Where API calls are routed. OpenRouter aggregates many vendors with one key; others use vendor keys or compatible bases. */
 export type AiProvider =
   | "webgpu_gemma"
+  | "local_gguf"
   | "openrouter"
   | "openai_direct"
   | "openai_compatible"
@@ -160,6 +163,13 @@ export interface ApiKeyConfig {
   localInferenceProfile: LocalInferenceProfile;
   /** If true, research can run while using the on-device model (uses network; context is still built client-side). */
   researchWithLocalModel: boolean;
+  /**
+   * Desktop GGUF: optional path to `llama-server` when not on PATH / bundled.
+   * Empty = auto-detect (PATH, OPENBENTT_LLAMA_SERVER_PATH, resources/llama).
+   */
+  localGgufBinaryPath: string;
+  /** Hugging Face token for gated / rate-limited GGUF downloads (stored locally in the app). */
+  huggingFaceToken: string;
 }
 
 export function defaultApiConfig(): ApiKeyConfig {
@@ -183,6 +193,8 @@ export function defaultApiConfig(): ApiKeyConfig {
     showAgentTraces: false,
     localInferenceProfile: "eco",
     researchWithLocalModel: true,
+    localGgufBinaryPath: "",
+    huggingFaceToken: "",
   };
 }
 
@@ -190,6 +202,7 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
   const base = defaultApiConfig();
   const allowed: AiProvider[] = [
     "webgpu_gemma",
+    "local_gguf",
     "openrouter",
     "openai_direct",
     "openai_compatible",
@@ -212,7 +225,7 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
             : base.aiProvider;
 
   const defaultModelForProvider = (p: AiProvider): string =>
-    p === "webgpu_gemma" ? LOCAL_TINY_MODEL_ID : DEFAULT_MODEL_ID;
+    p === "webgpu_gemma" ? LOCAL_TINY_MODEL_ID : p === "local_gguf" ? GGUF_MODEL_NONE : DEFAULT_MODEL_ID;
 
   const rawModel =
     typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : defaultModelForProvider(aiProvider);
@@ -221,6 +234,10 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
   if (aiProvider === "webgpu_gemma") {
     if (!isLocalGemmaModelId(model)) {
       model = LOCAL_TINY_MODEL_ID;
+    }
+  } else if (aiProvider === "local_gguf") {
+    if (!parseGgufRegistryId(model)) {
+      model = GGUF_MODEL_NONE;
     }
   } else if (DEPRECATED_DEFAULT_MODEL_IDS.includes(rawModel)) {
     model = DEFAULT_MODEL_ID;
@@ -239,7 +256,7 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
   if (comparisonModelIds.length === 0) {
     comparisonModelIds = [model];
   }
-  if (aiProvider === "webgpu_gemma") {
+  if (aiProvider === "webgpu_gemma" || aiProvider === "local_gguf") {
     comparisonEnabled = false;
     comparisonModelIds = [model];
   }
@@ -276,6 +293,10 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
       : base.localInferenceProfile;
   const researchWithLocalModel =
     typeof raw.researchWithLocalModel === "boolean" ? raw.researchWithLocalModel : base.researchWithLocalModel;
+  const localGgufBinaryPath =
+    typeof raw.localGgufBinaryPath === "string" ? raw.localGgufBinaryPath.trim() : base.localGgufBinaryPath;
+  const huggingFaceToken =
+    typeof raw.huggingFaceToken === "string" ? raw.huggingFaceToken.trim() : base.huggingFaceToken;
 
   return {
     aiProvider,
@@ -297,6 +318,8 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
     showAgentTraces,
     localInferenceProfile,
     researchWithLocalModel,
+    localGgufBinaryPath,
+    huggingFaceToken,
   };
 }
 
@@ -310,6 +333,12 @@ export function canSendChat(cfg: ApiKeyConfig): boolean {
     case "webgpu_gemma":
       /** WASM (CPU) fallback keeps on-device Gemma usable even when WebGPU is missing. */
       return typeof navigator !== "undefined";
+    case "local_gguf":
+      return (
+        typeof navigator !== "undefined" &&
+        Boolean(getLocalGgufApi()) &&
+        Boolean(parseGgufRegistryId(cfg.model))
+      );
     case "openrouter":
     case "openai_direct":
     case "anthropic":

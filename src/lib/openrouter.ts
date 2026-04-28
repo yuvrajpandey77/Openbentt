@@ -199,6 +199,10 @@ export async function fetchOpenRouterModels(apiKey: string): Promise<OpenRouterM
 }
 
 export function shortModelLabel(id: string): string {
+  if (id.startsWith("openbentt/gguf:")) {
+    const rest = id.slice("openbentt/gguf:".length);
+    return rest === "none" ? "GGUF (pick a model)" : `GGUF ${rest.slice(0, 8)}…`;
+  }
   if (id.includes("openbentt/local-gemma-4-e2b")) return "Gemma 4 E2B (local)";
   if (id.includes("openbentt/local-gemma-4-e4b")) return "Gemma 4 E4B (local)";
   const parts = id.split("/");

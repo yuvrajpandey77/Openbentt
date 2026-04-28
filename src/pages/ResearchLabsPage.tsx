@@ -8,6 +8,7 @@ import { buildCitationGraphFromBib, type CitationGraph } from "@/lib/citationGra
 import { fetchHfDatasetCard, hfDatasetViewerUrl, type HfDatasetCard } from "@/lib/hfDatasets";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
+import LocalGgufHub from "@/components/LocalGgufHub";
 
 const ResearchLabsPage: React.FC = () => {
   const { toast } = useToast();
@@ -65,6 +66,7 @@ const ResearchLabsPage: React.FC = () => {
         <p className="text-sm text-muted-foreground">
           BibTeX, citation graph, and HF cards — ask in the main composer for help; prompts include Labs context.
         </p>
+        <LocalGgufHub />
 
         <Card className="space-y-3 p-4">
           <h2 className="font-semibold">WebGPU</h2>

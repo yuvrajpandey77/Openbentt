@@ -21,9 +21,8 @@ export const WORKSPACE_NAV_ITEMS: WorkspaceNavItem[] = [
   {
     to: "/labs",
     label: "Labs",
-    description: "Research experiments (coming later)",
+    description: "BibTeX, datasets, WebGPU probe — local GGUF hub planned (see docs)",
     Icon: FlaskConical,
-    disabled: true,
   },
   {
     to: "/benchmark",
