@@ -7,7 +7,7 @@ const rows: { action: string; keys: string }[] = [
   { action: "Send message", keys: "Enter" },
   { action: "New line in composer", keys: "Shift + Enter" },
   { action: "Stop generation", keys: "Escape" },
-  { action: "Thread search / export", keys: "Bar above messages on Home" },
+  { action: "Chat search / export", keys: "Bar above messages on Home" },
 ];
 
 export const KeyboardShortcutsSheet: React.FC = () => {
@@ -21,7 +21,7 @@ export const KeyboardShortcutsSheet: React.FC = () => {
       <SheetContent side="right" className="w-full sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Shortcuts</SheetTitle>
-          <SheetDescription>Composer and thread tools. Keys depend on your OS layout.</SheetDescription>
+          <SheetDescription>Composer and chat tools. Keys depend on your OS layout.</SheetDescription>
         </SheetHeader>
         <ul className="mt-6 space-y-3 text-sm">
           {rows.map((r) => (

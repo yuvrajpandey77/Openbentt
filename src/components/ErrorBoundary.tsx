@@ -63,7 +63,7 @@ export class ErrorBoundary extends React.Component<
               onClick={this.clearAndReload}
               className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/15"
             >
-              Clear local data &amp; reload
+              Clear local data & reload
             </button>
           </div>
         </div>

@@ -718,7 +718,7 @@ const NotebookPdfWorkspace: React.FC = () => {
             <AlertTitle>Fix LaTeX and try again</AlertTitle>
             <AlertDescription className="flex flex-col gap-3">
               <span>
-                <strong>Apply fixes &amp; recompile</strong> runs the same deterministic cleanup (unicode, draft graphics, fonts,
+                <strong>Apply fixes & recompile</strong> runs the same deterministic cleanup (unicode, draft graphics, fonts,
                 figure placeholders) on the <strong>current Source</strong>, then compiles.{" "}
                 <strong>Open fix prompt in chat</strong> loads the <strong>same Source buffer</strong> and the{" "}
                 <strong>same captured error</strong> into the main composer so the model can revise the .tex. Both use what
@@ -744,7 +744,7 @@ const NotebookPdfWorkspace: React.FC = () => {
                   disabled={busy}
                 >
                   <Wand2 className="h-3.5 w-3.5" />
-                  Apply fixes &amp; recompile
+                  Apply fixes & recompile
                 </Button>
               </div>
             </AlertDescription>

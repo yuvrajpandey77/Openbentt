@@ -256,7 +256,7 @@ const HomeLandingPage: React.FC = () => {
                   <Button size="lg" className="h-12 w-full rounded-xl text-base shadow-md shadow-primary/10" asChild>
                     <Link to="/download" className="gap-2">
                       <Download className="h-5 w-5" />
-                      Downloads &amp; checksums
+                      Downloads & checksums
                     </Link>
                   </Button>
                 </CardContent>

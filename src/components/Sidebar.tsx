@@ -87,10 +87,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div
         className={cn(
           "flex h-full flex-col p-3",
-          /** Keep cross-axis centering at all breakpoints; `items-stretch` was shifting icon-only controls (e.g. New chat) left in the rail. */
           narrow && "items-center px-2 py-3"
         )}
       >
+        {/* Logo + collapse toggle */}
         <div
           className={cn(
             "mb-3 flex shrink-0 items-center",
@@ -138,6 +138,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </Tooltip>
         </div>
 
+        {/* New chat button */}
         <div className={cn("mb-3 flex w-full shrink-0", narrow && "justify-center")}>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -159,11 +160,12 @@ const Sidebar: React.FC<SidebarProps> = ({
           </Tooltip>
         </div>
 
+        {/* Chat nav item */}
         <div className={cn("mb-2 shrink-0 space-y-1", narrow && "flex flex-col items-center")}>
           {!narrow && (
             <div className="mb-1.5 flex items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
               <MessageSquare className="h-3 w-3" aria-hidden />
-              Conversation
+              Chat
             </div>
           )}
           {narrow ? (
@@ -185,8 +187,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </NavLink>
               </TooltipTrigger>
               <TooltipContent side="right" className="max-w-[200px]">
-                <p className="font-medium">Thread</p>
-                <p className="text-xs text-muted-foreground">Full chat only — no workspace tools</p>
+                <p className="font-medium">Chat</p>
               </TooltipContent>
             </Tooltip>
           ) : (
@@ -209,59 +210,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                     className={cn("h-4 w-4 shrink-0", isActive ? "text-sidebar-primary" : "text-sidebar-foreground/70")}
                     strokeWidth={2}
                   />
-                  <span className="min-w-0 flex-1 truncate">Thread</span>
-                </>
-              )}
-            </NavLink>
-          )}
-          {narrow ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <NavLink
-                  to="/download"
-                  onClick={onCloseMobile}
-                  className={cn(
-                    "mt-1 flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
-                    location.pathname === "/download"
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                      : "text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  )}
-                  aria-current={location.pathname === "/download" ? "page" : undefined}
-                >
-                  <Download className="h-[18px] w-[18px]" strokeWidth={2} />
-                </NavLink>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-[200px]">
-                <p className="font-medium">Download</p>
-                <p className="text-xs text-muted-foreground">Desktop installers &amp; docs</p>
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <NavLink
-              to="/download"
-              onClick={onCloseMobile}
-              className={({ isActive }) =>
-                cn(
-                  "mt-1 flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-colors",
-                  isActive
-                    ? "bg-sidebar-primary/12 font-medium text-sidebar-primary"
-                    : "text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                )
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Download
-                    className={cn("h-4 w-4 shrink-0", isActive ? "text-sidebar-primary" : "text-sidebar-foreground/70")}
-                    strokeWidth={2}
-                  />
-                  <span className="min-w-0 flex-1 truncate">Download</span>
+                  <span className="min-w-0 flex-1 truncate">Chat</span>
                 </>
               )}
             </NavLink>
           )}
         </div>
 
+        {/* Workspace nav items */}
         <div className={cn("mb-2 shrink-0 space-y-1", narrow && "flex flex-col items-center")}>
           {!narrow && (
             <div className="mb-1.5 flex items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
@@ -271,51 +227,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           )}
           {WORKSPACE_NAV_ITEMS.map((item) => {
             const active =
-              !item.disabled &&
-              (location.pathname === item.to || location.pathname.startsWith(`${item.to}/`));
-            const disabledClass =
-              "cursor-not-allowed opacity-50 text-sidebar-foreground/40 select-none";
-
-            if (item.disabled) {
-              return narrow ? (
-                <Tooltip key={item.to}>
-                  <TooltipTrigger asChild>
-                    <div
-                      className={cn(
-                        "flex h-10 w-10 items-center justify-center rounded-xl",
-                        disabledClass
-                      )}
-                      aria-disabled="true"
-                    >
-                      <item.Icon className="h-[18px] w-[18px]" strokeWidth={2} />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="max-w-[200px]">
-                    <p className="font-medium text-muted-foreground">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">{item.description}</p>
-                  </TooltipContent>
-                </Tooltip>
-              ) : (
-                <Tooltip key={item.to}>
-                  <TooltipTrigger asChild>
-                    <div
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm",
-                        disabledClass
-                      )}
-                      aria-disabled="true"
-                    >
-                      <item.Icon className="h-4 w-4 shrink-0 text-sidebar-foreground/35" strokeWidth={2} />
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="max-w-[200px]">
-                    <p className="font-medium text-muted-foreground">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">{item.description}</p>
-                  </TooltipContent>
-                </Tooltip>
-              );
-            }
+              location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
 
             return narrow ? (
               <Tooltip key={item.to}>
@@ -369,94 +281,146 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         <Separator className={cn("mb-2 bg-sidebar-border/80", narrow && "mx-auto w-8")} />
 
+        {/* Chat history list */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {!narrow && (
             <div className="mb-1.5 flex shrink-0 items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
               <MessagesSquare className="h-3 w-3" aria-hidden />
-              Chats
+              History
             </div>
           )}
           <ScrollArea className={cn("min-h-0 flex-1", narrow ? "-mx-0 w-full px-0" : "-mx-2 px-2")}>
-          {chats.length > 0 ? (
-            narrow ? (
-              <div className="flex flex-col items-center gap-1.5 pb-2">
-                {chats.map((chat) => (
-                  <Tooltip key={chat.id}>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className={cn(
-                          "flex h-10 w-10 items-center justify-center rounded-xl text-[11px] font-semibold transition-colors",
-                          currentChatId === chat.id
-                            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                            : "bg-sidebar-accent/70 text-sidebar-foreground hover:bg-sidebar-accent"
-                        )}
-                        onClick={() => handleSelectChat(chat.id)}
-                      >
-                        {chatInitials(chat.title)}
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-[240px]">
-                      <p className="font-medium">{chat.title}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-1 pr-1">
-                {chats.map((chat) => (
-                  <div
-                    key={chat.id}
-                    className={cn(
-                      "group flex cursor-pointer items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-sidebar-accent",
-                      currentChatId === chat.id && "bg-sidebar-accent"
-                    )}
-                    onClick={() => handleSelectChat(chat.id)}
-                  >
-                    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                      <MessageCircle
-                        size={16}
-                        className={cn(
-                          "shrink-0",
-                          currentChatId === chat.id
-                            ? "text-primary"
-                            : "text-sidebar-foreground/70"
-                        )}
-                      />
-                      <span className="truncate text-sm font-medium leading-snug">
-                        {chat.title}
-                      </span>
-                    </div>
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteChat(chat.id);
-                      }}
+            {chats.length > 0 ? (
+              narrow ? (
+                <div className="flex flex-col items-center gap-1.5 pb-2">
+                  {chats.map((chat) => (
+                    <Tooltip key={chat.id}>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            "flex h-10 w-10 items-center justify-center rounded-xl text-[11px] font-semibold transition-colors",
+                            currentChatId === chat.id
+                              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                              : "bg-sidebar-accent/70 text-sidebar-foreground hover:bg-sidebar-accent"
+                          )}
+                          onClick={() => handleSelectChat(chat.id)}
+                        >
+                          {chatInitials(chat.title)}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-[240px]">
+                        <p className="font-medium">{chat.title}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-1 pr-1">
+                  {chats.map((chat) => (
+                    <div
+                      key={chat.id}
+                      className={cn(
+                        "group flex cursor-pointer items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-sidebar-accent",
+                        currentChatId === chat.id && "bg-sidebar-accent"
+                      )}
+                      onClick={() => handleSelectChat(chat.id)}
                     >
-                      <Trash2 size={14} className="text-sidebar-foreground/70" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )
-          ) : (
-            !narrow && (
-              <div className="py-8 text-center text-sm text-sidebar-foreground/60">
-                <p className="font-medium text-sidebar-foreground/75">No chats yet</p>
-                <p className="mt-1.5 text-xs leading-relaxed text-sidebar-foreground/50">
-                  Use <span className="text-sidebar-foreground/70">New chat</span>, then type in the composer below.
-                </p>
-              </div>
-            )
-          )}
-        </ScrollArea>
+                      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                        <MessageCircle
+                          size={16}
+                          className={cn(
+                            "shrink-0",
+                            currentChatId === chat.id
+                              ? "text-primary"
+                              : "text-sidebar-foreground/70"
+                          )}
+                        />
+                        <span className="truncate text-sm font-medium leading-snug">
+                          {chat.title}
+                        </span>
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteChat(chat.id);
+                        }}
+                      >
+                        <Trash2 size={14} className="text-sidebar-foreground/70" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              !narrow && (
+                <div className="py-8 text-center text-sm text-sidebar-foreground/60">
+                  <p className="font-medium text-sidebar-foreground/75">No chats yet</p>
+                  <p className="mt-1.5 text-xs leading-relaxed text-sidebar-foreground/50">
+                    Use <span className="text-sidebar-foreground/70">New chat</span>, then type in the composer below.
+                  </p>
+                </div>
+              )
+            )}
+          </ScrollArea>
         </div>
 
-        <div className={cn("mt-auto space-y-2 pt-2", narrow && "flex w-full flex-col items-center")}>
+        {/* Footer: Download, Settings, Clear chats */}
+        <div className={cn("mt-auto space-y-1 pt-2", narrow && "flex w-full flex-col items-center")}>
+          <Separator className={cn("mb-2 bg-sidebar-border/80", narrow && "mx-auto w-8")} />
+
+          {/* Download desktop app */}
+          {narrow ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <NavLink
+                  to="/download"
+                  onClick={onCloseMobile}
+                  className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
+                    location.pathname === "/download"
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                      : "text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  )}
+                  aria-current={location.pathname === "/download" ? "page" : undefined}
+                >
+                  <Download className="h-[18px] w-[18px]" strokeWidth={2} />
+                </NavLink>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-[200px]">
+                <p className="font-medium">Download desktop app</p>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <NavLink
+              to="/download"
+              onClick={onCloseMobile}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-colors",
+                  isActive
+                    ? "bg-sidebar-primary/12 font-medium text-sidebar-primary"
+                    : "text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <Download
+                    className={cn("h-4 w-4 shrink-0", isActive ? "text-sidebar-primary" : "text-sidebar-foreground/70")}
+                    strokeWidth={2}
+                  />
+                  <span className="min-w-0 flex-1 truncate">Download desktop app</span>
+                </>
+              )}
+            </NavLink>
+          )}
+
+          {/* Settings */}
           <Dialog>
             {narrow ? (
               <Tooltip>
@@ -502,6 +466,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             </DialogContent>
           </Dialog>
 
+          {/* Clear all chats */}
           {chats.length > 0 &&
             (narrow ? (
               <Tooltip>

@@ -324,7 +324,7 @@ const SettingsPanel: React.FC = () => {
         </TabsTrigger>
         <TabsTrigger value="ai" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
           <Cpu className="h-3.5 w-3.5 opacity-80" aria-hidden />
-          AI &amp; models
+          AI & models
         </TabsTrigger>
         <TabsTrigger value="research" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
           <Search className="h-3.5 w-3.5 opacity-80" aria-hidden />
@@ -364,7 +364,7 @@ const SettingsPanel: React.FC = () => {
       <TabsContent value="ai" className="mt-4 space-y-4 outline-none">
         <Card className="border-border/70 shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="font-display text-lg">Provider &amp; credentials</CardTitle>
+            <CardTitle className="font-display text-lg">Provider & credentials</CardTitle>
             <CardDescription>Choose how the main chat reaches models. Keys stay in this browser.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -375,8 +375,8 @@ const SettingsPanel: React.FC = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="webgpu_gemma">Gemma 4 on-device (WebGPU, no API key)</SelectItem>
-                  <SelectItem value="local_gguf">Local GGUF — desktop (llama-server, Hugging Face)</SelectItem>
+                  <SelectItem value="webgpu_gemma">On-device model (no API key needed)</SelectItem>
+                  <SelectItem value="local_gguf">Local file model — desktop app (GGUF)</SelectItem>
                   <SelectItem value="openrouter">OpenRouter (many models, one key)</SelectItem>
                   <SelectItem value="openai_direct">OpenAI (api.openai.com)</SelectItem>
                   <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
@@ -429,17 +429,15 @@ const SettingsPanel: React.FC = () => {
               <>
                 <Alert className="border-amber-500/30 bg-amber-500/[0.06]">
                   <AlertTitle className="flex flex-wrap items-center gap-2 text-sm">
-                    Local GGUF (desktop){" "}
+                    Local file model (desktop){" "}
                     <Badge variant="secondary" className="font-normal">
                       Beta
                     </Badge>
                   </AlertTitle>
                   <AlertDescription className="text-[11px] leading-relaxed text-muted-foreground">
-                    Requires the <strong>Openbentt desktop</strong> build, a working{" "}
-                    <code className="rounded bg-muted px-1 py-0.5 text-[10px]">llama-server</code> binary (PATH,{" "}
-                    <code className="font-mono text-[10px]">OPENBENTT_LLAMA_SERVER_PATH</code>,{" "}
-                    <code className="font-mono text-[10px]">resources/llama/&lt;platform&gt;/</code>), and at least one
-                    GGUF downloaded from <strong>Labs → Local GGUF hub</strong>. Inference binds to{" "}
+                    Requires the <strong>Openbentt desktop</strong> app, a{" "}
+                    <code className="rounded bg-muted px-1 py-0.5 text-[10px]">llama-server</code> binary, and at least
+                    one model file downloaded from <strong>Labs → Local model hub</strong>. Runs locally on{" "}
                     <code className="font-mono text-[10px]">127.0.0.1</code> only. You are responsible for model licenses.
                   </AlertDescription>
                 </Alert>
@@ -498,10 +496,10 @@ const SettingsPanel: React.FC = () => {
                 </div>
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
                   <div>
-                    <Label className="text-sm">Research with local GGUF</Label>
-                    <p className="text-[11px] text-muted-foreground">
+                  <Label className="text-sm">Research with local model</Label>
+                  <p className="text-[11px] text-muted-foreground">
                       Allows Wikipedia/URLs/Brave when Research is enabled (network in background).
-                    </p>
+                  </p>
                   </div>
                   <Switch checked={localResearchWithLocal} onCheckedChange={setLocalResearchWithLocal} />
                 </div>
@@ -513,10 +511,10 @@ const SettingsPanel: React.FC = () => {
                 <Alert className="border-teal-500/30 bg-teal-500/[0.06]">
                   <AlertTitle className="text-sm">On-device model</AlertTitle>
                   <AlertDescription className="text-[11px] leading-relaxed text-muted-foreground">
-                    Weights are cached only after you allow it in the bar above the composer. Catalog includes Qwen
-                    0.5B, Qwen 1.5B, Gemma E2B, and Gemma E4B. Openbentt can auto-pick a smaller run if the GPU buffer is
-                    too small. <strong>Research</strong> can still run in the background when enabled (see Research tab)
-                    if you turn on <strong>Research with on-device</strong> below.
+                    Nothing is downloaded until you run the first-time setup (a prompt appears in the composer when this
+                    provider is active). Catalog includes Qwen 0.5B, Qwen 1.5B, Gemma E2B, and Gemma E4B — the app
+                    auto-downgrades if the GPU buffer is too small. <strong>Research</strong> can run in the background
+                    when enabled (Research tab) with <strong>Research with on-device</strong> turned on below.
                   </AlertDescription>
                 </Alert>
                 <div className="space-y-2 rounded-xl border border-border/60 bg-muted/15 p-4">
@@ -533,7 +531,7 @@ const SettingsPanel: React.FC = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="eco">Eco (lowest RAM, shorter context &amp; replies)</SelectItem>
+                      <SelectItem value="eco">Eco (lowest RAM, shorter context & replies)</SelectItem>
                       <SelectItem value="balanced">Balanced (default for mixed use)</SelectItem>
                       <SelectItem value="performance">Performance (heavier GPU, longer outputs)</SelectItem>
                     </SelectContent>
@@ -690,7 +688,7 @@ const SettingsPanel: React.FC = () => {
       <TabsContent value="research" className="mt-4 space-y-4 outline-none">
         <Card className="border-border/70 shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="font-display text-lg">Research &amp; tools</CardTitle>
+            <CardTitle className="font-display text-lg">Research & tools</CardTitle>
             <CardDescription>Defaults for Wikipedia, URLs, optional Brave via proxy, and assistant modes.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

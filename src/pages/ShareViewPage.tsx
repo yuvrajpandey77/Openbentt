@@ -33,7 +33,7 @@ const ShareViewPage: React.FC = () => {
       <div className="max-w-3xl mx-auto space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/chat">← Thread</Link>
+            <Link to="/chat">← Chat</Link>
           </Button>
           <Badge variant="secondary">Read-only</Badge>
         </div>

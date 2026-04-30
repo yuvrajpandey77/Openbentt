@@ -266,7 +266,7 @@ const DownloadPage: React.FC = () => {
             <CardHeader className="space-y-2 pb-2">
               <div className="flex items-center gap-2 text-primary">
                 <Globe className="h-5 w-5" />
-                <CardTitle className="font-display text-xl">Web &amp; self-host</CardTitle>
+                <CardTitle className="font-display text-xl">Web & self-host</CardTitle>
               </div>
               <CardDescription className="text-base text-muted-foreground">
                 Use Openbentt instantly in the browser, or deploy the static bundle anywhere (nginx, S3, Docker).

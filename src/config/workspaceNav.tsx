@@ -1,16 +1,14 @@
 import type { LucideIcon } from "lucide-react";
-import { BookOpen, FlaskConical, BarChart2, Cpu } from "lucide-react";
+import { BookOpen, FlaskConical } from "lucide-react";
 
 export interface WorkspaceNavItem {
   to: string;
   label: string;
   description: string;
   Icon: LucideIcon;
-  /** Shown in sidebar but not navigable (muted). LaTeX lives under Notebook — no separate route here. */
-  disabled?: boolean;
 }
 
-/** Routes under “Workspace” in the sidebar. */
+/** Routes under "Workspace" in the sidebar — only shipped features. */
 export const WORKSPACE_NAV_ITEMS: WorkspaceNavItem[] = [
   {
     to: "/notebook",
@@ -20,22 +18,8 @@ export const WORKSPACE_NAV_ITEMS: WorkspaceNavItem[] = [
   },
   {
     to: "/labs",
-    label: "Labs",
-    description: "BibTeX, datasets, WebGPU probe — local GGUF hub planned (see docs)",
+    label: "Research labs",
+    description: "BibTeX, citation graph, Hugging Face dataset cards",
     Icon: FlaskConical,
-  },
-  {
-    to: "/benchmark",
-    label: "Benchmark",
-    description: "Latency runs (coming later)",
-    Icon: BarChart2,
-    disabled: true,
-  },
-  {
-    to: "/webgpu",
-    label: "WebGPU",
-    description: "Browser GPU probe (coming later)",
-    Icon: Cpu,
-    disabled: true,
   },
 ];

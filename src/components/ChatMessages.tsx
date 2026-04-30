@@ -233,7 +233,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading, search
                   <h3 className="mb-2 font-medium text-foreground">Chat tips</h3>
                   <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
                     <li>
-                      • <strong className="text-foreground/90">Specs</strong> — model pricing &amp; context (by the model
+                      • <strong className="text-foreground/90">Specs</strong> — model pricing & context (by the model
                       name).
                     </li>
                     <li>
@@ -251,7 +251,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading, search
                 <div className="openbentt-card rounded-xl border border-border/80 p-4">
                   <h3 className="mb-2 font-medium text-foreground">Multimodal</h3>
                   <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
-                    <li>• Images &amp; video (first frame) — pick a vision-capable model.</li>
+                    <li>• Images & video (first frame) — pick a vision-capable model.</li>
                     <li>
                       • Audio — sent as <code className="rounded bg-muted px-1 text-[11px]">input_audio</code> when the
                       provider supports it.
