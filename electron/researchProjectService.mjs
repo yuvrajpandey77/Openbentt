@@ -39,7 +39,7 @@ import {
   setJobProgressTarget,
   shutdownAllJobs,
 } from "./researchJobQueue.mjs";
-import { assertBase64Pdf, assertSafeId } from "./ipcValidate.mjs";
+import { assertBase64Pdf, assertPathUnderRoots, assertSafeId } from "./ipcValidate.mjs";
 
 export async function initResearchStorage(app) {
   const { migrated } = await migrateLegacyProjects(app);
@@ -108,15 +108,19 @@ export function registerResearchProjectIpc(ipcMain, app) {
     return { ok: true };
   });
 
+  /** Main-process only (not exposed in preload). Paths must stay under userData. */
   ipcMain.handle("research:storePaperPdfPath", async (_e, projectId, paperId, filePath) => {
     assertSafeId(projectId, "project id");
     assertSafeId(paperId, "paper id");
-    if (typeof filePath !== "string" || !filePath.trim()) {
-      throw new Error("Invalid file path");
-    }
+    const userData = app.getPath("userData");
+    const allowed = assertPathUnderRoots(
+      filePath,
+      [userData, projectDir(app, projectId)],
+      "PDF source path"
+    );
     const dir = path.join(projectDir(app, projectId), "papers");
     await fs.mkdir(dir, { recursive: true });
-    await fs.copyFile(filePath, path.join(dir, `${paperId}.pdf`));
+    await fs.copyFile(allowed, path.join(dir, `${paperId}.pdf`));
     return { ok: true };
   });
 

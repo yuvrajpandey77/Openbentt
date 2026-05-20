@@ -21,7 +21,9 @@ Configured in `electron/main.mjs`:
 - Custom `app://` handler resolves files only under `dist/` (`electron/ipcValidate.mjs` → `resolveUnderDistRoot`)
 - Single-instance lock
 
-Preload exposes only: `openbenttDesktop`, `openbenttLocalGguf`, `openbenttSecrets`, `openbenttResearch`, `openbenttZotero`.
+Preload exposes only: `openbenttDesktop`, `openbenttLocalGguf`, `openbenttSecrets`, `openbenttResearch`, `openbenttZotero`. Full IPC audit: [docs/THREAT_MODEL.md](./THREAT_MODEL.md).
+
+CI: `npm run lint:electron-security` (included in `npm run lint`).
 
 Research IPC validates project/paper IDs and PDF base64 size before writing under `userData/research-projects/`.
 

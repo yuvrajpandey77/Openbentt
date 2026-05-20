@@ -16,7 +16,6 @@ import { registerHfSecretIpc } from "./hfSecretStore.mjs";
 import { registerSecretVaultIpc } from "./secretVault.mjs";
 import { registerDesktopUpdaterIpc, setUpdaterTargetWindow } from "./updater.mjs";
 import {
-  initResearchStorage,
   registerResearchProjectIpc,
   shutdownResearchServices,
 } from "./researchProjectService.mjs";
@@ -208,7 +207,6 @@ app.whenReady().then(async () => {
   registerResearchProjectIpc(ipcMain, app);
   registerZoteroSecretIpc(ipcMain, app);
   registerZoteroIpc(ipcMain, app);
-  await initResearchStorage(app);
   if (!useViteDevServer) {
     registerAppProtocolHandler();
   }

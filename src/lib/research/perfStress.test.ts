@@ -65,3 +65,19 @@ describe("corpus indexing throughput", () => {
     expect(performance.now() - t0).toBeLessThan(500);
   });
 });
+
+const stressPdfCount = Number.parseInt(process.env.OPENBENTT_STRESS_PDFS ?? "", 10);
+
+describe.skipIf(!Number.isFinite(stressPdfCount) || stressPdfCount <= 0)(
+  "corpus stress (OPENBENTT_STRESS_PDFS)",
+  () => {
+    it(`chunks ${stressPdfCount} synthetic papers under 30s`, () => {
+      const p = syntheticProject(stressPdfCount, 50_000);
+      const t0 = performance.now();
+      const chunks = buildCorpusChunks(p.papers, p.draftTex);
+      const elapsed = performance.now() - t0;
+      expect(chunks.length).toBeGreaterThan(stressPdfCount);
+      expect(elapsed).toBeLessThan(30_000);
+    });
+  }
+);

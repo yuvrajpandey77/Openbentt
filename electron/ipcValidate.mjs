@@ -43,6 +43,27 @@ export function resolveUnderDistRoot(distRoot, pathname) {
   return candidate;
 }
 
+/**
+ * Resolve path only if it lies under one of the allowed roots (no traversal).
+ * @param {unknown} filePath
+ * @param {string[]} roots
+ * @param {string} label
+ */
+export function assertPathUnderRoots(filePath, roots, label = "path") {
+  if (typeof filePath !== "string" || !filePath.trim()) {
+    throw new Error(`Invalid ${label}`);
+  }
+  const resolved = path.resolve(filePath.trim());
+  const allowed = roots.some((r) => {
+    const base = path.resolve(r);
+    return resolved === base || resolved.startsWith(base + path.sep);
+  });
+  if (!allowed) {
+    throw new Error(`${label} not in allowlist`);
+  }
+  return resolved;
+}
+
 /** @param {unknown} configured @param {string[]} allowPrefixes */
 export function assertLlamaBinaryAllowlisted(configured, allowPrefixes = []) {
   if (configured == null || configured === "") return "";

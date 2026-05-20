@@ -29,6 +29,14 @@ function backupPath(app) {
 
 let dbSingleton = null;
 
+const BACKUP_DEBOUNCE_MS = 5000;
+const BACKUP_EVERY_N_SAVES = 10;
+/** @type {ReturnType<typeof setTimeout> | null} */
+let backupTimer = null;
+let savesSinceBackup = 0;
+/** @type {import("electron").App | null} */
+let backupAppRef = null;
+
 function initDbConnection(file) {
   const db = new DatabaseSync(file);
   db.exec("PRAGMA journal_mode = WAL;");
@@ -249,6 +257,29 @@ export function backupDatabase(app) {
   }
 }
 
+/** Debounced backup — avoids copying research.db on every saveProjectMeta. */
+export function scheduleBackupDatabase(app) {
+  backupAppRef = app;
+  savesSinceBackup += 1;
+  if (savesSinceBackup >= BACKUP_EVERY_N_SAVES) {
+    flushScheduledBackup();
+    return;
+  }
+  if (backupTimer) return;
+  backupTimer = setTimeout(() => {
+    flushScheduledBackup();
+  }, BACKUP_DEBOUNCE_MS);
+}
+
+export function flushScheduledBackup(app = backupAppRef) {
+  if (backupTimer) {
+    clearTimeout(backupTimer);
+    backupTimer = null;
+  }
+  savesSinceBackup = 0;
+  if (app) backupDatabase(app);
+}
+
 export function setActiveProjectId(app, id) {
   const db = openDb(app);
   db.prepare(
@@ -380,7 +411,7 @@ export function saveProjectMeta(app, data, opts = {}) {
   if (!skipChunks) {
     saveChunks(app, data.id, data.chunks ?? []);
   }
-  backupDatabase(app);
+  scheduleBackupDatabase(app);
 }
 
 export function patchDraft(app, projectId, content) {
@@ -485,6 +516,7 @@ export function createSnapshot(app, projectId, reason = "auto") {
   for (const row of excess) {
     db.prepare("DELETE FROM project_snapshots WHERE id = ?").run(row.id);
   }
+  flushScheduledBackup(app);
   return { id, createdAt: now };
 }
 
@@ -609,6 +641,7 @@ export async function migrateLegacyProjects(app) {
 }
 
 export function closeDb() {
+  flushScheduledBackup();
   if (dbSingleton) {
     try {
       dbSingleton.close();

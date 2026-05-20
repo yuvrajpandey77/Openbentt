@@ -23,6 +23,15 @@ import { useToast } from "@/components/ui/use-toast";
 
 const WEB_CREDS_KEY = "openbentt-zotero-web-creds";
 
+function clearWebZoteroLocalStorage() {
+  try {
+    localStorage.removeItem(WEB_CREDS_KEY);
+    localStorage.removeItem(`${WEB_CREDS_KEY}-key`);
+  } catch {
+    /* ignore */
+  }
+}
+
 type ZoteroContextValue = {
   available: boolean;
   status: ZoteroConnectionStatus;
@@ -105,6 +114,10 @@ export function ZoteroProvider({ children }: { children: React.ReactNode }) {
   }, [refreshStatus]);
 
   useEffect(() => {
+    if (api) clearWebZoteroLocalStorage();
+  }, [api]);
+
+  useEffect(() => {
     if (!api) return;
     const offProgress = api.onSyncProgress((p) => {
       setProgress(p);
@@ -129,6 +142,7 @@ export function ZoteroProvider({ children }: { children: React.ReactNode }) {
       if (api) {
         await api.secretSet(apiKey);
         await api.setCredentials(userId, apiKey);
+        clearWebZoteroLocalStorage();
         await refreshStatus();
         toast({ title: "Zotero credentials saved" });
         return;
@@ -147,8 +161,7 @@ export function ZoteroProvider({ children }: { children: React.ReactNode }) {
       await api.secretClear();
       await api.stopWatch();
     }
-    localStorage.removeItem(WEB_CREDS_KEY);
-    localStorage.removeItem(`${WEB_CREDS_KEY}-key`);
+    clearWebZoteroLocalStorage();
     setSnapshot(null);
     setLastSyncResult(null);
     setStatus(defaultStatus);

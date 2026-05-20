@@ -1,10 +1,12 @@
 import { useEffect } from "react";
 import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
+import { useResearchProject } from "@/context/ResearchProjectContext";
 
 /** Global keyboard shortcuts for the research workspace. */
 export function useResearchKeyboard() {
   const { openCommandPalette, notebookActions, setActiveSidePanel, undoDraft, redoDraft } =
     useResearchWorkspace();
+  const { saveDraftNow, createSnapshot } = useResearchProject();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -23,6 +25,10 @@ export function useResearchKeyboard() {
 
       if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
+        void (async () => {
+          await saveDraftNow();
+          await createSnapshot("ctrl-s");
+        })();
         return;
       }
 
@@ -56,5 +62,5 @@ export function useResearchKeyboard() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openCommandPalette, notebookActions, setActiveSidePanel, undoDraft, redoDraft]);
+  }, [openCommandPalette, notebookActions, setActiveSidePanel, undoDraft, redoDraft, saveDraftNow, createSnapshot]);
 }

@@ -7,9 +7,13 @@ Use this **on your machine** before `git push origin vX.Y.Z`. Check boxes as you
 ```bash
 cd /path/to/SecuredChatCogerphere
 npm ci
-npm run lint
-npm run test          # Vitest + electron llama binary smoke
-npm run build
+npm run verify:release   # lint + test + build + e2e (same as CI release gate)
+```
+
+Optional Linux pack smoke (~5–15 min):
+
+```bash
+npm run verify:release:pack
 ```
 
 All must pass with no errors.
@@ -114,6 +118,7 @@ npm run electron:build
 | F3 | No `.env` or API keys committed | ☐ |
 | F4 | `git status` clean (or only intentional release commits) | ☐ |
 | F5 | Read [RELEASING.md](./RELEASING.md) — push tag triggers CI | ☐ |
+| F6 | `npm run verify:release` passed (lint, test, build, e2e) | ☐ |
 
 **Tag and push:**
 

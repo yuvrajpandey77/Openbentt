@@ -85,6 +85,7 @@ type ResearchProjectContextValue = {
   retryRechunkJob: () => Promise<void>;
   dismissBackgroundJob: () => void;
   createSnapshot: (reason?: string) => Promise<void>;
+  saveDraftNow: () => Promise<void>;
 };
 
 const ResearchProjectContext = createContext<ResearchProjectContextValue | null>(null);
@@ -469,6 +470,17 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
     [project, toast]
   );
 
+  const saveDraftNow = useCallback(async () => {
+    if (!project) return;
+    if (draftTimerRef.current) {
+      clearTimeout(draftTimerRef.current);
+      draftTimerRef.current = null;
+    }
+    const pending = draftPendingRef.current ?? project.draftTex;
+    draftPendingRef.current = null;
+    await flushDraft(project.id, pending, project.papers);
+  }, [flushDraft, project]);
+
   const value = useMemo<ResearchProjectContextValue>(
     () => ({
       projects,
@@ -539,6 +551,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       retryRechunkJob,
       dismissBackgroundJob,
       createSnapshot,
+      saveDraftNow,
     }),
     [
       project,
@@ -561,6 +574,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       retryRechunkJob,
       dismissBackgroundJob,
       createSnapshot,
+      saveDraftNow,
       runSemanticRebuild,
       toast,
     ]

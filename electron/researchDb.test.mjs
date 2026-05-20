@@ -8,6 +8,7 @@ import {
   backupDatabase,
   closeDb,
   createSnapshot,
+  flushScheduledBackup,
   getDb,
   listSnapshots,
   loadProject,
@@ -17,6 +18,7 @@ import {
   projectsRoot,
   restoreSnapshot,
   saveProjectMeta,
+  scheduleBackupDatabase,
 } from "./researchDb.mjs";
 
 function mockApp(root) {
@@ -253,5 +255,39 @@ describe("researchDb desktop storage", () => {
     const loadedB = loadProject(app, b);
     assert.ok(loadedA.chunks.some((c) => c.id === `${a}:draft-0`));
     assert.ok(loadedB.chunks.some((c) => c.id === `${b}:draft-0`));
+  });
+
+  it("debounces backup until flush or snapshot", () => {
+    const id = "backup-debounce";
+    const bakFile = () => path.join(projectsRoot(app), "research.db.bak");
+    saveProjectMeta(app, {
+      id,
+      title: "Debounce",
+      createdAt: "2024-01-01T00:00:00.000Z",
+      updatedAt: "2024-01-01T00:00:00.000Z",
+      targetVenue: "generic",
+      linkedThreadIds: [],
+      draftTex: "v1",
+      bibliography: "",
+      papers: [],
+      chunks: [],
+      revisionSuggestions: [],
+      modelAttributions: [],
+      abstractVariants: [],
+      keywordSuggestions: [],
+    });
+    flushScheduledBackup(app);
+    assert.ok(fs.existsSync(bakFile()));
+    const mtimeAfterFirst = fs.statSync(bakFile()).mtimeMs;
+
+    for (let i = 0; i < 5; i++) scheduleBackupDatabase(app);
+    assert.equal(fs.statSync(bakFile()).mtimeMs, mtimeAfterFirst);
+
+    flushScheduledBackup(app);
+    assert.ok(fs.statSync(bakFile()).mtimeMs >= mtimeAfterFirst);
+
+    patchDraft(app, id, "v3");
+    createSnapshot(app, id, "test");
+    assert.ok(fs.statSync(bakFile()).mtimeMs >= mtimeAfterFirst);
   });
 });

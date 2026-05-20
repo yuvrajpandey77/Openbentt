@@ -14,7 +14,8 @@
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "lint": "eslint .",
+    "lint": "eslint . && npm run lint:electron-security",
+    "lint:electron-security": "node scripts/check-electron-security.mjs",
     "preview": "vite preview",
     "test": "vitest run && npm run test:electron",
     "test:unit": "vitest run",
@@ -22,6 +23,8 @@
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
     "verify:release": "npm run lint && npm run test && npm run build && npm run test:e2e",
+    "verify:release:pack": "npm run build && npm run electron:pack:linux",
+    "test:stress": "vitest run src/lib/research/perfStress.test.ts",
     "test:watch": "vitest",
     "research-proxy": "node server/research-proxy.mjs",
     "latex-compile": "node server/latex-compile.mjs",
@@ -39,9 +42,9 @@
     "electron:build": "npm run build && npm run download:llama-server && electron-builder",
     "electron:build:ci": "npm run build && npm run download:llama-server:all && electron-builder",
     "electron:pack": "electron-builder",
-    "electron:pack:linux": "electron-builder --linux --publish never",
-    "electron:pack:win": "electron-builder --win --publish never",
-    "electron:pack:mac": "electron-builder --mac --publish never"
+    "electron:pack:linux": "electron-builder --linux --publish never --config.generateUpdatesFilesForAllChannels=true",
+    "electron:pack:win": "electron-builder --win --publish never --config.generateUpdatesFilesForAllChannels=true",
+    "electron:pack:mac": "electron-builder --mac --publish never --config.generateUpdatesFilesForAllChannels=true"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -171,6 +174,7 @@
         "releaseType": "release"
       }
     ],
+    "generateUpdatesFilesForAllChannels": true,
     "linux": {
       "target": [
         "AppImage",
