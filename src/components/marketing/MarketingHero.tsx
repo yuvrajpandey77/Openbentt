@@ -13,8 +13,9 @@ export function MarketingHero() {
         </div>
 
         <p className="marketing-hero-subhead marketing-hero-enter marketing-hero-enter--2">
-          Openbentt is a <span className="marketing-hero-accent">local-first</span> AI workspace for LaTeX, PDFs,
-          benchmarking, and fine-tuned small models. Built for researchers, by researchers.
+          {hero.subhead.split("local-first")[0]}
+          <span className="marketing-hero-accent">local-first</span>
+          {hero.subhead.split("local-first")[1]}
         </p>
 
         <div className="marketing-hero-card-wrap marketing-hero-enter marketing-hero-enter--3">

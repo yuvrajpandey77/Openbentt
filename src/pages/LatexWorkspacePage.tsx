@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
-import katex from "katex";
 import "katex/dist/katex.min.css";
+import { renderKatexHtmlSafe } from "@/lib/security/safeRender";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { Button } from "@/components/ui/button";
@@ -12,13 +12,7 @@ const LatexWorkspacePage: React.FC = () => {
   const previewRef = useRef<HTMLDivElement>(null);
   const [tex, setTex] = useState(String.raw`\int_0^1 x^2\,dx = \frac{1}{3}`);
 
-  const html = useMemo(() => {
-    try {
-      return katex.renderToString(tex, { displayMode: true, throwOnError: false });
-    } catch {
-      return "<p>Invalid LaTeX</p>";
-    }
-  }, [tex]);
+  const html = useMemo(() => renderKatexHtmlSafe(tex, true), [tex]);
 
   const printPdf = () => {
     window.print();

@@ -1,5 +1,5 @@
 import type { MarketingImageSlot } from "@/config/marketingImages";
-import { marketingImageUrl } from "@/config/marketingImages";
+import { isMarketingSvg, marketingImageUrl } from "@/config/marketingImages";
 import { cn } from "@/lib/utils";
 
 type MarketingVisualProps = {
@@ -10,15 +10,16 @@ type MarketingVisualProps = {
   large?: boolean;
 };
 
-/** Product screenshot — raster assets only (PNG/WebP in public/marketing). */
 export function MarketingVisual({ slot, className, priority, plain, large }: MarketingVisualProps) {
   const src = marketingImageUrl(slot.file);
+  const svg = isMarketingSvg(slot.file);
 
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-xl border border-border/60 bg-card",
-        !plain && "shadow-md ring-1 ring-border/40",
+        "overflow-hidden",
+        svg ? "marketing-visual-svg rounded-xl bg-card" : "rounded-xl border border-border/60 bg-card",
+        !plain && !svg && "shadow-md ring-1 ring-border/40",
         className
       )}
     >
@@ -30,8 +31,9 @@ export function MarketingVisual({ slot, className, priority, plain, large }: Mar
         loading={priority ? "eager" : "lazy"}
         decoding="async"
         className={cn(
-          "h-auto w-full object-cover object-top",
-          large ? "aspect-[16/9] min-h-[280px] md:min-h-[360px]" : "aspect-[16/10]"
+          "marketing-visual-img h-auto w-full",
+          svg ? "object-contain p-1" : "object-cover object-top",
+          large ? "aspect-[16/9] min-h-[260px] md:min-h-[340px]" : "aspect-[16/10] min-h-[200px]"
         )}
       />
     </div>

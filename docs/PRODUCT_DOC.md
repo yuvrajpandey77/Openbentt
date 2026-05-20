@@ -1,8 +1,9 @@
 # Openbentt — Senior Engineer Product Document
 
-**Version:** 2.0.6  
+**Version:** 2.0.7  
 **Date:** May 2026  
-**Scope:** Full product — Web + Electron desktop
+**Scope:** Full product — **Electron desktop (primary)** + static web app (secondary)  
+**Audit docs:** [FEATURE_COMPLETION_LOG.md](./FEATURE_COMPLETION_LOG.md) · [LAUNCH_READINESS.md](./LAUNCH_READINESS.md)
 
 ---
 
@@ -25,7 +26,9 @@
 
 ## 1. Executive Summary
 
-Openbentt is a **local-first, privacy-respecting multi-provider AI chat client** packaged as both a **static web app** and an **Electron desktop application**. It lets users bring their own API keys (OpenRouter, OpenAI, Anthropic, Google Gemini, or any OpenAI-compatible endpoint) and run chats, document workspaces, research pipelines, and on-device language models — all without any backend account system.
+Openbentt is a **local-first, privacy-respecting multi-provider AI workspace** whose **primary deliverable is the Electron desktop app**. A **secondary static web app** offers OpenRouter chat and Notebook without offline GGUF or Research labs (`platformSurface.ts`). Users bring their own API keys (OpenRouter, OpenAI, Anthropic, Google Gemini, or compatible endpoints) and run chats, document workspaces, research tooling, and on-device models — with **no Openbentt account system**.
+
+**Copy discipline:** Meridian 0.1 = **writing prompts** (not shipped weights). Library synthesis = **local heuristics** (not LLM synthesis). Notebook similarity = **overlap scoring** (not plagiarism detection). See [LAUNCH_READINESS.md](./LAUNCH_READINESS.md).
 
 **Unique value:**
 - API keys never leave the user's own browser or device
@@ -33,7 +36,7 @@ Openbentt is a **local-first, privacy-respecting multi-provider AI chat client**
 - Document-grade workspaces (LaTeX → PDF via WASM or server, research citation graphs)
 - Compare 2–4 models side-by-side with real timing metrics
 
-**Current maturity (v2.0.6):** **Release-ready** for tagged distribution. Core chat, workspaces, desktop GGUF (bundled llama-server), download progress, onboarding, auto-update hooks, and unit-test coverage are in place. **Manual smoke tests** ([LOCAL_RELEASE_CHECKLIST.md](../LOCAL_RELEASE_CHECKLIST.md)) and **unsigned installers** remain the operator’s responsibility before each public release.
+**Current maturity (v2.0.7):** **Release-ready** for tagged distribution (desktop-primary positioning). Core chat, workspaces, desktop GGUF (bundled llama-server), download progress, onboarding, auto-update hooks, and unit-test coverage are in place. **Manual smoke tests** ([LOCAL_RELEASE_CHECKLIST.md](../LOCAL_RELEASE_CHECKLIST.md)) and **unsigned installers** remain the operator’s responsibility before each public release.
 
 ---
 

@@ -1,6 +1,8 @@
 # Openbentt
 
-A **local-first** React app for **[OpenRouter](https://openrouter.ai/)**: pick free and custom models, stream replies, and compare **2–4 models** side by side with **latency and token metrics**. Your **OpenRouter API key stays in the browser** (localStorage); the UI never sends it to this project’s servers—there is **no backend account system** in the app.
+A **desktop-first, local-first** AI workspace (Electron) with an optional **web build** for **[OpenRouter](https://openrouter.ai/)** chat and Notebook. Pick models, stream replies, and compare **2–4 models** side by side with **latency and token metrics**. API keys stay in **localStorage** on your device—there is **no Openbentt account system**.
+
+**Product audit (May 2026):** [docs/FEATURE_COMPLETION_LOG.md](./docs/FEATURE_COMPLETION_LOG.md) · [docs/LAUNCH_READINESS.md](./docs/LAUNCH_READINESS.md)
 
 ## Who it’s for
 

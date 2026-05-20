@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { LIMITS } from "@/lib/research/projectLimits";
 import { Link } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Message } from "@/types/chat";
@@ -14,6 +16,7 @@ import { MessageReferences } from "@/components/MessageReferences";
 import { AssistantMessageToolbar } from "@/components/AssistantMessageToolbar";
 import { buildAssistantPlainText } from "@/lib/assistantPlainText";
 import { highlightSearchInText } from "@/lib/highlightSearch";
+import { CompareUseInNotebook } from "@/components/research/CompareUseInNotebook";
 
 function messageMatchesSearch(m: Message, q: string): boolean {
   const t = q.trim().toLowerCase();
@@ -89,9 +92,14 @@ const AssistantRoleContent: React.FC<{
                   <span className="text-xs font-semibold truncate" title={part.model}>
                     {shortModelLabel(part.model)}
                   </span>
-                  {part.streaming && (
-                    <span className="text-[10px] uppercase tracking-wide text-primary">Streaming</span>
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {!part.streaming && !part.error && (
+                      <CompareUseInNotebook model={part.model} content={part.content} />
+                    )}
+                    {part.streaming && (
+                      <span className="text-[10px] uppercase tracking-wide text-primary">Streaming</span>
+                    )}
+                  </div>
                 </div>
                 {part.error ? (
                   <p className="text-sm text-destructive">
@@ -162,6 +170,7 @@ const AssistantRoleContent: React.FC<{
 
 const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading, searchQuery = "" }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const { beginEditUserMessage, regenerateLastResponse, apiConfig } = useChat();
 
   const visibleMessages = useMemo(() => {
@@ -169,18 +178,133 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading, search
     return messages.filter((m) => messageMatchesSearch(m, searchQuery));
   }, [messages, searchQuery]);
 
+  const useVirtual = visibleMessages.length > LIMITS.maxChatMessagesVirtualize;
+  const virtualizer = useVirtualizer({
+    count: useVirtual ? visibleMessages.length : 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 140,
+    overscan: 6,
+  });
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, visibleMessages.length]);
+    if (useVirtual) {
+      virtualizer.scrollToIndex(visibleMessages.length - 1, { align: "end" });
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, visibleMessages.length, useVirtual, virtualizer]);
 
   const hasAssistant = messages.some((m) => m.role === "assistant");
   const lastMsg = messages[messages.length - 1];
   const showRetry =
     lastMsg?.role === "assistant" && !lastMsg.comparisonResponses && !isLoading;
 
+  const renderMessage = (message: Message, displayIdx: number) => {
+    const idx = messages.indexOf(message);
+    return (
+    <div
+      key={message.id}
+      className={cn(
+        "w-full streaming-message group/msg pb-8",
+        message.role === "user" ? "flex justify-end" : "flex justify-start"
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-start gap-3 animate-fade-in w-full",
+          message.role === "user" ? "flex-row-reverse max-w-[min(100%,42rem)]" : ""
+        )}
+      >
+        <div
+          className={cn(
+            "openbentt-card p-4 border border-border/80 shadow-sm",
+            message.role === "user" ? "bg-secondary/40" : "bg-card w-full max-w-full"
+          )}
+        >
+          {message.role === "user" && message.attachments && message.attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {message.attachments.map((a) => (
+                <div key={a.id} className="rounded-md border border-border overflow-hidden w-24 h-24 bg-muted/30">
+                  {a.kind === "pdf" ? (
+                    <div className="flex flex-col items-center justify-center h-full text-[10px] p-1 text-center text-muted-foreground">
+                      <FileText className="h-8 w-8 text-primary" />
+                      PDF
+                    </div>
+                  ) : a.kind === "audio" ? (
+                    <div className="flex flex-col items-center justify-center h-full text-[10px] p-1 text-center text-muted-foreground">
+                      Audio
+                    </div>
+                  ) : (
+                    <img src={a.dataUrl} alt="" className="w-full h-full object-cover" />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {message.role === "user" ? (
+            <div className="prose prose-sm max-w-none text-foreground dark:prose-invert prose-p:text-foreground text-left">
+              <p className="m-0 whitespace-pre-wrap text-foreground">
+                {searchQuery.trim()
+                  ? highlightSearchInText(message.content.trim() || "\u00a0", searchQuery)
+                  : message.content.trim() || "\u00a0"}
+              </p>
+            </div>
+          ) : (
+            <>
+              <AssistantRoleContent
+                message={message}
+                idx={idx}
+                messages={messages}
+                isLoading={isLoading}
+                showAgentTraces={apiConfig.showAgentTraces}
+                highlightQuery={searchQuery}
+              />
+              {showRetry && message.id === lastMsg?.id && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5"
+                    onClick={() => void regenerateLastResponse()}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Retry
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {message.role === "user" && (
+          <div className="flex flex-col gap-1 pt-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              title="Edit message"
+              onClick={() => beginEditUserMessage(message.id)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+    );
+  };
+
   return (
     <ScrollArea className="flex-1 p-4 overflow-y-auto">
-      <div className="max-w-5xl mx-auto space-y-8">
+      <div ref={scrollRef} className="max-w-5xl mx-auto">
+        {useVirtual && visibleMessages.length > 0 && (
+          <p className="mb-4 text-center text-[11px] text-muted-foreground">
+            Virtualized thread ({visibleMessages.length} messages) — scroll stays responsive.
+          </p>
+        )}
         {messages.length > 0 && visibleMessages.length === 0 && searchQuery.trim() ? (
           <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
             No messages match <span className="font-medium text-foreground">“{searchQuery.trim()}”</span>. Clear the search
@@ -251,101 +375,34 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading, search
               </div>
             </div>
           </div>
-        ) : (
-          visibleMessages.map((message) => (
-            <div
-              key={message.id}
-              className={cn(
-                "w-full streaming-message group/msg",
-                message.role === "user" ? "flex justify-end" : "flex justify-start"
-              )}
-            >
-              <div
-                className={cn(
-                  "flex items-start gap-3 animate-fade-in w-full",
-                  message.role === "user" ? "flex-row-reverse max-w-[min(100%,42rem)]" : ""
-                )}
-              >
+        ) : useVirtual ? (
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {virtualizer.getVirtualItems().map((vItem) => {
+              const message = visibleMessages[vItem.index];
+              return (
                 <div
-                  className={cn(
-                    "openbentt-card p-4 border border-border/80 shadow-sm",
-                    message.role === "user" ? "bg-secondary/40" : "bg-card w-full max-w-full"
-                  )}
+                  key={message.id}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${vItem.start}px)`,
+                  }}
                 >
-                  {message.role === "user" && message.attachments && message.attachments.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {message.attachments.map((a) => (
-                        <div key={a.id} className="rounded-md border border-border overflow-hidden w-24 h-24 bg-muted/30">
-                          {a.kind === "pdf" ? (
-                            <div className="flex flex-col items-center justify-center h-full text-[10px] p-1 text-center text-muted-foreground">
-                              <FileText className="h-8 w-8 text-primary" />
-                              PDF
-                            </div>
-                          ) : a.kind === "audio" ? (
-                            <div className="flex flex-col items-center justify-center h-full text-[10px] p-1 text-center text-muted-foreground">
-                              Audio
-                            </div>
-                          ) : (
-                            <img src={a.dataUrl} alt="" className="w-full h-full object-cover" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {message.role === "user" ? (
-                    <div className="prose prose-sm max-w-none text-foreground dark:prose-invert prose-p:text-foreground text-left">
-                      <p className="m-0 whitespace-pre-wrap text-foreground">
-                        {searchQuery.trim()
-                          ? highlightSearchInText(message.content.trim() || "\u00a0", searchQuery)
-                          : message.content.trim() || "\u00a0"}
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <AssistantRoleContent
-                        message={message}
-                        idx={messages.indexOf(message)}
-                        messages={messages}
-                        isLoading={isLoading}
-                        showAgentTraces={apiConfig.showAgentTraces}
-                        highlightQuery={searchQuery}
-                      />
-                      {showRetry && message.id === lastMsg?.id && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 gap-1.5"
-                            onClick={() => void regenerateLastResponse()}
-                          >
-                            <RotateCcw className="h-3.5 w-3.5" />
-                            Retry
-                          </Button>
-                        </div>
-                      )}
-                    </>
-                  )}
+                  {renderMessage(message, vItem.index)}
                 </div>
-
-                {message.role === "user" && (
-                  <div className="flex flex-col gap-1 pt-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0"
-                      title="Edit message"
-                      onClick={() => beginEditUserMessage(message.id)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))
+              );
+            })}
+          </div>
+        ) : (
+          visibleMessages.map((message, idx) => renderMessage(message, idx))
         )}
 
         {isLoading && !hasAssistant && (

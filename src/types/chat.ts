@@ -1,5 +1,6 @@
 import { isLocalGemmaModelId, LOCAL_TINY_MODEL_ID } from "@/lib/gemmaWebGpu/models";
 import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
+import { isCloudInferenceAllowed } from "@/lib/privacy/privacyPreferences";
 import { GGUF_MODEL_NONE, parseGgufRegistryId } from "@/lib/localGguf/ids";
 import { normalizeGgufMaxParamB } from "@/lib/localGguf/guardrails";
 
@@ -356,9 +357,11 @@ export function canSendChat(cfg: ApiKeyConfig): boolean {
     case "openai_direct":
     case "anthropic":
     case "google":
+      if (!isCloudInferenceAllowed(cfg.aiProvider, cfg.openAiCompatibleBaseUrl)) return false;
       return Boolean(cfg.apiKey?.trim());
     case "openai_compatible":
-      return Boolean(cfg.openAiCompatibleBaseUrl?.trim());
+      if (!cfg.openAiCompatibleBaseUrl?.trim()) return false;
+      return isCloudInferenceAllowed(cfg.aiProvider, cfg.openAiCompatibleBaseUrl);
     default:
       return false;
   }

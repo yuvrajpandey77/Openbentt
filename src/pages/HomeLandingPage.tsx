@@ -2,12 +2,17 @@ import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MarketingShell } from "@/components/marketing/MarketingShell";
+import { MarketingBentoGallery } from "@/components/marketing/MarketingBentoGallery";
+import { MarketingComparePaths } from "@/components/marketing/MarketingComparePaths";
 import { FeatureShowcaseBlock } from "@/components/marketing/FeatureShowcaseBlock";
 import { MarketingHero } from "@/components/marketing/MarketingHero";
 import { MarketingMission } from "@/components/marketing/MarketingMission";
 import { MarketingPrinciples } from "@/components/marketing/MarketingPrinciples";
+import { MarketingProvidersStrip } from "@/components/marketing/MarketingProvidersStrip";
 import { MarketingReveal } from "@/components/marketing/MarketingReveal";
+import { MarketingSectionHeader } from "@/components/marketing/MarketingSectionHeader";
 import { MarketingStats } from "@/components/marketing/MarketingStats";
+import { MarketingWorkflowSection } from "@/components/marketing/MarketingWorkflowSection";
 import { NewsStrip } from "@/components/marketing/NewsStrip";
 import { useSuggestedDownload } from "@/components/marketing/useSuggestedDownload";
 import { heroPrinciples, showcaseBlocks } from "@/config/marketingContent";
@@ -21,7 +26,7 @@ const HomeLandingPage: React.FC = () => {
   const suggested = useSuggestedDownload();
 
   useEffect(() => {
-    document.title = "Openbentt | local-first AI workspace for researchers";
+    document.title = "Openbentt | desktop-first AI workspace for researchers";
   }, []);
 
   const primaryDownload = suggested?.href ? (
@@ -64,21 +69,24 @@ const HomeLandingPage: React.FC = () => {
                 <Link to="/chat" className="font-medium text-foreground underline-offset-4 hover:underline">
                   Try the web app
                 </Link>
-                <span className="text-border"> · </span>
+                <span className="text-muted-foreground/50"> · </span>
                 <span>no install required</span>
               </p>
             </div>
           </div>
         </section>
 
-        <section id="principles" className="marketing-section scroll-mt-32 pb-12 md:pb-16">
+        <MarketingProvidersStrip />
+
+        <MarketingBentoGallery />
+
+        <section id="principles" className="marketing-section scroll-mt-32 marketing-section-band border-y border-border/40">
           <div className="marketing-container">
-            <MarketingReveal className="text-center">
-              <h2 className="marketing-section-title">Built for private research</h2>
-              <p className="marketing-section-lead mx-auto max-w-2xl">
-                Five principles that shape every workspace — from chat threads to GGUF weights on disk.
-              </p>
-            </MarketingReveal>
+            <MarketingSectionHeader
+              eyebrow="Principles"
+              title="Built for private research"
+              lead="Five principles that shape every workspace, from chat threads to GGUF weights on disk."
+            />
             <div className="mt-12 md:mt-16">
               <MarketingPrinciples items={heroPrinciples} />
             </div>
@@ -88,14 +96,15 @@ const HomeLandingPage: React.FC = () => {
           </div>
         </section>
 
-        <section id="features" className="marketing-section scroll-mt-32 border-t border-border/40">
+        <MarketingWorkflowSection />
+
+        <section id="features" className="marketing-section scroll-mt-32">
           <div className="marketing-container">
-            <MarketingReveal className="text-center">
-              <h2 className="marketing-section-title">What you get on desktop</h2>
-              <p className="marketing-section-lead mx-auto max-w-2xl">
-                Meridian 0.1 for LaTeX, Notebook, model arena, offline GGUF, and research labs — one install.
-              </p>
-            </MarketingReveal>
+            <MarketingSectionHeader
+              eyebrow="Desktop"
+              title="What you get on desktop"
+              lead="Desktop install: Notebook with Meridian writing prompts, model arena, offline GGUF, and Research labs. Web app is chat + Notebook only."
+            />
             <div className="marketing-feature-stack">
               {showcaseBlocks.map((block, i) => (
                 <MarketingReveal key={block.id} delay={i * 60}>
@@ -104,12 +113,15 @@ const HomeLandingPage: React.FC = () => {
                     imageSlot={showcaseImages[block.id]}
                     plain
                     large
+                    index={i}
                   />
                 </MarketingReveal>
               ))}
             </div>
           </div>
         </section>
+
+        <MarketingComparePaths />
 
         <MarketingMission />
 
@@ -118,9 +130,8 @@ const HomeLandingPage: React.FC = () => {
         <section className="marketing-section marketing-section--cta border-t border-border/40">
           <div className="marketing-container text-center">
             <MarketingReveal>
-              <h2 className="text-3xl font-semibold tracking-tight md:text-4xl lg:text-[2.75rem]">
-                Install Openbentt on your machine
-              </h2>
+              <p className="marketing-eyebrow">Get started</p>
+              <h2 className="marketing-section-title mt-3">Install Openbentt on your machine</h2>
               <p className="marketing-section-lead mx-auto mt-5 max-w-2xl">
                 Windows, Linux, and macOS. Offline GGUF, labs, and the full workspace.
               </p>

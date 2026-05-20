@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Share2 } from "lucide-react";
 import { buildShareUrl, chatToShareSnapshot, encodeShareSnapshot } from "@/lib/shareRun";
 import { useToast } from "@/components/ui/use-toast";
+import { isShareLinkAllowed } from "@/lib/privacy/privacyPreferences";
 
 export function ShareLinkButton() {
   const { chats, currentChatId } = useChat();
@@ -11,6 +12,14 @@ export function ShareLinkButton() {
   if (!chat?.messages.length) return null;
 
   const onClick = () => {
+    if (!isShareLinkAllowed()) {
+      toast({
+        title: "Share disabled",
+        description: "Enable share links in Settings → Privacy, or turn off Local-only mode.",
+        variant: "destructive",
+      });
+      return;
+    }
     const snap = chatToShareSnapshot(chat);
     const enc = encodeShareSnapshot(snap);
     const url = buildShareUrl(window.location.origin, enc);

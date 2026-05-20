@@ -10,12 +10,28 @@ export interface ShareSnapshotV1 {
   frozenAt: string;
 }
 
+/** Strip PDF extracted text from share payloads — reduces accidental leakage via URL hash. */
+function redactAttachmentsForShare(messages: Message[]): Message[] {
+  return messages.map((m) => {
+    if (!m.attachments?.length) return m;
+    return {
+      ...m,
+      attachments: m.attachments.map((a) =>
+        a.kind === "pdf"
+          ? { ...a, extractedText: "[PDF text omitted from share link — open the app to view.]" }
+          : a
+      ),
+    };
+  });
+}
+
 export function chatToShareSnapshot(chat: Chat): ShareSnapshotV1 {
+  const redacted = redactAttachmentsForShare(chat.messages);
   return {
     v: SHARE_PAYLOAD_VERSION,
     title: chat.title,
     frozenAt: new Date().toISOString(),
-    messages: chat.messages.map((m) => ({
+    messages: redacted.map((m) => ({
       ...m,
       timestamp: m.timestamp.toISOString(),
     })),

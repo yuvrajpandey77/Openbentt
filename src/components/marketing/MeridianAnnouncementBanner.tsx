@@ -5,13 +5,18 @@ import { ArrowRight } from "lucide-react";
 
 type MeridianAnnouncementBannerProps = {
   className?: string;
+  overHero?: boolean;
 };
 
 /** Small headline pill directly under the site header. */
-export function MeridianAnnouncementBanner({ className }: MeridianAnnouncementBannerProps) {
+export function MeridianAnnouncementBanner({ className, overHero }: MeridianAnnouncementBannerProps) {
   return (
     <div
-      className={cn("marketing-announcement flex justify-center border-b border-border/40 px-4 py-2", className)}
+      className={cn(
+        "marketing-announcement flex justify-center border-b px-4 py-2 transition-colors duration-300",
+        overHero ? "marketing-announcement--hero border-border/30" : "border-border/40 bg-muted/20",
+        className
+      )}
       role="region"
       aria-label="Product announcement"
     >

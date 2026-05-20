@@ -45,7 +45,11 @@ npm run dev
 | # | Test | Pass? |
 |---|------|-------|
 | B1 | Sidebar → **Notebook** opens; upload or edit LaTeX | ☐ |
-| B2 | Sidebar → **Research labs** — BibTeX / graph section loads | ☐ |
+| B2 | Sidebar → **Research labs** — Papers, Bibliography (citation graph), Synthesis | ☐ |
+| B2a | **Notebook → Citations** — Build graph from bib → Import S2 papers (network) | ☐ |
+| B2b | **Notebook → Similarity** — add PDF in Library; semantic index auto-rebuilds; Cancel works | ☐ |
+| B2c | **Notebook → Review** — Import PDF annotations after uploading annotated PDF | ☐ |
+| B2d | **Notebook → Write** — AI caption → Apply caption patches `\\caption{}` | ☐ |
 | B3 | Sidebar → **LaTeX write** (`/write`) opens | ☐ |
 | B4 | Sidebar → **Benchmark** — run once with API key | ☐ |
 | B5 | Sidebar → **WebGPU lab** — probe runs (GPU or CPU fallback message) | ☐ |

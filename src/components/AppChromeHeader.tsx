@@ -5,6 +5,7 @@ import { Menu, PanelLeft, Info } from "lucide-react";
 import { canSendChat } from "@/types/chat";
 import { ShareLinkButton } from "@/components/ShareLinkButton";
 import { CapabilitiesSheet } from "@/components/CapabilitiesSheet";
+import { LocalModelStatusBar } from "@/components/LocalModelStatusBar";
 import { ContextMeter } from "@/components/ContextMeter";
 import { ProviderQuotaMeter } from "@/components/ProviderQuotaMeter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -106,6 +107,10 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
               <div>
                 <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Provider quota</p>
                 <ProviderQuotaMeter />
+              </div>
+              <div>
+                <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Local models</p>
+                <LocalModelStatusBar />
               </div>
               <div>
                 <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Model capabilities</p>

@@ -53,7 +53,7 @@ export const hero = {
   headlineEmphasis: "not",
   headlineAfter: " leave your machine.",
   subhead:
-    "Openbentt is a local-first AI workspace for LaTeX, PDFs, benchmarking, and fine-tuned small models. Built for researchers, by researchers.",
+    "Openbentt is a desktop-first, local-first AI workspace for LaTeX, PDFs, benchmarking, and on-device GGUF. A lighter web build covers chat and Notebook when you cannot install.",
   terminalLine: "> openbentt · local · private · yours",
 };
 
@@ -83,8 +83,8 @@ export const heroPrinciples: HeroPrinciple[] = [
     iconClassName: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
   },
   {
-    title: "Fine-tuned SLMs",
-    description: "Small language models that are faster and cheaper to run locally.",
+    title: "Your local models",
+    description: "Run GGUF via llama-server on desktop, or small SLMs in-browser with WebGPU/WASM.",
     icon: Sparkles,
     iconClassName: "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400",
   },
@@ -92,13 +92,13 @@ export const heroPrinciples: HeroPrinciple[] = [
 
 export const meridianAnnouncement = {
   eyebrow: "New",
-  title: "Introducing Meridian 0.1 — our best LaTeX editing model",
+  title: "Meridian 0.1 LaTeX writing prompts in Notebook — uses your chat model",
   href: "/notebook",
 } as const;
 
 export const latestNews: NewsItem[] = [
   {
-    title: "Meridian 0.1 — LaTeX editing model for Notebook and Apply-to-source",
+    title: "Meridian 0.1: LaTeX writing prompts for Notebook (your model in Settings)",
     date: "May 2026",
     to: "/notebook",
   },
@@ -113,8 +113,8 @@ export const showcaseBlocks: ShowcaseBlock[] = [
     id: "meridian",
     title: "Meridian 0.1 for LaTeX",
     paragraphs: [
-      "Meridian 0.1 is our best LaTeX editing model — tuned for academic structure, \\cite{} hygiene, and edits you can apply straight into Notebook source.",
-      "Use it with live PDF preview: draft a section, compile, and iterate without leaving your machine.",
+      "Meridian 0.1 is a writing profile: structured prompts for abstracts, outlines, and \\cite{} hygiene. Replies come from whichever model you pick in Settings — not a separate weights bundle.",
+      "Use it with live PDF preview: draft a section, compile, and apply assistant output into Notebook source on your machine.",
     ],
     primaryCta: { label: "Open Notebook", to: "/notebook" },
     secondaryCta: { label: "Download desktop", to: "/download" },
@@ -158,8 +158,8 @@ export const showcaseBlocks: ShowcaseBlock[] = [
     id: "research",
     title: "Research labs",
     paragraphs: [
-      "BibTeX libraries, citation graphs, dataset cards, and the local model hub. The full stack for literature-heavy work.",
-      "Optional research mode in chat still pulls Wikipedia, Scholar, and URLs when you need quick context.",
+      "BibTeX libraries, citation graphs, dataset cards, and the local GGUF hub — desktop only. Cross-paper theme reports use local heuristics, not cloud LLM synthesis.",
+      "Optional research mode in chat pulls Wikipedia, Scholar, and URLs when you enable the proxy.",
     ],
     primaryCta: { label: "Download desktop", to: "/download" },
     secondaryCta: { label: "Web chat", to: "/chat" },
@@ -170,7 +170,7 @@ export const showcaseBlocks: ShowcaseBlock[] = [
 
 export const punchStats: PunchStat[] = [
   { headline: "Local-first", subline: "Keys, threads, and GGUF weights on your device" },
-  { headline: "Meridian 0.1", subline: "Our best LaTeX editing model in Notebook" },
+  { headline: "Meridian 0.1", subline: "LaTeX writing prompts in Notebook (your chat model)" },
   { headline: "Benchmark", subline: "Tokens/s, latency, and quality side by side" },
   { headline: "3 platforms", subline: "Windows, macOS, and Linux installers" },
 ];
@@ -186,10 +186,73 @@ export const desktopHighlights = [
 
 export const webOptionalLine = "No install? Use the web app for light chat and Notebook.";
 
+export type MarketingImageKey =
+  | "meridian"
+  | "notebook"
+  | "model-arena"
+  | "desktop-gguf"
+  | "research"
+  | "run-locally"
+  | "hero-workspace";
+
+export type WorkflowStep = {
+  step: string;
+  title: string;
+  description: string;
+  imageKey: MarketingImageKey;
+};
+
+export const workflowSteps: WorkflowStep[] = [
+  {
+    step: "01",
+    title: "Download the desktop app",
+    description: "Pick Windows, Linux, or macOS. Installers bundle Electron, labs, and offline GGUF support.",
+    imageKey: "hero-workspace",
+  },
+  {
+    step: "02",
+    title: "Load models and papers",
+    description: "Pull GGUF from Hugging Face, open PDFs, or start a LaTeX notebook with live preview.",
+    imageKey: "notebook",
+  },
+  {
+    step: "03",
+    title: "Compare, edit, publish",
+    description: "Run the model arena, apply chat replies into Notebook source, and keep threads on disk with the desktop app.",
+    imageKey: "run-locally",
+  },
+];
+
+export const comparePaths = {
+  desktop: {
+    title: "Full desktop workspace",
+    description:
+      "Offline GGUF, Research labs, tiled model arena, and long PDF sessions. Everything stays on disk with OS-backed secrets.",
+    imageKey: "hero-workspace",
+    cta: { label: "Download desktop", to: "/download" },
+  },
+  web: {
+    title: "Lightweight web app",
+    description:
+      "OpenRouter chat and Notebook in the browser when you cannot install. Same UI patterns, fewer offline features.",
+    imageKey: "run-locally",
+    cta: { label: "Open web app", to: "/chat" },
+  },
+};
+
+export const providerStrip = [
+  "OpenRouter",
+  "OpenAI",
+  "Anthropic",
+  "Google",
+  "Hugging Face",
+  "Local GGUF",
+] as const;
+
 export const mission = {
   eyebrow: "Built for researchers",
   title: "Plain tools. Your machine. Your data.",
-  body: "Openbentt is not another chat tab that phones home. It is a desktop workspace where LaTeX, PDFs, benchmarking, and small fine-tuned models live together, with an optional browser build when you only need OpenRouter in a pinch.",
+  body: "Openbentt is not another chat tab that phones home. The desktop app is the full workspace — LaTeX, PDFs, offline GGUF, Research labs, and benchmarking. The optional web build is for OpenRouter chat and Notebook when you cannot install.",
   cta: { label: "Download Openbentt", to: "/download" },
 };
 

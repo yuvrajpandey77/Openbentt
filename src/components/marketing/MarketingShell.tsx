@@ -30,6 +30,7 @@ export function MarketingShell({
   const onHome = location.pathname === "/";
   const githubUrl = GITHUB_REPO ? `https://github.com/${GITHUB_REPO}` : null;
   const [scrolled, setScrolled] = useState(false);
+  const [heroInView, setHeroInView] = useState(onHome);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -37,6 +38,22 @@ export function MarketingShell({
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!onHome) {
+      setHeroInView(false);
+      return;
+    }
+    const stage = document.querySelector(".marketing-hero-stage");
+    if (!stage) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setHeroInView(entry.isIntersecting),
+      { threshold: 0, rootMargin: "-72px 0px 40% 0px" }
+    );
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [onHome, location.pathname]);
 
   useEffect(() => {
     if (!location.hash) return;
@@ -60,7 +77,10 @@ export function MarketingShell({
 
       <header
         className={cn(
-          "marketing-header sticky top-0 z-50 border-b border-border/50 bg-background/90 backdrop-blur-md transition-shadow duration-300",
+          "marketing-header sticky top-0 z-50 border-b backdrop-blur-md transition-[background-color,box-shadow,border-color] duration-300",
+          onHome && heroInView && !scrolled
+            ? "marketing-header--hero border-border/30"
+            : "border-border/50 bg-background/90",
           scrolled && "marketing-header--scrolled"
         )}
       >
@@ -128,7 +148,7 @@ export function MarketingShell({
         </div>
       </header>
 
-      {onHome && <MeridianAnnouncementBanner />}
+      {onHome && <MeridianAnnouncementBanner overHero={heroInView && !scrolled} />}
 
       {children}
 
@@ -143,7 +163,7 @@ export function MarketingShell({
                 <span className="font-display text-lg font-semibold">Openbentt</span>
               </Link>
               <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-                Local-first AI workspace for LaTeX, PDFs, benchmarking, and fine-tuned models. By Cogerphere.
+                Desktop-first AI workspace for LaTeX, PDFs, benchmarking, and local GGUF. Optional web chat. By Cogerphere.
               </p>
             </div>
             {footerColumns.map((col) => (

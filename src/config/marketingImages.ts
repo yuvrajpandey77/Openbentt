@@ -1,6 +1,5 @@
 /**
- * Marketing image manifest — raster screenshots only (no SVG placeholders).
- * Assets live in `public/marketing/`.
+ * Marketing image manifest — assets in `public/marketing/`.
  */
 
 export type MarketingImageSlot = {
@@ -15,19 +14,21 @@ export function marketingImageUrl(file: string): string {
   return `${base}/${file}`;
 }
 
+export function isMarketingSvg(file: string): boolean {
+  return file.endsWith(".svg");
+}
+
 export const heroImage: MarketingImageSlot = {
   file: "hero-workspace.png",
   alt: "Openbentt workspace showing chat sidebar and model comparison",
   aspect: "video",
 };
 
-export const meridianShowcaseImage: MarketingImageSlot = {
-  file: "meridian-latex.png",
-  alt: "Meridian 0.1 editing LaTeX in Openbentt Notebook with live PDF preview",
-};
-
 export const showcaseImages: Record<string, MarketingImageSlot> = {
-  meridian: meridianShowcaseImage,
+  meridian: {
+    file: "meridian-latex.png",
+    alt: "Meridian LaTeX writing prompts in Openbentt Notebook with live PDF preview",
+  },
   notebook: {
     file: "notebook.png",
     alt: "Notebook workspace with LaTeX source and PDF preview",
@@ -48,4 +49,15 @@ export const showcaseImages: Record<string, MarketingImageSlot> = {
     file: "run-locally.png",
     alt: "Openbentt chat with streaming reply and model selector",
   },
+  "hero-workspace": heroImage,
 };
+
+/** Unique tiles for bento gallery — one file per tile, no repeats */
+export const galleryTiles: Array<MarketingImageSlot & { id: string; label: string; href: string }> = [
+  { id: "meridian", file: "meridian-latex.png", label: "Meridian LaTeX", href: "#meridian", alt: showcaseImages.meridian.alt },
+  { id: "notebook", file: "notebook.png", label: "Notebook", href: "#notebook", alt: showcaseImages.notebook.alt },
+  { id: "arena", file: "model-arena.png", label: "Model arena", href: "#model-arena", alt: showcaseImages["model-arena"].alt },
+  { id: "gguf", file: "desktop-gguf.png", label: "Local GGUF", href: "#desktop-gguf", alt: showcaseImages["desktop-gguf"].alt },
+  { id: "research", file: "research.png", label: "Research labs", href: "#research", alt: showcaseImages.research.alt },
+  { id: "chat", file: "run-locally.png", label: "Private chat", href: "#run-locally", alt: showcaseImages["run-locally"].alt },
+];
