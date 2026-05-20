@@ -182,7 +182,7 @@ async function drainQueue(app, projectId) {
     next.result = result;
     next.progress = 1;
   } catch (err) {
-    if (err?.name === "AbortError") {
+    if (err?.name === "AbortError" || q.abort?.signal.aborted) {
       next.status = "cancelled";
     } else {
       next.attempts += 1;
@@ -255,8 +255,9 @@ function runEmbedWorker(chunks, resumeVectors, signal, onProgress, onPartial) {
 
     worker.on("message", (msg) => {
       if (msg?.error) {
-        if (msg.aborted) finish(reject, Object.assign(new Error("Aborted"), { name: "AbortError" }));
-        else finish(reject, new Error(msg.error));
+        if (msg.aborted || signal?.aborted) {
+          finish(reject, Object.assign(new Error("Aborted"), { name: "AbortError" }));
+        } else finish(reject, new Error(msg.error));
         return;
       }
       if (msg?.type === "progress" && msg.progress) {
@@ -271,7 +272,13 @@ function runEmbedWorker(chunks, resumeVectors, signal, onProgress, onPartial) {
     });
     worker.on("error", (err) => finish(reject, err));
     worker.on("exit", (code) => {
-      if (!settled && code !== 0) finish(reject, new Error(`Embed worker exited ${code}`));
+      if (!settled && code !== 0) {
+        if (signal?.aborted) {
+          finish(reject, Object.assign(new Error("Aborted"), { name: "AbortError" }));
+        } else {
+          finish(reject, new Error(`Embed worker exited ${code}`));
+        }
+      }
     });
   });
 }

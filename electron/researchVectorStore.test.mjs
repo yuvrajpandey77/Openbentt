@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { closeDb } from "./researchDb.mjs";
 import { saveProjectMeta } from "./researchDb.mjs";
 import {
+  deleteEmbeddingsForChunks,
   deleteEmbeddingsForProject,
   embeddingStats,
   loadEmbeddings,
@@ -61,5 +62,35 @@ describe("researchVectorStore", () => {
 
     deleteEmbeddingsForProject(app, id);
     assert.equal(embeddingStats(app, id).count, 0);
+  });
+
+  it("deleteEmbeddingsForChunks ignores missing and empty chunk ids", () => {
+    const { app } = ctx;
+    const id = "vec-prune";
+    saveProjectMeta(app, sampleProject(id));
+
+    const vec = Array.from({ length: EMBED_DIM }, (_, i) => i * 0.001);
+    upsertEmbeddings(app, id, [
+      { chunkId: "keep-me", vector: vec },
+      { chunkId: "drop-me", vector: vec },
+    ]);
+    assert.equal(embeddingStats(app, id).count, 2);
+
+    deleteEmbeddingsForChunks(app, id, ["drop-me", "never-existed", "", null]);
+    const loaded = loadEmbeddings(app, id);
+    assert.ok(loaded["keep-me"]?.length);
+    assert.equal(loaded["drop-me"], undefined);
+    assert.equal(embeddingStats(app, id).count, 1);
+  });
+
+  it("deleteEmbeddingsForChunks no-ops on empty input", () => {
+    const { app } = ctx;
+    const id = "vec-noop";
+    saveProjectMeta(app, sampleProject(id));
+    upsertEmbeddings(app, id, [{ chunkId: "c1", vector: new Array(EMBED_DIM).fill(0.1) }]);
+
+    deleteEmbeddingsForChunks(app, id, []);
+    deleteEmbeddingsForChunks(app, id, null);
+    assert.equal(embeddingStats(app, id).count, 1);
   });
 });

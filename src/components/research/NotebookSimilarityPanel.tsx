@@ -114,20 +114,20 @@ export function NotebookSimilarityPanel() {
           disabled={scanning || semanticIndexRebuilding || project.papers.length === 0}
         >
           {semanticIndexRebuilding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          Build semantic index
+          Build embedding index (MiniLM)
         </Button>
       </div>
 
       {indexReady && (
         <p className="text-xs text-emerald-600 dark:text-emerald-400">
-          Semantic index: {embeddedCount} chunks — hybrid scan uses both signals.
+          Embedding index (MiniLM): {embeddedCount} chunks — hybrid scan uses both signals.
         </p>
       )}
 
       {!indexReady && project.papers.length > 0 && (
         <p className="text-xs text-muted-foreground flex items-center gap-1">
           <Info className="h-3 w-3" />
-          Without semantic index, hybrid scan uses lexical TF-IDF only.
+          Without the embedding index, hybrid scan uses theme analysis (lexical TF-IDF) only.
         </p>
       )}
 
@@ -169,6 +169,13 @@ export function NotebookSimilarityPanel() {
           </li>
         ))}
       </ul>
+
+      {hits.length > 0 && (
+        <p className="text-xs text-muted-foreground border-l-2 border-amber-500/40 pl-2">
+          Similarity scores indicate textual overlap with your library — not plagiarism verdicts. Review matches
+          manually before citing or revising.
+        </p>
+      )}
 
       {hits.length === 0 && !scanning && project.papers.length > 0 && (
         <p className="text-xs text-muted-foreground">Run hybrid scan to see overlap with your library.</p>

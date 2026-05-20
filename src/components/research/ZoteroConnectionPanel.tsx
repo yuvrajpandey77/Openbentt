@@ -22,6 +22,8 @@ export function ZoteroConnectionPanel() {
     setBbtExportPath,
     startBbtWatch,
     mergeIntoBibliography,
+    bibliographyApplyOffered,
+    dismissBibliographyApply,
     useMockLibrary,
   } = useZotero();
   const { project, setBibliography } = useResearchProject();
@@ -52,6 +54,7 @@ export function ZoteroConnectionPanel() {
     } else if (result?.bibliography) {
       await setBibliography(result.bibliography);
     }
+    dismissBibliographyApply();
   };
 
   return (
@@ -108,6 +111,34 @@ export function ZoteroConnectionPanel() {
       {lastSyncResult?.partial && lastSyncResult.warnings.length > 0 && (
         <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
           Partial sync: {lastSyncResult.warnings.join("; ")}
+        </div>
+      )}
+
+      {lastSyncResult?.conflicts && lastSyncResult.conflicts.length > 0 && (
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground">Citekey conflicts ({lastSyncResult.conflicts.length})</p>
+          {lastSyncResult.conflicts.slice(0, 5).map((c) => (
+            <p key={c.citekey}>
+              {c.citekey} ({c.field}): {c.resolution}
+            </p>
+          ))}
+          {lastSyncResult.conflicts.length > 5 && (
+            <p>…and {lastSyncResult.conflicts.length - 5} more</p>
+          )}
+        </div>
+      )}
+
+      {bibliographyApplyOffered && snapshot && project && (
+        <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-foreground">Apply synced library to project bibliography?</p>
+          <div className="flex gap-2">
+            <Button type="button" size="sm" onClick={() => void handleSyncToProject()}>
+              Apply now
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={dismissBibliographyApply}>
+              Dismiss
+            </Button>
+          </div>
         </div>
       )}
 

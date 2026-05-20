@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { useResearchProject } from "@/context/ResearchProjectContext";
-import { useChat } from "@/context/ChatContext";
+import { useQueueResearchPrompt } from "@/hooks/useQueueResearchPrompt";
 import {
   abstractGenerationPrompt,
   captionPrompt,
@@ -18,7 +18,7 @@ const SLASH_ACTIONS = [
 
 export function NotebookAssistantPanel() {
   const { project, setDraftTex } = useResearchProject();
-  const { queuePromptInComposer } = useChat();
+  const { queueResearchPrompt, researchPromptBusy } = useQueueResearchPrompt();
 
   if (!project) return null;
 
@@ -43,13 +43,22 @@ export function NotebookAssistantPanel() {
               size="sm"
               variant="secondary"
               className="h-auto w-full justify-start py-2 text-left text-xs"
+              disabled={researchPromptBusy}
               onClick={() => {
                 if (a.slash === "/cite") {
-                  queuePromptInComposer(missingCitationPrompt(project.draftTex, project.bibliography));
+                  void queueResearchPrompt(
+                    missingCitationPrompt(project.draftTex, project.bibliography),
+                    "citations",
+                    project.draftTex
+                  );
                 } else if (a.slash === "/abstract") {
-                  queuePromptInComposer(abstractGenerationPrompt(sample, project.targetVenue));
+                  void queueResearchPrompt(
+                    abstractGenerationPrompt(sample, project.targetVenue),
+                    "drafting",
+                    sample
+                  );
                 } else {
-                  queuePromptInComposer(keywordsPrompt(sample));
+                  void queueResearchPrompt(keywordsPrompt(sample), "drafting", sample);
                 }
               }}
             >
@@ -71,7 +80,11 @@ export function NotebookAssistantPanel() {
               variant="outline"
               className="h-auto w-full justify-start text-xs"
               onClick={() =>
-                queuePromptInComposer(captionPrompt(f.kind, f.label, project.draftTex.slice(0, 3000)))
+                void queueResearchPrompt(
+                  captionPrompt(f.kind, f.label, project.draftTex.slice(0, 3000)),
+                  "drafting",
+                  project.draftTex
+                )
               }
             >
               AI caption — {f.label}

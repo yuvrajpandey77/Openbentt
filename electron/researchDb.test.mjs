@@ -126,6 +126,41 @@ describe("researchDb desktop storage", () => {
     assert.equal(fs.existsSync(path.join(dir, "project.json.legacy")), true);
   });
 
+  it("auto-recovers from backup when db file is corrupt on open", async () => {
+    const isoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openbentt-auto-recover-"));
+    const isoApp = mockApp(isoRoot);
+    const id = "auto-recover";
+    try {
+      saveProjectMeta(isoApp, {
+        id,
+        title: "Auto Recover",
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+        targetVenue: "generic",
+        linkedThreadIds: [],
+        draftTex: "saved",
+        bibliography: "",
+        papers: [],
+        chunks: [],
+        revisionSuggestions: [],
+        modelAttributions: [],
+        abstractVariants: [],
+        keywordSuggestions: [],
+      });
+      backupDatabase(isoApp);
+      closeDb();
+
+      const dbFile = path.join(projectsRoot(isoApp), "research.db");
+      await fsPromises.writeFile(dbFile, "NOT-SQLITE", "utf8");
+
+      closeDb();
+      assert.equal(loadProject(isoApp, id)?.title, "Auto Recover");
+    } finally {
+      closeDb();
+      fs.rmSync(isoRoot, { recursive: true, force: true });
+    }
+  });
+
   it("backup file restores project after manual replace of corrupt db", async () => {
     const isoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openbentt-recover-"));
     const isoApp = mockApp(isoRoot);

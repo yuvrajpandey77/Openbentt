@@ -74,7 +74,7 @@ These are **completed** on **desktop** with manual smoke per [LOCAL_RELEASE_CHEC
 ## Known limitations (honest footnotes)
 
 - **ChatContext** has no automated integration tests (~900 lines).
-- **Agent workflow** stub unused (`agentWorkflow.ts`).
+- **Research orchestrator** wires notebook writing/citation prompts to hybrid retrieval; not a full autonomous agent loop.
 - **Caption AI** prompts chat; does not auto-patch `\caption{}` without user apply.
 - **Citation graph** enrichment uses Semantic Scholar over the network; not fully offline.
 - **Review workflow** is paste-first; PDF annotation → review notes only at upload time.

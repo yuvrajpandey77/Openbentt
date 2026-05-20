@@ -16,7 +16,7 @@ export function LibrarySynthesisPanel() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
       <p className="text-sm text-muted-foreground">
-        Semantic analysis: TF-IDF topics, paper clustering, claim extraction, contradiction hints,
+        Theme analysis (lexical): TF-IDF topics, paper clustering, claim extraction, contradiction hints,
         methodology comparison, research gaps, and timeline — computed locally (no LLM synthesis).
       </p>
 
@@ -34,7 +34,7 @@ export function LibrarySynthesisPanel() {
           setReport(buildCrossPaperSynthesis(project.papers, project.draftTex, project.bibEntries))
         }
       >
-        Run semantic synthesis
+        Run theme synthesis (lexical)
       </Button>
       {report && (
         <>

@@ -38,6 +38,8 @@ type ZoteroContextValue = {
   startBbtWatch: (path?: string) => Promise<void>;
   stopBbtWatch: () => Promise<void>;
   mergeIntoBibliography: (localBib: string, preferIncoming?: boolean) => ZoteroSyncResult | null;
+  bibliographyApplyOffered: boolean;
+  dismissBibliographyApply: () => void;
   useMockLibrary: () => void;
 };
 
@@ -61,6 +63,7 @@ export function ZoteroProvider({ children }: { children: React.ReactNode }) {
   const [syncing, setSyncing] = useState(false);
   const [progress, setProgress] = useState<ZoteroSyncProgress | null>(null);
   const [lastSyncResult, setLastSyncResult] = useState<ZoteroSyncResult | null>(null);
+  const [bibliographyApplyOffered, setBibliographyApplyOffered] = useState(false);
 
   const refreshStatus = useCallback(async () => {
     if (api) {
@@ -182,9 +185,14 @@ export function ZoteroProvider({ children }: { children: React.ReactNode }) {
           const result = res.snapshot ? mergeSnapshotIntoProject(res.snapshot, "") : null;
           if (result) {
             setLastSyncResult(result);
+            setBibliographyApplyOffered(true);
+            const conflictNote =
+              result.conflicts.length > 0
+                ? ` · ${result.conflicts.length} citekey conflict(s)`
+                : "";
             toast({
               title: "Zotero synced",
-              description: `${res.snapshot?.itemCount ?? 0} items`,
+              description: `${res.snapshot?.itemCount ?? 0} items${conflictNote}. Apply to project bibliography?`,
             });
           }
           return result;
@@ -214,8 +222,14 @@ export function ZoteroProvider({ children }: { children: React.ReactNode }) {
         }));
         const result = mergeSnapshotIntoProject(snap, "");
         setLastSyncResult(result);
+        setBibliographyApplyOffered(true);
         setProgress({ phase: "complete", message: "Sync complete" });
-        toast({ title: "Zotero synced", description: `${snap.itemCount} items` });
+        const conflictNote =
+          result.conflicts.length > 0 ? ` · ${result.conflicts.length} citekey conflict(s)` : "";
+        toast({
+          title: "Zotero synced",
+          description: `${snap.itemCount} items${conflictNote}. Apply to project bibliography?`,
+        });
         return result;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -278,6 +292,8 @@ export function ZoteroProvider({ children }: { children: React.ReactNode }) {
     [snapshot, toast]
   );
 
+  const dismissBibliographyApply = useCallback(() => setBibliographyApplyOffered(false), []);
+
   const useMockLibrary = useCallback(() => {
     const mock = buildMockZoteroSnapshot();
     setSnapshot(mock);
@@ -308,6 +324,8 @@ export function ZoteroProvider({ children }: { children: React.ReactNode }) {
       startBbtWatch,
       stopBbtWatch,
       mergeIntoBibliography,
+      bibliographyApplyOffered,
+      dismissBibliographyApply,
       useMockLibrary,
     }),
     [
@@ -325,6 +343,8 @@ export function ZoteroProvider({ children }: { children: React.ReactNode }) {
       startBbtWatch,
       stopBbtWatch,
       mergeIntoBibliography,
+      bibliographyApplyOffered,
+      dismissBibliographyApply,
       useMockLibrary,
     ]
   );

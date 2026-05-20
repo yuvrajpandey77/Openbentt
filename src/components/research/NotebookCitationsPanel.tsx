@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useResearchProject } from "@/context/ResearchProjectContext";
-import { useChat } from "@/context/ChatContext";
+import { useQueueResearchPrompt } from "@/hooks/useQueueResearchPrompt";
 import {
   appendBibEntry,
   bibEntryFromMetadata,
@@ -30,7 +30,7 @@ import { CitationGraphPanel } from "@/components/research/CitationGraphPanel";
 
 export function NotebookCitationsPanel() {
   const { project, setBibliography, updateProject } = useResearchProject();
-  const { queuePromptInComposer } = useChat();
+  const { queueResearchPrompt } = useQueueResearchPrompt();
   const { toast } = useToast();
   const [style, setStyle] = useState<CitationStyle>("apa");
   const [doiInput, setDoiInput] = useState("");
@@ -222,7 +222,11 @@ export function NotebookCitationsPanel() {
           size="sm"
           onClick={() => {
             const key = issues.find((i) => i.kind === "missing_bib")?.key ?? "";
-            queuePromptInComposer(missingCitationPrompt(key, project.draftTex));
+            void queueResearchPrompt(
+              missingCitationPrompt(key, project.draftTex),
+              "citations",
+              project.draftTex
+            );
           }}
         >
           Ask chat about missing citation

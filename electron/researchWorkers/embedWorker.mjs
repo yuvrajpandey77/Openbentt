@@ -8,23 +8,22 @@ try {
   const { type, payload } = workerData;
   if (type !== "embed") {
     parentPort.postMessage({ error: `Unknown worker type: ${type}` });
-    return;
+  } else {
+    const chunks = payload.chunks ?? [];
+    const resumeVectors = payload.resumeVectors ?? {};
+
+    const vectors = await buildChunkEmbeddingsFromChunks(chunks, {
+      resumeVectors,
+      onProgress: (p) => {
+        parentPort.postMessage({ type: "progress", progress: p });
+      },
+      onPartial: (partial) => {
+        parentPort.postMessage({ type: "partial", vectors: partial });
+      },
+    });
+
+    parentPort.postMessage({ result: { vectors } });
   }
-
-  const chunks = payload.chunks ?? [];
-  const resumeVectors = payload.resumeVectors ?? {};
-
-  const vectors = await buildChunkEmbeddingsFromChunks(chunks, {
-    resumeVectors,
-    onProgress: (p) => {
-      parentPort.postMessage({ type: "progress", progress: p });
-    },
-    onPartial: (partial) => {
-      parentPort.postMessage({ type: "partial", vectors: partial });
-    },
-  });
-
-  parentPort.postMessage({ result: { vectors } });
 } catch (e) {
   if (e?.name === "AbortError") {
     parentPort.postMessage({ error: "Aborted", aborted: true });

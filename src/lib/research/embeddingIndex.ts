@@ -1,5 +1,4 @@
 import type { CorpusChunk, SimilarityHit } from "@/types/researchProject";
-import { chunkText } from "@/lib/research/corpusIndex";
 import {
   buildChunkEmbeddingsFromChunks,
   cosineNormalized,
@@ -126,57 +125,6 @@ export function findSemanticSimilarPassages(
     }
   }
   return hits.sort((a, b) => b.score - a.score).slice(0, limit);
-}
-
-/** Async semantic search with on-the-fly query embedding. */
-export async function findSemanticSimilarPassagesAsync(
-  queryText: string,
-  chunks: CorpusChunk[],
-  vectors: Record<string, number[]>,
-  paperNames: Record<string, string>,
-  options?: { minScore?: number; limit?: number }
-): Promise<SimilarityHit[]> {
-  const queryVector = await embedPassage(queryText);
-  return findSemanticSimilarPassages(queryText, chunks, vectors, paperNames, {
-    ...options,
-    queryVector,
-  });
-}
-
-/** Scan draft windows against precomputed chunk embeddings. */
-export async function scanDraftSemanticSimilarity(
-  draftTex: string,
-  chunks: CorpusChunk[],
-  vectors: Record<string, number[]>,
-  paperNames: Record<string, string>,
-  onProgress?: (p: EmbeddingIndexProgress) => void
-): Promise<SimilarityHit[]> {
-  const libraryChunks = chunks.filter((c) => c.paperId !== "draft" && vectors[c.id]);
-  if (libraryChunks.length === 0) return [];
-
-  const merged: Record<string, number[]> = { ...vectors };
-  const seen = new Set<string>();
-  const all: SimilarityHit[] = [];
-  const windows = chunkText(draftTex.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, " "), 320, 60).slice(0, 24);
-
-  onProgress?.({ phase: "loading-model", done: 0, total: windows.length });
-
-  for (let i = 0; i < windows.length; i++) {
-    const w = windows[i];
-    merged.__query__ = await embedPassage(w);
-    onProgress?.({ phase: "embedding", done: i + 1, total: windows.length });
-    for (const h of findSemanticSimilarPassages(w, libraryChunks, merged, paperNames, {
-      minScore: 0.45,
-      limit: 2,
-    })) {
-      const key = `${h.paperId}:${h.snippet.slice(0, 50)}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      all.push(h);
-    }
-  }
-  onProgress?.({ phase: "done", done: windows.length, total: windows.length });
-  return all.sort((a, b) => b.score - a.score).slice(0, 30);
 }
 
 export function isEmbeddingIndexReady(vectors: Record<string, number[]> | undefined): boolean {

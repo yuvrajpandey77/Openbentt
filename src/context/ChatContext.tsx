@@ -18,6 +18,8 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { buildChatCompletionMessages, isStreamHttpError, StreamHttpError } from "@/lib/openrouter";
 import { streamChatForConfig } from "@/lib/aiStream";
+import { streamRoutedTask } from "@/lib/modelRouting";
+import { detectNotebookRoutedTask } from "@/lib/modelRouting/detectNotebookRoutedTask";
 import { abortLocalGemmaGeneration } from "@/lib/gemmaWebGpu/streamLocalGemma";
 import { createRafBatcher } from "@/lib/streamBatch";
 import { gatherResearchContext } from "@/lib/researchSources";
@@ -532,23 +534,33 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       try {
-        const { text, metrics, rateLimitHeaders } =
-          cfg.aiProvider === "local_gguf"
+        const notebookRoutedTask = detectNotebookRoutedTask(chatMessages);
+        const streamCallbacks = {
+          onDelta: (delta: string) => batcher.push(delta),
+          onUsage: (u: { prompt_tokens?: number }) => {
+            if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
+          },
+        };
+
+        const { text, metrics, rateLimitHeaders } = notebookRoutedTask
+          ? await streamRoutedTask(
+              notebookRoutedTask,
+              cfg,
+              apiMessages,
+              controller.signal,
+              streamCallbacks,
+              { navigatorOffline: !isNavigatorOnline() }
+            )
+          : cfg.aiProvider === "local_gguf"
             ? await import("@/lib/localGguf/streamLocalGguf").then(({ streamLocalGgufChat }) =>
                 streamLocalGgufChat(cfg, cfg.model, apiMessages, controller.signal, {
-                  onDelta: (delta) => batcher.push(delta),
-                  onUsage: (u) => {
-                    if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
-                  },
+                  ...streamCallbacks,
                 })
               )
             : cfg.aiProvider === "webgpu_gemma"
               ? await import("@/lib/gemmaWebGpu/streamLocalGemma").then(({ streamLocalGemmaChat }) =>
                 streamLocalGemmaChat(cfg, apiMessages, controller.signal, {
-                  onDelta: (delta) => batcher.push(delta),
-                  onUsage: (u) => {
-                    if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
-                  },
+                  ...streamCallbacks,
                   onModelDownloadProgress: (pct) => {
                     setWebgpuModelDownloadProgress(pct);
                   },
@@ -594,12 +606,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   },
                 })
               )
-              : await streamChatForConfig(cfg, cfg.model, apiMessages, controller.signal, {
-                  onDelta: (delta) => batcher.push(delta),
-                  onUsage: (u) => {
-                    if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
-                  },
-                });
+              : await streamChatForConfig(cfg, cfg.model, apiMessages, controller.signal, streamCallbacks);
         batcher.flushPending();
         setProviderQuotaSnapshot({
           provider: cfg.aiProvider,

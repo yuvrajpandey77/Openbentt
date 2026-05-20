@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useChat } from "@/context/ChatContext";
+import { useQueueResearchPrompt } from "@/hooks/useQueueResearchPrompt";
 import {
   abstractGenerationPrompt,
   captionPrompt,
@@ -27,7 +28,8 @@ import { useToast } from "@/components/ui/use-toast";
 
 export function NotebookWritingPanel() {
   const { project, updateProject, setDraftTex } = useResearchProject();
-  const { queuePromptInComposer, chats, currentChatId } = useChat();
+  const { chats, currentChatId } = useChat();
+  const { queueResearchPrompt, researchPromptBusy } = useQueueResearchPrompt();
   const { toast } = useToast();
   const [outlineRaw, setOutlineRaw] = useState("");
 
@@ -74,7 +76,14 @@ export function NotebookWritingPanel() {
           type="button"
           size="sm"
           variant="secondary"
-          onClick={() => queuePromptInComposer(abstractGenerationPrompt(sample, project.targetVenue))}
+          disabled={researchPromptBusy}
+          onClick={() =>
+            void queueResearchPrompt(
+              abstractGenerationPrompt(sample, project.targetVenue),
+              "drafting",
+              sample
+            )
+          }
         >
           Generate abstracts (chat)
         </Button>
@@ -82,7 +91,8 @@ export function NotebookWritingPanel() {
           type="button"
           size="sm"
           variant="outline"
-          onClick={() => queuePromptInComposer(keywordsPrompt(sample))}
+          disabled={researchPromptBusy}
+          onClick={() => void queueResearchPrompt(keywordsPrompt(sample), "drafting", sample)}
         >
           Suggest keywords (chat)
         </Button>
@@ -149,8 +159,10 @@ export function NotebookWritingPanel() {
             const sections = parseOutline(outlineRaw);
             const sec = sections[0];
             if (!sec) return;
-            queuePromptInComposer(
-              outlineExpansionPrompt(sec.title, sec.body || outlineRaw, project.draftTex)
+            void queueResearchPrompt(
+              outlineExpansionPrompt(sec.title, sec.body || outlineRaw, project.draftTex),
+              "drafting",
+              sec.body || outlineRaw
             );
           }}
         >
@@ -169,8 +181,10 @@ export function NotebookWritingPanel() {
               variant="outline"
               className="h-7 text-xs"
               onClick={() =>
-                queuePromptInComposer(
-                  captionPrompt(f.kind, f.label || f.kind, project.draftTex.slice(0, 3000))
+                void queueResearchPrompt(
+                  captionPrompt(f.kind, f.label || f.kind, project.draftTex.slice(0, 3000)),
+                  "drafting",
+                  project.draftTex
                 )
               }
             >

@@ -83,6 +83,22 @@ export async function assembleResearchContext(
   };
 }
 
+/** Append hybrid retrieval evidence and routing hint to a notebook/chat prompt. */
+export async function buildAugmentedResearchPrompt(
+  project: ResearchProjectData,
+  task: ResearchAiTask,
+  basePrompt: string,
+  queryText?: string,
+  opts?: { hitLimit?: number }
+): Promise<string> {
+  const query = queryText?.trim() || project.draftTex.slice(0, 4000) || project.title;
+  const bundle = await assembleResearchContext(project, task, query, opts);
+  const evidence = formatRetrievalForPrompt(bundle.retrievalHits);
+  const routeHint = `[Suggested model route: ${bundle.routedModelLabel}]`;
+  if (!evidence) return `${basePrompt}\n\n${routeHint}`;
+  return `${basePrompt}\n\n${evidence}\n\n${routeHint}`;
+}
+
 /** Format retrieval hits for injection into a system or user prompt. */
 export function formatRetrievalForPrompt(hits: RetrievalHit[], maxChars = 24_000): string {
   if (!hits.length) return "";

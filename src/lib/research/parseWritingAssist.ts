@@ -4,10 +4,10 @@ export function parseAbstractVariants(raw: string): string[] {
   const text = raw.trim();
   if (!text) return [];
 
-  const splitParts = text.split(/(?=Abstract\s*\d+\s*[:\.\)\-]?\s*)/i).filter((p) => p.trim().length > 0);
+  const splitParts = text.split(/(?=Abstract\s*\d+\s*[:.)-]?\s*)/i).filter((p) => p.trim().length > 0);
   const variants: string[] = [];
   for (const part of splitParts) {
-    const cleaned = cleanAbstractBody(part.replace(/^Abstract\s*\d+\s*[:\.\)\-]?\s*/i, ""));
+    const cleaned = cleanAbstractBody(part.replace(/^Abstract\s*\d+\s*[:.)-]?\s*/i, ""));
     if (cleaned.length >= 24) variants.push(cleaned);
   }
   if (variants.length >= 1) return dedupeAbstracts(variants).slice(0, 5);
@@ -18,7 +18,7 @@ export function parseAbstractVariants(raw: string): string[] {
   }
 
   if (/^abstract\b/i.test(text) && text.length >= 80 && text.length < 4000) {
-    const single = cleanAbstractBody(text.replace(/^abstract\s*[:\.\)]?\s*/i, ""));
+    const single = cleanAbstractBody(text.replace(/^abstract\s*[:.)]?\s*/i, ""));
     if (single.length >= 40) return [single];
   }
 
@@ -47,9 +47,9 @@ export function parseKeywordSuggestions(raw: string): string[] {
   if (!text) return [];
 
   const lines: string[] = [];
-  const kwLine = text.match(/(?:research\s+)?keywords?\s*[:\-]\s*([^\n]+)/i)?.[1];
+  const kwLine = text.match(/(?:research\s+)?keywords?\s*[:-]\s*([^\n]+)/i)?.[1];
   if (kwLine) lines.push(kwLine);
-  const pdfLine = text.match(/(?:pdf\s+)?metadata\s+keywords?\s*[:\-]\s*([^\n]+)/i)?.[1];
+  const pdfLine = text.match(/(?:pdf\s+)?metadata\s+keywords?\s*[:-]\s*([^\n]+)/i)?.[1];
   if (pdfLine) lines.push(pdfLine);
   const bulletBlock = text.match(/(?:^|\n)\s*[-*]\s*([^\n]+)/g);
   if (bulletBlock && /keyword/i.test(text)) {
@@ -62,7 +62,7 @@ export function parseKeywordSuggestions(raw: string): string[] {
   const merged = lines
     .join(", ")
     .split(/[,;\n]/)
-    .map((k) => k.replace(/^\d+[\.\)]\s*/, "").trim())
+    .map((k) => k.replace(/^\d+[.)]\s*/, "").trim())
     .filter((k) => k.length > 1 && k.length < 64);
 
   return [...new Set(merged)].slice(0, 16);

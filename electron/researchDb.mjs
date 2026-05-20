@@ -29,6 +29,14 @@ function backupPath(app) {
 
 let dbSingleton = null;
 
+function initDbConnection(file) {
+  const db = new DatabaseSync(file);
+  db.exec("PRAGMA journal_mode = WAL;");
+  db.exec("PRAGMA foreign_keys = ON;");
+  runMigrations(db);
+  return db;
+}
+
 function openDb(app) {
   if (dbSingleton) return dbSingleton;
   const root = projectsRoot(app);
@@ -37,20 +45,17 @@ function openDb(app) {
   const bak = backupPath(app);
 
   try {
-    dbSingleton = new DatabaseSync(file);
+    dbSingleton = initDbConnection(file);
   } catch (err) {
     if (fs.existsSync(bak)) {
       fs.copyFileSync(bak, file);
-      dbSingleton = new DatabaseSync(file);
+      dbSingleton = initDbConnection(file);
       console.warn("[researchDb] Recovered from backup after open failure:", err?.message);
     } else {
       throw err;
     }
   }
 
-  dbSingleton.exec("PRAGMA journal_mode = WAL;");
-  dbSingleton.exec("PRAGMA foreign_keys = ON;");
-  runMigrations(dbSingleton);
   return dbSingleton;
 }
 

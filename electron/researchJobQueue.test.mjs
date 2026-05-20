@@ -2,6 +2,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { closeDb, saveProjectMeta, getDb } from "./researchDb.mjs";
 import {
+  cancelAllJobs,
   cancelJob,
   enqueueJob,
   listJobs,
@@ -149,5 +150,83 @@ describe("researchJobQueue", () => {
     assert.ok(first.jobId);
     assert.equal(second.jobId, first.jobId);
     assert.equal(second.deduped, true);
+  });
+
+  it("cancels running embed job mid-flight", async () => {
+    const { app } = ctx;
+    const projectId = "job-embed-abort";
+    saveProjectMeta(app, baseProject(projectId));
+
+    enqueueJob(app, projectId, "rechunk", {
+      papers: baseProject(projectId).papers,
+      draftTex: baseProject(projectId).draftTex,
+      projectId,
+    });
+    await new Promise((r) => setTimeout(r, 2000));
+
+    const { jobId } = enqueueJob(app, projectId, "embed", {});
+    await new Promise((r) => setTimeout(r, 150));
+    cancelJob(app, projectId, jobId);
+    await new Promise((r) => setTimeout(r, 4000));
+
+    const job = listJobs(app, projectId).find((j) => j.id === jobId);
+    assert.ok(job, "job should be listed");
+    assert.equal(job.status, "cancelled");
+  });
+
+  it("cancelAllJobs aborts active rechunk worker", async () => {
+    const { app } = ctx;
+    const projectId = "job-rechunk-cancel-all";
+    saveProjectMeta(app, baseProject(projectId));
+
+    enqueueJob(app, projectId, "rechunk", {
+      papers: baseProject(projectId).papers,
+      draftTex: baseProject(projectId).draftTex,
+    });
+    await new Promise((r) => setTimeout(r, 80));
+    cancelAllJobs(app, projectId);
+    await new Promise((r) => setTimeout(r, 1500));
+
+    const running = listJobs(app, projectId).find((j) => j.status === "running");
+    assert.equal(running, undefined, "no job should remain running");
+  });
+
+  it("prunes stale embeddings via removedChunkIds on embed job", async () => {
+    const { app } = ctx;
+    const projectId = "job-embed-prune";
+    saveProjectMeta(app, baseProject(projectId));
+
+    enqueueJob(app, projectId, "rechunk", {
+      papers: baseProject(projectId).papers,
+      draftTex: baseProject(projectId).draftTex,
+      projectId,
+    });
+    await new Promise((r) => setTimeout(r, 2000));
+
+    const chunkRows = getDb(app)
+      .prepare("SELECT id FROM corpus_chunks WHERE project_id = ? AND paper_id != 'draft'")
+      .all(projectId);
+    assert.ok(chunkRows.length >= 1, "library chunks exist");
+
+    const keepId = chunkRows[0].id;
+    const staleId = "orphan-stale-chunk";
+    upsertEmbeddings(app, projectId, [
+      { chunkId: keepId, vector: new Array(384).fill(0.02) },
+      { chunkId: staleId, vector: new Array(384).fill(0.03) },
+    ]);
+    assert.equal(Object.keys(loadEmbeddings(app, projectId)).length, 2);
+
+    const { jobId } = enqueueJob(app, projectId, "embed", {
+      removedChunkIds: [staleId, "missing-chunk-id", "", null],
+    });
+    await new Promise((r) => setTimeout(r, 8000));
+
+    const embedJob = listJobs(app, projectId).find((j) => j.id === jobId);
+    assert.ok(embedJob, "embed job listed");
+    assert.notEqual(embedJob.status, "failed", embedJob?.message ?? "embed failed");
+
+    const loaded = loadEmbeddings(app, projectId);
+    assert.equal(loaded[staleId], undefined, "stale orphan embedding removed");
+    assert.ok(loaded[keepId]?.length, "valid chunk embedding retained");
   });
 });

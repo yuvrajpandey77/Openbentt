@@ -6,7 +6,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useResearchProject } from "@/context/ResearchProjectContext";
-import { useChat } from "@/context/ChatContext";
+import { useQueueResearchPrompt } from "@/hooks/useQueueResearchPrompt";
 import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
 import { abstractGenerationPrompt, keywordsPrompt } from "@/lib/research/writingPrompts";
 import { insertAbstract } from "@/lib/research/latexTools";
@@ -16,7 +16,7 @@ import { useState } from "react";
 /** Compact writing assist — primary actions visible, rest in overflow menu. */
 export function NotebookContextualStrip() {
   const { project, setDraftTex } = useResearchProject();
-  const { queuePromptInComposer } = useChat();
+  const { queueResearchPrompt, researchPromptBusy } = useQueueResearchPrompt();
   const { layout } = useResearchWorkspace();
   const [expanded, setExpanded] = useState(false);
 
@@ -32,7 +32,14 @@ export function NotebookContextualStrip() {
         size="sm"
         variant="ghost"
         className="h-7 gap-1 text-xs"
-        onClick={() => queuePromptInComposer(abstractGenerationPrompt(sample, project.targetVenue))}
+        disabled={researchPromptBusy}
+        onClick={() =>
+          void queueResearchPrompt(
+            abstractGenerationPrompt(sample, project.targetVenue),
+            "drafting",
+            sample
+          )
+        }
       >
         <Sparkles className="h-3 w-3" />
         Abstract
@@ -42,7 +49,8 @@ export function NotebookContextualStrip() {
         size="sm"
         variant="ghost"
         className="h-7 text-xs"
-        onClick={() => queuePromptInComposer(keywordsPrompt(sample))}
+        disabled={researchPromptBusy}
+        onClick={() => void queueResearchPrompt(keywordsPrompt(sample), "drafting", sample)}
       >
         Keywords
       </Button>

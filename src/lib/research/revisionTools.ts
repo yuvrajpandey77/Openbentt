@@ -3,7 +3,7 @@ import type { RevisionSuggestion } from "@/types/researchProject";
 /** Parse pasted reviewer comments into actionable items. */
 export function parseReviewerComments(text: string): RevisionSuggestion[] {
   const blocks = text
-    .split(/\n(?=\d+[\.)]\s|[•\-*]\s|Comment:|Reviewer:|R\d+:)/i)
+    .split(/\n(?=\d+[.)]\s|[•*-]\s|Comment:|Reviewer:|R\d+:)/i)
     .map((b) => b.trim())
     .filter((b) => b.length > 12);
 

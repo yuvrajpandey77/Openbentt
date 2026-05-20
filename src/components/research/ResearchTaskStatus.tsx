@@ -58,7 +58,7 @@ export function ResearchTaskStatus() {
           <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-1.5 text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin text-primary" />
-              Semantic index — {semanticIndexProgress.phase}
+              Embedding index (MiniLM) — {semanticIndexProgress.phase}
               {semanticIndexProgress.total > 0 &&
                 ` (${semanticIndexProgress.done}/${semanticIndexProgress.total})`}
             </span>

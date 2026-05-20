@@ -2,7 +2,16 @@
  * Bound PDF / document text before it enters model prompts (prompt-injection hygiene).
  */
 
-const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+function stripControlChars(text: string): string {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code <= 0x1f && code !== 0x09 && code !== 0x0a && code !== 0x0d) continue;
+    if (code === 0x7f) continue;
+    out += text[i];
+  }
+  return out;
+}
 
 const INJECTION_PATTERNS: RegExp[] = [
   /ignore\s+(all\s+)?(previous|prior|above)\s+instructions/i,
@@ -32,7 +41,7 @@ export function detectDocumentInjectionWarnings(text: string): string[] {
 
 /** Strip control chars and wrap extracted PDF text in explicit document boundaries. */
 export function sanitizeDocumentTextForPrompt(text: string): DocumentSanitizeResult {
-  const cleaned = text.replace(CONTROL_CHARS, "");
+  const cleaned = stripControlChars(text);
   const warnings = detectDocumentInjectionWarnings(cleaned);
   const bounded =
     cleaned.length > 0

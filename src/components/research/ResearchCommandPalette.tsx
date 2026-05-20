@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/command";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
-import { useChat } from "@/context/ChatContext";
+import { useQueueResearchPrompt } from "@/hooks/useQueueResearchPrompt";
 import { abstractGenerationPrompt } from "@/lib/research/writingPrompts";
 import { buildCrossPaperSynthesis } from "@/lib/research/synthesis";
 import { useToast } from "@/components/ui/use-toast";
@@ -27,7 +27,7 @@ export function ResearchCommandPalette() {
     requestZoteroPanel,
   } = useResearchWorkspace();
   const { project, selectProject, projects, rebuildSemanticIndex } = useResearchProject();
-  const { queuePromptInComposer } = useChat();
+  const { queueResearchPrompt } = useQueueResearchPrompt();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -73,8 +73,13 @@ export function ResearchCommandPalette() {
             onSelect={() =>
               run(() => {
                 if (!project) return;
-                queuePromptInComposer(abstractGenerationPrompt(project.draftTex.slice(0, 8000), project.targetVenue));
-                toast({ title: "Abstract prompt queued", description: "Check the chat composer." });
+                void queueResearchPrompt(
+                  abstractGenerationPrompt(project.draftTex.slice(0, 8000), project.targetVenue),
+                  "drafting",
+                  project.draftTex
+                ).then(() =>
+                  toast({ title: "Abstract prompt queued", description: "Check the chat composer." })
+                );
               })
             }
           >
@@ -85,7 +90,7 @@ export function ResearchCommandPalette() {
             onSelect={() =>
               run(() => {
                 rebuildSemanticIndex();
-                toast({ title: "Building semantic index…" });
+                toast({ title: "Building embedding index (MiniLM)…" });
               })
             }
           >
@@ -138,7 +143,7 @@ export function ResearchCommandPalette() {
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="View">
-          <CommandItem onSelect={() => run(() => setActiveSidePanel("search"))}>Semantic search panel</CommandItem>
+          <CommandItem onSelect={() => run(() => setActiveSidePanel("search"))}>Library search panel</CommandItem>
           <CommandItem onSelect={() => run(() => setActiveSidePanel("revisions"))}>Revisions panel</CommandItem>
           <CommandItem onSelect={() => run(() => navigate("/labs"))}>Open library workspace</CommandItem>
         </CommandGroup>
