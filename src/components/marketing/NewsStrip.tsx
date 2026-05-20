@@ -1,5 +1,6 @@
 import { latestNews } from "@/config/marketingContent";
 import { githubReleasesLatestUrl } from "@/config/releaseDownloads";
+import { MarketingReveal } from "@/components/marketing/MarketingReveal";
 import { Link } from "react-router-dom";
 type NewsStripProps = {
   compact?: boolean;
@@ -12,7 +13,7 @@ export function NewsStrip({ compact = false }: NewsStripProps) {
     return (
       <section id="news" className="scroll-mt-24 border-t border-border/40 py-12 md:py-16">
         <div className="marketing-container">
-          <div className="mb-6 flex flex-wrap items-baseline justify-between gap-3">
+          <MarketingReveal className="mb-6 flex flex-wrap items-baseline justify-between gap-3">
             <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">Updates</h2>
             {releasesUrl && (
               <a
@@ -24,18 +25,18 @@ export function NewsStrip({ compact = false }: NewsStripProps) {
                 GitHub releases
               </a>
             )}
-          </div>
+          </MarketingReveal>
           <ul className="divide-y divide-border/50">
-            {latestNews.map((item) => (
-              <li key={item.title}>
+            {latestNews.map((item, i) => (
+              <MarketingReveal key={item.title} as="li" delay={i * 50}>
                 <Link
-                  to="/download"
+                  to={item.to ?? "/download"}
                   className="flex flex-col gap-1 py-4 transition-colors hover:text-primary sm:flex-row sm:items-center sm:justify-between sm:gap-6"
                 >
                   <span className="text-base font-medium text-foreground md:text-lg">{item.title}</span>
                   <span className="shrink-0 text-sm text-muted-foreground">{item.date}</span>
                 </Link>
-              </li>
+              </MarketingReveal>
             ))}
           </ul>
         </div>

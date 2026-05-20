@@ -3,6 +3,7 @@ import {
   BookOpen,
   CloudOff,
   Cpu,
+  FileText,
   GitCompare,
   HardDrive,
   Search,
@@ -14,6 +15,8 @@ export type NewsItem = {
   title: string;
   date: string;
   href?: string;
+  /** In-app route for the updates list */
+  to?: string;
 };
 
 export type ShowcaseBlock = {
@@ -87,7 +90,18 @@ export const heroPrinciples: HeroPrinciple[] = [
   },
 ];
 
+export const meridianAnnouncement = {
+  eyebrow: "New",
+  title: "Introducing Meridian 0.1 — our best LaTeX editing model",
+  href: "/notebook",
+} as const;
+
 export const latestNews: NewsItem[] = [
+  {
+    title: "Meridian 0.1 — LaTeX editing model for Notebook and Apply-to-source",
+    date: "May 2026",
+    to: "/notebook",
+  },
   { title: "Phase 1 desktop builds with bundled llama-server for offline GGUF", date: "May 2026" },
   { title: "Notebook: LaTeX source, live PDF preview, Apply reply from chat", date: "May 2026" },
   { title: "Model arena with TTFT and tokens/s in tiled comparison", date: "Apr 2026" },
@@ -95,6 +109,17 @@ export const latestNews: NewsItem[] = [
 ];
 
 export const showcaseBlocks: ShowcaseBlock[] = [
+  {
+    id: "meridian",
+    title: "Meridian 0.1 for LaTeX",
+    paragraphs: [
+      "Meridian 0.1 is our best LaTeX editing model — tuned for academic structure, \\cite{} hygiene, and edits you can apply straight into Notebook source.",
+      "Use it with live PDF preview: draft a section, compile, and iterate without leaving your machine.",
+    ],
+    primaryCta: { label: "Open Notebook", to: "/notebook" },
+    secondaryCta: { label: "Download desktop", to: "/download" },
+    icon: FileText,
+  },
   {
     id: "notebook",
     title: "Notebook & documents",
@@ -145,7 +170,7 @@ export const showcaseBlocks: ShowcaseBlock[] = [
 
 export const punchStats: PunchStat[] = [
   { headline: "Local-first", subline: "Keys, threads, and GGUF weights on your device" },
-  { headline: "LaTeX + PDF", subline: "Source, compile, and live preview in Notebook" },
+  { headline: "Meridian 0.1", subline: "Our best LaTeX editing model in Notebook" },
   { headline: "Benchmark", subline: "Tokens/s, latency, and quality side by side" },
   { headline: "3 platforms", subline: "Windows, macOS, and Linux installers" },
 ];

@@ -164,6 +164,14 @@
     overflow-x: clip;
   }
 
+  html:has(.marketing-page) {
+    scroll-behavior: smooth;
+  }
+
+  .marketing-page:has(.marketing-announcement) {
+    scroll-padding-top: 6.25rem;
+  }
+
   .marketing-page {
     background-image: none;
     scroll-padding-top: 5.5rem;
@@ -171,6 +179,12 @@
     max-width: 100%;
     font-family: "Plus Jakarta Sans", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html:has(.marketing-page) {
+      scroll-behavior: auto;
+    }
   }
 
   .marketing-page .font-display {
@@ -319,6 +333,77 @@
 
   .marketing-news-card {
     @apply transition-colors duration-200;
+  }
+
+  .marketing-header--scrolled {
+    @apply border-border/70 bg-background/95 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)];
+  }
+
+  .dark .marketing-header--scrolled {
+    @apply shadow-[0_8px_30px_-12px_rgba(0,0,0,0.45)];
+  }
+
+  .marketing-hero-enter {
+    animation: marketingFadeUp 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .marketing-hero-enter--1 {
+    animation-delay: 0.06s;
+  }
+
+  .marketing-hero-enter--2 {
+    animation-delay: 0.14s;
+  }
+
+  .marketing-hero-enter--3 {
+    animation-delay: 0.22s;
+  }
+
+  .marketing-hero-enter--4 {
+    animation-delay: 0.32s;
+  }
+
+  .marketing-reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition:
+      opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+
+  .marketing-reveal--visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @keyframes marketingFadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marketing-hero-enter,
+    .marketing-hero-enter--1,
+    .marketing-hero-enter--2,
+    .marketing-hero-enter--3,
+    .marketing-hero-enter--4 {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+
+    .marketing-reveal {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
   }
 
   @keyframes slideInFromBottom {
