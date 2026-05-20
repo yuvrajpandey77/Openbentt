@@ -21,6 +21,9 @@ export const EXPERIMENT_PRESETS_KEY = "openbentt-experiment-presets";
 const LEGACY_SIDEBAR = "cogerphere-sidebar-collapsed";
 export const SIDEBAR_COLLAPSED_KEY = "openbentt-sidebar-collapsed";
 
+/** Privacy toggles (local-only, analytics, cloud opt-in) — not secrets. */
+export const PRIVACY_PREFS_KEY = "openbentt-privacy-v1";
+
 function copyIfMissing(newKey: string, oldKey: string): void {
   try {
     if (localStorage.getItem(newKey) != null) return;

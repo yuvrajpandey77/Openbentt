@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MarketingShell } from "@/components/marketing/MarketingShell";
+import { MarketingReveal } from "@/components/marketing/MarketingReveal";
+import { MarketingSectionHeader } from "@/components/marketing/MarketingSectionHeader";
 import { useSuggestedDownload } from "@/components/marketing/useSuggestedDownload";
+import { desktopHighlights } from "@/config/marketingContent";
 import {
   releaseAssets,
   githubReleasesLatestUrl,
@@ -16,6 +19,7 @@ import {
   ArrowRight,
   BookOpen,
   Box,
+  Check,
   Download,
   ExternalLink,
   FileArchive,
@@ -24,7 +28,6 @@ import {
   Layers,
   Monitor,
   ScrollText,
-  Server,
 } from "lucide-react";
 
 type DownloadRow = {
@@ -124,128 +127,161 @@ const DownloadPage: React.FC = () => {
   const highlight = (family: ClientPlatform) => platform !== "unknown" && platform === family;
 
   return (
-    <MarketingShell>
-      <main className="mx-auto max-w-6xl px-4 pb-20 pt-12 md:px-6 md:pt-16">
-        <section className="max-w-3xl space-y-6">
-          <p className="font-mono text-xs text-muted-foreground">Release v{DESKTOP_ASSET_VERSION}</p>
-          <h1 className="font-display text-4xl font-bold tracking-tight md:text-5xl">Download Openbentt</h1>
-          <p className="text-lg leading-relaxed text-muted-foreground">
-            Production builds for Windows, Linux, and macOS. Verify checksums on GitHub if you need supply-chain
-            assurance. Unsigned installers may show OS security prompts. That is expected for open-source releases.
-          </p>
-
-          {suggested?.href && (
-            <div className="rounded-2xl border border-primary/30 bg-card p-6 md:p-8">
-              <p className="text-sm font-medium text-primary">Suggested for you</p>
-              <p className="mt-1 font-display text-2xl font-semibold">{suggested.label}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{suggested.hint}</p>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Button size="lg" className="h-12 rounded-lg gap-2 px-7" asChild>
-                  <a href={suggested.href} target="_blank" rel="noreferrer">
-                    <Download className="h-5 w-5" />
-                    Download now
-                  </a>
-                </Button>
-                {releasesUrl && (
-                  <Button size="lg" variant="outline" className="h-12 rounded-lg" asChild>
-                    <a href={releasesUrl} target="_blank" rel="noreferrer" className="gap-2">
-                      <Github className="h-4 w-4" />
-                      All release assets
-                    </a>
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-3 pt-2">
-            <Button variant="outline" className="rounded-lg" asChild>
-              <Link to="/chat" className="gap-2">
-                Use web app instead
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button variant="ghost" className="rounded-lg" asChild>
-              <Link to="/">← Home</Link>
-            </Button>
-          </div>
-        </section>
-
-        <section id="downloads" className="scroll-mt-24 pt-20">
-          <h2 className="font-display text-2xl font-bold tracking-tight md:text-3xl">All platforms</h2>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
-            Desktop builds bundle Electron with the same UI as this site. Intel Mac builds and other architectures may
-            appear on the GitHub release page only.
-          </p>
-
-          <div className="mt-10 grid gap-6 lg:grid-cols-3">
-            <PlatformBlock title="Windows" subtitle="10 / 11 · x64" highlighted={highlight("windows")} rows={windowsRows} />
-            <PlatformBlock title="Linux" subtitle="AppImage & deb · amd64" highlighted={highlight("linux")} rows={linuxRows} />
-            <PlatformBlock
-              title="macOS"
-              subtitle="Apple Silicon (arm64)"
-              highlighted={highlight("mac")}
-              rows={macRows}
-              note="Intel Mac builds are on GitHub releases if you need them."
-            />
-          </div>
-        </section>
-
-        <section id="web" className="scroll-mt-24 pt-20">
-          <div className="rounded-2xl border border-border/70 bg-muted/20 p-8 md:flex md:items-center md:justify-between md:gap-8">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-primary">
-                <Globe className="h-5 w-5" />
-                <h2 className="font-display text-xl font-semibold">Web & self-host</h2>
-              </div>
-              <p className="max-w-lg text-muted-foreground leading-relaxed">
-                Skip the installer and open the workspace in your browser, or deploy the static zip to nginx, S3, or
-                Docker.
+    <MarketingShell wide terminalBar>
+      <main>
+        <section className="marketing-section pb-12 md:pb-16">
+          <div className="marketing-container">
+            <MarketingReveal className="max-w-3xl">
+              <p className="marketing-eyebrow">Release v{DESKTOP_ASSET_VERSION}</p>
+              <h1 className="marketing-page-title mt-3">Download Openbentt</h1>
+              <p className="marketing-page-lead mt-5">
+                Production builds for Windows, Linux, and macOS. Verify checksums on GitHub if you need supply-chain
+                assurance. Unsigned installers may show OS security prompts. That is expected for open-source releases.
               </p>
-            </div>
-            <div className="mt-6 flex flex-col gap-2 md:mt-0 md:items-end">
-              <Button className="rounded-lg" asChild>
-                <Link to="/chat">Open web app</Link>
+            </MarketingReveal>
+
+            {suggested?.href && (
+              <MarketingReveal delay={80} className="mt-10 md:mt-12">
+                <div className="marketing-card marketing-card--highlight max-w-2xl p-6 md:p-8">
+                  <p className="text-sm font-semibold text-primary">Suggested for you</p>
+                  <p className="mt-2 font-display text-2xl font-semibold text-foreground md:text-3xl">{suggested.label}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{suggested.hint}</p>
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <Button size="lg" className="h-12 gap-2 rounded-xl px-7 font-semibold" asChild>
+                      <a href={suggested.href} target="_blank" rel="noreferrer">
+                        <Download className="h-5 w-5" />
+                        Download now
+                      </a>
+                    </Button>
+                    {releasesUrl && (
+                      <Button size="lg" variant="outline" className="h-12 rounded-xl" asChild>
+                        <a href={releasesUrl} target="_blank" rel="noreferrer" className="gap-2">
+                          <Github className="h-4 w-4" />
+                          All release assets
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </MarketingReveal>
+            )}
+
+            <MarketingReveal delay={120} className="mt-8 flex flex-wrap gap-3">
+              <Button variant="outline" className="h-11 rounded-xl" asChild>
+                <Link to="/chat" className="gap-2">
+                  Use web app instead
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
               </Button>
-              {webHref && (
-                <Button variant="outline" size="sm" className="rounded-lg" asChild>
-                  <a href={webHref} target="_blank" rel="noreferrer" className="gap-2">
-                    <FileArchive className="h-4 w-4" />
-                    Static bundle (v{DESKTOP_ASSET_VERSION})
-                  </a>
-                </Button>
-              )}
+              <Button variant="ghost" className="h-11 rounded-xl" asChild>
+                <Link to="/">Back to home</Link>
+              </Button>
+            </MarketingReveal>
+          </div>
+        </section>
+
+        <section className="marketing-section-band border-y border-border/40 py-12 md:py-16">
+          <div className="marketing-container">
+            <MarketingSectionHeader
+              align="left"
+              eyebrow="Desktop"
+              title="What ships in the installer"
+              lead="Same UI as this site, with offline GGUF, labs, and more headroom for long sessions."
+            />
+            <ul className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {desktopHighlights.map((line, i) => (
+                <MarketingReveal key={line} as="li" delay={i * 40}>
+                  <div className="marketing-card flex gap-3 px-4 py-3.5">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+                    <span className="text-sm leading-relaxed text-foreground md:text-base">{line}</span>
+                  </div>
+                </MarketingReveal>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section id="downloads" className="marketing-section scroll-mt-32">
+          <div className="marketing-container">
+            <MarketingSectionHeader
+              title="All platforms"
+              lead="Desktop builds bundle Electron with the same UI as this site. Intel Mac builds and other architectures may appear on the GitHub release page only."
+            />
+            <div className="mt-12 grid gap-6 lg:grid-cols-3 lg:gap-8">
+              <PlatformBlock title="Windows" subtitle="10 / 11 · x64" highlighted={highlight("windows")} rows={windowsRows} />
+              <PlatformBlock title="Linux" subtitle="AppImage & deb · amd64" highlighted={highlight("linux")} rows={linuxRows} />
+              <PlatformBlock
+                title="macOS"
+                subtitle="Apple Silicon (arm64)"
+                highlighted={highlight("mac")}
+                rows={macRows}
+                note="Intel Mac builds are on GitHub releases if you need them."
+              />
             </div>
           </div>
         </section>
 
-        <section id="docs" className="scroll-mt-24 pt-20">
-          <h2 className="font-display text-2xl font-bold tracking-tight">Documentation</h2>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            <DocLink
-              title="README"
-              description="Features, scripts, and environment variables."
-              href={githubBlobMain("README.md")}
-              icon={<BookOpen className="h-4 w-4" />}
-            />
-            <DocLink
-              title="Releasing"
-              description="How CI builds installers and publishes assets."
-              href={githubBlobMain("RELEASING.md")}
-              icon={<ScrollText className="h-4 w-4" />}
-            />
-            <DocLink
-              title="Production checklist"
-              description="Hardening before you ship to users."
-              href={githubBlobMain("PRODUCTION_CHECKLIST.md")}
-              icon={<Layers className="h-4 w-4" />}
-            />
-            <DocLink
-              title="Electron shell"
-              description="Desktop dev commands and window loading."
-              href={githubBlobMain("electron/README.md")}
-              icon={<Monitor className="h-4 w-4" />}
-            />
+        <section id="web" className="marketing-section scroll-mt-32 border-t border-border/40 pb-16 md:pb-20">
+          <div className="marketing-container">
+            <MarketingReveal>
+              <div className="marketing-card flex flex-col gap-6 p-8 md:flex-row md:items-center md:justify-between md:gap-10 md:p-10">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-primary">
+                    <Globe className="h-5 w-5" />
+                    <h2 className="font-display text-xl font-semibold text-foreground md:text-2xl">Web & self-host</h2>
+                  </div>
+                  <p className="max-w-lg text-base leading-relaxed text-muted-foreground md:text-lg">
+                    Skip the installer and open the workspace in your browser, or deploy the static zip to nginx, S3, or
+                    Docker.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row md:flex-col md:items-stretch lg:items-end">
+                  <Button size="lg" className="h-12 rounded-xl font-semibold" asChild>
+                    <Link to="/chat">Open web app</Link>
+                  </Button>
+                  {webHref && (
+                    <Button size="lg" variant="outline" className="h-12 rounded-xl gap-2" asChild>
+                      <a href={webHref} target="_blank" rel="noreferrer">
+                        <FileArchive className="h-4 w-4" />
+                        Static bundle (v{DESKTOP_ASSET_VERSION})
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </MarketingReveal>
+          </div>
+        </section>
+
+        <section id="docs" className="marketing-section scroll-mt-32 border-t border-border/40 marketing-section--cta">
+          <div className="marketing-container">
+            <MarketingSectionHeader title="Documentation" lead="Build, release, and hardening guides on GitHub." />
+            <div className="mt-10 grid gap-4 sm:grid-cols-2">
+              <DocLink
+                title="README"
+                description="Features, scripts, and environment variables."
+                href={githubBlobMain("README.md")}
+                icon={<BookOpen className="h-4 w-4" />}
+              />
+              <DocLink
+                title="Releasing"
+                description="How CI builds installers and publishes assets."
+                href={githubBlobMain("RELEASING.md")}
+                icon={<ScrollText className="h-4 w-4" />}
+              />
+              <DocLink
+                title="Production checklist"
+                description="Hardening before you ship to users."
+                href={githubBlobMain("PRODUCTION_CHECKLIST.md")}
+                icon={<Layers className="h-4 w-4" />}
+              />
+              <DocLink
+                title="Electron shell"
+                description="Desktop dev commands and window loading."
+                href={githubBlobMain("electron/README.md")}
+                icon={<Monitor className="h-4 w-4" />}
+              />
+            </div>
           </div>
         </section>
       </main>
@@ -269,13 +305,13 @@ function PlatformBlock({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border/70 bg-card p-5",
-        highlighted && "border-primary/40 ring-1 ring-primary/20"
+        "marketing-download-platform",
+        highlighted && "marketing-download-platform--active"
       )}
     >
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="font-display text-lg font-semibold">{title}</h3>
+          <h3 className="font-display text-lg font-semibold text-foreground">{title}</h3>
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
         {highlighted && (
@@ -286,13 +322,10 @@ function PlatformBlock({
         {rows.map((row) => (
           <li
             key={row.id}
-            className={cn(
-              "flex items-center justify-between gap-3 rounded-xl border border-border/60 px-3 py-2.5",
-              row.primary && "border-primary/25 bg-primary/[0.04]"
-            )}
+            className={cn("marketing-download-row", row.primary && "marketing-download-row--primary")}
           >
             <div className="min-w-0">
-              <p className="flex items-center gap-2 text-sm font-medium">
+              <p className="flex items-center gap-2 text-sm font-medium text-foreground">
                 <span className="text-muted-foreground">{row.icon}</span>
                 {row.label}
               </p>
@@ -332,7 +365,7 @@ function DocLink({
     <>
       <div className="flex items-center gap-2">
         <span className="text-primary">{icon}</span>
-        <span className="font-medium">{title}</span>
+        <span className="font-medium text-foreground">{title}</span>
         <ExternalLink className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
       </div>
       <p className="mt-2 text-sm text-muted-foreground">{description}</p>
@@ -340,16 +373,11 @@ function DocLink({
   );
 
   if (!href) {
-    return <div className="rounded-xl border border-dashed border-border/80 p-4 opacity-70">{content}</div>;
+    return <div className="marketing-doc-link border-dashed opacity-70">{content}</div>;
   }
 
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="block rounded-xl border border-border/70 bg-card p-4 transition-colors hover:border-primary/30 hover:bg-card/95"
-    >
+    <a href={href} target="_blank" rel="noreferrer" className="marketing-doc-link">
       {content}
     </a>
   );

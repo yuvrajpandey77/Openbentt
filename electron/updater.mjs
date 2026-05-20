@@ -1,8 +1,11 @@
 /**
  * GitHub Releases auto-update (packaged desktop builds only).
  */
+import { createRequire } from "node:module";
 import { app, ipcMain, BrowserWindow } from "electron";
-import { autoUpdater } from "electron-updater";
+
+const require = createRequire(import.meta.url);
+const { autoUpdater } = require("electron-updater");
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;

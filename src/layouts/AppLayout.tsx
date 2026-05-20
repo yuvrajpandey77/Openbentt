@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { X, PanelRightOpen } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import ChatInput from "@/components/ChatInput";
-import { Analytics } from "@vercel/analytics/react";
+import { PrivacyAnalytics } from "@/components/PrivacyAnalytics";
 import { useChat } from "@/context/ChatContext";
 import { canSendChat } from "@/types/chat";
 import { cn } from "@/lib/utils";
@@ -102,7 +102,7 @@ const AppLayout: React.FC = () => {
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
       />
-      <Analytics />
+      <PrivacyAnalytics />
 
       {isMobileSidebarOpen && (
         <>

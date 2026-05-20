@@ -63,7 +63,7 @@ React SPA (Vite) ──HTTPS──► OpenRouter / cloud APIs
 | **Unsigned macOS/Windows builds** | OS security warnings | User: right-click → Open; or add signing certs in CI later |
 | **macOS Intel** | CI bundles **arm64** llama-server only | Intel Mac: install llama.cpp to PATH or set binary in Settings |
 | **No E2E/Playwright** | Regressions in UI flow not caught in CI | Follow manual checklist |
-| **Agent workflow** | Stub only, unused | N/A |
+| **Research orchestrator** | Hybrid retrieval in notebook AI prompts | Full multi-step agent loop not shipped |
 | **Cloud sync** | localStorage only | Export .md / share URL |
 
 ---

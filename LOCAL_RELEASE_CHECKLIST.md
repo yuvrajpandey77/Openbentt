@@ -7,9 +7,13 @@ Use this **on your machine** before `git push origin vX.Y.Z`. Check boxes as you
 ```bash
 cd /path/to/SecuredChatCogerphere
 npm ci
-npm run lint
-npm run test          # Vitest + electron llama binary smoke
-npm run build
+npm run verify:release   # lint + test + build + e2e (same as CI release gate)
+```
+
+Optional Linux pack smoke (~5–15 min):
+
+```bash
+npm run verify:release:pack
 ```
 
 All must pass with no errors.
@@ -45,7 +49,11 @@ npm run dev
 | # | Test | Pass? |
 |---|------|-------|
 | B1 | Sidebar → **Notebook** opens; upload or edit LaTeX | ☐ |
-| B2 | Sidebar → **Research labs** — BibTeX / graph section loads | ☐ |
+| B2 | Sidebar → **Research labs** — Papers, Bibliography (citation graph), Synthesis | ☐ |
+| B2a | **Notebook → Citations** — Build graph from bib → Import S2 papers (network) | ☐ |
+| B2b | **Notebook → Similarity** — add PDF in Library; semantic index auto-rebuilds; Cancel works | ☐ |
+| B2c | **Notebook → Review** — Import PDF annotations after uploading annotated PDF | ☐ |
+| B2d | **Notebook → Write** — AI caption → Apply caption patches `\\caption{}` | ☐ |
 | B3 | Sidebar → **LaTeX write** (`/write`) opens | ☐ |
 | B4 | Sidebar → **Benchmark** — run once with API key | ☐ |
 | B5 | Sidebar → **WebGPU lab** — probe runs (GPU or CPU fallback message) | ☐ |
@@ -110,6 +118,7 @@ npm run electron:build
 | F3 | No `.env` or API keys committed | ☐ |
 | F4 | `git status` clean (or only intentional release commits) | ☐ |
 | F5 | Read [RELEASING.md](./RELEASING.md) — push tag triggers CI | ☐ |
+| F6 | `npm run verify:release` passed (lint, test, build, e2e) | ☐ |
 
 **Tag and push:**
 

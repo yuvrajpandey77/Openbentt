@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import type { ShowcaseBlock } from "@/config/marketingContent";
-import { MarketingVisual } from "@/components/marketing/MarketingVisual";
+import { FeatureShowcaseVisual } from "@/components/marketing/FeatureShowcaseVisual";
 import type { MarketingImageSlot } from "@/config/marketingImages";
 import { cn } from "@/lib/utils";
 
@@ -11,10 +11,11 @@ type FeatureShowcaseBlockProps = {
   visual?: React.ReactNode;
   plain?: boolean;
   large?: boolean;
+  index?: number;
 };
 
-export function FeatureShowcaseBlock({ block, imageSlot, visual, plain, large }: FeatureShowcaseBlockProps) {
-  const paragraphs = large ? block.paragraphs.slice(0, 1) : block.paragraphs;
+export function FeatureShowcaseBlock({ block, imageSlot, visual, plain, large, index }: FeatureShowcaseBlockProps) {
+  const paragraphs = block.paragraphs;
 
   return (
     <article
@@ -26,6 +27,11 @@ export function FeatureShowcaseBlock({ block, imageSlot, visual, plain, large }:
       )}
     >
       <div className={cn("space-y-6", large && "lg:pr-6")}>
+        {index != null && (
+          <span className="marketing-feature-index" aria-hidden>
+            {String(index + 1).padStart(2, "0")}
+          </span>
+        )}
         <h2
           className={cn(
             "font-display font-semibold tracking-tight text-foreground",
@@ -63,7 +69,9 @@ export function FeatureShowcaseBlock({ block, imageSlot, visual, plain, large }:
       </div>
 
       <div className="relative">
-        {visual ?? (imageSlot ? <MarketingVisual slot={imageSlot} plain={plain} large={large} priority={block.id === "meridian"} /> : null)}
+        <div className="marketing-showcase-frame">
+          {visual ?? <FeatureShowcaseVisual variant={block.id} />}
+        </div>
       </div>
     </article>
   );

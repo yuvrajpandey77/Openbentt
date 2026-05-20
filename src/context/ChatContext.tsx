@@ -18,6 +18,8 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { buildChatCompletionMessages, isStreamHttpError, StreamHttpError } from "@/lib/openrouter";
 import { streamChatForConfig } from "@/lib/aiStream";
+import { streamRoutedTask } from "@/lib/modelRouting";
+import { detectNotebookRoutedTask } from "@/lib/modelRouting/detectNotebookRoutedTask";
 import { abortLocalGemmaGeneration } from "@/lib/gemmaWebGpu/streamLocalGemma";
 import { createRafBatcher } from "@/lib/streamBatch";
 import { gatherResearchContext } from "@/lib/researchSources";
@@ -30,6 +32,14 @@ import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
 import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
 import { coerceApiConfigForPlatform } from "@/config/platformSurface";
 import { isDesktopApp } from "@/lib/isDesktopApp";
+import { assertChatProviderAllowed, isResearchNetworkAllowed } from "@/lib/offline/mode";
+import { isNavigatorOnline } from "@/lib/offline/connectivity";
+import {
+  apiConfigForBrowserStorage,
+  loadDesktopSecretsIntoConfig,
+  migrateLegacySecretsFromConfig,
+  persistDesktopSecretsFromConfig,
+} from "@/lib/privacy/desktopSecrets";
 
 interface ChatContextProps {
   chats: Chat[];
@@ -99,14 +109,6 @@ interface PipelineExtras {
   systemPrompts: string[];
   researchSources?: ResearchSourceRef[];
   agentTrace?: AgentTraceStep[];
-}
-
-/** Hugging Face token is stored in the main process on desktop; never persist plaintext in localStorage. */
-function apiConfigForBrowserStorage(cfg: ApiKeyConfig): ApiKeyConfig {
-  if (isDesktopApp()) {
-    return { ...cfg, huggingFaceToken: "" };
-  }
-  return cfg;
 }
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -193,11 +195,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const parsed = JSON.parse(savedApiConfig) as Partial<ApiKeyConfig>;
           let normalized = coerceApiConfigForPlatform(normalizeApiConfig(parsed));
-          const api = getLocalGgufApi();
-          const plain = normalized.huggingFaceToken.trim();
-          if (isDesktopApp() && plain && api?.hfSecretSet) {
-            await api.hfSecretSet(plain);
-            normalized = normalizeApiConfig({ ...parsed, huggingFaceToken: "" });
+          const { config: afterVault, migrated: vaultMigrated } =
+            await migrateLegacySecretsFromConfig(parsed);
+          if (vaultMigrated) {
+            normalized = coerceApiConfigForPlatform(normalizeApiConfig(afterVault));
             try {
               localStorage.setItem(
                 LOCAL_STORAGE_KEYS.API_CONFIG,
@@ -207,6 +208,21 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
               /* quota */
             }
           }
+          const api = getLocalGgufApi();
+          const plain = normalized.huggingFaceToken.trim();
+          if (isDesktopApp() && plain && api?.hfSecretSet) {
+            await api.hfSecretSet(plain);
+            normalized = normalizeApiConfig({ ...afterVault, huggingFaceToken: "" });
+            try {
+              localStorage.setItem(
+                LOCAL_STORAGE_KEYS.API_CONFIG,
+                JSON.stringify(apiConfigForBrowserStorage(normalized))
+              );
+            } catch {
+              /* quota */
+            }
+          }
+          normalized = await loadDesktopSecretsIntoConfig(normalized);
           if (!cancelled) setApiConfigState(normalized);
         } catch (error) {
           console.error("Failed to parse saved API config:", error);
@@ -235,6 +251,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!isLoadingConfig) {
+      void persistDesktopSecretsFromConfig(apiConfig);
       localStorage.setItem(
         LOCAL_STORAGE_KEYS.API_CONFIG,
         JSON.stringify(apiConfigForBrowserStorage(apiConfig))
@@ -342,6 +359,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const ws = pipelineOpts?.workspaceAssistBlock;
     const researchOn =
       cfg.researchEnabled &&
+      isResearchNetworkAllowed(cfg, !isNavigatorOnline()) &&
       ((cfg.aiProvider !== "webgpu_gemma" && cfg.aiProvider !== "local_gguf") || cfg.researchWithLocalModel);
     if (!researchOn) {
       return {
@@ -516,23 +534,33 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       try {
-        const { text, metrics, rateLimitHeaders } =
-          cfg.aiProvider === "local_gguf"
+        const notebookRoutedTask = detectNotebookRoutedTask(chatMessages);
+        const streamCallbacks = {
+          onDelta: (delta: string) => batcher.push(delta),
+          onUsage: (u: { prompt_tokens?: number }) => {
+            if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
+          },
+        };
+
+        const { text, metrics, rateLimitHeaders } = notebookRoutedTask
+          ? await streamRoutedTask(
+              notebookRoutedTask,
+              cfg,
+              apiMessages,
+              controller.signal,
+              streamCallbacks,
+              { navigatorOffline: !isNavigatorOnline() }
+            )
+          : cfg.aiProvider === "local_gguf"
             ? await import("@/lib/localGguf/streamLocalGguf").then(({ streamLocalGgufChat }) =>
                 streamLocalGgufChat(cfg, cfg.model, apiMessages, controller.signal, {
-                  onDelta: (delta) => batcher.push(delta),
-                  onUsage: (u) => {
-                    if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
-                  },
+                  ...streamCallbacks,
                 })
               )
             : cfg.aiProvider === "webgpu_gemma"
               ? await import("@/lib/gemmaWebGpu/streamLocalGemma").then(({ streamLocalGemmaChat }) =>
                 streamLocalGemmaChat(cfg, apiMessages, controller.signal, {
-                  onDelta: (delta) => batcher.push(delta),
-                  onUsage: (u) => {
-                    if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
-                  },
+                  ...streamCallbacks,
                   onModelDownloadProgress: (pct) => {
                     setWebgpuModelDownloadProgress(pct);
                   },
@@ -578,12 +606,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   },
                 })
               )
-              : await streamChatForConfig(cfg, cfg.model, apiMessages, controller.signal, {
-                  onDelta: (delta) => batcher.push(delta),
-                  onUsage: (u) => {
-                    if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
-                  },
-                });
+              : await streamChatForConfig(cfg, cfg.model, apiMessages, controller.signal, streamCallbacks);
         batcher.flushPending();
         setProviderQuotaSnapshot({
           provider: cfg.aiProvider,
@@ -887,6 +910,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         title: "On-device model not enabled",
         description:
           "Choose which model to cache and confirm the download in the on-device bar above the composer (or use the download button).",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      assertChatProviderAllowed(apiConfig, !isNavigatorOnline());
+    } catch (e) {
+      toast({
+        title: "Offline-first mode",
+        description: e instanceof Error ? e.message : String(e),
         variant: "destructive",
       });
       return;

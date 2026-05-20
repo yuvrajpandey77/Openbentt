@@ -3,9 +3,10 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/ThemeContext";
 import { githubReleasesLatestUrl, GITHUB_REPO } from "@/config/releaseDownloads";
-import { footerColumns } from "@/config/marketingContent";
+import { cogerphereWebsite, footerColumns } from "@/config/marketingContent";
 import { marketingNav } from "@/components/marketing/marketingNav";
 import { cn } from "@/lib/utils";
+import { MarketingHeroBackdrop } from "@/components/marketing/MarketingHeroBackdrop";
 import { MarketingTerminalBar } from "@/components/marketing/MarketingTerminalBar";
 import { MeridianAnnouncementBanner } from "@/components/marketing/MeridianAnnouncementBanner";
 import { Github, Moon, Sun } from "lucide-react";
@@ -55,13 +56,25 @@ export function MarketingShell({
   };
 
   return (
-    <div className="marketing-page relative min-h-screen bg-background text-foreground">
+    <div
+      className={cn(
+        "marketing-page relative min-h-screen text-foreground",
+        onHome ? "marketing-page--home" : "bg-background"
+      )}
+    >
       <div className="marketing-glow pointer-events-none absolute inset-x-0 top-0 -z-10 h-[min(55vh,480px)]" aria-hidden />
+
+      {onHome && <MarketingHeroBackdrop />}
 
       <header
         className={cn(
-          "marketing-header sticky top-0 z-50 border-b border-border/50 bg-background/90 backdrop-blur-md transition-shadow duration-300",
-          scrolled && "marketing-header--scrolled"
+          "marketing-header sticky top-0 z-50 border-b transition-[background-color,box-shadow,border-color] duration-300",
+          onHome
+            ? cn(
+                "marketing-header--over-hero border-transparent",
+                scrolled && "marketing-header--scrolled"
+              )
+            : cn("border-border/50 bg-background/90 backdrop-blur-md", scrolled && "marketing-header--scrolled")
         )}
       >
         <div
@@ -128,7 +141,7 @@ export function MarketingShell({
         </div>
       </header>
 
-      {onHome && <MeridianAnnouncementBanner />}
+      {onHome && <MeridianAnnouncementBanner overHero scrolled={scrolled} />}
 
       {children}
 
@@ -136,14 +149,23 @@ export function MarketingShell({
 
       <footer className={cn("border-t border-border/50 bg-muted/15", terminalBar ? "mt-0" : "mt-8")}>
         <div className={cn("mx-auto px-4 py-14 md:px-8", wide ? "max-w-[1400px]" : "max-w-6xl")}>
-          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-3">
               <Link to="/" className="inline-flex items-center gap-2.5">
                 <img src="/openbentt-logo.svg" alt="" width={36} height={36} className="h-9 w-9 rounded-lg" />
                 <span className="font-display text-lg font-semibold">Openbentt</span>
               </Link>
               <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-                Local-first AI workspace for LaTeX, PDFs, benchmarking, and fine-tuned models. By Cogerphere.
+                Desktop-first AI workspace for LaTeX, PDFs, benchmarking, and local GGUF. Optional web chat. By{" "}
+                <a
+                  href={cogerphereWebsite}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-foreground/80 underline-offset-4 hover:text-foreground hover:underline"
+                >
+                  Cogerphere
+                </a>
+                .
               </p>
             </div>
             {footerColumns.map((col) => (

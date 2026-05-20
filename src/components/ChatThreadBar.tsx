@@ -4,7 +4,10 @@ import { Button } from "@/components/ui/button";
 import { useChat } from "@/context/ChatContext";
 import { buildChatMarkdownExport, downloadTextFile } from "@/lib/chatExportMarkdown";
 import { useToast } from "@/components/ui/use-toast";
-import { Download, Search } from "lucide-react";
+import { Download, FileText, Search } from "lucide-react";
+import { useResearchProject } from "@/context/ResearchProjectContext";
+import { threadToLatexDraft } from "@/lib/research/threadToPaper";
+import { useNavigate } from "react-router-dom";
 import { KeyboardShortcutsSheet } from "@/components/KeyboardShortcutsSheet";
 
 interface ChatThreadBarProps {
@@ -15,6 +18,8 @@ interface ChatThreadBarProps {
 export const ChatThreadBar: React.FC<ChatThreadBarProps> = ({ searchQuery, onSearchQueryChange }) => {
   const { chats, currentChatId } = useChat();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { project, setDraftTex, linkThread } = useResearchProject();
   const chat = useMemo(() => chats.find((c) => c.id === currentChatId), [chats, currentChatId]);
 
   const exportMd = () => {
@@ -53,6 +58,26 @@ export const ChatThreadBar: React.FC<ChatThreadBarProps> = ({ searchQuery, onSea
         >
           <Download className="h-3.5 w-3.5" />
           Export .md
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 text-xs"
+          disabled={!chat?.messages.length}
+          onClick={() => {
+            if (!chat) return;
+            const preamble = project?.draftTex.includes("\\documentclass")
+              ? project.draftTex.split("\\begin{document}")[0]
+              : undefined;
+            void setDraftTex(threadToLatexDraft(chat, preamble));
+            void linkThread(chat.id);
+            navigate("/notebook");
+            toast({ title: "Thread exported", description: "Open Notebook → Write to edit the draft." });
+          }}
+        >
+          <FileText className="h-3.5 w-3.5" />
+          To Notebook
         </Button>
         <KeyboardShortcutsSheet />
       </div>

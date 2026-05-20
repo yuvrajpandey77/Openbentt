@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Moon, Sun, Plus, Trash2, Sparkles, Cpu, Search, FlaskConical } from "lucide-react";
+import { Moon, Sun, Plus, Trash2, Sparkles, Cpu, Search, FlaskConical, Shield } from "lucide-react";
 import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRouterModels";
 import { useLocalGgufRegistryModels } from "@/hooks/useLocalGgufRegistryModels";
 import { shortModelLabel } from "@/lib/openrouter";
@@ -49,7 +49,15 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
 import DesktopUpdateCard from "@/components/DesktopUpdateCard";
+import { LocalModelManagerPanel } from "@/components/LocalModelManagerPanel";
 import { isWebClient } from "@/config/platformSurface";
+import { isDesktopApp } from "@/lib/isDesktopApp";
+import {
+  loadPrivacyPreferences,
+  savePrivacyPreferences,
+  type PrivacyPreferences,
+} from "@/lib/privacy/privacyPreferences";
+import { getSecretsApi } from "@/lib/privacy/desktopSecrets";
 
 const MAX_COMPARE = 4;
 
@@ -88,6 +96,7 @@ const SettingsPanel: React.FC = () => {
   const [localHuggingFaceToken, setLocalHuggingFaceToken] = useState(apiConfig.huggingFaceToken);
   const [presetName, setPresetName] = useState("");
   const [presets, setPresets] = useState<ExperimentPreset[]>(() => listExperimentPresets());
+  const [privacy, setPrivacy] = useState<PrivacyPreferences>(() => loadPrivacyPreferences());
 
   const { data: models, isLoading: modelsLoading } = useOpenRouterModels(
     localApiKey,
@@ -179,7 +188,18 @@ const SettingsPanel: React.FC = () => {
     });
   };
 
+  const handleSavePrivacy = () => {
+    savePrivacyPreferences(privacy);
+    toast({
+      title: "Privacy settings saved",
+      description: privacy.localOnlyMode
+        ? "Local-only mode is on — cloud APIs and network research are blocked."
+        : "Privacy preferences updated.",
+    });
+  };
+
   const handleSave = async () => {
+    savePrivacyPreferences(privacy);
     const primaryModel =
       localModel.trim() ||
       (localAiProvider === "local_gguf"
@@ -327,12 +347,16 @@ const SettingsPanel: React.FC = () => {
     <Tabs defaultValue="ai" className="w-full">
       <TabsList
         className={`grid h-auto w-full gap-1 rounded-xl bg-muted/50 p-1 ${
-          webClient ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
+          webClient ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-5"
         }`}
       >
         <TabsTrigger value="general" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
           <Sparkles className="h-3.5 w-3.5 opacity-80" aria-hidden />
           General
+        </TabsTrigger>
+        <TabsTrigger value="privacy" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
+          <Shield className="h-3.5 w-3.5 opacity-80" aria-hidden />
+          Privacy
         </TabsTrigger>
         <TabsTrigger value="ai" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
           <Cpu className="h-3.5 w-3.5 opacity-80" aria-hidden />
@@ -349,6 +373,101 @@ const SettingsPanel: React.FC = () => {
           </TabsTrigger>
         )}
       </TabsList>
+
+      <TabsContent value="privacy" className="mt-4 space-y-4 outline-none">
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg">Privacy & data</CardTitle>
+            <CardDescription>
+              Control what leaves this device. Secrets on desktop are stored under{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-[10px]">userData/.secrets/</code> with OS encryption when
+              available.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-teal-500/30 bg-teal-500/[0.06] px-4 py-3">
+              <div>
+                <Label className="text-sm font-medium">Local-only mode</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Blocks cloud model APIs, network research, share links, and optional analytics. On-device models (WebGPU /
+                  GGUF) and loopback OpenAI-compatible URLs still work.
+                </p>
+              </div>
+              <Switch
+                checked={privacy.localOnlyMode}
+                onCheckedChange={(v) =>
+                  setPrivacy((p) => ({
+                    ...p,
+                    localOnlyMode: v,
+                    allowShareLinks: v ? false : p.allowShareLinks,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
+              <div>
+                <Label className="text-sm font-medium">Cloud inference (opt-in)</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Allow OpenRouter, vendor APIs, and remote compatible bases. When off, only local inference and{" "}
+                  <code className="text-[10px]">127.0.0.1</code> / localhost compatible URLs are permitted.
+                </p>
+              </div>
+              <Switch
+                checked={privacy.cloudInferenceOptIn}
+                disabled={privacy.localOnlyMode}
+                onCheckedChange={(v) => setPrivacy((p) => ({ ...p, cloudInferenceOptIn: v }))}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
+              <div>
+                <Label className="text-sm font-medium">Usage analytics (Vercel)</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Off by default. When enabled, anonymous page views may be sent to Vercel Analytics — no chat content.
+                </p>
+              </div>
+              <Switch
+                checked={privacy.analyticsEnabled}
+                onCheckedChange={(v) => setPrivacy((p) => ({ ...p, analyticsEnabled: v }))}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
+              <div>
+                <Label className="text-sm font-medium">Share run links</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Copy URLs with a compressed chat snapshot in the hash. PDF text is redacted from shared payloads.
+                </p>
+              </div>
+              <Switch
+                checked={privacy.allowShareLinks}
+                disabled={privacy.localOnlyMode}
+                onCheckedChange={(v) => setPrivacy((p) => ({ ...p, allowShareLinks: v }))}
+              />
+            </div>
+
+            {isDesktopApp() && (
+              <Alert>
+                <AlertTitle className="text-sm">Secure storage path</AlertTitle>
+                <AlertDescription className="text-[11px] leading-relaxed text-muted-foreground">
+                  API keys and Brave keys:{" "}
+                  <code className="text-[10px]">~/.config/Openbentt/.secrets/</code> (Linux) or equivalent{" "}
+                  <code className="text-[10px]">userData/.secrets/</code> — via Electron{" "}
+                  <code className="text-[10px]">safeStorage</code>. Hugging Face:{" "}
+                  <code className="text-[10px]">hf_token.blob</code>. Research SQLite:{" "}
+                  <code className="text-[10px]">userData/research-projects/research.db</code> (local plaintext; use disk
+                  encryption).
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <Button type="button" onClick={handleSavePrivacy} className="w-full sm:w-auto">
+              Save privacy settings
+            </Button>
+          </CardContent>
+        </Card>
+      </TabsContent>
 
       <TabsContent value="general" className="mt-4 space-y-4 outline-none">
         <Card className="border-border/70 shadow-sm">
@@ -766,6 +885,13 @@ const SettingsPanel: React.FC = () => {
                   })}
                 </div>
               </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
+        {!webClient && (
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="pt-6">
+              <LocalModelManagerPanel />
             </CardContent>
           </Card>
         )}

@@ -34,3 +34,82 @@ contextBridge.exposeInMainWorld("openbenttLocalGguf", {
     return () => ipcRenderer.removeListener("localGguf:downloadProgress", handler);
   },
 });
+
+contextBridge.exposeInMainWorld("openbenttSecrets", {
+  status: () => ipcRenderer.invoke("secretVault:status"),
+  load: () => ipcRenderer.invoke("secretVault:load"),
+  set: (key, value) => ipcRenderer.invoke("secretVault:set", key, value),
+  clear: (key) => ipcRenderer.invoke("secretVault:clear", key),
+});
+
+contextBridge.exposeInMainWorld("openbenttZotero", {
+  detectLocal: () => ipcRenderer.invoke("zotero:detectLocal"),
+  status: () => ipcRenderer.invoke("zotero:status"),
+  setCredentials: (userId, apiKey) => ipcRenderer.invoke("zotero:setCredentials", userId, apiKey),
+  clearCredentials: () => ipcRenderer.invoke("zotero:clearCredentials"),
+  setBbtExportPath: (exportPath) => ipcRenderer.invoke("zotero:setBbtExportPath", exportPath),
+  sync: (opts) => ipcRenderer.invoke("zotero:sync", opts),
+  getLibrarySnapshot: () => ipcRenderer.invoke("zotero:getLibrarySnapshot"),
+  watchBetterBibTeX: (exportPath) => ipcRenderer.invoke("zotero:watchBetterBibTeX", exportPath),
+  stopWatch: () => ipcRenderer.invoke("zotero:stopWatch"),
+  secretStatus: () => ipcRenderer.invoke("zoteroSecret:status"),
+  secretSet: (apiKey) => ipcRenderer.invoke("zoteroSecret:set", apiKey),
+  secretClear: () => ipcRenderer.invoke("zoteroSecret:clear"),
+  onSyncProgress: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on("zotero:syncProgress", handler);
+    return () => ipcRenderer.removeListener("zotero:syncProgress", handler);
+  },
+  onLibraryChanged: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on("zotero:libraryChanged", handler);
+    return () => ipcRenderer.removeListener("zotero:libraryChanged", handler);
+  },
+});
+
+contextBridge.exposeInMainWorld("openbenttResearch", {
+  init: () => ipcRenderer.invoke("research:init"),
+  listProjects: () => ipcRenderer.invoke("research:listProjects"),
+  getActiveProjectId: () => ipcRenderer.invoke("research:getActiveProjectId"),
+  setActiveProjectId: (id) => ipcRenderer.invoke("research:setActiveProjectId", id),
+  loadProject: (id) => ipcRenderer.invoke("research:loadProject", id),
+  saveProject: (data) => ipcRenderer.invoke("research:saveProject", data),
+  patchDraft: (projectId, content) => ipcRenderer.invoke("research:patchDraft", projectId, content),
+  patchBibliography: (projectId, content) =>
+    ipcRenderer.invoke("research:patchBibliography", projectId, content),
+  deleteProject: (id) => ipcRenderer.invoke("research:deleteProject", id),
+  storePaperPdf: (projectId, paperId, base64) =>
+    ipcRenderer.invoke("research:storePaperPdf", projectId, paperId, base64),
+  loadEmbeddings: (projectId, chunkIds) =>
+    ipcRenderer.invoke("research:loadEmbeddings", projectId, chunkIds),
+  upsertEmbeddings: (projectId, batch) =>
+    ipcRenderer.invoke("research:upsertEmbeddings", projectId, batch),
+  embeddingStats: (projectId) => ipcRenderer.invoke("research:embeddingStats", projectId),
+  clearEmbeddings: (projectId) => ipcRenderer.invoke("research:clearEmbeddings", projectId),
+  deleteEmbeddingsForChunks: (projectId, chunkIds) =>
+    ipcRenderer.invoke("research:deleteEmbeddingsForChunks", projectId, chunkIds),
+  enqueueJob: (projectId, type, payload) =>
+    ipcRenderer.invoke("research:enqueueJob", projectId, type, payload),
+  cancelJob: (projectId, jobId) => ipcRenderer.invoke("research:cancelJob", projectId, jobId),
+  cancelAllJobs: (projectId) => ipcRenderer.invoke("research:cancelAllJobs", projectId),
+  listJobs: (projectId) => ipcRenderer.invoke("research:listJobs", projectId),
+  createSnapshot: (projectId, reason) =>
+    ipcRenderer.invoke("research:createSnapshot", projectId, reason),
+  listSnapshots: (projectId) => ipcRenderer.invoke("research:listSnapshots", projectId),
+  restoreSnapshot: (snapshotId) => ipcRenderer.invoke("research:restoreSnapshot", snapshotId),
+  exportFinetuneCorpus: (projectId) => ipcRenderer.invoke("research:exportFinetuneCorpus", projectId),
+  pushDraftHistory: (projectId, content, label) =>
+    ipcRenderer.invoke("research:pushDraftHistory", projectId, content, label),
+  listDraftHistory: (projectId) => ipcRenderer.invoke("research:listDraftHistory", projectId),
+  restoreDraftHistory: (entryId) => ipcRenderer.invoke("research:restoreDraftHistory", entryId),
+  onJobProgress: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on("research:jobProgress", handler);
+    return () => ipcRenderer.removeListener("research:jobProgress", handler);
+  },
+  onBeforeQuit: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on("research:beforeQuit", handler);
+    return () => ipcRenderer.removeListener("research:beforeQuit", handler);
+  },
+});

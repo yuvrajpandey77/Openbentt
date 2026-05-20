@@ -5,16 +5,15 @@ import { HeroHeadline } from "@/components/marketing/HeroHeadline";
 export function MarketingHero() {
   return (
     <div className="marketing-hero-stage" aria-labelledby="marketing-hero-title">
-      <div className="marketing-hero-blobs" aria-hidden />
-
       <div className="marketing-hero-inner relative z-10">
         <div className="marketing-hero-enter marketing-hero-enter--1">
           <HeroHeadline id="marketing-hero-title" />
         </div>
 
         <p className="marketing-hero-subhead marketing-hero-enter marketing-hero-enter--2">
-          Openbentt is a <span className="marketing-hero-accent">local-first</span> AI workspace for LaTeX, PDFs,
-          benchmarking, and fine-tuned small models. Built for researchers, by researchers.
+          {hero.subhead.split("local-first")[0]}
+          <span className="marketing-hero-accent">local-first</span>
+          {hero.subhead.split("local-first")[1]}
         </p>
 
         <div className="marketing-hero-card-wrap marketing-hero-enter marketing-hero-enter--3">

@@ -17,7 +17,7 @@ export function MarketingPrinciples({ items, className }: MarketingPrinciplesPro
             key={item.title}
             as="li"
             delay={i * 70}
-            className="rounded-xl border border-border/60 bg-card/90 px-4 py-4 transition-all duration-300 hover:border-primary/25 hover:shadow-md"
+            className="marketing-principle-card"
           >
             <div
               className={cn(

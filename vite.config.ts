@@ -100,6 +100,14 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "citation-js/plugin-bibtex": path.resolve(
+        __dirname,
+        "node_modules/@citation-js/plugin-bibtex/lib/index.js"
+      ),
+      "citation-js/plugin-csl": path.resolve(
+        __dirname,
+        "node_modules/@citation-js/plugin-csl/lib/index.js"
+      ),
     },
   },
   optimizeDeps: {
@@ -116,6 +124,9 @@ export default defineConfig(({ mode }) => ({
       "@huggingface/transformers",
       "@xenova/transformers",
     ],
+  },
+  worker: {
+    format: "es",
   },
   build: {
     chunkSizeWarningLimit: 1800,
@@ -139,7 +150,13 @@ export default defineConfig(({ mode }) => ({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: [
+      "src/**/*.test.ts",
+      "src/**/*.integration.test.ts",
+      "src/**/*.stress.test.ts",
+      "test/**/*.test.ts",
+    ],
     globals: false,
+    testTimeout: 30_000,
   },
 }));

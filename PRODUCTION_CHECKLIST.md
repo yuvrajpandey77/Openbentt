@@ -65,4 +65,6 @@ Use this before tagging a release or deploying. Mark items as you complete them.
 
 **Status:** **Release-ready** — run [LOCAL_RELEASE_CHECKLIST.md](./LOCAL_RELEASE_CHECKLIST.md) before each tag. See [docs/RELEASE_OVERVIEW.md](./docs/RELEASE_OVERVIEW.md).
 
+**Positioning before launch:** [docs/LAUNCH_READINESS.md](./docs/LAUNCH_READINESS.md) (what to market / avoid) · [docs/FEATURE_COMPLETION_LOG.md](./docs/FEATURE_COMPLETION_LOG.md) (evidence table).
+
 **Manual smoke (required before tag):** sections A–F in LOCAL_RELEASE_CHECKLIST.md.

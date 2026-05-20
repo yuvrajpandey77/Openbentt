@@ -6,6 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Outlet, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
 import { ChatProvider } from "./context/ChatContext";
+import { ResearchProjectProvider } from "./context/ResearchProjectContext";
+import { LocalModelProvider } from "./context/LocalModelContext";
+import { ZoteroProvider } from "./context/ZoteroContext";
 import AppLayout from "./layouts/AppLayout";
 import HomeChatArea from "./components/HomeChatArea";
 import NotFound from "./pages/NotFound";
@@ -64,7 +67,13 @@ const App = () => (
                 <Route
                   element={
                     <ChatProvider>
-                      <Outlet />
+                      <LocalModelProvider>
+                        <ResearchProjectProvider>
+                          <ZoteroProvider>
+                            <Outlet />
+                          </ZoteroProvider>
+                        </ResearchProjectProvider>
+                      </LocalModelProvider>
                     </ChatProvider>
                   }
                 >

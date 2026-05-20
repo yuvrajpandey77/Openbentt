@@ -1,0 +1,121 @@
+import type { BibEntry } from "@/lib/bibtex";
+import type { ResearchMemory } from "@/lib/research/researchMemory";
+
+export type CitationStyle = "apa" | "ieee" | "mla" | "chicago" | "bibtex" | "acm" | "nature";
+
+export type TargetVenue = "generic" | "ieee" | "acm" | "nature" | "arxiv";
+
+export interface ResearchPaper {
+  id: string;
+  fileName: string;
+  addedAt: string;
+  extractedText: string;
+  pageCount?: number;
+  metadata: {
+    title?: string;
+    authors?: string;
+    year?: string;
+    doi?: string;
+  };
+  /** PDF review annotations extracted at upload (local parse). */
+  reviewNotes?: string[];
+}
+
+export interface CaptionSuggestion {
+  label: string;
+  caption: string;
+  kind?: "figure" | "table";
+}
+
+export interface CorpusChunk {
+  id: string;
+  paperId: string | "draft";
+  text: string;
+  pageHint?: number;
+}
+
+export interface SimilarityHit {
+  chunkId: string;
+  paperId: string;
+  paperName: string;
+  snippet: string;
+  score: number;
+  pageHint?: number;
+  /** lexical TF-IDF | semantic MiniLM | hybrid fusion */
+  method?: "lexical" | "semantic" | "hybrid" | "tfidf";
+  lexicalScore?: number;
+  semanticScore?: number;
+  fusedScore?: number;
+  confidence?: "high" | "medium" | "low";
+  provenance?: string;
+}
+
+export interface CitationIssue {
+  kind: "missing_bib" | "unused_bib" | "missing_cite" | "style_hint" | "duplicate" | "invalid_doi";
+  key?: string;
+  message: string;
+  severity?: "error" | "warning" | "info";
+}
+
+export interface RevisionSuggestion {
+  id: string;
+  source: "reviewer" | "ai";
+  original: string;
+  suggested: string;
+  status: "pending" | "accepted" | "rejected";
+  lineHint?: number;
+  createdAt?: string;
+}
+
+export interface RevisionHistoryEntry {
+  id: string;
+  suggestionId: string;
+  action: "created" | "accepted" | "rejected";
+  summary: string;
+  at: string;
+}
+
+export interface ModelAttribution {
+  id: string;
+  model: string;
+  section: string;
+  appliedAt: string;
+}
+
+export interface SubmissionCheck {
+  id: string;
+  label: string;
+  passed: boolean;
+  detail: string;
+}
+
+export interface ResearchProjectData {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  targetVenue: TargetVenue;
+  linkedThreadIds: string[];
+  draftTex: string;
+  bibliography: string;
+  bibEntries: BibEntry[];
+  papers: ResearchPaper[];
+  chunks: CorpusChunk[];
+  /** MiniLM vectors keyed by corpus chunk id (built in Notebook → Similarity). */
+  chunkEmbeddings?: Record<string, number[]>;
+  /** Long-term semantic memory: papers, citations, terms, thesis structure. */
+  researchMemory?: ResearchMemory;
+  revisionSuggestions: RevisionSuggestion[];
+  revisionHistory?: RevisionHistoryEntry[];
+  modelAttributions: ModelAttribution[];
+  abstractVariants: string[];
+  keywordSuggestions: string[];
+  captionSuggestions: CaptionSuggestion[];
+}
+
+export interface ResearchProjectSummary {
+  id: string;
+  title: string;
+  updatedAt: string;
+  paperCount: number;
+}

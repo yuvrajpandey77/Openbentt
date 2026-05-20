@@ -1,8 +1,9 @@
 # Openbentt — Senior Engineer Product Document
 
-**Version:** 2.0.6  
+**Version:** 2.0.7  
 **Date:** May 2026  
-**Scope:** Full product — Web + Electron desktop
+**Scope:** Full product — **Electron desktop (primary)** + static web app (secondary)  
+**Audit docs:** [FEATURE_COMPLETION_LOG.md](./FEATURE_COMPLETION_LOG.md) · [LAUNCH_READINESS.md](./LAUNCH_READINESS.md)
 
 ---
 
@@ -25,7 +26,9 @@
 
 ## 1. Executive Summary
 
-Openbentt is a **local-first, privacy-respecting multi-provider AI chat client** packaged as both a **static web app** and an **Electron desktop application**. It lets users bring their own API keys (OpenRouter, OpenAI, Anthropic, Google Gemini, or any OpenAI-compatible endpoint) and run chats, document workspaces, research pipelines, and on-device language models — all without any backend account system.
+Openbentt is a **local-first, privacy-respecting multi-provider AI workspace** whose **primary deliverable is the Electron desktop app**. A **secondary static web app** offers OpenRouter chat and Notebook without offline GGUF or Research labs (`platformSurface.ts`). Users bring their own API keys (OpenRouter, OpenAI, Anthropic, Google Gemini, or compatible endpoints) and run chats, document workspaces, research tooling, and on-device models — with **no Openbentt account system**.
+
+**Copy discipline:** Meridian 0.1 = **writing prompts** (not shipped weights). Library synthesis = **local heuristics** (not LLM synthesis). Notebook similarity = **overlap scoring** (not plagiarism detection). See [LAUNCH_READINESS.md](./LAUNCH_READINESS.md).
 
 **Unique value:**
 - API keys never leave the user's own browser or device
@@ -33,7 +36,7 @@ Openbentt is a **local-first, privacy-respecting multi-provider AI chat client**
 - Document-grade workspaces (LaTeX → PDF via WASM or server, research citation graphs)
 - Compare 2–4 models side-by-side with real timing metrics
 
-**Current maturity (v2.0.6):** **Release-ready** for tagged distribution. Core chat, workspaces, desktop GGUF (bundled llama-server), download progress, onboarding, auto-update hooks, and unit-test coverage are in place. **Manual smoke tests** ([LOCAL_RELEASE_CHECKLIST.md](../LOCAL_RELEASE_CHECKLIST.md)) and **unsigned installers** remain the operator’s responsibility before each public release.
+**Current maturity (v2.0.7):** **Release-ready** for tagged distribution (desktop-primary positioning). Core chat, workspaces, desktop GGUF (bundled llama-server), download progress, onboarding, auto-update hooks, and unit-test coverage are in place. **Manual smoke tests** ([LOCAL_RELEASE_CHECKLIST.md](../LOCAL_RELEASE_CHECKLIST.md)) and **unsigned installers** remain the operator’s responsibility before each public release.
 
 ---
 
@@ -186,7 +189,7 @@ ChatContext.runAssistantPipeline
 | **E2E (Playwright)** | Manual checklist only | Automated UI + Electron flows |
 | **Component tests** | Lib/unit tests (~27 files) | No `.test.tsx` for ChatContext / ChatInput |
 | **Comparison on local** | Disabled for GGUF/WebGPU | No in-UI explanation tooltip |
-| **Agent workflow** | `agentWorkflow.ts` stub | Unused |
+| **Multi-step research agent** | `researchOrchestrator.ts` + chat routing | Notebook prompts use hybrid retrieval; full agent loop not shipped |
 | **Mobile polish** | Responsive layout | Keyboard overlap, touch gestures |
 | **Intel macOS** | arm64 llama binary in CI | x64 binary or universal fat binary |
 
@@ -396,7 +399,7 @@ latex-compile.mjs:
 Goal: Remove confusion, fix docs drift, add minimal safety net.
 
 **Tasks:**
-- [ ] Delete unused `src/lib/agentWorkflow.ts` (no imports)
+- [x] Removed unused `agentWorkflow.ts`; notebook AI uses `researchOrchestrator.ts`
 - [ ] Delete or repurpose unused `src/components/PlaygroundShell.tsx`
 - [ ] Fix `electron/README.md`: `preload.mjs` → `preload.cjs`
 - [ ] Fix `PRODUCTION_CHECKLIST.md`: Electron first-load path entry
@@ -464,7 +467,7 @@ Goal: Notebook, Research Labs, Write, and Benchmark are polished and discoverabl
 - [ ] `/write` workspace: add to sidebar nav; upgrade PDF export to real vector PDF via `pdfFromText.ts`
 - [ ] Benchmark: persist results to localStorage; export as CSV
 - [ ] Benchmark: add to sidebar nav
-- [ ] Agent workflow: design and implement basic multi-step (search → summarize → cite) using `agentWorkflow.ts` stub
+- [ ] Multi-step research agent: extend `researchOrchestrator.ts` beyond prompt augmentation (search → summarize → cite loop)
 - [ ] System prompt editor: per-thread user-editable system prompt (in addition to workspace-injected prompts)
 
 **Tests:** Integration tests for Notebook apply-from-chat; E2E for Research proxy flow.
@@ -547,7 +550,7 @@ Follow **Semantic Versioning**:
 
 | Item | Severity | Where |
 |------|----------|-------|
-| `agentWorkflow.ts` exported but never imported | Low | `src/lib/agentWorkflow.ts` |
+| Full autonomous research agent loop | Low | `src/lib/ai/researchOrchestrator.ts` (retrieval wired; agent loop TBD) |
 | `PlaygroundShell.tsx` appears unused | Low | `src/components/PlaygroundShell.tsx` |
 | `src/pages/Index.tsx` dead re-export | Low | `src/pages/Index.tsx` |
 | `electron/README.md` says `preload.mjs` (wrong) | Medium | `electron/README.md` |
