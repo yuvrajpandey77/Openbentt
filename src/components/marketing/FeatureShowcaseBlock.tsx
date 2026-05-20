@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import type { ShowcaseBlock } from "@/config/marketingContent";
-import { MarketingVisual } from "@/components/marketing/MarketingVisual";
+import { FeatureShowcaseVisual } from "@/components/marketing/FeatureShowcaseVisual";
 import type { MarketingImageSlot } from "@/config/marketingImages";
 import { cn } from "@/lib/utils";
 
@@ -70,10 +70,7 @@ export function FeatureShowcaseBlock({ block, imageSlot, visual, plain, large, i
 
       <div className="relative">
         <div className="marketing-showcase-frame">
-          {visual ??
-            (imageSlot ? (
-              <MarketingVisual slot={imageSlot} plain large={large} priority={block.id === "meridian"} className="border-0 shadow-none ring-0" />
-            ) : null)}
+          {visual ?? <FeatureShowcaseVisual variant={block.id} />}
         </div>
       </div>
     </article>

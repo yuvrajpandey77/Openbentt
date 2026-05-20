@@ -2,8 +2,8 @@ import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MarketingShell } from "@/components/marketing/MarketingShell";
-import { MarketingBentoGallery } from "@/components/marketing/MarketingBentoGallery";
 import { MarketingComparePaths } from "@/components/marketing/MarketingComparePaths";
+import { MarketingExploreGrid } from "@/components/marketing/MarketingExploreGrid";
 import { FeatureShowcaseBlock } from "@/components/marketing/FeatureShowcaseBlock";
 import { MarketingHero } from "@/components/marketing/MarketingHero";
 import { MarketingMission } from "@/components/marketing/MarketingMission";
@@ -12,11 +12,9 @@ import { MarketingProvidersStrip } from "@/components/marketing/MarketingProvide
 import { MarketingReveal } from "@/components/marketing/MarketingReveal";
 import { MarketingSectionHeader } from "@/components/marketing/MarketingSectionHeader";
 import { MarketingStats } from "@/components/marketing/MarketingStats";
-import { MarketingWorkflowSection } from "@/components/marketing/MarketingWorkflowSection";
 import { NewsStrip } from "@/components/marketing/NewsStrip";
 import { useSuggestedDownload } from "@/components/marketing/useSuggestedDownload";
 import { heroPrinciples, showcaseBlocks } from "@/config/marketingContent";
-import { showcaseImages } from "@/config/marketingImages";
 import { Download } from "lucide-react";
 
 const downloadBtnClass =
@@ -78,7 +76,7 @@ const HomeLandingPage: React.FC = () => {
 
         <MarketingProvidersStrip />
 
-        <MarketingBentoGallery />
+        <MarketingExploreGrid />
 
         <section id="principles" className="marketing-section scroll-mt-32 marketing-section-band border-y border-border/40">
           <div className="marketing-container">
@@ -96,25 +94,17 @@ const HomeLandingPage: React.FC = () => {
           </div>
         </section>
 
-        <MarketingWorkflowSection />
-
         <section id="features" className="marketing-section scroll-mt-32">
           <div className="marketing-container">
             <MarketingSectionHeader
               eyebrow="Desktop"
               title="What you get on desktop"
-              lead="Desktop install: Notebook with Meridian writing prompts, model arena, offline GGUF, and Research labs. Web app is chat + Notebook only."
+              lead="Animated previews for each desktop capability. Your main product screenshot stays in the hero only."
             />
             <div className="marketing-feature-stack">
               {showcaseBlocks.map((block, i) => (
                 <MarketingReveal key={block.id} delay={i * 60}>
-                  <FeatureShowcaseBlock
-                    block={block}
-                    imageSlot={showcaseImages[block.id]}
-                    plain
-                    large
-                    index={i}
-                  />
+                  <FeatureShowcaseBlock block={block} large index={i} />
                 </MarketingReveal>
               ))}
             </div>

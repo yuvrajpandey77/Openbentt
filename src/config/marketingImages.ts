@@ -1,5 +1,6 @@
 /**
  * Marketing image manifest — assets in `public/marketing/`.
+ * Feature sections use distinct SVG previews; hero uses one app card PNG only.
  */
 
 export type MarketingImageSlot = {
@@ -18,46 +19,34 @@ export function isMarketingSvg(file: string): boolean {
   return file.endsWith(".svg");
 }
 
-export const heroImage: MarketingImageSlot = {
-  file: "hero-workspace.png",
-  alt: "Openbentt workspace showing chat sidebar and model comparison",
-  aspect: "video",
-};
+/** One raster for the hero — do not reuse elsewhere on the landing page. */
+export const heroAppCard = {
+  src: `${base}/openbentt-app-card.png`,
+  alt: "Openbentt workspace with LaTeX editor, PDF preview, and model comparison table",
+  width: 1024,
+  height: 560,
+} as const;
 
+/** Unique SVG per feature block (visually distinct illustrations). */
 export const showcaseImages: Record<string, MarketingImageSlot> = {
   meridian: {
-    file: "meridian-latex.png",
-    alt: "Meridian LaTeX writing prompts in Openbentt Notebook with live PDF preview",
+    file: "meridian-latex.svg",
+    alt: "Meridian LaTeX writing prompts in Notebook with live PDF preview",
   },
   notebook: {
-    file: "notebook.png",
+    file: "notebook.svg",
     alt: "Notebook workspace with LaTeX source and PDF preview",
   },
   "model-arena": {
-    file: "model-arena.png",
-    alt: "Side-by-side comparison of AI model responses in Openbentt",
+    file: "model-arena.svg",
+    alt: "Side-by-side comparison of AI model responses",
   },
   "desktop-gguf": {
-    file: "desktop-gguf.png",
+    file: "desktop-gguf.svg",
     alt: "Desktop local GGUF model hub and offline chat",
   },
   research: {
-    file: "research.png",
+    file: "research.svg",
     alt: "Research labs with BibTeX, citations, and model hub",
   },
-  "run-locally": {
-    file: "run-locally.png",
-    alt: "Openbentt chat with streaming reply and model selector",
-  },
-  "hero-workspace": heroImage,
 };
-
-/** Unique tiles for bento gallery — one file per tile, no repeats */
-export const galleryTiles: Array<MarketingImageSlot & { id: string; label: string; href: string }> = [
-  { id: "meridian", file: "meridian-latex.png", label: "Meridian LaTeX", href: "#meridian", alt: showcaseImages.meridian.alt },
-  { id: "notebook", file: "notebook.png", label: "Notebook", href: "#notebook", alt: showcaseImages.notebook.alt },
-  { id: "arena", file: "model-arena.png", label: "Model arena", href: "#model-arena", alt: showcaseImages["model-arena"].alt },
-  { id: "gguf", file: "desktop-gguf.png", label: "Local GGUF", href: "#desktop-gguf", alt: showcaseImages["desktop-gguf"].alt },
-  { id: "research", file: "research.png", label: "Research labs", href: "#research", alt: showcaseImages.research.alt },
-  { id: "chat", file: "run-locally.png", label: "Private chat", href: "#run-locally", alt: showcaseImages["run-locally"].alt },
-];

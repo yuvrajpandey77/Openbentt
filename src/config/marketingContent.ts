@@ -108,6 +108,67 @@ export const latestNews: NewsItem[] = [
   { title: "Research labs: BibTeX, citation graph, Hugging Face model hub", date: "Mar 2026" },
 ];
 
+export type ExploreItem = {
+  id: string;
+  title: string;
+  summary: string;
+  href: string;
+  icon: LucideIcon;
+  iconClassName: string;
+};
+
+/** Text-only explore cards (no screenshots — avoids duplicate placeholder PNGs). */
+export const exploreItems: ExploreItem[] = [
+  {
+    id: "meridian",
+    title: "Meridian 0.1",
+    summary: "LaTeX writing prompts and apply-to-source in Notebook.",
+    href: "#meridian",
+    icon: FileText,
+    iconClassName: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  },
+  {
+    id: "notebook",
+    title: "Notebook",
+    summary: "LaTeX source, live PDF preview, and document uploads.",
+    href: "#notebook",
+    icon: BookOpen,
+    iconClassName: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  },
+  {
+    id: "model-arena",
+    title: "Model arena",
+    summary: "Compare models on one prompt with latency and tokens/s.",
+    href: "#model-arena",
+    icon: GitCompare,
+    iconClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  },
+  {
+    id: "desktop-gguf",
+    title: "Local GGUF",
+    summary: "Offline weights and bundled llama-server on desktop.",
+    href: "#desktop-gguf",
+    icon: HardDrive,
+    iconClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  },
+  {
+    id: "research",
+    title: "Research labs",
+    summary: "BibTeX, citations, datasets, and the local model hub.",
+    href: "#research",
+    icon: Search,
+    iconClassName: "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400",
+  },
+  {
+    id: "compare",
+    title: "Desktop vs web",
+    summary: "Full install or browser chat when you cannot download.",
+    href: "#compare",
+    icon: Cpu,
+    iconClassName: "bg-primary/10 text-primary",
+  },
+];
+
 export const showcaseBlocks: ShowcaseBlock[] = [
   {
     id: "meridian",
@@ -186,56 +247,19 @@ export const desktopHighlights = [
 
 export const webOptionalLine = "No install? Use the web app for light chat and Notebook.";
 
-export type MarketingImageKey =
-  | "meridian"
-  | "notebook"
-  | "model-arena"
-  | "desktop-gguf"
-  | "research"
-  | "run-locally"
-  | "hero-workspace";
-
-export type WorkflowStep = {
-  step: string;
-  title: string;
-  description: string;
-  imageKey: MarketingImageKey;
-};
-
-export const workflowSteps: WorkflowStep[] = [
-  {
-    step: "01",
-    title: "Download the desktop app",
-    description: "Pick Windows, Linux, or macOS. Installers bundle Electron, labs, and offline GGUF support.",
-    imageKey: "hero-workspace",
-  },
-  {
-    step: "02",
-    title: "Load models and papers",
-    description: "Pull GGUF from Hugging Face, open PDFs, or start a LaTeX notebook with live preview.",
-    imageKey: "notebook",
-  },
-  {
-    step: "03",
-    title: "Compare, edit, publish",
-    description: "Run the model arena, apply chat replies into Notebook source, and keep threads on disk with the desktop app.",
-    imageKey: "run-locally",
-  },
-];
-
 export const comparePaths = {
   desktop: {
+    id: "desktop" as const,
     title: "Full desktop workspace",
     description:
       "Offline GGUF, Research labs, tiled model arena, and long PDF sessions. Everything stays on disk with OS-backed secrets.",
-    imageKey: "hero-workspace",
     cta: { label: "Download desktop", to: "/download" },
   },
   web: {
+    id: "web" as const,
     title: "Lightweight web app",
     description:
       "OpenRouter chat and Notebook in the browser when you cannot install. Same UI patterns, fewer offline features.",
-    imageKey: "run-locally",
     cta: { label: "Open web app", to: "/chat" },
   },
 };

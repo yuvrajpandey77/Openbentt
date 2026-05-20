@@ -2,9 +2,14 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MarketingReveal } from "@/components/marketing/MarketingReveal";
 import { MarketingSectionHeader } from "@/components/marketing/MarketingSectionHeader";
-import { MarketingVisual } from "@/components/marketing/MarketingVisual";
 import { comparePaths } from "@/config/marketingContent";
-import { showcaseImages } from "@/config/marketingImages";
+import { cn } from "@/lib/utils";
+import { Globe, Monitor } from "lucide-react";
+
+const pathMeta = {
+  desktop: { icon: Monitor, iconClassName: "bg-primary/10 text-primary" },
+  web: { icon: Globe, iconClassName: "bg-sky-500/10 text-sky-600 dark:text-sky-400" },
+} as const;
 
 export function MarketingComparePaths() {
   const paths = [comparePaths.desktop, comparePaths.web] as const;
@@ -18,30 +23,32 @@ export function MarketingComparePaths() {
           lead="Same design language, different capabilities. Pick what fits today's session."
         />
 
-        <div className="mt-12 grid gap-8 lg:grid-cols-2 lg:gap-10">
+        <div className="mt-12 grid gap-6 lg:grid-cols-2 lg:gap-8">
           {paths.map((path, i) => {
-            const slot = showcaseImages[path.imageKey];
+            const meta = path.id === "web" ? pathMeta.web : pathMeta.desktop;
+            const Icon = meta.icon;
 
             return (
-              <MarketingReveal key={path.title} delay={i * 100}>
+              <MarketingReveal key={path.title} delay={i * 80}>
                 <article
-                  id={path.imageKey === "run-locally" ? "run-locally" : undefined}
-                  className="marketing-card flex h-full flex-col overflow-hidden p-0"
+                  id={path.id === "web" ? "run-locally" : undefined}
+                  className="marketing-card flex h-full flex-col p-6 md:p-8"
                 >
-                  <div className="marketing-showcase-frame rounded-none border-0 border-b border-border/50 shadow-none ring-0">
-                    {slot && (
-                      <MarketingVisual slot={slot} plain large className="rounded-none border-0 shadow-none ring-0" />
+                  <div
+                    className={cn(
+                      "mb-5 flex h-12 w-12 items-center justify-center rounded-xl",
+                      meta.iconClassName
                     )}
+                  >
+                    <Icon className="h-6 w-6" strokeWidth={2} aria-hidden />
                   </div>
-                  <div className="flex flex-1 flex-col p-6 md:p-8">
-                    <h3 className="font-display text-xl font-semibold text-foreground md:text-2xl">{path.title}</h3>
-                    <p className="mt-3 flex-1 text-base leading-relaxed text-muted-foreground md:text-lg">
-                      {path.description}
-                    </p>
-                    <Button className="mt-6 w-fit rounded-xl font-medium" asChild>
-                      <Link to={path.cta.to}>{path.cta.label}</Link>
-                    </Button>
-                  </div>
+                  <h3 className="font-display text-xl font-semibold text-foreground md:text-2xl">{path.title}</h3>
+                  <p className="mt-3 flex-1 text-base leading-relaxed text-muted-foreground md:text-lg">
+                    {path.description}
+                  </p>
+                  <Button className="mt-6 w-fit rounded-xl font-medium" asChild>
+                    <Link to={path.cta.to}>{path.cta.label}</Link>
+                  </Button>
                 </article>
               </MarketingReveal>
             );
