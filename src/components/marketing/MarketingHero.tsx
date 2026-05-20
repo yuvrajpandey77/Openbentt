@@ -8,14 +8,16 @@ export function MarketingHero() {
       <div className="marketing-hero-blobs" aria-hidden />
 
       <div className="marketing-hero-inner relative z-10">
-        <HeroHeadline id="marketing-hero-title" />
+        <div className="marketing-hero-enter marketing-hero-enter--1">
+          <HeroHeadline id="marketing-hero-title" />
+        </div>
 
-        <p className="marketing-hero-subhead">
+        <p className="marketing-hero-subhead marketing-hero-enter marketing-hero-enter--2">
           Openbentt is a <span className="marketing-hero-accent">local-first</span> AI workspace for LaTeX, PDFs,
           benchmarking, and fine-tuned small models. Built for researchers, by researchers.
         </p>
 
-        <div className="marketing-hero-card-wrap">
+        <div className="marketing-hero-card-wrap marketing-hero-enter marketing-hero-enter--3">
           <img
             src={appCardHero.src}
             alt={appCardHero.alt}
@@ -24,7 +26,7 @@ export function MarketingHero() {
             loading="eager"
             decoding="async"
             fetchPriority="high"
-            className="marketing-hero-card-img max-w-full"
+            className="marketing-hero-card-img max-w-full transition-transform duration-500 hover:scale-[1.01]"
           />
         </div>
       </div>

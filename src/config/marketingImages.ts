@@ -1,17 +1,11 @@
 /**
- * Marketing image manifest.
- *
- * Drop files into `public/marketing/` using these filenames (WebP or PNG recommended).
- * Until a file exists, the UI shows a branded SVG placeholder from the same basename.
- *
- * Full AI prompts and art direction: docs/MARKETING_IMAGES.md
+ * Marketing image manifest — raster screenshots only (no SVG placeholders).
+ * Assets live in `public/marketing/`.
  */
 
 export type MarketingImageSlot = {
-  /** Filename under /marketing/ e.g. run-locally.webp */
   file: string;
   alt: string;
-  /** 16:10 works well for showcase panels; hero can be 16:9 */
   aspect?: "video" | "square" | "portrait";
 };
 
@@ -21,38 +15,37 @@ export function marketingImageUrl(file: string): string {
   return `${base}/${file}`;
 }
 
-/** Hero — optional wide shot above or below headline */
 export const heroImage: MarketingImageSlot = {
-  file: "hero-workspace.webp",
+  file: "hero-workspace.png",
   alt: "Openbentt workspace showing chat sidebar and model comparison",
   aspect: "video",
 };
 
-export const showcaseImages: Record<string, MarketingImageSlot> = {
-  "run-locally": {
-    file: "run-locally.svg",
-    alt: "Openbentt chat with streaming reply and model selector",
-  },
-  "model-arena": {
-    file: "model-arena.svg",
-    alt: "Side-by-side comparison of four AI model responses",
-  },
-  notebook: {
-    file: "notebook.svg",
-    alt: "Notebook workspace with LaTeX source and PDF preview",
-  },
-  research: {
-    file: "research.svg",
-    alt: "Research mode with sources and assistant reply",
-  },
-  "desktop-gguf": {
-    file: "desktop-gguf.svg",
-    alt: "Desktop local GGUF model download and chat",
-  },
+export const meridianShowcaseImage: MarketingImageSlot = {
+  file: "meridian-latex.png",
+  alt: "Meridian 0.1 editing LaTeX in Openbentt Notebook with live PDF preview",
 };
 
-/** SVG fallback when .webp/.png not present — same basename, .svg extension */
-export function marketingPlaceholderSvg(file: string): string {
-  const name = file.replace(/\.(webp|png|jpe?g)$/i, "");
-  return `${base}/${name}.svg`;
-}
+export const showcaseImages: Record<string, MarketingImageSlot> = {
+  meridian: meridianShowcaseImage,
+  notebook: {
+    file: "notebook.png",
+    alt: "Notebook workspace with LaTeX source and PDF preview",
+  },
+  "model-arena": {
+    file: "model-arena.png",
+    alt: "Side-by-side comparison of AI model responses in Openbentt",
+  },
+  "desktop-gguf": {
+    file: "desktop-gguf.png",
+    alt: "Desktop local GGUF model hub and offline chat",
+  },
+  research: {
+    file: "research.png",
+    alt: "Research labs with BibTeX, citations, and model hub",
+  },
+  "run-locally": {
+    file: "run-locally.png",
+    alt: "Openbentt chat with streaming reply and model selector",
+  },
+};

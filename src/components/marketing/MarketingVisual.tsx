@@ -1,5 +1,5 @@
 import type { MarketingImageSlot } from "@/config/marketingImages";
-import { marketingImageUrl, marketingPlaceholderSvg } from "@/config/marketingImages";
+import { marketingImageUrl } from "@/config/marketingImages";
 import { cn } from "@/lib/utils";
 
 type MarketingVisualProps = {
@@ -10,16 +10,9 @@ type MarketingVisualProps = {
   large?: boolean;
 };
 
-/** Raster (webp/png) with SVG fallback, or direct SVG showcase art. */
+/** Product screenshot — raster assets only (PNG/WebP in public/marketing). */
 export function MarketingVisual({ slot, className, priority, plain, large }: MarketingVisualProps) {
-  const isSvg = /\.svg$/i.test(slot.file);
-  const raster = isSvg ? null : marketingImageUrl(slot.file);
-  const imgSrc = isSvg ? marketingImageUrl(slot.file) : marketingPlaceholderSvg(slot.file);
-
-  const imgClass = cn(
-    "h-auto w-full object-cover object-top",
-    large ? "aspect-[16/9] min-h-[280px] md:min-h-[360px]" : "aspect-[16/10]"
-  );
+  const src = marketingImageUrl(slot.file);
 
   return (
     <div
@@ -29,30 +22,18 @@ export function MarketingVisual({ slot, className, priority, plain, large }: Mar
         className
       )}
     >
-      {raster ? (
-        <picture>
-          <source srcSet={raster} type="image/webp" />
-          <img
-            src={imgSrc}
-            alt={slot.alt}
-            width={1280}
-            height={720}
-            loading={priority ? "eager" : "lazy"}
-            decoding="async"
-            className={imgClass}
-          />
-        </picture>
-      ) : (
-        <img
-          src={imgSrc}
-          alt={slot.alt}
-          width={1280}
-          height={720}
-          loading={priority ? "eager" : "lazy"}
-          decoding="async"
-          className={imgClass}
-        />
-      )}
+      <img
+        src={src}
+        alt={slot.alt}
+        width={1280}
+        height={720}
+        loading={priority ? "eager" : "lazy"}
+        decoding="async"
+        className={cn(
+          "h-auto w-full object-cover object-top",
+          large ? "aspect-[16/9] min-h-[280px] md:min-h-[360px]" : "aspect-[16/10]"
+        )}
+      />
     </div>
   );
 }

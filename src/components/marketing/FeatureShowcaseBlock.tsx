@@ -14,7 +14,6 @@ type FeatureShowcaseBlockProps = {
 };
 
 export function FeatureShowcaseBlock({ block, imageSlot, visual, plain, large }: FeatureShowcaseBlockProps) {
-  const Icon = block.icon;
   const paragraphs = large ? block.paragraphs.slice(0, 1) : block.paragraphs;
 
   return (
@@ -46,25 +45,25 @@ export function FeatureShowcaseBlock({ block, imageSlot, visual, plain, large }:
             {p}
           </p>
         ))}
-        <div className="pt-2">
+        <div className="flex flex-wrap gap-3 pt-2">
           <Button size={large ? "lg" : "default"} className="rounded-xl px-6 font-medium" asChild>
             <Link to={block.primaryCta.to}>{block.primaryCta.label}</Link>
           </Button>
+          {block.secondaryCta && (
+            <Button
+              size={large ? "lg" : "default"}
+              variant="outline"
+              className="rounded-xl px-6 font-medium"
+              asChild
+            >
+              <Link to={block.secondaryCta.to}>{block.secondaryCta.label}</Link>
+            </Button>
+          )}
         </div>
       </div>
 
       <div className="relative">
-        {visual ??
-          (imageSlot ? (
-            <MarketingVisual slot={imageSlot} plain={plain} large={large} />
-          ) : (
-            <div className="marketing-showcase-panel flex aspect-[16/10] flex-col items-center justify-center rounded-2xl border border-border/70 bg-gradient-to-br from-muted/50 via-card to-primary/5 p-8 shadow-sm">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-                <Icon className="h-8 w-8" strokeWidth={1.5} />
-              </div>
-              <p className="mt-6 max-w-xs text-center text-sm text-muted-foreground">{block.title}</p>
-            </div>
-          ))}
+        {visual ?? (imageSlot ? <MarketingVisual slot={imageSlot} plain={plain} large={large} priority={block.id === "meridian"} /> : null)}
       </div>
     </article>
   );

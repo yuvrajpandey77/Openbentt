@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/ThemeContext";
@@ -7,6 +7,7 @@ import { footerColumns } from "@/config/marketingContent";
 import { marketingNav } from "@/components/marketing/marketingNav";
 import { cn } from "@/lib/utils";
 import { MarketingTerminalBar } from "@/components/marketing/MarketingTerminalBar";
+import { MeridianAnnouncementBanner } from "@/components/marketing/MeridianAnnouncementBanner";
 import { Github, Moon, Sun } from "lucide-react";
 
 type MarketingShellProps = {
@@ -28,6 +29,25 @@ export function MarketingShell({
   const releasesUrl = githubReleasesLatestUrl();
   const onHome = location.pathname === "/";
   const githubUrl = GITHUB_REPO ? `https://github.com/${GITHUB_REPO}` : null;
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!location.hash) return;
+    const id = location.hash;
+    const scrollToHash = () => {
+      const el = document.querySelector(id);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    const t = window.setTimeout(scrollToHash, 80);
+    return () => window.clearTimeout(t);
+  }, [location.pathname, location.hash]);
 
   const resolveHashLink = (hash: string) => {
     if (homeAnchors && onHome) return hash;
@@ -38,7 +58,12 @@ export function MarketingShell({
     <div className="marketing-page relative min-h-screen bg-background text-foreground">
       <div className="marketing-glow pointer-events-none absolute inset-x-0 top-0 -z-10 h-[min(55vh,480px)]" aria-hidden />
 
-      <header className="marketing-header sticky top-0 z-50 border-b border-border/50 bg-background/90 backdrop-blur-md">
+      <header
+        className={cn(
+          "marketing-header sticky top-0 z-50 border-b border-border/50 bg-background/90 backdrop-blur-md transition-shadow duration-300",
+          scrolled && "marketing-header--scrolled"
+        )}
+      >
         <div
           className={cn(
             "mx-auto flex h-[4.25rem] items-center justify-between gap-6 px-5 md:h-[4.75rem] md:px-8",
@@ -102,6 +127,8 @@ export function MarketingShell({
           </div>
         </div>
       </header>
+
+      {onHome && <MeridianAnnouncementBanner />}
 
       {children}
 
