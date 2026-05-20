@@ -86,6 +86,8 @@ contextBridge.exposeInMainWorld("openbenttResearch", {
     ipcRenderer.invoke("research:upsertEmbeddings", projectId, batch),
   embeddingStats: (projectId) => ipcRenderer.invoke("research:embeddingStats", projectId),
   clearEmbeddings: (projectId) => ipcRenderer.invoke("research:clearEmbeddings", projectId),
+  deleteEmbeddingsForChunks: (projectId, chunkIds) =>
+    ipcRenderer.invoke("research:deleteEmbeddingsForChunks", projectId, chunkIds),
   enqueueJob: (projectId, type, payload) =>
     ipcRenderer.invoke("research:enqueueJob", projectId, type, payload),
   cancelJob: (projectId, jobId) => ipcRenderer.invoke("research:cancelJob", projectId, jobId),

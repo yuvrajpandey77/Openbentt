@@ -7,11 +7,13 @@ import {
   loadIndexCheckpoint,
   saveIndexCheckpoint,
 } from "@/lib/research/indexCheckpoint";
+import { enqueueDesktopEmbedJob } from "@/lib/research/desktopEmbedJob";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 import type { CorpusChunk } from "@/types/researchProject";
 
 export type SemanticRebuildController = {
   abort: () => void;
-  promise: Promise<Record<string, number[]> | null>;
+  promise: Promise<Record<string, number[]> | { embedded: number } | null>;
 };
 
 const RETRY_DELAYS_MS = [0, 2000, 5000];
@@ -31,12 +33,24 @@ async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-/** Build embeddings off main thread when possible; checkpoint + retry on failure. */
+/** Build embeddings off main thread when possible; checkpoint + retry on failure (web). */
 export function startSemanticIndexRebuild(
   chunks: CorpusChunk[],
   projectId: string,
-  onProgress?: (p: EmbeddingIndexProgress) => void
+  onProgress?: (p: EmbeddingIndexProgress) => void,
+  opts?: { removedChunkIds?: string[] }
 ): SemanticRebuildController {
+  if (isDesktopApp()) {
+    const job = enqueueDesktopEmbedJob(projectId, {
+      removedChunkIds: opts?.removedChunkIds,
+      onProgress,
+    });
+    return {
+      abort: job.abort,
+      promise: job.promise,
+    };
+  }
+
   const ac = new AbortController();
   const promise = (async () => {
     const library = chunks.filter((c) => c.paperId !== "draft");

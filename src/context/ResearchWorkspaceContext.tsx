@@ -57,9 +57,7 @@ type ResearchWorkspaceContextValue = {
   focusSectionLine: number | null;
   requestFocusSection: (line: number) => void;
   clearFocusSection: () => void;
-  zoteroPanelRequested: boolean;
   requestZoteroPanel: () => void;
-  clearZoteroPanelRequest: () => void;
 };
 
 const ResearchWorkspaceContext = createContext<ResearchWorkspaceContextValue | null>(null);
@@ -73,8 +71,6 @@ export function ResearchWorkspaceProvider({ children }: { children: React.ReactN
   const [notebookActions, setNotebookActions] = useState<NotebookWorkspaceActions>({});
   const [sectionHeadings, setSectionHeadings] = useState<{ label: string; line: number }[]>([]);
   const [focusSectionLine, setFocusSectionLine] = useState<number | null>(null);
-  const [zoteroPanelRequested, setZoteroPanelRequested] = useState(false);
-
   const undoStack = useRef<string[]>([]);
   const redoStack = useRef<string[]>([]);
   const [historyTick, setHistoryTick] = useState(0);
@@ -176,10 +172,8 @@ export function ResearchWorkspaceProvider({ children }: { children: React.ReactN
   const requestFocusSection = useCallback((line: number) => setFocusSectionLine(line), []);
   const clearFocusSection = useCallback(() => setFocusSectionLine(null), []);
   const requestZoteroPanel = useCallback(() => {
-    setZoteroPanelRequested(true);
     setActiveSidePanel("zotero");
   }, [setActiveSidePanel]);
-  const clearZoteroPanelRequest = useCallback(() => setZoteroPanelRequested(false), []);
 
   const value = useMemo(
     () => ({
@@ -208,9 +202,7 @@ export function ResearchWorkspaceProvider({ children }: { children: React.ReactN
       focusSectionLine,
       requestFocusSection,
       clearFocusSection,
-      zoteroPanelRequested,
       requestZoteroPanel,
-      clearZoteroPanelRequest,
     }),
     [
       layout,
@@ -235,9 +227,7 @@ export function ResearchWorkspaceProvider({ children }: { children: React.ReactN
       focusSectionLine,
       requestFocusSection,
       clearFocusSection,
-      zoteroPanelRequested,
       requestZoteroPanel,
-      clearZoteroPanelRequest,
     ]
   );
 

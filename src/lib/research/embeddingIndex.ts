@@ -1,45 +1,13 @@
 import type { CorpusChunk, SimilarityHit } from "@/types/researchProject";
 import { chunkText } from "@/lib/research/corpusIndex";
+import {
+  buildChunkEmbeddingsFromChunks,
+  cosineNormalized,
+  embedPassage,
+  MAX_CHUNKS_INDEX,
+} from "@/lib/research/embedCore.mjs";
 
-const MODEL_ID = "Xenova/all-MiniLM-L6-v2";
-const MAX_CHUNKS_INDEX = 120;
-const MAX_EMBED_CHARS = 512;
-
-type FeaturePipeline = (
-  text: string,
-  opts?: { pooling: string; normalize: boolean }
-) => Promise<{ data: Float32Array | number[] }>;
-
-let pipelinePromise: Promise<FeaturePipeline> | null = null;
-
-async function getEmbedder(): Promise<FeaturePipeline> {
-  if (!pipelinePromise) {
-    pipelinePromise = (async () => {
-      const { pipeline, env } = await import("@xenova/transformers");
-      env.allowLocalModels = false;
-      env.useBrowserCache = true;
-      return pipeline("feature-extraction", MODEL_ID, { dtype: "q8" }) as Promise<FeaturePipeline>;
-    })();
-  }
-  return pipelinePromise;
-}
-
-/** L2-normalized MiniLM embedding (384-dim). Runs fully in-browser. */
-export async function embedPassage(text: string): Promise<number[]> {
-  const extractor = await getEmbedder();
-  const input = text.replace(/\s+/g, " ").trim().slice(0, MAX_EMBED_CHARS);
-  if (!input) return [];
-  const out = await extractor(input, { pooling: "mean", normalize: true });
-  const data = out.data;
-  return Array.from(data instanceof Float32Array ? data : (data as number[]));
-}
-
-function cosineNormalized(a: number[], b: number[]): number {
-  if (a.length === 0 || b.length === 0 || a.length !== b.length) return 0;
-  let dot = 0;
-  for (let i = 0; i < a.length; i++) dot += a[i] * b[i];
-  return dot;
-}
+export { embedPassage, MAX_CHUNKS_INDEX };
 
 export type EmbeddingIndexProgress = {
   phase: "loading-model" | "embedding" | "done";
@@ -116,22 +84,12 @@ export async function buildChunkEmbeddings(
       if ((e as Error)?.name === "AbortError") throw e;
     }
   }
-  const library = chunks.filter((c) => c.paperId !== "draft").slice(0, MAX_CHUNKS_INDEX);
-  const vectors: Record<string, number[]> = { ...(resumeVectors ?? {}) };
-  const pending = library.filter((c) => !vectors[c.id]);
-  onProgress?.({ phase: "loading-model", done: Object.keys(vectors).length, total: library.length });
-  await getEmbedder();
-  onProgress?.({ phase: "embedding", done: Object.keys(vectors).length, total: library.length });
-  for (let i = 0; i < pending.length; i++) {
-    if (signal?.aborted) throw new DOMException("Embedding index cancelled", "AbortError");
-    const c = pending[i];
-    vectors[c.id] = await embedPassage(c.text);
-    const done = Object.keys(vectors).length;
-    onProgress?.({ phase: "embedding", done, total: library.length });
-    if (done % 8 === 0) onPartial?.({ ...vectors });
-  }
-  onProgress?.({ phase: "done", done: library.length, total: library.length });
-  return vectors;
+  return buildChunkEmbeddingsFromChunks(chunks, {
+    onProgress,
+    signal,
+    resumeVectors,
+    onPartial,
+  });
 }
 
 export function findSemanticSimilarPassages(
@@ -202,7 +160,6 @@ export async function scanDraftSemanticSimilarity(
   const windows = chunkText(draftTex.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, " "), 320, 60).slice(0, 24);
 
   onProgress?.({ phase: "loading-model", done: 0, total: windows.length });
-  await getEmbedder();
 
   for (let i = 0; i < windows.length; i++) {
     const w = windows[i];
@@ -221,8 +178,6 @@ export async function scanDraftSemanticSimilarity(
   onProgress?.({ phase: "done", done: windows.length, total: windows.length });
   return all.sort((a, b) => b.score - a.score).slice(0, 30);
 }
-
-export { MAX_CHUNKS_INDEX };
 
 export function isEmbeddingIndexReady(vectors: Record<string, number[]> | undefined): boolean {
   if (!vectors) return false;

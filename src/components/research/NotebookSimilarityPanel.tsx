@@ -1,9 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { buildTfidfIndex } from "@/lib/research/corpusIndex";
-import { isEmbeddingIndexReady } from "@/lib/research/embeddingIndex";
+import {
+  isSemanticIndexReadyForProject,
+  resolveLibraryEmbeddings,
+} from "@/lib/research/embeddingLoader";
+import { embeddingStatsDesktop } from "@/lib/research/researchDesktopApi";
 import { scanDraftHybrid, type RetrievalHit } from "@/lib/research/hybridRetrieval";
-import { useMemo, useState } from "react";
+import { isDesktopApp } from "@/lib/isDesktopApp";
+import { useEffect, useMemo, useState } from "react";
 import { Loader2, Info } from "lucide-react";
 
 function confidenceBadge(c: RetrievalHit["confidence"]) {
@@ -24,6 +29,8 @@ export function NotebookSimilarityPanel() {
   } = useResearchProject();
   const [scanning, setScanning] = useState(false);
   const [hits, setHits] = useState<RetrievalHit[]>([]);
+  const [indexReady, setIndexReady] = useState(false);
+  const [embeddedCount, setEmbeddedCount] = useState(0);
 
   const paperNames = useMemo(() => {
     if (!project) return {};
@@ -35,20 +42,47 @@ export function NotebookSimilarityPanel() {
     return buildTfidfIndex(project.chunks);
   }, [project]);
 
-  if (!project) return null;
+  useEffect(() => {
+    if (!project) return;
+    let cancelled = false;
+    void (async () => {
+      const ready = await isSemanticIndexReadyForProject(
+        project.id,
+        project.chunks,
+        project.chunkEmbeddings
+      );
+      if (cancelled) return;
+      setIndexReady(ready);
+      if (isDesktopApp()) {
+        const stats = await embeddingStatsDesktop(project.id);
+        if (!cancelled) setEmbeddedCount(stats.count);
+      } else {
+        setEmbeddedCount(
+          Object.keys(project.chunkEmbeddings ?? {}).filter((k) => k !== "__query__").length
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [project, semanticIndexRebuilding]);
 
-  const indexReady = isEmbeddingIndexReady(project.chunkEmbeddings);
+  if (!project) return null;
 
   const runHybrid = async () => {
     setScanning(true);
-    setProgress(null);
     try {
+      const vectors = await resolveLibraryEmbeddings(
+        project.id,
+        project.chunks,
+        indexReady ? project.chunkEmbeddings : undefined
+      );
       const h = await scanDraftHybrid(
         project.draftTex,
         project.chunks,
         paperNames,
         tfidfIndex,
-        indexReady ? project.chunkEmbeddings : undefined
+        vectors
       );
       setHits(h);
     } finally {
@@ -86,8 +120,7 @@ export function NotebookSimilarityPanel() {
 
       {indexReady && (
         <p className="text-xs text-emerald-600 dark:text-emerald-400">
-          Semantic index: {Object.keys(project.chunkEmbeddings ?? {}).filter((k) => k !== "__query__").length} chunks
-          — hybrid scan uses both signals.
+          Semantic index: {embeddedCount} chunks — hybrid scan uses both signals.
         </p>
       )}
 

@@ -74,6 +74,14 @@ export function deleteEmbeddingsForChunks(app, projectId, chunkIds) {
   );
 }
 
+export function listEmbeddedChunkIds(app, projectId) {
+  const db = getDb(app);
+  return db
+    .prepare("SELECT chunk_id FROM embeddings WHERE project_id = ?")
+    .all(projectId)
+    .map((r) => r.chunk_id);
+}
+
 export function embeddingStats(app, projectId) {
   const db = getDb(app);
   const row = db

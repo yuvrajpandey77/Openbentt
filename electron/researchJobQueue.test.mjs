@@ -8,6 +8,7 @@ import {
   shutdownAllJobs,
 } from "./researchJobQueue.mjs";
 import { makeTempUserData } from "./test/researchTestApp.mjs";
+import { loadEmbeddings, upsertEmbeddings } from "./researchVectorStore.mjs";
 
 function baseProject(id) {
   return {
@@ -99,5 +100,54 @@ describe("researchJobQueue", () => {
       "second job should not block queue forever"
     );
     assert.ok(running.jobId);
+  });
+
+  it("completes embed job when all library chunks already embedded", async () => {
+    const { app } = ctx;
+    const projectId = "job-embed-skip";
+    saveProjectMeta(app, baseProject(projectId));
+
+    enqueueJob(app, projectId, "rechunk", {
+      papers: baseProject(projectId).papers,
+      draftTex: baseProject(projectId).draftTex,
+      projectId,
+    });
+    await new Promise((r) => setTimeout(r, 2000));
+
+    const chunkRows = getDb(app)
+      .prepare("SELECT id FROM corpus_chunks WHERE project_id = ? AND paper_id != 'draft'")
+      .all(projectId);
+    assert.ok(chunkRows.length > 0, "library chunks exist");
+    for (const row of chunkRows) {
+      upsertEmbeddings(app, projectId, [
+        { chunkId: row.id, vector: new Array(384).fill(0.01) },
+      ]);
+    }
+
+    const { jobId: embedId } = enqueueJob(app, projectId, "embed", {});
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const embedJob = listJobs(app, projectId).find((j) => j.id === embedId);
+    assert.ok(embedJob, "embed job listed");
+    assert.equal(embedJob.status, "completed", embedJob?.message ?? "embed failed");
+    assert.ok(
+      embedJob.message?.includes("up to date") || embedJob.result_json?.includes("skipped"),
+      "should skip re-embedding"
+    );
+
+    const loaded = loadEmbeddings(app, projectId);
+    assert.equal(Object.keys(loaded).length, chunkRows.length);
+  });
+
+  it("dedupes concurrent embed job enqueue", async () => {
+    const { app } = ctx;
+    const projectId = "job-embed-dedupe";
+    saveProjectMeta(app, baseProject(projectId));
+
+    const first = enqueueJob(app, projectId, "embed", {});
+    const second = enqueueJob(app, projectId, "embed", {});
+    assert.ok(first.jobId);
+    assert.equal(second.jobId, first.jobId);
+    assert.equal(second.deduped, true);
   });
 });

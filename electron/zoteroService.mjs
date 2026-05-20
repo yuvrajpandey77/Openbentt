@@ -6,6 +6,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { readZoteroApiKeyMaybe, writeZoteroApiKey } from "./zoteroSecretStore.mjs";
+import { mapZoteroApiToSnapshot } from "../src/lib/zotero/zoteroMapper.mjs";
 
 const ZOTERO_API = "https://api.zotero.org";
 
@@ -146,172 +147,6 @@ function detectBbtInBib(bibText) {
   );
 }
 
-function parseCitationKeyFromExtra(extra) {
-  if (!extra) return undefined;
-  const m = extra.match(/(?:^|\n)\s*(?:Citation Key|citation key|bibtex:\s*)\s*:\s*(\S+)/i);
-  return m?.[1];
-}
-
-function formatCreators(creators) {
-  if (!creators?.length) return "";
-  return creators
-    .map((c) => c.name ?? [c.lastName, c.firstName].filter(Boolean).join(", "))
-    .filter(Boolean)
-    .join(" and ");
-}
-
-function extractYear(date) {
-  if (!date) return undefined;
-  const m = date.match(/\d{4}/);
-  return m?.[0];
-}
-
-function defaultCitekey(item) {
-  const fromExtra = parseCitationKeyFromExtra(item.extra);
-  if (fromExtra) return fromExtra;
-  if (item.citationKey) return item.citationKey;
-  const author = item.creators?.[0]?.lastName ?? item.creators?.[0]?.name ?? "item";
-  const year = extractYear(item.date) ?? "nd";
-  const slug = author.replace(/[^a-zA-Z0-9]/g, "").toLowerCase().slice(0, 12);
-  return `${slug}${year}_${item.key.slice(0, 6)}`;
-}
-
-function itemToBibtex(item, citekey) {
-  const type = item.itemType === "journalArticle" ? "article" : "misc";
-  const fields = [];
-  const add = (k, v) => {
-    if (v?.trim()) fields.push(`  ${k} = {${String(v).replace(/[{}]/g, "")}}`);
-  };
-  add("title", item.title);
-  add("author", formatCreators(item.creators));
-  add("year", extractYear(item.date));
-  add("doi", item.DOI);
-  add("url", item.url);
-  add("abstract", item.abstractNote);
-  if (item.extra) add("note", item.extra);
-  if (detectBbtInBib("")) {
-    /* noop — citekey preserved via key field */
-  }
-  return `@${type}{${citekey},\n${fields.join(",\n")}\n}`;
-}
-
-function mapApiToSnapshot(apiItems, apiCollections, apiTags, userId, mode, warnings = []) {
-  const collections = apiCollections.map((c) => ({
-    key: c.data.key,
-    name: c.data.name,
-    parentCollection:
-      typeof c.data.parentCollection === "string" ? c.data.parentCollection : undefined,
-    itemCount: c.meta?.numItems ?? 0,
-  }));
-
-  const tags = apiTags.map((t) => ({ tag: t.tag, type: t.type }));
-
-  const notes = [];
-  const attachments = [];
-  const annotations = [];
-  const topLevel = [];
-  const childrenByParent = new Map();
-
-  for (const item of apiItems) {
-    if (item.parentItem) {
-      const list = childrenByParent.get(item.parentItem) ?? [];
-      list.push(item);
-      childrenByParent.set(item.parentItem, list);
-    } else {
-      topLevel.push(item);
-    }
-  }
-
-  for (const item of apiItems) {
-    if (item.itemType === "note" && item.parentItem && item.note) {
-      notes.push({
-        key: item.key,
-        parentItemKey: item.parentItem,
-        note: item.note,
-        dateModified: item.date ?? "",
-      });
-    }
-    if (item.itemType === "attachment" && item.parentItem) {
-      const isPdf =
-        item.contentType === "application/pdf" ||
-        item.path?.toLowerCase().endsWith(".pdf") ||
-        item.linkMode === "imported_file";
-      attachments.push({
-        key: item.key,
-        parentItemKey: item.parentItem,
-        title: item.title ?? "Attachment",
-        contentType: item.contentType,
-        path: item.path,
-        linkMode: item.linkMode,
-        hasPdf: Boolean(isPdf),
-      });
-    }
-    if (item.itemType === "annotation" && item.parentItem) {
-      annotations.push({
-        key: item.key,
-        parentItemKey: item.parentItem,
-        annotationType:
-          item.annotationType === "highlight" || item.annotationType === "note"
-            ? item.annotationType
-            : "unknown",
-        text: item.annotationText,
-        comment: item.annotationComment,
-        pageLabel: item.annotationPageLabel,
-        color: item.annotationColor,
-        dateModified: item.date ?? "",
-        source: mode === "better-bibtex" ? "better-bibtex" : "zotero-web",
-      });
-    }
-  }
-
-  const items = topLevel
-    .filter((i) => !["note", "attachment", "annotation"].includes(i.itemType))
-    .map((item) => {
-      const citekey = defaultCitekey(item);
-      const kids = childrenByParent.get(item.key) ?? [];
-      const attachmentKeys = kids.filter((k) => k.itemType === "attachment").map((k) => k.key);
-      const noteKeys = kids.filter((k) => k.itemType === "note").map((k) => k.key);
-      const annotationKeys = kids.filter((k) => k.itemType === "annotation").map((k) => k.key);
-      const hasPdf = attachments.some((a) => a.parentItemKey === item.key && a.hasPdf);
-      return {
-        key: item.key,
-        itemType: item.itemType,
-        title: item.title ?? "Untitled",
-        creators: formatCreators(item.creators),
-        year: extractYear(item.date),
-        doi: item.DOI,
-        url: item.url,
-        abstract: item.abstractNote,
-        tags: (item.tags ?? []).map((t) => t.tag),
-        collectionKeys: item.collections ?? [],
-        citekey,
-        bibtexRaw: itemToBibtex(item, citekey),
-        dateModified: item.date ?? "",
-        hasPdf,
-        attachmentKeys,
-        noteKeys,
-        annotationKeys,
-      };
-    });
-
-  const bibliography = items.map((i) => i.bibtexRaw).filter(Boolean).join("\n\n");
-
-  return {
-    syncedAt: new Date().toISOString(),
-    mode,
-    userId,
-    itemCount: items.length,
-    collections,
-    tags,
-    items,
-    notes,
-    attachments,
-    annotations,
-    bibliography,
-    warnings,
-  };
-}
-
 async function fetchAllItems(userId, apiKey, onProgress) {
   const out = [];
   let start = 0;
@@ -376,9 +211,19 @@ async function syncFromWebApi(app, userId, apiKey) {
   );
 
   emitProgress({ phase: "merging", message: "Building library snapshot…" });
-  const snapshot = mapApiToSnapshot(items, collections, tags, String(userId), "web");
-  snapshot.libraryVersion = libraryVersion;
-  snapshot.userId = String(userId);
+  const mapped = mapZoteroApiToSnapshot(items, collections, tags, String(userId), {
+    mode: "web",
+    libraryVersion,
+  });
+  const snapshot = {
+    syncedAt: new Date().toISOString(),
+    mode: "web",
+    userId: String(userId),
+    itemCount: mapped.items.length,
+    warnings: [],
+    ...mapped,
+    libraryVersion,
+  };
 
   await writeJson(libraryCachePath(app), snapshot);
   const cfg = await readJson(configPath(app), {});

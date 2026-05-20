@@ -28,6 +28,13 @@ import { inferPdfMetadata } from "@/lib/research/citationTools";
 import { extractPdfReviewAnnotations } from "@/lib/pdfAnnotations";
 import { requestSemanticIndexRebuild } from "@/lib/research/embeddingPipeline";
 import type { EmbeddingIndexProgress } from "@/lib/research/embeddingIndex";
+import {
+  chunkIdsRemovedAfterRechunk,
+} from "@/lib/research/desktopEmbedJob";
+import {
+  deleteEmbeddingsForChunksDesktop,
+  embeddingStatsDesktop,
+} from "@/lib/research/researchDesktopApi";
 import { loadIndexCheckpoint } from "@/lib/research/indexCheckpoint";
 import {
   assessProjectPressure,
@@ -149,26 +156,30 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
     if (!isDesktopApp() || !project) return;
     return onResearchJobProgress((payload) => {
       if (payload.projectId !== project.id) return;
+      const jobType = payload.jobType ?? "rechunk";
       setBackgroundJob({
         jobId: payload.jobId,
-        type: payload.jobType ?? "rechunk",
+        type: jobType,
         status: payload.status,
         progress: payload.progress,
         message: payload.message,
       });
-      if (payload.status === "completed" && payload.jobType === "rechunk") {
+      if (payload.status === "completed" && jobType === "rechunk") {
         void (async () => {
+          const prevChunks = project.chunks;
           const reloaded = await loadResearchProject(project.id);
           if (!reloaded) return;
+          const removed = chunkIdsRemovedAfterRechunk(prevChunks, reloaded.chunks);
+          if (removed.length) await deleteEmbeddingsForChunksDesktop(project.id, removed);
           setProject(reloaded);
-          runSemanticRebuildRef.current?.(reloaded.chunks, reloaded.id);
+          runSemanticRebuildRef.current?.(reloaded.chunks, reloaded.id, { removedChunkIds: removed });
         })();
       }
       if (payload.status === "completed") {
         window.setTimeout(() => setBackgroundJob(null), 4000);
       }
     });
-  }, [project?.id]);
+  }, [project?.id, project?.chunks, toast]);
 
   useEffect(() => {
     if (!isDesktopApp()) return;
@@ -193,7 +204,17 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       if (!p) return;
       const cp = loadIndexCheckpoint(p.id);
       const lib = p.chunks.filter((c) => c.paperId !== "draft");
-      const embedded = Object.keys(p.chunkEmbeddings ?? {}).filter((k) => k !== "__query__").length;
+      const embedded = isDesktopApp()
+        ? 0
+        : Object.keys(p.chunkEmbeddings ?? {}).filter((k) => k !== "__query__").length;
+      if (isDesktopApp()) {
+        void embeddingStatsDesktop(p.id).then((stats) => {
+          if (stats.count < lib.length) {
+            runSemanticRebuildRef.current?.(p.chunks, p.id);
+          }
+        });
+        return;
+      }
       if (cp && cp.doneIds.length < cp.total && embedded < lib.length) {
         toast({
           title: "Resuming semantic index",
@@ -205,9 +226,13 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
     [toast]
   );
 
-  const runSemanticRebuildRef = useRef<(chunks: ResearchProjectData["chunks"], projectId: string) => void>(
-    () => {}
-  );
+  const runSemanticRebuildRef = useRef<
+    (
+      chunks: ResearchProjectData["chunks"],
+      projectId: string,
+      opts?: { removedChunkIds?: string[] }
+    ) => void
+  >(() => {});
 
   const selectProject = useCallback(
     async (id: string) => {
@@ -231,15 +256,32 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   );
 
   const runSemanticRebuild = useCallback(
-    (chunks: ResearchProjectData["chunks"], projectId: string) => {
+    (
+      chunks: ResearchProjectData["chunks"],
+      projectId: string,
+      opts?: { removedChunkIds?: string[] }
+    ) => {
       if (chunks.filter((c) => c.paperId !== "draft").length === 0) return;
       cancelSemanticIndexRebuildInner();
       setSemanticIndexRebuilding(true);
-      const job = requestSemanticIndexRebuild(chunks, projectId, setSemanticIndexProgress);
+      const job = requestSemanticIndexRebuild(chunks, projectId, setSemanticIndexProgress, opts);
       rebuildRef.current = job;
       void job.promise
-        .then(async (vectors) => {
-          if (!vectors) return;
+        .then(async (result) => {
+          if (!result) return;
+          if (isDesktopApp()) {
+            const current = await loadResearchProject(projectId);
+            if (current) setProject(current);
+            if (typeof result === "object" && result !== null && "embedded" in result) {
+              const stats = await embeddingStatsDesktop(projectId);
+              toast({
+                title: "Semantic index ready",
+                description: `${stats.count} passages embedded.`,
+              });
+            }
+            return;
+          }
+          const vectors = result as Record<string, number[]>;
           await saveProjectEmbeddingsOnly(projectId, vectors);
           const current = await loadResearchProject(projectId);
           if (!current) return;

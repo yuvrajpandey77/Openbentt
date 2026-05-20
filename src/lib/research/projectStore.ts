@@ -131,8 +131,6 @@ function defaultProject(title: string): ResearchProjectData {
 
 async function attachEmbeddings(data: ResearchProjectData): Promise<ResearchProjectData> {
   if (isDesktopApp()) {
-    const vectors = await loadEmbeddingsDesktop(data.id);
-    if (Object.keys(vectors).length) return { ...data, chunkEmbeddings: vectors };
     return data;
   }
   const local = loadEmbeddingsLocal(data.id);
@@ -339,9 +337,6 @@ export async function addPaperToProject(
   const papers = [...project.papers, paper];
   saveEmbeddingsLocal(project.id, undefined);
   clearIndexCheckpoint(project.id);
-  if (isDesktopApp()) {
-    await clearEmbeddingsDesktop(project.id);
-  }
   const next = hydrate({ ...project, papers, chunks: [], chunkEmbeddings: undefined });
   return saveResearchProject(next);
 }

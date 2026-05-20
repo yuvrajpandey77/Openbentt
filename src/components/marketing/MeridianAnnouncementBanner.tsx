@@ -5,16 +5,20 @@ import { ArrowRight } from "lucide-react";
 
 type MeridianAnnouncementBannerProps = {
   className?: string;
+  /** Sits on hero gradient — no bar background */
   overHero?: boolean;
+  scrolled?: boolean;
 };
 
 /** Small headline pill directly under the site header. */
-export function MeridianAnnouncementBanner({ className, overHero }: MeridianAnnouncementBannerProps) {
+export function MeridianAnnouncementBanner({ className, overHero, scrolled }: MeridianAnnouncementBannerProps) {
   return (
     <div
       className={cn(
-        "marketing-announcement flex justify-center border-b px-4 py-2 transition-colors duration-300",
-        overHero ? "marketing-announcement--hero border-border/30" : "border-border/40 bg-muted/20",
+        "marketing-announcement relative z-40 flex justify-center border-b px-4 py-2 transition-colors duration-300",
+        overHero
+          ? cn("border-transparent bg-transparent", scrolled && "marketing-announcement--past-hero")
+          : "border-border/40 bg-muted/20",
         className
       )}
       role="region"
@@ -22,7 +26,12 @@ export function MeridianAnnouncementBanner({ className, overHero }: MeridianAnno
     >
       <Link
         to={meridianAnnouncement.href}
-        className="group inline-flex max-w-full items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1.5 text-xs text-foreground shadow-sm transition-colors hover:border-primary/30 hover:bg-muted/70 sm:gap-2.5 sm:px-4 sm:py-2 sm:text-sm"
+        className={cn(
+          "group inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs text-foreground shadow-sm transition-colors sm:gap-2.5 sm:px-4 sm:py-2 sm:text-sm",
+          overHero
+            ? "border-border/50 bg-card/80 shadow-md backdrop-blur-sm hover:border-primary/30 hover:bg-card"
+            : "border-border/60 bg-muted/40 hover:border-primary/30 hover:bg-muted/70"
+        )}
       >
         <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground sm:text-[11px]">
           {meridianAnnouncement.eyebrow}

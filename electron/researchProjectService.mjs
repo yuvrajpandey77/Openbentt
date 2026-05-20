@@ -24,6 +24,7 @@ import {
   setActiveProjectId,
 } from "./researchDb.mjs";
 import {
+  deleteEmbeddingsForChunks,
   deleteEmbeddingsForProject,
   embeddingStats,
   loadEmbeddings,
@@ -63,8 +64,6 @@ export function registerResearchProjectIpc(ipcMain, app) {
     assertSafeId(id, "project id");
     const data = loadProject(app, id);
     if (!data) return null;
-    const vectors = loadEmbeddings(app, id);
-    if (Object.keys(vectors).length) data.chunkEmbeddings = vectors;
     return data;
   });
 
@@ -137,6 +136,13 @@ export function registerResearchProjectIpc(ipcMain, app) {
     return { ok: true };
   });
 
+  ipcMain.handle("research:deleteEmbeddingsForChunks", async (_e, projectId, chunkIds) => {
+    assertSafeId(projectId, "project id");
+    if (!Array.isArray(chunkIds)) throw new Error("chunkIds must be an array");
+    deleteEmbeddingsForChunks(app, projectId, chunkIds);
+    return { ok: true };
+  });
+
   ipcMain.handle("research:enqueueJob", async (e, projectId, type, payload) => {
     const win = e.sender?.getOwnerBrowserWindow?.() ?? null;
     setJobProgressTarget(projectId, win);
@@ -158,10 +164,7 @@ export function registerResearchProjectIpc(ipcMain, app) {
   ipcMain.handle("research:listSnapshots", async (_e, projectId) => listSnapshots(app, projectId));
 
   ipcMain.handle("research:restoreSnapshot", async (_e, snapshotId) => {
-    const data = restoreSnapshot(app, snapshotId);
-    const vectors = loadEmbeddings(app, data.id);
-    if (Object.keys(vectors).length) data.chunkEmbeddings = vectors;
-    return data;
+    return restoreSnapshot(app, snapshotId);
   });
 
   ipcMain.handle("research:pushDraftHistory", async (_e, projectId, content, label) =>

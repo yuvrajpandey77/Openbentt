@@ -6,6 +6,14 @@ import type {
   ZoteroNote,
   ZoteroTag,
 } from "@/types/zotero";
+import {
+  defaultCitekey,
+  extractYear,
+  formatCreators,
+  mapZoteroApiToSnapshot as mapZoteroApiToSnapshotCore,
+  parseCitationKeyFromExtra,
+  zoteroItemToBibtex,
+} from "@/lib/zotero/zoteroMapper.mjs";
 
 /** Raw Zotero Web API item (subset). */
 export interface ZoteroApiItem {
@@ -135,54 +143,13 @@ export async function zoteroFetchTags(
   return res.json() as Promise<ZoteroApiTag[]>;
 }
 
-export function formatCreators(
-  creators?: ZoteroApiItem["creators"]
-): string {
-  if (!creators?.length) return "";
-  return creators
-    .map((c) => c.name ?? [c.lastName, c.firstName].filter(Boolean).join(", "))
-    .filter(Boolean)
-    .join(" and ");
-}
-
-export function extractYear(date?: string): string | undefined {
-  if (!date) return undefined;
-  const m = date.match(/\d{4}/);
-  return m?.[0];
-}
-
-/** Parse Better BibTeX citation key from Zotero `extra` field. */
-export function parseCitationKeyFromExtra(extra?: string): string | undefined {
-  if (!extra) return undefined;
-  const m = extra.match(/(?:^|\n)\s*(?:Citation Key|citation key|bibtex:\s*)\s*:\s*(\S+)/i);
-  return m?.[1];
-}
-
-export function defaultCitekey(item: ZoteroApiItem): string {
-  const fromExtra = parseCitationKeyFromExtra(item.extra);
-  if (fromExtra) return fromExtra;
-  if (item.citationKey) return item.citationKey;
-  const author = item.creators?.[0]?.lastName ?? item.creators?.[0]?.name ?? "item";
-  const year = extractYear(item.date) ?? "nd";
-  const slug = author.replace(/[^a-zA-Z0-9]/g, "").toLowerCase().slice(0, 12);
-  return `${slug}${year}_${item.key.slice(0, 6)}`;
-}
-
-export function zoteroItemToBibtex(item: ZoteroApiItem, citekey: string): string {
-  const type = item.itemType === "journalArticle" ? "article" : "misc";
-  const fields: string[] = [];
-  const add = (k: string, v?: string) => {
-    if (v?.trim()) fields.push(`  ${k} = {${v.replace(/[{}]/g, "")}}`);
-  };
-  add("title", item.title);
-  add("author", formatCreators(item.creators));
-  add("year", extractYear(item.date));
-  add("doi", item.DOI);
-  add("url", item.url);
-  add("abstract", item.abstractNote);
-  if (item.extra) add("note", item.extra);
-  return `@${type}{${citekey},\n${fields.join(",\n")}\n}`;
-}
+export {
+  defaultCitekey,
+  extractYear,
+  formatCreators,
+  parseCitationKeyFromExtra,
+  zoteroItemToBibtex,
+};
 
 export function mapZoteroApiToSnapshot(
   apiItems: ZoteroApiItem[],
@@ -199,103 +166,16 @@ export function mapZoteroApiToSnapshot(
   tags: ZoteroTag[];
   bibliography: string;
 } {
-  const collections: ZoteroCollection[] = apiCollections.map((c) => ({
-    key: c.data.key,
-    name: c.data.name,
-    parentCollection:
-      typeof c.data.parentCollection === "string" ? c.data.parentCollection : undefined,
-    itemCount: c.meta?.numItems ?? 0,
-  }));
-
-  const tags: ZoteroTag[] = apiTags.map((t) => ({ tag: t.tag, type: t.type }));
-
-  const notes: ZoteroNote[] = [];
-  const attachments: ZoteroAttachment[] = [];
-  const annotations: ZoteroAnnotation[] = [];
-  const topLevel: ZoteroApiItem[] = [];
-  const childrenByParent = new Map<string, ZoteroApiItem[]>();
-
-  for (const item of apiItems) {
-    if (item.parentItem) {
-      const list = childrenByParent.get(item.parentItem) ?? [];
-      list.push(item);
-      childrenByParent.set(item.parentItem, list);
-    } else {
-      topLevel.push(item);
-    }
-  }
-
-  for (const item of apiItems) {
-    if (item.itemType === "note" && item.parentItem && item.note) {
-      notes.push({
-        key: item.key,
-        parentItemKey: item.parentItem,
-        note: item.note,
-        dateModified: item.date ?? "",
-      });
-    }
-    if (item.itemType === "attachment" && item.parentItem) {
-      const isPdf =
-        item.contentType === "application/pdf" ||
-        item.path?.toLowerCase().endsWith(".pdf") ||
-        item.linkMode === "imported_file";
-      attachments.push({
-        key: item.key,
-        parentItemKey: item.parentItem,
-        title: item.title ?? "Attachment",
-        contentType: item.contentType,
-        path: item.path,
-        linkMode: item.linkMode,
-        hasPdf: Boolean(isPdf),
-      });
-    }
-    if (item.itemType === "annotation" && item.parentItem) {
-      const annType = (item.annotationType ?? "unknown") as ZoteroAnnotation["annotationType"];
-      annotations.push({
-        key: item.key,
-        parentItemKey: item.parentItem,
-        annotationType: annType === "highlight" || annType === "note" ? annType : "unknown",
-        text: item.annotationText,
-        comment: item.annotationComment,
-        pageLabel: item.annotationPageLabel,
-        color: item.annotationColor,
-        dateModified: item.date ?? "",
-        source: "zotero-web",
-      });
-    }
-  }
-
-  const items: ZoteroItem[] = topLevel
-    .filter((i) => !["note", "attachment", "annotation"].includes(i.itemType))
-    .map((item) => {
-      const citekey = defaultCitekey(item);
-      const kids = childrenByParent.get(item.key) ?? [];
-      const attachmentKeys = kids.filter((k) => k.itemType === "attachment").map((k) => k.key);
-      const noteKeys = kids.filter((k) => k.itemType === "note").map((k) => k.key);
-      const annotationKeys = kids.filter((k) => k.itemType === "annotation").map((k) => k.key);
-      const hasPdf = attachments.some((a) => a.parentItemKey === item.key && a.hasPdf);
-      return {
-        key: item.key,
-        itemType: item.itemType,
-        title: item.title ?? "Untitled",
-        creators: formatCreators(item.creators),
-        year: extractYear(item.date),
-        doi: item.DOI,
-        url: item.url,
-        abstract: item.abstractNote,
-        tags: (item.tags ?? []).map((t) => t.tag),
-        collectionKeys: item.collections ?? [],
-        citekey,
-        bibtexRaw: zoteroItemToBibtex(item, citekey),
-        dateModified: item.date ?? "",
-        hasPdf,
-        attachmentKeys,
-        noteKeys,
-        annotationKeys,
-      };
-    });
-
-  const bibliography = items.map((i) => i.bibtexRaw).filter(Boolean).join("\n\n");
-
-  return { items, notes, attachments, annotations, collections, tags, bibliography };
+  return mapZoteroApiToSnapshotCore(apiItems, apiCollections, apiTags, userId, {
+    mode: "web",
+    libraryVersion,
+  }) as {
+    items: ZoteroItem[];
+    notes: ZoteroNote[];
+    attachments: ZoteroAttachment[];
+    annotations: ZoteroAnnotation[];
+    collections: ZoteroCollection[];
+    tags: ZoteroTag[];
+    bibliography: string;
+  };
 }

@@ -48,7 +48,7 @@ const HomeLandingPage: React.FC = () => {
   return (
     <MarketingShell homeAnchors terminalBar wide>
       <main>
-        <section className="marketing-hero" aria-label="Introduction">
+        <section className="marketing-hero relative z-10" aria-label="Introduction">
           <MarketingHero />
 
           <div className="marketing-hero-actions">

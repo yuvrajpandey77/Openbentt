@@ -4,12 +4,16 @@
 import { Worker } from "node:worker_threads";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getDb } from "./researchDb.mjs";
-import { saveChunks } from "./researchDb.mjs";
+import { getDb, loadProject, saveChunks } from "./researchDb.mjs";
+import {
+  deleteEmbeddingsForChunks,
+  listEmbeddedChunkIds,
+  upsertEmbeddings,
+} from "./researchVectorStore.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** @type {Map<string, { jobs: object[], running: boolean, currentId: string | null, abort: AbortController | null, win: Electron.BrowserWindow | null }>} */
+/** @type {Map<string, { jobs: object[], running: boolean, currentId: string | null, abort: AbortController | null, win: Electron.BrowserWindow | null, embedRunning: boolean }>} */
 const queues = new Map();
 
 function uuid() {
@@ -18,7 +22,14 @@ function uuid() {
 
 function getQueue(projectId) {
   if (!queues.has(projectId)) {
-    queues.set(projectId, { jobs: [], running: false, currentId: null, abort: null, win: null });
+    queues.set(projectId, {
+      jobs: [],
+      running: false,
+      currentId: null,
+      abort: null,
+      win: null,
+      embedRunning: false,
+    });
   }
   return queues.get(projectId);
 }
@@ -64,6 +75,16 @@ function persistJob(app, job) {
 
 export function enqueueJob(app, projectId, type, payload = {}, opts = {}) {
   const q = getQueue(projectId);
+
+  if (type === "embed") {
+    const existing = q.jobs.find(
+      (j) => j.type === "embed" && (j.status === "pending" || j.status === "running")
+    );
+    if (existing || q.embedRunning) {
+      return { jobId: existing?.id ?? q.currentId ?? null, deduped: true };
+    }
+  }
+
   const job = {
     id: uuid(),
     projectId,
@@ -129,6 +150,7 @@ async function drainQueue(app, projectId) {
 
   q.running = true;
   q.currentId = next.id;
+  if (next.type === "embed") q.embedRunning = true;
   next.status = "running";
   next.updatedAt = new Date().toISOString();
   persistJob(app, next);
@@ -186,13 +208,14 @@ async function drainQueue(app, projectId) {
     });
     q.running = false;
     q.currentId = null;
+    if (next.type === "embed") q.embedRunning = false;
     q.abort = null;
     q.jobs = q.jobs.filter((j) => j.id !== next.id || j.status === "pending");
     void drainQueue(app, projectId);
   }
 }
 
-function runWorker(type, payload, signal) {
+function runChunkWorker(type, payload, signal) {
   return new Promise((resolve, reject) => {
     const workerPath = path.join(__dirname, "researchWorkers", "chunkWorker.mjs");
     const worker = new Worker(workerPath, { workerData: { type, payload } });
@@ -212,12 +235,53 @@ function runWorker(type, payload, signal) {
   });
 }
 
+function runEmbedWorker(chunks, resumeVectors, signal, onProgress, onPartial) {
+  return new Promise((resolve, reject) => {
+    const workerPath = path.join(__dirname, "researchWorkers", "embedWorker.mjs");
+    const worker = new Worker(workerPath, {
+      workerData: { type: "embed", payload: { chunks, resumeVectors } },
+    });
+    let settled = false;
+    const finish = (fn, val) => {
+      if (settled) return;
+      settled = true;
+      fn(val);
+    };
+    const onAbort = () => {
+      worker.terminate();
+      finish(reject, Object.assign(new Error("Aborted"), { name: "AbortError" }));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    worker.on("message", (msg) => {
+      if (msg?.error) {
+        if (msg.aborted) finish(reject, Object.assign(new Error("Aborted"), { name: "AbortError" }));
+        else finish(reject, new Error(msg.error));
+        return;
+      }
+      if (msg?.type === "progress" && msg.progress) {
+        const { done, total, phase } = msg.progress;
+        const frac = total > 0 ? done / total : 0;
+        onProgress?.(frac, phase === "loading-model" ? "Loading MiniLM…" : `Embedding ${done}/${total}…`);
+      }
+      if (msg?.type === "partial" && msg.vectors) {
+        onPartial?.(msg.vectors);
+      }
+      if (msg?.result) finish(resolve, msg.result);
+    });
+    worker.on("error", (err) => finish(reject, err));
+    worker.on("exit", (code) => {
+      if (!settled && code !== 0) finish(reject, new Error(`Embed worker exited ${code}`));
+    });
+  });
+}
+
 async function runJob(app, job, signal, onProgress) {
   switch (job.type) {
     case "rechunk": {
       onProgress(0.1, "Chunking corpus…");
       const { papers, draftTex, projectId } = job.payload;
-      const chunks = await runWorker(
+      const chunks = await runChunkWorker(
         "rechunk",
         { papers, draftTex, projectId: projectId ?? job.projectId },
         signal
@@ -226,6 +290,48 @@ async function runJob(app, job, signal, onProgress) {
       saveChunks(app, job.projectId, chunks);
       onProgress(1, "Done");
       return { chunkCount: chunks.length };
+    }
+    case "embed": {
+      const removed = job.payload.removedChunkIds ?? [];
+      if (removed.length) {
+        deleteEmbeddingsForChunks(app, job.projectId, removed);
+      }
+
+      const data = loadProject(app, job.projectId);
+      if (!data) throw new Error("Project not found");
+      const library = (data.chunks ?? []).filter((c) => c.paperId !== "draft");
+      if (library.length === 0) return { embedded: 0 };
+
+      const embeddedIds = new Set(listEmbeddedChunkIds(app, job.projectId));
+      const resumeVectors = {};
+      for (const id of embeddedIds) resumeVectors[id] = [];
+
+      const pending = library.filter((c) => !embeddedIds.has(c.id));
+      if (pending.length === 0) {
+        onProgress(1, "Embeddings up to date");
+        return { embedded: 0, skipped: library.length };
+      }
+
+      onProgress(0.05, "Loading MiniLM…");
+      const { vectors } = await runEmbedWorker(
+        library,
+        resumeVectors,
+        signal,
+        (frac, msg) => onProgress(0.1 + frac * 0.85, msg),
+        (partial) => {
+          const batch = Object.entries(partial)
+            .filter(([k, v]) => k !== "__query__" && v?.length)
+            .map(([chunkId, vector]) => ({ chunkId, vector }));
+          if (batch.length) upsertEmbeddings(app, job.projectId, batch);
+        }
+      );
+
+      const batch = Object.entries(vectors ?? {})
+        .filter(([k, v]) => k !== "__query__" && v?.length)
+        .map(([chunkId, vector]) => ({ chunkId, vector }));
+      if (batch.length) upsertEmbeddings(app, job.projectId, batch);
+      onProgress(1, `Embedded ${batch.length} passages`);
+      return { embedded: batch.length };
     }
     default:
       throw new Error(`Unknown job type: ${job.type}`);

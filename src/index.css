@@ -173,7 +173,8 @@
   }
 
   .marketing-page {
-    --mkt-hero-bg: 0 0% 100%;
+    --mkt-canvas: var(--background);
+    --mkt-hero-bg: var(--mkt-canvas);
     --mkt-hero-fg: var(--foreground);
     --mkt-hero-subhead: var(--muted-foreground);
     --mkt-hero-accent: 252 56% 52%;
@@ -193,12 +194,93 @@
   }
 
   .dark .marketing-page {
-    --mkt-hero-bg: var(--card);
+    --mkt-canvas: var(--background);
+    --mkt-hero-bg: var(--mkt-canvas);
     --mkt-hero-accent: var(--primary);
     --mkt-terminal-bg: 222 26% 7%;
     --mkt-terminal-fg: 210 30% 94%;
     --mkt-terminal-muted: 215 16% 58%;
     --mkt-band: 222 20% 12%;
+  }
+
+  /* Landing: hero gradient behind header; page canvas below */
+  .marketing-page--home {
+    --mkt-hero-surface: 0 0% 100%;
+    --mkt-hero-bg: var(--mkt-hero-surface);
+    background: hsl(var(--mkt-canvas));
+  }
+
+  .dark .marketing-page--home {
+    --mkt-hero-surface: var(--card);
+    --mkt-hero-bg: var(--mkt-hero-surface);
+  }
+
+  .marketing-hero-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 0;
+    height: min(96vh, 1180px);
+    overflow: hidden;
+    pointer-events: none;
+    background: hsl(var(--mkt-hero-surface));
+    mask-image: linear-gradient(to bottom, black 82%, transparent 100%);
+  }
+
+  .marketing-hero-backdrop .marketing-hero-blobs {
+    position: absolute;
+    inset: 0;
+  }
+
+  .marketing-page--home .marketing-header--over-hero {
+    background: transparent;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+
+  .marketing-page--home .marketing-header--over-hero.marketing-header--scrolled {
+    background: hsl(var(--mkt-canvas) / 0.96);
+    backdrop-filter: blur(12px);
+    border-bottom-color: hsl(var(--border) / 0.5);
+    box-shadow: 0 8px 30px -12px hsl(222 47% 11% / 0.08);
+  }
+
+  .dark .marketing-page--home .marketing-header--over-hero.marketing-header--scrolled {
+    box-shadow: 0 8px 30px -12px hsl(0 0% 0% / 0.4);
+  }
+
+  .marketing-page--home .marketing-announcement {
+    background: transparent;
+    border-bottom-color: transparent;
+  }
+
+  .marketing-page--home .marketing-announcement--past-hero {
+    background: hsl(var(--mkt-canvas) / 0.96);
+    border-bottom-color: hsl(var(--border) / 0.4);
+  }
+
+  .marketing-page--home .marketing-hero,
+  .marketing-page--home .marketing-hero-actions {
+    background: transparent;
+  }
+
+  .marketing-page--home main > section:not(.marketing-hero),
+  .marketing-page--home .marketing-section-band {
+    background: transparent;
+  }
+
+  .marketing-page--home .marketing-section-band {
+    border-color: hsl(var(--border) / 0.35);
+  }
+
+  .marketing-page--home > footer {
+    background: hsl(var(--mkt-canvas));
+    border-top-color: hsl(var(--border) / 0.35);
+  }
+
+  body:has(.marketing-page--home) {
+    background: hsl(var(--background));
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -216,6 +298,7 @@
     overflow-x: clip;
   }
 
+  .marketing-page:has(.marketing-hero-backdrop) > .marketing-glow,
   .marketing-page:has(.marketing-hero-stage) > .marketing-glow {
     display: none;
   }
@@ -321,8 +404,12 @@
     position: relative;
     width: 100%;
     max-width: 100%;
-    overflow: hidden;
-    background: hsl(var(--mkt-hero-bg));
+    overflow: visible;
+    background: transparent;
+  }
+
+  .marketing-page--home .marketing-hero-stage {
+    background: transparent;
   }
 
   .marketing-hero-inner {
@@ -446,28 +533,11 @@
     @apply transition-colors duration-200;
   }
 
-  .marketing-header--hero {
-    background: hsl(var(--mkt-hero-bg) / 0.94);
-  }
-
-  .marketing-header--hero.marketing-header--scrolled {
-    background: hsl(var(--mkt-hero-bg) / 0.98);
-  }
-
-  .marketing-announcement--hero {
-    background: hsl(var(--mkt-hero-bg));
-  }
-
-  .marketing-header--scrolled {
+  .marketing-page:not(.marketing-page--home) .marketing-header--scrolled {
     @apply border-border/70 bg-background/95 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)];
   }
 
-  .marketing-header--hero.marketing-header--scrolled,
-  .dark .marketing-header--hero.marketing-header--scrolled {
-    background: hsl(var(--background) / 0.95);
-  }
-
-  .dark .marketing-header--scrolled {
+  .dark .marketing-page:not(.marketing-page--home) .marketing-header--scrolled {
     @apply shadow-[0_8px_30px_-12px_rgba(0,0,0,0.45)];
   }
 
@@ -480,7 +550,7 @@
   }
 
   .marketing-bento-overlay {
-    background: linear-gradient(to top, hsl(var(--background) / 0.97), hsl(var(--background) / 0.55), transparent);
+    background: linear-gradient(to top, hsl(var(--mkt-canvas) / 0.97), hsl(var(--mkt-canvas) / 0.55), transparent);
   }
 
   .marketing-hero-enter {

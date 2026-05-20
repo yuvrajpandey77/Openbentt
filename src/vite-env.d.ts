@@ -45,6 +45,7 @@ interface OpenbenttResearchApi {
   ) => Promise<{ count: number }>;
   embeddingStats: (projectId: string) => Promise<{ count: number; dim: number }>;
   clearEmbeddings: (projectId: string) => Promise<{ ok: boolean }>;
+  deleteEmbeddingsForChunks: (projectId: string, chunkIds: string[]) => Promise<{ ok: boolean }>;
   enqueueJob: (projectId: string, type: string, payload: unknown) => Promise<{ jobId: string }>;
   cancelJob: (projectId: string, jobId: string) => Promise<{ ok: boolean }>;
   cancelAllJobs: (projectId: string) => Promise<{ ok: boolean }>;

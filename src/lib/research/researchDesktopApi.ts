@@ -51,6 +51,20 @@ export async function clearEmbeddingsDesktop(projectId: string): Promise<void> {
   await api()?.clearEmbeddings?.(projectId);
 }
 
+export async function deleteEmbeddingsForChunksDesktop(
+  projectId: string,
+  chunkIds: string[]
+): Promise<void> {
+  if (!chunkIds.length) return;
+  await api()?.deleteEmbeddingsForChunks?.(projectId, chunkIds);
+}
+
+export async function embeddingStatsDesktop(
+  projectId: string
+): Promise<{ count: number; dim: number }> {
+  return (await api()?.embeddingStats?.(projectId)) ?? { count: 0, dim: 384 };
+}
+
 export async function enqueueResearchJob(
   projectId: string,
   type: string,

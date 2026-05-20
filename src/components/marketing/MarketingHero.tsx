@@ -5,8 +5,6 @@ import { HeroHeadline } from "@/components/marketing/HeroHeadline";
 export function MarketingHero() {
   return (
     <div className="marketing-hero-stage" aria-labelledby="marketing-hero-title">
-      <div className="marketing-hero-blobs" aria-hidden />
-
       <div className="marketing-hero-inner relative z-10">
         <div className="marketing-hero-enter marketing-hero-enter--1">
           <HeroHeadline id="marketing-hero-title" />

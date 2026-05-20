@@ -249,6 +249,8 @@ export const providerStrip = [
   "Local GGUF",
 ] as const;
 
+export const cogerphereWebsite = "https://cogerphere.com" as const;
+
 export const mission = {
   eyebrow: "Built for researchers",
   title: "Plain tools. Your machine. Your data.",
@@ -272,6 +274,10 @@ export const footerColumns = [
       { label: "First-time setup", to: "/setup" },
       { label: "Share runs", to: "/share" },
     ],
+  },
+  {
+    title: "Cogerphere",
+    links: [{ label: "About, contact & more", external: cogerphereWebsite }],
   },
   {
     title: "Community",
