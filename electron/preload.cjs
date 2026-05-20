@@ -96,6 +96,10 @@ contextBridge.exposeInMainWorld("openbenttResearch", {
   listSnapshots: (projectId) => ipcRenderer.invoke("research:listSnapshots", projectId),
   restoreSnapshot: (snapshotId) => ipcRenderer.invoke("research:restoreSnapshot", snapshotId),
   exportFinetuneCorpus: (projectId) => ipcRenderer.invoke("research:exportFinetuneCorpus", projectId),
+  pushDraftHistory: (projectId, content, label) =>
+    ipcRenderer.invoke("research:pushDraftHistory", projectId, content, label),
+  listDraftHistory: (projectId) => ipcRenderer.invoke("research:listDraftHistory", projectId),
+  restoreDraftHistory: (entryId) => ipcRenderer.invoke("research:restoreDraftHistory", entryId),
   onJobProgress: (cb) => {
     const handler = (_event, payload) => cb(payload);
     ipcRenderer.on("research:jobProgress", handler);

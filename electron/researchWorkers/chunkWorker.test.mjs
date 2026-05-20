@@ -22,6 +22,7 @@ function runChunkWorker(payload) {
 describe("chunkWorker", () => {
   it("chunks papers and draft in worker thread", async () => {
     const chunks = await runChunkWorker({
+      projectId: "proj-worker",
       papers: [
         {
           id: "p1",
@@ -36,6 +37,7 @@ describe("chunkWorker", () => {
     assert.ok(chunks.length >= 2);
     assert.ok(chunks.some((c) => c.paperId === "p1"));
     assert.ok(chunks.some((c) => c.paperId === "draft"));
+    assert.ok(chunks.some((c) => c.id === "proj-worker:draft-0"));
   });
 
   it("returns error for unknown worker type", async () => {

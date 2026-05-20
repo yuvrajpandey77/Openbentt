@@ -179,7 +179,15 @@ export function ZoteroProvider({ children }: { children: React.ReactNode }) {
           if (res.snapshot) setSnapshot(res.snapshot);
           await refreshStatus();
           setProgress({ phase: "complete", message: "Sync complete" });
-          return res.snapshot ? mergeSnapshotIntoProject(res.snapshot, "") : null;
+          const result = res.snapshot ? mergeSnapshotIntoProject(res.snapshot, "") : null;
+          if (result) {
+            setLastSyncResult(result);
+            toast({
+              title: "Zotero synced",
+              description: `${res.snapshot?.itemCount ?? 0} items`,
+            });
+          }
+          return result;
         }
 
         const raw = localStorage.getItem(WEB_CREDS_KEY);

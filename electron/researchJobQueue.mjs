@@ -132,7 +132,13 @@ async function drainQueue(app, projectId) {
   next.status = "running";
   next.updatedAt = new Date().toISOString();
   persistJob(app, next);
-  emit(q.win, "research:jobProgress", { projectId, jobId: next.id, status: "running", progress: 0 });
+  emit(q.win, "research:jobProgress", {
+    projectId,
+    jobId: next.id,
+    jobType: next.type,
+    status: "running",
+    progress: 0,
+  });
 
   q.abort = new AbortController();
   try {
@@ -144,6 +150,7 @@ async function drainQueue(app, projectId) {
       emit(q.win, "research:jobProgress", {
         projectId,
         jobId: next.id,
+        jobType: next.type,
         status: "running",
         progress: p,
         message: msg,
@@ -172,6 +179,7 @@ async function drainQueue(app, projectId) {
     emit(q.win, "research:jobProgress", {
       projectId,
       jobId: next.id,
+      jobType: next.type,
       status: next.status,
       progress: next.progress,
       message: next.message,
@@ -208,8 +216,12 @@ async function runJob(app, job, signal, onProgress) {
   switch (job.type) {
     case "rechunk": {
       onProgress(0.1, "Chunking corpus…");
-      const { papers, draftTex } = job.payload;
-      const chunks = await runWorker("rechunk", { papers, draftTex }, signal);
+      const { papers, draftTex, projectId } = job.payload;
+      const chunks = await runWorker(
+        "rechunk",
+        { papers, draftTex, projectId: projectId ?? job.projectId },
+        signal
+      );
       onProgress(0.8, "Saving chunks…");
       saveChunks(app, job.projectId, chunks);
       onProgress(1, "Done");

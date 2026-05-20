@@ -1,4 +1,8 @@
 import type { CorpusChunk, SimilarityHit } from "@/types/researchProject";
+import {
+  buildCorpusChunks as buildCorpusChunksCore,
+  chunkText as chunkTextCore,
+} from "@/lib/research/corpusChunksCore.mjs";
 
 const STOP = new Set(
   "a an the and or but in on at to for of is are was were be been being have has had do does did will would could should may might this that these those with from by as it its".split(
@@ -68,35 +72,18 @@ function cosine(a: Map<string, number>, b: Map<string, number>): number {
   return dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
-/** Split text into overlapping chunks for local similarity index. */
+/** Split text into overlapping chunks — canonical implementation in corpusChunksCore.mjs */
 export function chunkText(text: string, chunkSize = 480, overlap = 80): string[] {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (!normalized) return [];
-  const chunks: string[] = [];
-  let i = 0;
-  while (i < normalized.length) {
-    chunks.push(normalized.slice(i, i + chunkSize));
-    i += chunkSize - overlap;
-  }
-  return chunks;
+  return chunkTextCore(text, chunkSize, overlap);
 }
 
+/** Build corpus chunks — canonical implementation in corpusChunksCore.mjs */
 export function buildCorpusChunks(
   papers: { id: string; fileName: string; extractedText: string }[],
-  draftTex: string
+  draftTex: string,
+  projectId?: string
 ): CorpusChunk[] {
-  const out: CorpusChunk[] = [];
-  for (const p of papers) {
-    const parts = chunkText(p.extractedText);
-    parts.forEach((text, i) => {
-      out.push({ id: `${p.id}-${i}`, paperId: p.id, text, pageHint: Math.floor(i / 3) + 1 });
-    });
-  }
-  const draftParts = chunkText(draftTex.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, " "));
-  draftParts.forEach((text, i) => {
-    out.push({ id: `draft-${i}`, paperId: "draft", text });
-  });
-  return out;
+  return buildCorpusChunksCore(papers, draftTex, projectId ?? "") as CorpusChunk[];
 }
 
 export function findSimilarPassages(

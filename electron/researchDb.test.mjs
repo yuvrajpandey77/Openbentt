@@ -8,6 +8,7 @@ import {
   backupDatabase,
   closeDb,
   createSnapshot,
+  getDb,
   listSnapshots,
   loadProject,
   migrateLegacyProjects,
@@ -184,5 +185,38 @@ describe("researchDb desktop storage", () => {
     patchDraft(app, id, "writer-a");
     patchDraft(app, id, "writer-b-final");
     assert.equal(loadProject(app, id).draftTex, "writer-b-final");
+  });
+
+  it("schema v4 uses composite PK and project-scoped draft chunk IDs", () => {
+    const a = "proj-a";
+    const b = "proj-b";
+    for (const id of [a, b]) {
+      saveProjectMeta(app, {
+        id,
+        title: id,
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+        targetVenue: "generic",
+        linkedThreadIds: [],
+        draftTex: "draft body",
+        bibliography: "",
+        papers: [],
+        chunks: [{ id: "draft-0", paperId: "draft", text: `chunk for ${id}` }],
+        revisionSuggestions: [],
+        modelAttributions: [],
+        abstractVariants: [],
+        keywordSuggestions: [],
+      });
+    }
+
+    const row = getDb(app)
+      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='corpus_chunks'")
+      .get();
+    assert.match(row.sql, /PRIMARY KEY \(id, project_id\)/);
+
+    const loadedA = loadProject(app, a);
+    const loadedB = loadProject(app, b);
+    assert.ok(loadedA.chunks.some((c) => c.id === `${a}:draft-0`));
+    assert.ok(loadedB.chunks.some((c) => c.id === `${b}:draft-0`));
   });
 });

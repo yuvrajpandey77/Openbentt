@@ -46,6 +46,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useResearchWorkspaceOptional } from "@/context/ResearchWorkspaceContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
+import { pushDraftHistoryDesktop } from "@/lib/research/researchDesktopApi";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 
 type MainTab = "preview" | "source";
 /** Which PDF bytes drive the canvas — original upload vs text-compiled (images/layout only on Original). */
@@ -141,11 +143,8 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       syncingFromProject.current = false;
       return;
     }
-    workspace?.setSaveStatus("saving");
     onProjectDraftChange?.(sourceText);
-    const t = window.setTimeout(() => workspace?.setSaveStatus("saved"), 600);
-    return () => window.clearTimeout(t);
-  }, [sourceText, onProjectDraftChange, workspace]);
+  }, [sourceText, onProjectDraftChange]);
 
   useEffect(() => {
     workspace?.setSectionHeadings(parseSectionHeadings(sourceText));
@@ -156,7 +155,10 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   useEffect(() => {
     if (!workspace) return;
     workspace.pushDraftHistory(debouncedSourceForHistory);
-  }, [debouncedSourceForHistory, workspace]);
+    if (isDesktopApp() && researchProject?.id) {
+      void pushDraftHistoryDesktop(researchProject.id, debouncedSourceForHistory, "autosave");
+    }
+  }, [debouncedSourceForHistory, workspace, researchProject?.id]);
 
   useEffect(() => {
     const onUndo = (e: Event) => {

@@ -21,12 +21,12 @@ import {
   saveResearchProject,
   setActiveProjectId,
 } from "@/lib/research/projectStore";
-import { buildCorpusChunks } from "@/lib/research/corpusIndex";
+import { rebuildProjectCorpus } from "@/lib/research/corpusPipeline";
 import { arrayBufferToBase64 } from "@/lib/research/base64";
 import { extractNotebookSourceFromPdf } from "@/lib/pdfText";
 import { inferPdfMetadata } from "@/lib/research/citationTools";
 import { extractPdfReviewAnnotations } from "@/lib/pdfAnnotations";
-import { startSemanticIndexRebuild } from "@/lib/research/semanticIndexRebuild";
+import { requestSemanticIndexRebuild } from "@/lib/research/embeddingPipeline";
 import type { EmbeddingIndexProgress } from "@/lib/research/embeddingIndex";
 import { loadIndexCheckpoint } from "@/lib/research/indexCheckpoint";
 import {
@@ -36,7 +36,6 @@ import {
 } from "@/lib/research/projectLimits";
 import {
   createProjectSnapshot,
-  enqueueResearchJob,
   initResearchDesktop,
   onBeforeQuitSnapshot,
   onResearchJobProgress,
@@ -76,6 +75,8 @@ type ResearchProjectContextValue = {
   recordModelAttribution: (model: string, section: string) => Promise<void>;
   rebuildSemanticIndex: () => void;
   cancelSemanticIndexRebuild: () => void;
+  retryRechunkJob: () => Promise<void>;
+  dismissBackgroundJob: () => void;
   createSnapshot: (reason?: string) => Promise<void>;
 };
 
@@ -94,7 +95,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   );
   const [semanticIndexRebuilding, setSemanticIndexRebuilding] = useState(false);
   const [backgroundJob, setBackgroundJob] = useState<BackgroundJobStatus | null>(null);
-  const rebuildRef = useRef<ReturnType<typeof startSemanticIndexRebuild> | null>(null);
+  const rebuildRef = useRef<ReturnType<typeof requestSemanticIndexRebuild> | null>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftPendingRef = useRef<string | null>(null);
 
@@ -150,12 +151,20 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       if (payload.projectId !== project.id) return;
       setBackgroundJob({
         jobId: payload.jobId,
-        type: "background",
+        type: payload.jobType ?? "rechunk",
         status: payload.status,
         progress: payload.progress,
         message: payload.message,
       });
-      if (payload.status === "completed" || payload.status === "failed") {
+      if (payload.status === "completed" && payload.jobType === "rechunk") {
+        void (async () => {
+          const reloaded = await loadResearchProject(project.id);
+          if (!reloaded) return;
+          setProject(reloaded);
+          runSemanticRebuildRef.current?.(reloaded.chunks, reloaded.id);
+        })();
+      }
+      if (payload.status === "completed") {
         window.setTimeout(() => setBackgroundJob(null), 4000);
       }
     });
@@ -212,8 +221,8 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   );
 
   const persist = useCallback(
-    async (data: ResearchProjectData) => {
-      const saved = await saveResearchProject(data);
+    async (data: ResearchProjectData, opts?: { skipChunks?: boolean }) => {
+      const saved = await saveResearchProject(data, opts);
       setProject(saved);
       await refreshProjects();
       return saved;
@@ -226,7 +235,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       if (chunks.filter((c) => c.paperId !== "draft").length === 0) return;
       cancelSemanticIndexRebuildInner();
       setSemanticIndexRebuilding(true);
-      const job = startSemanticIndexRebuild(chunks, projectId, setSemanticIndexProgress);
+      const job = requestSemanticIndexRebuild(chunks, projectId, setSemanticIndexProgress);
       rebuildRef.current = job;
       void job.promise
         .then(async (vectors) => {
@@ -298,42 +307,77 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       if (!project) return;
       const next = { ...project, ...patch };
       if (patch.papers || patch.draftTex) {
-        if (isDesktopApp() && patch.papers) {
-          await enqueueResearchJob(project.id, "rechunk", {
-            papers: next.papers.map((p) => ({
-              id: p.id,
-              fileName: p.fileName,
-              extractedText: p.extractedText,
-            })),
-            draftTex: next.draftTex,
-          });
-        }
-        next.chunks = buildCorpusChunks(
-          next.papers.map((p) => ({ id: p.id, fileName: p.fileName, extractedText: p.extractedText })),
-          next.draftTex
-        );
-        if (patch.papers) {
+        const paperInputs = next.papers.map((p) => ({
+          id: p.id,
+          fileName: p.fileName,
+          extractedText: p.extractedText,
+        }));
+        const rebuild = await rebuildProjectCorpus(project.id, paperInputs, next.draftTex);
+        if (rebuild.mode === "sync") {
+          next.chunks = rebuild.chunks;
+          if (patch.papers) {
+            next.chunkEmbeddings = undefined;
+            runSemanticRebuild(next.chunks, next.id);
+          }
+        } else if (patch.papers) {
           next.chunkEmbeddings = undefined;
-          runSemanticRebuild(next.chunks, next.id);
         }
+        const skipChunks = rebuild.mode === "queued";
+        await persist(next, skipChunks ? { skipChunks: true } : undefined);
+        return;
       }
       await persist(next);
     },
     [persist, project, runSemanticRebuild]
   );
 
-  const flushDraft = useCallback(async (projectId: string, tex: string) => {
-    setDraftSaveStatus("saving");
-    try {
-      await patchProjectDraft(projectId, tex);
-      const loaded = await loadResearchProject(projectId);
-      if (loaded) setProject(loaded);
-      setDraftSaveStatus("saved");
-      window.setTimeout(() => setDraftSaveStatus((s) => (s === "saved" ? "idle" : s)), 2000);
-    } catch {
-      setDraftSaveStatus("error");
-    }
-  }, []);
+  const flushDraft = useCallback(
+    async (
+      projectId: string,
+      tex: string,
+      papers: ResearchProjectData["papers"]
+    ) => {
+      setDraftSaveStatus("saving");
+      try {
+        await patchProjectDraft(projectId, tex);
+        if (isDesktopApp()) {
+          await rebuildProjectCorpus(
+            projectId,
+            papers.map((p) => ({
+              id: p.id,
+              fileName: p.fileName,
+              extractedText: p.extractedText,
+            })),
+            tex
+          );
+        } else {
+          const loaded = await loadResearchProject(projectId);
+          if (loaded) setProject(loaded);
+        }
+        setDraftSaveStatus("saved");
+        window.setTimeout(() => setDraftSaveStatus((s) => (s === "saved" ? "idle" : s)), 2000);
+      } catch {
+        setDraftSaveStatus("error");
+      }
+    },
+    []
+  );
+
+  const retryRechunkJob = useCallback(async () => {
+    if (!project) return;
+    setBackgroundJob(null);
+    await rebuildProjectCorpus(
+      project.id,
+      project.papers.map((p) => ({
+        id: p.id,
+        fileName: p.fileName,
+        extractedText: p.extractedText,
+      })),
+      project.draftTex
+    );
+  }, [project]);
+
+  const dismissBackgroundJob = useCallback(() => setBackgroundJob(null), []);
 
   const setDraftTex = useCallback(
     (tex: string) => {
@@ -352,7 +396,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
       draftTimerRef.current = setTimeout(() => {
         const pending = draftPendingRef.current;
-        if (pending != null) void flushDraft(project.id, pending);
+        if (pending != null) void flushDraft(project.id, pending, project.papers);
       }, DRAFT_DEBOUNCE_MS);
     },
     [flushDraft, project, toast]
@@ -450,6 +494,8 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       },
       rebuildSemanticIndex,
       cancelSemanticIndexRebuild,
+      retryRechunkJob,
+      dismissBackgroundJob,
       createSnapshot,
     }),
     [
@@ -470,6 +516,8 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       setBibliography,
       rebuildSemanticIndex,
       cancelSemanticIndexRebuild,
+      retryRechunkJob,
+      dismissBackgroundJob,
       createSnapshot,
       runSemanticRebuild,
       toast,

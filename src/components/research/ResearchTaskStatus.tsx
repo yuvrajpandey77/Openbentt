@@ -12,6 +12,8 @@ export function ResearchTaskStatus() {
     backgroundJob,
     draftSaveStatus,
     cancelSemanticIndexRebuild,
+    retryRechunkJob,
+    dismissBackgroundJob,
   } = useResearchProject();
 
   if (
@@ -80,12 +82,32 @@ export function ResearchTaskStatus() {
 
       {backgroundJob && (
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Background job: {backgroundJob.status}
-            {backgroundJob.message ? ` — ${backgroundJob.message}` : ""}
+          <div className="flex items-center justify-between gap-2 text-muted-foreground">
+            <span className="flex items-center gap-2">
+              {backgroundJob.status === "running" || backgroundJob.status === "pending" ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <AlertTriangle className="h-3 w-3 text-destructive" />
+              )}
+              Rechunk: {backgroundJob.status}
+              {backgroundJob.message ? ` — ${backgroundJob.message}` : ""}
+            </span>
+            <div className="flex items-center gap-1">
+              {backgroundJob.status === "failed" && (
+                <Button type="button" variant="outline" size="sm" className="h-6 text-[10px]" onClick={() => void retryRechunkJob()}>
+                  Retry
+                </Button>
+              )}
+              {(backgroundJob.status === "failed" || backgroundJob.status === "cancelled") && (
+                <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={dismissBackgroundJob} title="Dismiss">
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
           </div>
-          <Progress value={Math.round(backgroundJob.progress * 100)} className="h-1.5" />
+          {(backgroundJob.status === "running" || backgroundJob.status === "pending") && (
+            <Progress value={Math.round(backgroundJob.progress * 100)} className="h-1.5" />
+          )}
         </div>
       )}
     </div>

@@ -1,10 +1,12 @@
 import { isDesktopApp } from "@/lib/isDesktopApp";
 
-export type ResearchJobType = "rechunk" | "embed" | "semantic_scan";
+/** Desktop background jobs — only `rechunk` is implemented in the main-process queue. */
+export type ResearchJobType = "rechunk";
 
 export type ResearchJobProgress = {
   projectId: string;
   jobId: string;
+  jobType: ResearchJobType;
   status: string;
   progress: number;
   message?: string;

@@ -76,10 +76,19 @@ export async function restoreProjectSnapshot(snapshotId: string): Promise<Resear
   return (data as ResearchProjectData) ?? null;
 }
 
+export async function pushDraftHistoryDesktop(
+  projectId: string,
+  content: string,
+  label?: string
+): Promise<{ id: string; createdAt: string } | null> {
+  return (await api()?.pushDraftHistory?.(projectId, content, label)) ?? null;
+}
+
 export function onResearchJobProgress(
   cb: (payload: {
     projectId: string;
     jobId: string;
+    jobType?: string;
     status: string;
     progress: number;
     message?: string;

@@ -7,7 +7,7 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const ROOT_DIR = "research-projects";
 
 export function projectsRoot(app) {
@@ -66,6 +66,7 @@ function runMigrations(db) {
   if (v < 1) migrateV1(db);
   if (v < 2) migrateV2(db);
   if (v < 3) migrateV3(db);
+  if (v < 4) migrateV4(db);
 
   if (v < SCHEMA_VERSION) {
     db.prepare("DELETE FROM schema_version").run();
@@ -177,6 +178,58 @@ function migrateV3(db) {
   `);
 }
 
+/** Composite PK on corpus_chunks; project-scoped draft chunk IDs. */
+function migrateV4(db) {
+  const tableRow = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='corpus_chunks'").get();
+  if (tableRow?.sql?.includes("PRIMARY KEY (id, project_id)")) return;
+
+  db.exec("DROP TABLE IF EXISTS corpus_chunks_v4");
+  db.exec(`
+    CREATE TABLE corpus_chunks_v4 (
+      id TEXT NOT NULL,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      paper_id TEXT NOT NULL,
+      text TEXT NOT NULL,
+      page_hint INTEGER,
+      PRIMARY KEY (id, project_id)
+    );
+  `);
+
+  const rows = db.prepare("SELECT id, project_id, paper_id, text, page_hint FROM corpus_chunks").all();
+  const insert = db.prepare(
+    "INSERT INTO corpus_chunks_v4 (id, project_id, paper_id, text, page_hint) VALUES (?, ?, ?, ?, ?)"
+  );
+  const remapDraft = db.prepare(
+    "UPDATE embeddings SET chunk_id = ? WHERE chunk_id = ? AND project_id = ?"
+  );
+
+  for (const r of rows) {
+    let id = r.id;
+    if (r.paper_id === "draft" && !String(id).includes(":")) {
+      const newId = `${r.project_id}:${id}`;
+      remapDraft.run(newId, id, r.project_id);
+      id = newId;
+    }
+    insert.run(id, r.project_id, r.paper_id, r.text, r.page_hint);
+  }
+
+  db.exec("DROP TABLE corpus_chunks");
+  db.exec("ALTER TABLE corpus_chunks_v4 RENAME TO corpus_chunks");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_chunks_project ON corpus_chunks(project_id)");
+}
+
+export function hasActiveRechunkJob(app, projectId) {
+  const db = openDb(app);
+  const row = db
+    .prepare(
+      `SELECT 1 AS n FROM research_jobs
+       WHERE project_id = ? AND job_type = 'rechunk' AND status IN ('pending', 'running')
+       LIMIT 1`
+    )
+    .get(projectId);
+  return Boolean(row);
+}
+
 export function getDb(app) {
   return openDb(app);
 }
@@ -277,7 +330,7 @@ export function loadProject(app, id) {
   };
 }
 
-export function saveProjectMeta(app, data) {
+export function saveProjectMeta(app, data, opts = {}) {
   const db = openDb(app);
   const now = new Date().toISOString();
   db.prepare(
@@ -318,7 +371,10 @@ export function saveProjectMeta(app, data) {
   ).run(data.id, data.bibliography ?? "", now);
 
   savePapers(app, data.id, data.papers ?? []);
-  saveChunks(app, data.id, data.chunks ?? []);
+  const skipChunks = opts.skipChunks === true || hasActiveRechunkJob(app, data.id);
+  if (!skipChunks) {
+    saveChunks(app, data.id, data.chunks ?? []);
+  }
   backupDatabase(app);
 }
 
@@ -377,14 +433,26 @@ export function savePapers(app, projectId, papers) {
   }
 }
 
+function normalizeChunkId(projectId, chunk) {
+  if (chunk?.paperId === "draft" && chunk?.id && !String(chunk.id).includes(":")) {
+    return `${projectId}:${chunk.id}`;
+  }
+  return chunk?.id;
+}
+
 export function saveChunks(app, projectId, chunks) {
   const db = openDb(app);
-  db.prepare("DELETE FROM corpus_chunks WHERE project_id = ?").run(projectId);
-  const stmt = db.prepare(
+  const deleteChunks = db.prepare("DELETE FROM corpus_chunks WHERE project_id = ?");
+  const insert = db.prepare(
     "INSERT INTO corpus_chunks (id, project_id, paper_id, text, page_hint) VALUES (?, ?, ?, ?, ?)"
   );
-  for (const c of chunks) {
-    stmt.run(c.id, projectId, c.paperId, c.text, c.pageHint ?? null);
+  deleteChunks.run(projectId);
+  const seen = new Set();
+  for (const c of chunks ?? []) {
+    const id = normalizeChunkId(projectId, c);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    insert.run(id, projectId, c.paperId, c.text, c.pageHint ?? null);
   }
 }
 

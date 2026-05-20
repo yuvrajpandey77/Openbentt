@@ -33,7 +33,8 @@ function normalizeProject(data: Partial<ResearchProjectData>): ResearchProjectDa
       ? data.chunks.filter((c) => c?.id && c.text)
       : buildCorpusChunks(
           papers.map((p) => ({ id: p.id, fileName: p.fileName, extractedText: p.extractedText ?? "" })),
-          draftTex
+          draftTex,
+          data.id
         );
 
   return {

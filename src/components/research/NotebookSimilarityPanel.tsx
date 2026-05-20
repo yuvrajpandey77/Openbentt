@@ -1,15 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { buildTfidfIndex } from "@/lib/research/corpusIndex";
-import {
-  buildChunkEmbeddings,
-  isEmbeddingIndexReady,
-  type EmbeddingIndexProgress,
-} from "@/lib/research/embeddingIndex";
+import { isEmbeddingIndexReady } from "@/lib/research/embeddingIndex";
 import { scanDraftHybrid, type RetrievalHit } from "@/lib/research/hybridRetrieval";
 import { useMemo, useState } from "react";
 import { Loader2, Info } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
 
 function confidenceBadge(c: RetrievalHit["confidence"]) {
   const colors = {
@@ -21,11 +16,14 @@ function confidenceBadge(c: RetrievalHit["confidence"]) {
 }
 
 export function NotebookSimilarityPanel() {
-  const { project, updateProject } = useResearchProject();
-  const { toast } = useToast();
+  const {
+    project,
+    rebuildSemanticIndex,
+    semanticIndexRebuilding,
+    semanticIndexProgress,
+  } = useResearchProject();
   const [scanning, setScanning] = useState(false);
   const [hits, setHits] = useState<RetrievalHit[]>([]);
-  const [progress, setProgress] = useState<EmbeddingIndexProgress | null>(null);
 
   const paperNames = useMemo(() => {
     if (!project) return {};
@@ -58,25 +56,9 @@ export function NotebookSimilarityPanel() {
     }
   };
 
-  const buildIndex = async () => {
-    setScanning(true);
-    try {
-      const vectors = await buildChunkEmbeddings(project.chunks, setProgress);
-      await updateProject({ chunkEmbeddings: vectors });
-      toast({
-        title: "Semantic index ready",
-        description: `${Object.keys(vectors).length} passages embedded with MiniLM (on-device).`,
-      });
-    } catch (e) {
-      toast({
-        title: "Embedding index failed",
-        description: e instanceof Error ? e.message : "error",
-        variant: "destructive",
-      });
-    } finally {
-      setScanning(false);
-      setProgress(null);
-    }
+  const buildIndex = () => {
+    if (semanticIndexRebuilding) return;
+    rebuildSemanticIndex();
   };
 
   return (
@@ -91,7 +73,13 @@ export function NotebookSimilarityPanel() {
           {scanning ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
           Hybrid scan
         </Button>
-        <Button type="button" variant="secondary" onClick={buildIndex} disabled={scanning || project.papers.length === 0}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={buildIndex}
+          disabled={scanning || semanticIndexRebuilding || project.papers.length === 0}
+        >
+          {semanticIndexRebuilding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
           Build semantic index
         </Button>
       </div>
@@ -110,10 +98,11 @@ export function NotebookSimilarityPanel() {
         </p>
       )}
 
-      {progress && scanning && (
+      {semanticIndexProgress && semanticIndexRebuilding && (
         <p className="text-xs text-muted-foreground">
-          {progress.phase === "loading-model" && "Loading MiniLM model…"}
-          {progress.phase === "embedding" && `Embedding ${progress.done}/${progress.total}…`}
+          {semanticIndexProgress.phase === "loading-model" && "Loading MiniLM model…"}
+          {semanticIndexProgress.phase === "embedding" &&
+            `Embedding ${semanticIndexProgress.done}/${semanticIndexProgress.total}…`}
         </p>
       )}
 

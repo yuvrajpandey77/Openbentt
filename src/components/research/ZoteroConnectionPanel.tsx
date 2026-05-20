@@ -37,7 +37,7 @@ export function ZoteroConnectionPanel() {
       : status.mode === "better-bibtex"
         ? "Better BibTeX"
         : status.mode === "local"
-          ? "Local Zotero"
+          ? "Zotero installed (Web API sync)"
           : "Disconnected";
 
   const handleSyncToProject = async () => {

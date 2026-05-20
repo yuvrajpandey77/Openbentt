@@ -47,10 +47,13 @@ function hydrate(data: ResearchProjectData): ResearchProjectData {
   const chunks =
     data.chunks.length > 0
       ? data.chunks
-      : buildCorpusChunks(
-          data.papers.map((p) => ({ id: p.id, fileName: p.fileName, extractedText: p.extractedText })),
-          data.draftTex
-        );
+      : isDesktopApp() && window.openbenttResearch
+        ? []
+        : buildCorpusChunks(
+            data.papers.map((p) => ({ id: p.id, fileName: p.fileName, extractedText: p.extractedText })),
+            data.draftTex,
+            data.id
+          );
   return {
     ...data,
     bibEntries,
@@ -150,14 +153,14 @@ async function desktopLoad(id: string): Promise<ResearchProjectData | null> {
   return attachEmbeddings(hydrate(raw as ResearchProjectData));
 }
 
-async function desktopSave(data: ResearchProjectData): Promise<void> {
+async function desktopSave(data: ResearchProjectData, opts?: { skipChunks?: boolean }): Promise<void> {
   const api = window.openbenttResearch;
   const updated = { ...data, updatedAt: new Date().toISOString() };
   const hydrated = hydrate(updated);
-  const { chunkEmbeddings, ...meta } = hydrated;
+  const { chunkEmbeddings, chunks: _chunks, ...meta } = hydrated;
 
   if (api) {
-    await api.saveProject(meta);
+    await api.saveProject({ ...meta, skipChunks: opts?.skipChunks === true });
     if (chunkEmbeddings && Object.keys(chunkEmbeddings).length) {
       const batch = Object.entries(chunkEmbeddings)
         .filter(([k]) => k !== "__query__")
@@ -169,6 +172,8 @@ async function desktopSave(data: ResearchProjectData): Promise<void> {
   } else {
     saveProjectLocal(hydrated);
   }
+
+  if (isDesktopApp() && api) return;
 
   const idx = readIndex();
   const summary: ResearchProjectSummary = {
@@ -231,6 +236,7 @@ export async function getActiveProjectId(): Promise<string | null> {
 export async function setActiveProjectId(id: string | null): Promise<void> {
   if (isDesktopApp() && window.openbenttResearch?.setActiveProjectId) {
     await window.openbenttResearch.setActiveProjectId(id);
+    return;
   }
   const idx = readIndex();
   writeIndex(id, idx.projects);
@@ -272,9 +278,12 @@ export async function patchProjectBibliography(projectId: string, bibliography: 
   saveProjectLocal(next);
 }
 
-export async function saveResearchProject(data: ResearchProjectData): Promise<ResearchProjectData> {
+export async function saveResearchProject(
+  data: ResearchProjectData,
+  opts?: { skipChunks?: boolean }
+): Promise<ResearchProjectData> {
   const hydrated = hydrate(data);
-  await desktopSave(hydrated);
+  await desktopSave(hydrated, opts);
   return attachEmbeddings(hydrated);
 }
 
@@ -294,7 +303,10 @@ export async function saveProjectEmbeddingsOnly(
 
 export async function deleteResearchProject(id: string): Promise<void> {
   const api = window.openbenttResearch;
-  if (api) await api.deleteProject(id);
+  if (api) {
+    await api.deleteProject(id);
+    return;
+  }
   localStorage.removeItem(projectKey(id));
   localStorage.removeItem(EMBEDDINGS_KEY(id));
   const idx = readIndex();

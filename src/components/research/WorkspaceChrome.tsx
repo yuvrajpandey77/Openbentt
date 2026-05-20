@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ProjectBar } from "@/components/research/ProjectBar";
+import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
 import { PANEL_LABELS, WORKSPACE_PRESETS, type WorkspacePresetId } from "@/lib/research/workspaceLayout";
 import { cn } from "@/lib/utils";
@@ -31,7 +32,6 @@ export function WorkspaceChrome() {
     applyWorkspacePreset,
     setActiveSidePanel,
     openCommandPalette,
-    saveStatus,
     canUndo,
     canRedo,
     undoDraft,
@@ -39,6 +39,7 @@ export function WorkspaceChrome() {
     sectionHeadings,
     requestFocusSection,
   } = useResearchWorkspace();
+  const { draftSaveStatus } = useResearchProject();
 
   const hidden = layout.mode === "distraction-free";
 
@@ -60,7 +61,15 @@ export function WorkspaceChrome() {
   }
 
   const saveLabel =
-    saveStatus === "saving" ? "Saving…" : saveStatus === "unsaved" ? "Unsaved" : "Saved";
+    draftSaveStatus === "saving"
+      ? "Saving…"
+      : draftSaveStatus === "dirty"
+        ? "Unsaved"
+        : draftSaveStatus === "error"
+          ? "Save failed"
+          : draftSaveStatus === "saved"
+            ? "Saved"
+            : null;
 
   return (
     <header className="flex shrink-0 flex-col border-b border-border/60 bg-card/95">
@@ -87,17 +96,20 @@ export function WorkspaceChrome() {
           ))}
         </div>
         <div className="flex items-center gap-1">
-          <span
-            className={cn(
-              "hidden text-[10px] tabular-nums sm:inline",
-              saveStatus === "unsaved" && "text-amber-600 dark:text-amber-400",
-              saveStatus === "saving" && "text-muted-foreground",
-              saveStatus === "saved" && "text-muted-foreground"
-            )}
-            aria-live="polite"
-          >
-            {saveLabel}
-          </span>
+          {saveLabel && (
+            <span
+              className={cn(
+                "hidden text-[10px] tabular-nums sm:inline",
+                draftSaveStatus === "dirty" && "text-amber-600 dark:text-amber-400",
+                draftSaveStatus === "saving" && "text-muted-foreground",
+                draftSaveStatus === "saved" && "text-muted-foreground",
+                draftSaveStatus === "error" && "text-destructive"
+              )}
+              aria-live="polite"
+            >
+              {saveLabel}
+            </span>
+          )}
           <Button
             type="button"
             size="icon"

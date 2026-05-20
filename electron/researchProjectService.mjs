@@ -44,7 +44,7 @@ export async function initResearchStorage(app) {
   const { migrated } = await migrateLegacyProjects(app);
   backupDatabase(app);
   const { resumed } = resumeInterruptedJobs(app);
-  return { migrated, schemaVersion: 3, resumed };
+  return { migrated, schemaVersion: 4, resumed };
 }
 
 export function registerResearchProjectIpc(ipcMain, app) {
@@ -71,7 +71,7 @@ export function registerResearchProjectIpc(ipcMain, app) {
   ipcMain.handle("research:saveProject", async (_e, data) => {
     if (!data?.id || typeof data.id !== "string") throw new Error("Invalid project");
     assertSafeId(data.id, "project id");
-    saveProjectMeta(app, data);
+    saveProjectMeta(app, data, { skipChunks: data.skipChunks === true });
     if (data.chunkEmbeddings) {
       const batch = Object.entries(data.chunkEmbeddings)
         .filter(([k]) => k !== "__query__")
