@@ -1,16 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { MarketingShell } from "@/components/marketing/MarketingShell";
+import { useSuggestedDownload } from "@/components/marketing/useSuggestedDownload";
 import {
   releaseAssets,
   githubReleasesLatestUrl,
   githubBlobMain,
   DESKTOP_ASSET_VERSION,
 } from "@/config/releaseDownloads";
-import { appHomePath } from "@/lib/appHomePath";
 import { getClientPlatform, type ClientPlatform } from "@/lib/detectClientPlatform";
 import { cn } from "@/lib/utils";
 import {
@@ -27,7 +25,6 @@ import {
   Monitor,
   ScrollText,
   Server,
-  Sparkles,
 } from "lucide-react";
 
 type DownloadRow = {
@@ -36,6 +33,7 @@ type DownloadRow = {
   hint?: string;
   href: string | null;
   icon: React.ReactNode;
+  primary?: boolean;
 };
 
 function usePrimaryPlatform(): ClientPlatform {
@@ -48,32 +46,34 @@ function usePrimaryPlatform(): ClientPlatform {
 
 const DownloadPage: React.FC = () => {
   const platform = usePrimaryPlatform();
+  const suggested = useSuggestedDownload();
   const releasesUrl = githubReleasesLatestUrl();
+  const webHref = releaseAssets.webStaticZip();
 
   useEffect(() => {
-    document.title = "Download Openbentt — desktop & web";
+    document.title = "Download Openbentt";
   }, []);
 
   const windowsRows: DownloadRow[] = useMemo(
     () => [
       {
         id: "win-nsis",
-        label: "Installer (recommended)",
-        hint: "NSIS — installs shortcuts and updater metadata",
+        label: "Installer",
+        hint: "Recommended · NSIS",
         href: releaseAssets.windowsNsis(),
         icon: <Download className="h-4 w-4" />,
+        primary: true,
       },
       {
         id: "win-portable",
         label: "Portable .exe",
-        hint: "Single executable folder layout",
+        hint: "No installer",
         href: releaseAssets.windowsPortable(),
         icon: <Monitor className="h-4 w-4" />,
       },
       {
         id: "win-zip",
-        label: "Archive .zip",
-        hint: "Unpack and run",
+        label: "Zip archive",
         href: releaseAssets.windowsZip(),
         icon: <FileArchive className="h-4 w-4" />,
       },
@@ -86,14 +86,14 @@ const DownloadPage: React.FC = () => {
       {
         id: "linux-appimage",
         label: "AppImage",
-        hint: "Universal Linux binary — chmod +x and run",
+        hint: "Recommended · amd64",
         href: releaseAssets.linuxAppImage(),
         icon: <Box className="h-4 w-4" />,
+        primary: true,
       },
       {
         id: "linux-deb",
-        label: "Debian / Ubuntu (.deb)",
-        hint: "amd64 package",
+        label: "Debian package",
         href: releaseAssets.linuxDeb(),
         icon: <Layers className="h-4 w-4" />,
       },
@@ -106,14 +106,14 @@ const DownloadPage: React.FC = () => {
       {
         id: "mac-dmg",
         label: "Disk image (.dmg)",
-        hint: "Apple Silicon (arm64)",
+        hint: "Apple Silicon",
         href: releaseAssets.macDmgArm64(),
         icon: <Apple className="h-4 w-4" />,
+        primary: true,
       },
       {
         id: "mac-zip",
-        label: "Archive (.zip)",
-        hint: "Apple Silicon (arm64)",
+        label: "Zip archive",
         href: releaseAssets.macZipArm64(),
         icon: <FileArchive className="h-4 w-4" />,
       },
@@ -121,307 +121,203 @@ const DownloadPage: React.FC = () => {
     []
   );
 
-  const webHref = releaseAssets.webStaticZip();
-
-  const highlight = (family: ClientPlatform) =>
-    platform !== "unknown" && platform === family;
+  const highlight = (family: ClientPlatform) => platform !== "unknown" && platform === family;
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground">
-      <div
-        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.55] dark:opacity-40"
-        aria-hidden
-        style={{
-          backgroundImage: `
-            radial-gradient(ellipse 100% 80% at 50% -30%, hsl(var(--primary) / 0.35), transparent 55%),
-            radial-gradient(ellipse 70% 50% at 100% 0%, hsl(187 60% 45% / 0.12), transparent 45%),
-            radial-gradient(ellipse 60% 40% at 0% 100%, hsl(222 40% 50% / 0.1), transparent 50%),
-            linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--muted) / 0.35) 100%)
-          `,
-        }}
-      />
-      <div
-        className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,hsl(var(--border)/0.35)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.35)_1px,transparent_1px)] bg-[size:48px_48px] opacity-[0.35] dark:opacity-[0.2]"
-        aria-hidden
-      />
-
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
-          <Link
-            to={appHomePath()}
-            className="group flex items-center gap-2.5 font-display text-lg font-semibold tracking-tight text-foreground"
-          >
-            <img src="/openbentt-logo.svg" alt="" width={32} height={32} className="rounded-lg shadow-sm" />
-            Openbentt
-          </Link>
-          <nav className="flex flex-wrap items-center gap-1 text-xs font-medium text-muted-foreground md:text-sm">
-            <a href="#overview" className="rounded-md px-2 py-1 hover:bg-muted hover:text-foreground">
-              Overview
-            </a>
-            <a href="#downloads" className="rounded-md px-2 py-1 hover:bg-muted hover:text-foreground">
-              Downloads
-            </a>
-            <a href="#web" className="rounded-md px-2 py-1 hover:bg-muted hover:text-foreground">
-              Web
-            </a>
-            <a href="#docs" className="rounded-md px-2 py-1 hover:bg-muted hover:text-foreground">
-              Docs
-            </a>
-            {releasesUrl && (
-              <a
-                href={releasesUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-md px-2 py-1 hover:bg-muted hover:text-foreground"
-              >
-                GitHub <ExternalLink className="h-3 w-3 opacity-70" />
-              </a>
-            )}
-          </nav>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-5xl px-4 pb-24 pt-10 md:px-6 md:pt-14">
-        <section id="overview" className="scroll-mt-28 space-y-6">
-          <Badge variant="secondary" className="font-display text-[10px] uppercase tracking-widest">
-            Release channel · v{DESKTOP_ASSET_VERSION} assets
-          </Badge>
-          <h1 className="font-display text-4xl font-bold tracking-tight md:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
-            Install{" "}
-            <span className="bg-gradient-to-r from-primary via-teal-600 to-cyan-600 bg-clip-text text-transparent dark:from-primary dark:via-teal-400 dark:to-cyan-400">
-              Openbentt
-            </span>{" "}
-            for your operating system
-          </h1>
-          <p className="max-w-2xl text-lg text-muted-foreground md:text-xl">
-            Production builds for Windows, Linux, and macOS, plus a static bundle for self-hosting. Your suggested
-            download is highlighted from this browser when we can detect the platform. Verify checksums on GitHub if you
-            need supply-chain assurance.
+    <MarketingShell>
+      <main className="mx-auto max-w-6xl px-4 pb-20 pt-12 md:px-6 md:pt-16">
+        <section className="max-w-3xl space-y-6">
+          <p className="font-mono text-xs text-muted-foreground">Release v{DESKTOP_ASSET_VERSION}</p>
+          <h1 className="font-display text-4xl font-bold tracking-tight md:text-5xl">Download Openbentt</h1>
+          <p className="text-lg leading-relaxed text-muted-foreground">
+            Production builds for Windows, Linux, and macOS. Verify checksums on GitHub if you need supply-chain
+            assurance. Unsigned installers may show OS security prompts. That is expected for open-source releases.
           </p>
-          <div className="flex flex-wrap gap-3">
-            <Button size="lg" className="gap-2 rounded-xl shadow-md shadow-primary/10" asChild>
-              <a href="#downloads">
-                <Download className="h-4 w-4" />
-                Go to downloads
-              </a>
-            </Button>
-            <Button size="lg" variant="outline" className="rounded-xl border-border/80 bg-card/50 backdrop-blur-sm" asChild>
-              <Link to="/chat" className="gap-2">
-                Launch web app
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-        </section>
 
-        <section id="downloads" className="scroll-mt-28 pt-16">
-          <div className="mb-8 flex flex-col gap-2">
-            <h2 className="font-display text-2xl font-semibold tracking-tight md:text-3xl">Choose your platform</h2>
-            <p className="max-w-2xl text-muted-foreground">
-              Desktop builds bundle the same UI as the hosted site inside Electron. Unsigned macOS / Windows installers
-              may show OS security prompts — open from GitHub if you need checksums.
-            </p>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-3">
-            <PlatformCard
-              title="Windows"
-              subtitle="10 / 11 (x64)"
-              icon={<Monitor className="h-5 w-5" />}
-              highlighted={highlight("windows")}
-              rows={windowsRows}
-            />
-            <PlatformCard
-              title="Linux"
-              subtitle="AppImage + deb (amd64)"
-              icon={<Server className="h-5 w-5" />}
-              highlighted={highlight("linux")}
-              rows={linuxRows}
-            />
-            <PlatformCard
-              title="macOS"
-              subtitle="Apple Silicon (arm64)"
-              icon={<Apple className="h-5 w-5" />}
-              highlighted={highlight("mac")}
-              rows={macRows}
-              footer={
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Intel Mac builds are not listed here. Use the{" "}
-                  {releasesUrl ? (
-                    <a href={releasesUrl} className="font-medium text-primary underline-offset-2 hover:underline">
-                      GitHub release page
-                    </a>
-                  ) : (
-                    "GitHub release page"
-                  )}{" "}
-                  if you need other architectures.
-                </p>
-              }
-            />
-          </div>
-        </section>
-
-        <section id="web" className="scroll-mt-28 pt-20">
-          <Card className="overflow-hidden border-border/80 bg-gradient-to-br from-card via-card to-muted/30 shadow-lg">
-            <CardHeader className="space-y-2 pb-2">
-              <div className="flex items-center gap-2 text-primary">
-                <Globe className="h-5 w-5" />
-                <CardTitle className="font-display text-xl">Web &amp; self-host</CardTitle>
-              </div>
-              <CardDescription className="text-base text-muted-foreground">
-                Use Openbentt instantly in the browser, or deploy the static bundle anywhere (nginx, S3, Docker).
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4 pt-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <p className="flex items-center gap-2 font-medium text-foreground">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  Hosted app (same origin as this page)
-                </p>
-                <p>No installer — your OpenRouter key stays in local storage in this browser.</p>
-              </div>
-              <div className="flex flex-col gap-2 sm:items-end">
-                <Button asChild className="rounded-xl">
-                  <Link to="/chat">Open web app</Link>
+          {suggested?.href && (
+            <div className="rounded-2xl border border-primary/30 bg-card p-6 md:p-8">
+              <p className="text-sm font-medium text-primary">Suggested for you</p>
+              <p className="mt-1 font-display text-2xl font-semibold">{suggested.label}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{suggested.hint}</p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button size="lg" className="h-12 rounded-lg gap-2 px-7" asChild>
+                  <a href={suggested.href} target="_blank" rel="noreferrer">
+                    <Download className="h-5 w-5" />
+                    Download now
+                  </a>
                 </Button>
-                {webHref && (
-                  <Button variant="outline" size="sm" className="rounded-lg" asChild>
-                    <a href={webHref}>
-                      <FileArchive className="mr-2 h-4 w-4" />
-                      Static zip ({DESKTOP_ASSET_VERSION})
+                {releasesUrl && (
+                  <Button size="lg" variant="outline" className="h-12 rounded-lg" asChild>
+                    <a href={releasesUrl} target="_blank" rel="noreferrer" className="gap-2">
+                      <Github className="h-4 w-4" />
+                      All release assets
                     </a>
                   </Button>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Button variant="outline" className="rounded-lg" asChild>
+              <Link to="/chat" className="gap-2">
+                Use web app instead
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button variant="ghost" className="rounded-lg" asChild>
+              <Link to="/">← Home</Link>
+            </Button>
+          </div>
         </section>
 
-        <section id="docs" className="scroll-mt-28 pt-20">
-          <h2 className="mb-6 font-display text-2xl font-semibold tracking-tight md:text-3xl">Documentation</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <DocTile
+        <section id="downloads" className="scroll-mt-24 pt-20">
+          <h2 className="font-display text-2xl font-bold tracking-tight md:text-3xl">All platforms</h2>
+          <p className="mt-2 max-w-2xl text-muted-foreground">
+            Desktop builds bundle Electron with the same UI as this site. Intel Mac builds and other architectures may
+            appear on the GitHub release page only.
+          </p>
+
+          <div className="mt-10 grid gap-6 lg:grid-cols-3">
+            <PlatformBlock title="Windows" subtitle="10 / 11 · x64" highlighted={highlight("windows")} rows={windowsRows} />
+            <PlatformBlock title="Linux" subtitle="AppImage & deb · amd64" highlighted={highlight("linux")} rows={linuxRows} />
+            <PlatformBlock
+              title="macOS"
+              subtitle="Apple Silicon (arm64)"
+              highlighted={highlight("mac")}
+              rows={macRows}
+              note="Intel Mac builds are on GitHub releases if you need them."
+            />
+          </div>
+        </section>
+
+        <section id="web" className="scroll-mt-24 pt-20">
+          <div className="rounded-2xl border border-border/70 bg-muted/20 p-8 md:flex md:items-center md:justify-between md:gap-8">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-primary">
+                <Globe className="h-5 w-5" />
+                <h2 className="font-display text-xl font-semibold">Web & self-host</h2>
+              </div>
+              <p className="max-w-lg text-muted-foreground leading-relaxed">
+                Skip the installer and open the workspace in your browser, or deploy the static zip to nginx, S3, or
+                Docker.
+              </p>
+            </div>
+            <div className="mt-6 flex flex-col gap-2 md:mt-0 md:items-end">
+              <Button className="rounded-lg" asChild>
+                <Link to="/chat">Open web app</Link>
+              </Button>
+              {webHref && (
+                <Button variant="outline" size="sm" className="rounded-lg" asChild>
+                  <a href={webHref} target="_blank" rel="noreferrer" className="gap-2">
+                    <FileArchive className="h-4 w-4" />
+                    Static bundle (v{DESKTOP_ASSET_VERSION})
+                  </a>
+                </Button>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section id="docs" className="scroll-mt-24 pt-20">
+          <h2 className="font-display text-2xl font-bold tracking-tight">Documentation</h2>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+            <DocLink
               title="README"
-              description="Features, scripts, environment variables, and production paths."
+              description="Features, scripts, and environment variables."
               href={githubBlobMain("README.md")}
               icon={<BookOpen className="h-4 w-4" />}
             />
-            <DocTile
+            <DocLink
               title="Releasing"
-              description="How GitHub Actions builds installers and what to set in CI."
+              description="How CI builds installers and publishes assets."
               href={githubBlobMain("RELEASING.md")}
               icon={<ScrollText className="h-4 w-4" />}
             />
-            <DocTile
+            <DocLink
               title="Production checklist"
-              description="Hardening and go-live items before you ship."
+              description="Hardening before you ship to users."
               href={githubBlobMain("PRODUCTION_CHECKLIST.md")}
               icon={<Layers className="h-4 w-4" />}
             />
-            <DocTile
+            <DocLink
               title="Electron shell"
-              description="Desktop dev commands and how the window loads the Vite build."
+              description="Desktop dev commands and window loading."
               href={githubBlobMain("electron/README.md")}
               icon={<Monitor className="h-4 w-4" />}
             />
           </div>
         </section>
-
-        <Separator className="my-16 opacity-60" />
-
-        <footer className="flex flex-col gap-4 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-          <p className="font-display text-foreground/90">Openbentt — local-first OpenRouter workspaces.</p>
-          <div className="flex flex-wrap gap-4">
-            {releasesUrl && (
-              <a
-                href={releasesUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 hover:text-foreground"
-              >
-                <Github className="h-4 w-4" />
-                Releases
-              </a>
-            )}
-            <Link to="/chat" className="hover:text-foreground">
-              Web app
-            </Link>
-          </div>
-        </footer>
       </main>
-    </div>
+    </MarketingShell>
   );
 };
 
-function PlatformCard({
+function PlatformBlock({
   title,
   subtitle,
-  icon,
   highlighted,
   rows,
-  footer,
+  note,
 }: {
   title: string;
   subtitle: string;
-  icon: React.ReactNode;
   highlighted: boolean;
   rows: DownloadRow[];
-  footer?: React.ReactNode;
+  note?: string;
 }) {
   return (
-    <Card
+    <div
       className={cn(
-        "flex flex-col border-border/80 bg-card/80 shadow-md backdrop-blur-sm transition-shadow",
-        highlighted && "ring-2 ring-primary/60 shadow-lg shadow-primary/10"
+        "rounded-2xl border border-border/70 bg-card p-5",
+        highlighted && "border-primary/40 ring-1 ring-primary/20"
       )}
     >
-      <CardHeader className="space-y-1 pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-primary">
-            {icon}
-            <CardTitle className="font-display text-lg">{title}</CardTitle>
-          </div>
-          {highlighted && (
-            <Badge className="text-[10px] font-normal uppercase tracking-wide">Suggested</Badge>
-          )}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="font-display text-lg font-semibold">{title}</h3>
+          <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
-        <CardDescription>{subtitle}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-2 pt-0">
+        {highlighted && (
+          <span className="rounded-full bg-primary/12 px-2.5 py-0.5 text-[11px] font-medium text-primary">This device</span>
+        )}
+      </div>
+      <ul className="mt-5 space-y-2">
         {rows.map((row) => (
-          <div
+          <li
             key={row.id}
-            className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/20 p-3 transition-colors hover:bg-muted/40"
+            className={cn(
+              "flex items-center justify-between gap-3 rounded-xl border border-border/60 px-3 py-2.5",
+              row.primary && "border-primary/25 bg-primary/[0.04]"
+            )}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <span className="text-muted-foreground">{row.icon}</span>
-                  {row.label}
-                </p>
-                {row.hint && <p className="mt-0.5 pl-6 text-[11px] text-muted-foreground">{row.hint}</p>}
-              </div>
-              {row.href ? (
-                <Button size="sm" variant="secondary" className="shrink-0 rounded-lg" asChild>
-                  <a href={row.href} target="_blank" rel="noreferrer">
-                    Get
-                  </a>
-                </Button>
-              ) : (
-                <Button size="sm" variant="outline" disabled className="shrink-0 rounded-lg">
-                  Get
-                </Button>
-              )}
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-sm font-medium">
+                <span className="text-muted-foreground">{row.icon}</span>
+                {row.label}
+              </p>
+              {row.hint && <p className="mt-0.5 pl-6 text-xs text-muted-foreground">{row.hint}</p>}
             </div>
-          </div>
+            {row.href ? (
+              <Button size="sm" variant={row.primary ? "default" : "secondary"} className="shrink-0 rounded-lg" asChild>
+                <a href={row.href} target="_blank" rel="noreferrer">
+                  Download
+                </a>
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" disabled className="shrink-0 rounded-lg">
+                Soon
+              </Button>
+            )}
+          </li>
         ))}
-        {footer && <div className="mt-auto border-t border-border/50 pt-3">{footer}</div>}
-      </CardContent>
-    </Card>
+      </ul>
+      {note && <p className="mt-4 text-xs leading-relaxed text-muted-foreground">{note}</p>}
+    </div>
   );
 }
 
-function DocTile({
+function DocLink({
   title,
   description,
   href,
@@ -432,24 +328,19 @@ function DocTile({
   href: string | null;
   icon: React.ReactNode;
 }) {
-  const inner = (
+  const content = (
     <>
-      <div className="flex items-center gap-2 text-primary">
-        {icon}
-        <span className="font-medium text-foreground">{title}</span>
-        <ExternalLink className="ml-auto h-3.5 w-3.5 opacity-50" />
+      <div className="flex items-center gap-2">
+        <span className="text-primary">{icon}</span>
+        <span className="font-medium">{title}</span>
+        <ExternalLink className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
       </div>
-      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      <p className="mt-2 text-sm text-muted-foreground">{description}</p>
     </>
   );
 
   if (!href) {
-    return (
-      <div className="rounded-xl border border-dashed border-border/80 bg-muted/15 p-4 opacity-70">
-        {inner}
-        <p className="mt-2 text-xs text-muted-foreground">Set VITE_GITHUB_REPO to link.</p>
-      </div>
-    );
+    return <div className="rounded-xl border border-dashed border-border/80 p-4 opacity-70">{content}</div>;
   }
 
   return (
@@ -457,9 +348,9 @@ function DocTile({
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="group rounded-xl border border-border/80 bg-card/60 p-4 shadow-sm transition-all hover:border-primary/40 hover:bg-card hover:shadow-md"
+      className="block rounded-xl border border-border/70 bg-card p-4 transition-colors hover:border-primary/30 hover:bg-card/95"
     >
-      {inner}
+      {content}
     </a>
   );
 }

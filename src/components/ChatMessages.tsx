@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Message } from "@/types/chat";
 import { Bot, Pencil, RotateCcw, FileText, ChevronDown, Sparkles } from "lucide-react";
-import { WORKSPACE_NAV_ITEMS } from "@/config/workspaceNav";
+import { getWorkspaceNavItems } from "@/config/workspaceNav";
 import { cn } from "@/lib/utils";
 import { shortModelLabel } from "@/lib/openrouter";
 import { AssistantContent } from "@/components/AssistantContent";
@@ -198,42 +198,31 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading, search
                 Welcome to Openbentt
               </h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground md:text-base">
-                A local-first AI workspace: choose a model, attach files, turn on <strong>research</strong> in Settings,
-                and compare replies. Your keys stay in this browser.
+                Connect OpenRouter or an on-device model, attach files, enable <strong>research</strong> in Settings, and
+                compare cloud models side by side. Your keys stay in this browser.
               </p>
               <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-                {WORKSPACE_NAV_ITEMS.map((item) =>
-                  item.disabled ? (
-                    <span
-                      key={item.to}
-                      className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-full border border-border/40 bg-muted/15 px-3 py-1.5 text-xs font-medium text-muted-foreground/50 opacity-70"
-                      aria-disabled="true"
-                    >
-                      <item.Icon className="h-3.5 w-3.5 text-muted-foreground/45" strokeWidth={2} />
-                      {item.label}
-                    </span>
-                  ) : (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/35 hover:bg-primary/5"
-                    >
-                      <item.Icon className="h-3.5 w-3.5 text-primary" strokeWidth={2} />
-                      {item.label}
-                    </Link>
-                  )
-                )}
+                {getWorkspaceNavItems().map((item) => (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/35 hover:bg-primary/5"
+                  >
+                    <item.Icon className="h-3.5 w-3.5 text-primary" strokeWidth={2} />
+                    {item.label}
+                  </Link>
+                ))}
               </div>
               <p className="mt-4 text-[11px] text-muted-foreground/90 md:text-xs">
-                Open <strong className="text-foreground/90">Workspace</strong> in the sidebar for these tools — your{" "}
-                <strong className="text-foreground/90">chats</strong> stay listed below them.
+                Use <strong className="text-foreground/90">Notebook</strong> in the sidebar for LaTeX and PDF work. More
+                workspaces (labs, benchmarks, local GGUF) ship in the desktop app.
               </p>
               <div className="mt-10 grid grid-cols-1 gap-4 text-left sm:grid-cols-2">
                 <div className="openbentt-card rounded-xl border border-border/80 p-4">
                   <h3 className="mb-2 font-medium text-foreground">Chat tips</h3>
                   <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
                     <li>
-                      • <strong className="text-foreground/90">Specs</strong> — model pricing &amp; context (by the model
+                      • <strong className="text-foreground/90">Specs</strong> — model pricing & context (by the model
                       name).
                     </li>
                     <li>
@@ -251,7 +240,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading, search
                 <div className="openbentt-card rounded-xl border border-border/80 p-4">
                   <h3 className="mb-2 font-medium text-foreground">Multimodal</h3>
                   <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
-                    <li>• Images &amp; video (first frame) — pick a vision-capable model.</li>
+                    <li>• Images & video (first frame) — pick a vision-capable model.</li>
                     <li>
                       • Audio — sent as <code className="rounded bg-muted px-1 text-[11px]">input_audio</code> when the
                       provider supports it.

@@ -18,7 +18,7 @@ export const CapabilitiesSheet: React.FC = () => {
       <SheetTrigger asChild>
         <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground">
           <Info className="h-4 w-4" />
-          <span className="hidden sm:inline">Capabilities &amp; limits</span>
+          <span className="hidden sm:inline">Capabilities & limits</span>
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="flex w-full flex-col sm:max-w-md">
@@ -53,7 +53,7 @@ export const CapabilitiesSheet: React.FC = () => {
               </p>
             </section>
             <section>
-              <h3 className="mb-1 font-medium text-foreground">Model list &amp; modalities</h3>
+              <h3 className="mb-1 font-medium text-foreground">Model list & modalities</h3>
               <p>
                 Icons next to each model are <strong className="text-foreground">heuristics from the model id</strong> (text
                 / vision / audio hints). They help you pick; they are not a live capability matrix from the provider. For
@@ -61,16 +61,15 @@ export const CapabilitiesSheet: React.FC = () => {
               </p>
             </section>
             <section>
-              <h3 className="mb-1 font-medium text-foreground">Notebook (PDF &amp; LaTeX), Labs, Benchmark, WebGPU</h3>
+              <h3 className="mb-1 font-medium text-foreground">Notebook workspace</h3>
               <p>
-                These are <strong className="text-foreground">playgrounds</strong> that share your{" "}
-                <strong className="text-foreground">Home → Settings</strong> provider and{" "}
-                <strong className="text-foreground">Open in Home chat</strong> for full LLM turns. They are not separate
-                hosted agents; WebGPU probes run in-browser and LLM calls still go through your configured API.
+                <strong className="text-foreground">Notebook</strong> (PDF & LaTeX) is available in the web app and shares
+                your Settings provider. Research labs, benchmarks, local GGUF downloads, and WebGPU diagnostics are in the{" "}
+                <strong className="text-foreground">desktop app</strong> only.
               </p>
             </section>
             <section>
-              <h3 className="mb-1 font-medium text-foreground">Charts &amp; tools</h3>
+              <h3 className="mb-1 font-medium text-foreground">Charts & tools</h3>
               <p>
                 Assistant replies can emit <code className="rounded bg-muted px-1 font-mono text-[11px]">openbentt-chart</code>{" "}
                 blocks. Richer analytics (dashboards, SQL, code execution) would need additional server sandboxes — not bundled

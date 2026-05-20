@@ -21,7 +21,7 @@ function openbenttSeoPlugin(): Plugin {
         "Openbentt is a local-first workspace for multi-model chat, research threads, and Notebook LaTeX or PDF workflows. Your API keys stay in the browser.";
       const lines = [
         `    <link rel="canonical" href="${canonical}" />`,
-        `    <meta name="theme-color" content="#0d9488" />`,
+        `    <meta name="theme-color" content="#6C5CE7" />`,
         `    <meta name="robots" content="index, follow, max-image-preview:large" />`,
         `    <link rel="manifest" href="/site.webmanifest" />`,
         `    <meta name="application-name" content="Openbentt" />`,
@@ -113,6 +113,7 @@ export default defineConfig(({ mode }) => ({
       "jspdf",
       "html2canvas",
       "@google/generative-ai",
+      "@huggingface/transformers",
       "@xenova/transformers",
     ],
   },
@@ -122,7 +123,8 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id: string) {
           if (!id.includes("node_modules")) return undefined;
-          if (id.includes("@xenova/transformers") || id.includes("onnxruntime")) return "transformers";
+          if (id.includes("@huggingface/transformers") || id.includes("@xenova/transformers") || id.includes("onnxruntime"))
+            return "transformers";
           if (id.includes("texlyre-busytex") || id.includes("busytex")) return "busytex";
           if (id.includes("pdfjs-dist")) return "pdfjs";
           if (id.includes("katex")) return "katex";

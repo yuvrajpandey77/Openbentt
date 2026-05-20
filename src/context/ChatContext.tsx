@@ -13,16 +13,23 @@ import {
   defaultApiConfig,
   dedupeModels,
   canSendChat,
+  canSendMessage,
 } from "@/types/chat";
 import { useToast } from "@/components/ui/use-toast";
 import { buildChatCompletionMessages, isStreamHttpError, StreamHttpError } from "@/lib/openrouter";
 import { streamChatForConfig } from "@/lib/aiStream";
+import { abortLocalGemmaGeneration } from "@/lib/gemmaWebGpu/streamLocalGemma";
 import { createRafBatcher } from "@/lib/streamBatch";
 import { gatherResearchContext } from "@/lib/researchSources";
 import { buildSystemPrompts } from "@/lib/systemPrompts";
 import { substituteInlineCalc } from "@/lib/mathInline";
 import type { ProviderQuotaSnapshot } from "@/lib/providerRateLimits";
 import { LOCAL_STORAGE_KEYS } from "@/lib/storageMigrate";
+import { formatUserFacingError } from "@/lib/userFacingError";
+import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
+import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
+import { coerceApiConfigForPlatform } from "@/config/platformSurface";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 
 interface ChatContextProps {
   chats: Chat[];
@@ -62,6 +69,11 @@ interface ChatContextProps {
   notebookLatexInsertRequest: NotebookLatexInsertRequest | null;
   requestNotebookLatexInsert: (latex: string, options?: { autoCompile?: boolean }) => void;
   clearNotebookLatexInsertRequest: () => void;
+  /**
+   * While the WebGPU Gemma weights are downloading (0–100). `null` when idle or generating tokens only.
+   * ONNX Runtime assets load from the CDN version bundled with `@huggingface/transformers` (needs network once).
+   */
+  webgpuModelDownloadProgress: number | null;
 }
 
 export interface NotebookLatexInsertRequest {
@@ -89,6 +101,14 @@ interface PipelineExtras {
   agentTrace?: AgentTraceStep[];
 }
 
+/** Hugging Face token is stored in the main process on desktop; never persist plaintext in localStorage. */
+function apiConfigForBrowserStorage(cfg: ApiKeyConfig): ApiKeyConfig {
+  if (isDesktopApp()) {
+    return { ...cfg, huggingFaceToken: "" };
+  }
+  return cfg;
+}
+
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
@@ -102,6 +122,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [streamingPromptTokens, setStreamingPromptTokens] = useState<number | null>(null);
   const [providerQuotaSnapshot, setProviderQuotaSnapshot] = useState<ProviderQuotaSnapshot | null>(null);
   const [notebookLatexInsertRequest, setNotebookLatexInsertRequest] = useState<NotebookLatexInsertRequest | null>(null);
+  const [webgpuModelDownloadProgress, setWebgpuModelDownloadProgress] = useState<number | null>(null);
   const { toast } = useToast();
 
   const abortControllersRef = useRef<AbortController[]>([]);
@@ -165,19 +186,41 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentChatId(null);
     }
 
-    if (savedApiConfig) {
-      try {
-        const config = JSON.parse(savedApiConfig) as Partial<ApiKeyConfig>;
-        setApiConfigState(normalizeApiConfig(config));
-      } catch (error) {
-        console.error("Failed to parse saved API config:", error);
+    let cancelled = false;
+
+    void (async () => {
+      if (savedApiConfig) {
+        try {
+          const parsed = JSON.parse(savedApiConfig) as Partial<ApiKeyConfig>;
+          let normalized = coerceApiConfigForPlatform(normalizeApiConfig(parsed));
+          const api = getLocalGgufApi();
+          const plain = normalized.huggingFaceToken.trim();
+          if (isDesktopApp() && plain && api?.hfSecretSet) {
+            await api.hfSecretSet(plain);
+            normalized = normalizeApiConfig({ ...parsed, huggingFaceToken: "" });
+            try {
+              localStorage.setItem(
+                LOCAL_STORAGE_KEYS.API_CONFIG,
+                JSON.stringify(apiConfigForBrowserStorage(normalized))
+              );
+            } catch {
+              /* quota */
+            }
+          }
+          if (!cancelled) setApiConfigState(normalized);
+        } catch (error) {
+          console.error("Failed to parse saved API config:", error);
+          if (!cancelled) setApiConfigState(defaultApiConfig());
+        }
+      } else if (!cancelled) {
         setApiConfigState(defaultApiConfig());
       }
-    } else {
-      setApiConfigState(defaultApiConfig());
-    }
+      if (!cancelled) setIsLoadingConfig(false);
+    })();
 
-    setIsLoadingConfig(false);
+    return () => {
+      cancelled = true;
+    };
   }, [toast]);
 
   useEffect(() => {
@@ -192,7 +235,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!isLoadingConfig) {
-      localStorage.setItem(LOCAL_STORAGE_KEYS.API_CONFIG, JSON.stringify(apiConfig));
+      localStorage.setItem(
+        LOCAL_STORAGE_KEYS.API_CONFIG,
+        JSON.stringify(apiConfigForBrowserStorage(apiConfig))
+      );
     }
   }, [apiConfig, isLoadingConfig]);
 
@@ -222,7 +268,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const setApiConfig = (config: ApiKeyConfig) => {
-    setApiConfigState(normalizeApiConfig(config));
+    setApiConfigState(coerceApiConfigForPlatform(normalizeApiConfig(config)));
     toast({
       title: "Configuration updated",
       description: "Your API settings have been saved locally.",
@@ -281,8 +327,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const stopStreaming = () => {
+    abortLocalGemmaGeneration();
     abortControllersRef.current.forEach((c) => c.abort());
     abortControllersRef.current = [];
+    setWebgpuModelDownloadProgress(null);
     setIsLoading(false);
   };
 
@@ -292,7 +340,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     pipelineOpts?: { workspaceAssistBlock?: string }
   ): Promise<PipelineExtras> => {
     const ws = pipelineOpts?.workspaceAssistBlock;
-    if (!cfg.researchEnabled) {
+    const researchOn =
+      cfg.researchEnabled &&
+      ((cfg.aiProvider !== "webgpu_gemma" && cfg.aiProvider !== "local_gguf") || cfg.researchWithLocalModel);
+    if (!researchOn) {
       return {
         systemPrompts: buildSystemPrompts(cfg, { includeChartHint: false, workspaceAssistBlock: ws }),
       };
@@ -322,7 +373,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error(e);
       toast({
         title: "Research pipeline error",
-        description: e instanceof Error ? e.message : "Could not load web context",
+        description: formatUserFacingError(e, "Could not load web context"),
         variant: "destructive",
       });
       return {
@@ -358,7 +409,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const regenerateLastResponse = async () => {
-    if (!canSendChat(apiConfig) || isLoading || !currentChatId) return;
+    if (!canSendMessage(apiConfig) || isLoading || !currentChatId) return;
+    if (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
+      toast({
+        title: "On-device model not enabled",
+        description: "Allow model download in the bar above the composer first.",
+        variant: "destructive",
+      });
+      return;
+    }
     const chat = chatsRef.current.find((c) => c.id === currentChatId);
     if (!chat?.messages.length) return;
     const msgs = [...chat.messages];
@@ -403,7 +462,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     const comparisonIds = dedupeModels(cfg.comparisonModelIds).slice(0, 4);
     const useTiling =
-      cfg.comparisonEnabled && comparisonIds.length >= 2 && comparisonIds.every((id) => id.length > 0);
+      cfg.aiProvider !== "webgpu_gemma" &&
+      cfg.aiProvider !== "local_gguf" &&
+      cfg.comparisonEnabled &&
+      comparisonIds.length >= 2 &&
+      comparisonIds.every((id) => id.length > 0);
     const targetModels = useTiling ? comparisonIds : [cfg.model];
 
     const apiMessages = buildChatCompletionMessages(extras.systemPrompts, chatMessages);
@@ -453,18 +516,74 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       try {
-        const { text, metrics, rateLimitHeaders } = await streamChatForConfig(
-          cfg,
-          cfg.model,
-          apiMessages,
-          controller.signal,
-          {
-            onDelta: (delta) => batcher.push(delta),
-            onUsage: (u) => {
-              if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
-            },
-          }
-        );
+        const { text, metrics, rateLimitHeaders } =
+          cfg.aiProvider === "local_gguf"
+            ? await import("@/lib/localGguf/streamLocalGguf").then(({ streamLocalGgufChat }) =>
+                streamLocalGgufChat(cfg, cfg.model, apiMessages, controller.signal, {
+                  onDelta: (delta) => batcher.push(delta),
+                  onUsage: (u) => {
+                    if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
+                  },
+                })
+              )
+            : cfg.aiProvider === "webgpu_gemma"
+              ? await import("@/lib/gemmaWebGpu/streamLocalGemma").then(({ streamLocalGemmaChat }) =>
+                streamLocalGemmaChat(cfg, apiMessages, controller.signal, {
+                  onDelta: (delta) => batcher.push(delta),
+                  onUsage: (u) => {
+                    if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
+                  },
+                  onModelDownloadProgress: (pct) => {
+                    setWebgpuModelDownloadProgress(pct);
+                  },
+                  onBackendPicked: (backend) => {
+                    if (backend.device === "wasm") {
+                      toast({
+                        title: "On-device model running on CPU",
+                        description:
+                          backend.reason === "buffer-too-small"
+                            ? "Your GPU can't fit this model; falling back to WASM/CPU. If it feels too slow, pick the tiny Qwen 0.5B model in Settings."
+                            : "WebGPU unavailable; running via WASM/CPU. The tiny model (Qwen 0.5B) is the fastest fallback here.",
+                      });
+                    }
+                  },
+                  onModelAutoSwitched: ({ from, to, reason }) => {
+                    /** Persist the auto-pick so ChatInput / Settings reflect the model actually loaded. */
+                    setApiConfigState((prev) =>
+                      prev.aiProvider === "webgpu_gemma" && prev.model === from.storedId
+                        ? normalizeApiConfig({
+                            ...prev,
+                            model: to.storedId,
+                            comparisonModelIds: [to.storedId],
+                          })
+                        : prev
+                    );
+                    toast({
+                      title: `Switched to ${to.displayName}`,
+                      description:
+                        reason === "gpu-buffer"
+                          ? `Your GPU can't fit ${from.displayName}; running the next-smaller model that does fit.`
+                          : reason === "cpu-ram"
+                            ? `Not enough RAM for ${from.displayName}; using a smaller model so generations stay responsive.`
+                            : reason === "no-webgpu"
+                              ? "WebGPU isn't available here, so we picked the smallest model for WASM/CPU inference."
+                              : `Auto-selected a lighter model to keep chats responsive.`,
+                    });
+                  },
+                  onDtypeFallback: ({ from, to }) => {
+                    toast({
+                      title: "Adjusting model precision",
+                      description: `Retrying with ${to.toUpperCase()} after ${from.toUpperCase()} couldn't run on this device.`,
+                    });
+                  },
+                })
+              )
+              : await streamChatForConfig(cfg, cfg.model, apiMessages, controller.signal, {
+                  onDelta: (delta) => batcher.push(delta),
+                  onUsage: (u) => {
+                    if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
+                  },
+                });
         batcher.flushPending();
         setProviderQuotaSnapshot({
           provider: cfg.aiProvider,
@@ -508,7 +627,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           { ...assistantMessage, content: text, metrics: finalMetrics },
         ]);
       } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") {
+        const aborted =
+          (error instanceof Error || (typeof DOMException !== "undefined" && error instanceof DOMException)) &&
+          (error as { name?: string }).name === "AbortError";
+        if (aborted) {
           batcher.flushPending();
           setChats((prevChats) =>
             prevChats.map((chat) => {
@@ -534,7 +656,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         toast({
           title: "Error",
-          description: error instanceof Error ? error.message : "Failed to send message",
+          description: formatUserFacingError(error, "Failed to send message"),
           variant: "destructive",
         });
         batcher.flushPending();
@@ -550,6 +672,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
       } finally {
         setStreamingPromptTokens(null);
+        setWebgpuModelDownloadProgress(null);
         setIsLoading(false);
         abortControllersRef.current = [];
       }
@@ -665,14 +788,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }));
           } catch (e) {
             b.flushPending();
-            if (e instanceof Error && e.name === "AbortError") {
+            const abortedTile =
+              (e instanceof Error || (typeof DOMException !== "undefined" && e instanceof DOMException)) &&
+              (e as { name?: string }).name === "AbortError";
+            if (abortedTile) {
               updateComparisonPart(model, (part) => ({ ...part, streaming: false }));
               return;
             }
             if (isStreamHttpError(e)) {
               streamHttpErrors.push(e);
             }
-            const msg = e instanceof Error ? e.message : "Request failed";
+            const msg = formatUserFacingError(e, "Request failed");
             updateComparisonPart(model, (part) => ({
               ...part,
               error: msg,
@@ -722,6 +848,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateChatTitleFromMessages(activeChatId, chatMessages);
     } finally {
       setStreamingPromptTokens(null);
+      setWebgpuModelDownloadProgress(null);
       setIsLoading(false);
       abortControllersRef.current = [];
     }
@@ -736,8 +863,30 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!trimmed && attachments.length === 0) return;
     if (!canSendChat(apiConfig)) {
       toast({
-        title: "API key or local server required",
-        description: "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in settings.",
+        title: "Cannot send yet",
+        description:
+          apiConfig.aiProvider === "webgpu_gemma"
+            ? "WebGPU is not available in this browser. Use Chrome/Edge or the desktop build, or switch to OpenRouter in Settings."
+            : apiConfig.aiProvider === "local_gguf"
+              ? "Use the Openbentt desktop app, install llama-server on PATH (or set a binary path), download a GGUF in Labs, and pick it in Settings."
+              : "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in Settings.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!canSendMessage(apiConfig)) {
+      toast({
+        title: "Local model not selected",
+        description: "Download a GGUF in Labs → Local model hub, then choose it in Settings → AI & models.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
+      toast({
+        title: "On-device model not enabled",
+        description:
+          "Choose which model to cache and confirm the download in the on-device bar above the composer (or use the download button).",
         variant: "destructive",
       });
       return;
@@ -815,6 +964,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     notebookLatexInsertRequest,
     requestNotebookLatexInsert,
     clearNotebookLatexInsertRequest,
+    webgpuModelDownloadProgress,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

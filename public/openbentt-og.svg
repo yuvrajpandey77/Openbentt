@@ -3,10 +3,10 @@
   <rect x="0" y="0" width="1200" height="630" fill="url(#g)" opacity="0.35"/>
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0d9488"/>
-      <stop offset="1" stop-color="#0f766e"/>
+      <stop stop-color="#6C5CE7"/>
+      <stop offset="1" stop-color="#5B4FC9"/>
     </linearGradient>
   </defs>
-  <text x="80" y="280" fill="#f0fdfa" font-family="system-ui,Segoe UI,sans-serif" font-size="72" font-weight="700">Openbentt</text>
-  <text x="80" y="360" fill="#99f6e4" font-family="system-ui,Segoe UI,sans-serif" font-size="32" font-weight="400">Local-first OpenRouter chat · multi-model · workspaces</text>
+  <text x="80" y="280" fill="#F5F3FF" font-family="system-ui,Segoe UI,sans-serif" font-size="72" font-weight="700">Openbentt</text>
+  <text x="80" y="360" fill="#DDD6FE" font-family="system-ui,Segoe UI,sans-serif" font-size="32" font-weight="400">Local-first AI workspace · LaTeX · PDFs · benchmarking</text>
 </svg>

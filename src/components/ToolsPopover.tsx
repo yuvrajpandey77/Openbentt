@@ -9,6 +9,7 @@ import { normalizeApiConfig } from "@/types/chat";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { substituteInlineCalc } from "@/lib/mathInline";
+import { isWebClient } from "@/config/platformSurface";
 
 const CHART_TEMPLATE = `Use quantitative comparisons where helpful. Valid JSON inside:
 
@@ -23,6 +24,7 @@ interface ToolsPopoverProps {
 }
 
 export const ToolsPopover: React.FC<ToolsPopoverProps> = ({ message, setMessage }) => {
+  const webClient = isWebClient();
   const { apiConfig, setApiConfig } = useChat();
   const [calcExpr, setCalcExpr] = useState("2 + 2");
   const [calcResult, setCalcResult] = useState("");
@@ -65,6 +67,8 @@ export const ToolsPopover: React.FC<ToolsPopoverProps> = ({ message, setMessage 
               onCheckedChange={(v) => setApiConfig(normalizeApiConfig({ ...apiConfig, mathModeEnabled: v }))}
             />
           </div>
+          {!webClient && (
+            <>
           <div className="flex items-center justify-between gap-2">
             <Label className="text-sm">Debug / code</Label>
             <Switch
@@ -86,6 +90,8 @@ export const ToolsPopover: React.FC<ToolsPopoverProps> = ({ message, setMessage 
               onCheckedChange={(v) => setApiConfig(normalizeApiConfig({ ...apiConfig, showAgentTraces: v }))}
             />
           </div>
+            </>
+          )}
           <p className="text-[11px] text-muted-foreground leading-relaxed">
             Research adds Wikipedia, Semantic Scholar, HTTPS URLs (reader), and optional Brave (key in Settings). Chart
             hints auto-append when Research is on.

@@ -178,8 +178,24 @@ export const ProviderQuotaMeter: React.FC = () => {
             </div>
           )}
 
-          {p !== "openrouter" && headerKeys.length === 0 && p !== "google" && (
-            <p className="text-[11px] opacity-80">Send a message to load limits from response headers.</p>
+          {p !== "openrouter" &&
+            headerKeys.length === 0 &&
+            p !== "google" &&
+            p !== "webgpu_gemma" &&
+            p !== "local_gguf" && (
+              <p className="text-[11px] opacity-80">Send a message to load limits from response headers.</p>
+            )}
+
+          {p === "webgpu_gemma" && (
+            <p className="text-[11px] opacity-80">
+              On-device inference — no cloud quota. First reply downloads model weights once.
+            </p>
+          )}
+
+          {p === "local_gguf" && (
+            <p className="text-[11px] opacity-80">
+              Local GGUF via llama-server — no vendor quota. VRAM/RAM limits depend on your machine.
+            </p>
           )}
 
           {p === "google" && (

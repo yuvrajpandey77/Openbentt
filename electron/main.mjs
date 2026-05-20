@@ -3,12 +3,86 @@
  * - Dev (hot reload): set OPENBENTT_ELECTRON_DEV=1 → http://localhost:8080 (Vite must be running)
  * - Packaged / local dist: custom app:// protocol → dist/ with SPA fallback (no src/ changes)
  */
-import { app, BrowserWindow, protocol, net } from "electron";
+import { app, BrowserWindow, protocol, net, ipcMain } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  cleanupLocalGgufOnQuit,
+  registerLocalGgufIpc,
+  setLocalGgufProgressTarget,
+} from "./localGgufService.mjs";
+import { registerHfSecretIpc } from "./hfSecretStore.mjs";
+import { registerDesktopUpdaterIpc, setUpdaterTargetWindow } from "./updater.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/** One app instance — second launch focuses the existing window. */
+const singleInstanceLock = app.requestSingleInstanceLock();
+if (!singleInstanceLock) {
+  app.quit();
+}
+
+/**
+ * Linux display: on **Wayland**, Chromium logs `--ozone-platform=wayland is not compatible with Vulkan`
+ * and `Failed to create vulkan surface` (often alongside GBM / `driver (null)` lines), which breaks GPU
+ * compositing and can destabilize WebGPU/WASM (showing up as opaque WASM traps in the chat).
+ *
+ * Since we *want* Vulkan for WebGPU on Linux (see flags below), default Ozone to **x11** when the
+ * session is Wayland. Override with `OPENBENTT_OZONE_PLATFORM=wayland` (force Wayland) or
+ * `OPENBENTT_OZONE_PLATFORM=auto` (let Chromium decide).
+ */
+if (process.platform === "linux") {
+  const ozoneOverride = process.env.OPENBENTT_OZONE_PLATFORM?.trim();
+  const isWaylandSession =
+    process.env.XDG_SESSION_TYPE === "wayland" || Boolean(process.env.WAYLAND_DISPLAY);
+  if (ozoneOverride && ozoneOverride !== "auto") {
+    app.commandLine.appendSwitch("ozone-platform", ozoneOverride);
+  } else if (!ozoneOverride && isWaylandSession) {
+    app.commandLine.appendSwitch("ozone-platform", "x11");
+    console.info(
+      "[electron] Wayland session detected; forcing --ozone-platform=x11 for Vulkan/WebGPU stability. Override with OPENBENTT_OZONE_PLATFORM=wayland or =auto."
+    );
+  }
+}
+
+/**
+ * WebGPU for on-device Gemma (@huggingface/transformers): on many Linux / Mesa / hybrid setups
+ * Chromium refuses `navigator.gpu.requestAdapter()` unless this switch is set. Must run before
+ * app.ready (see Chromium "Failed to get GPU adapter" / "enable-unsafe-webgpu").
+ * Set OPENBENTT_DISABLE_WEBGPU_FLAGS=1 to opt out for debugging.
+ */
+if (!process.env.OPENBENTT_DISABLE_WEBGPU_FLAGS) {
+  app.commandLine.appendSwitch("enable-unsafe-webgpu");
+  if (process.platform === "linux") {
+    /** Many integrated / Mesa drivers are blocklisted for WebGPU until this is set. */
+    app.commandLine.appendSwitch("ignore-gpu-blocklist");
+    /**
+     * Forcing Skia/ANGLE onto Vulkan (`Vulkan,VulkanFromANGLE,DefaultANGLEVulkan`) is what was
+     * triggering `Failed to create vulkan surface` on Wayland and on NVIDIA + X11/XWayland here
+     * (`GetGeometry failed for window 1`, `XGetWindowAttributes failed`). That breaks the GPU
+     * process and surfaces in the chat as opaque WASM traps (`table index is out of bounds`,
+     * `unaligned access`, etc.).
+     *
+     * WebGPU (Dawn) does not require those features; we leave it on with `enable-unsafe-webgpu`.
+     * Set OPENBENTT_LINUX_FORCE_VULKAN_FEATURES=1 to opt back in if your driver actually likes them.
+     */
+    if (process.env.OPENBENTT_LINUX_FORCE_VULKAN_FEATURES === "1") {
+      app.commandLine.appendSwitch(
+        "enable-features",
+        "Vulkan,VulkanFromANGLE,DefaultANGLEVulkan"
+      );
+    }
+  }
+}
+
+/**
+ * Last-resort escape hatch for broken Linux GPU stacks: `OPENBENTT_DISABLE_GPU=1` runs Chromium
+ * fully software-rendered. WebGPU will not work in this mode, but the app window will at least open.
+ */
+if (process.env.OPENBENTT_DISABLE_GPU === "1") {
+  app.disableHardwareAcceleration();
+}
 
 const VITE_DEV_URL = process.env.VITE_DEV_SERVER_URL || "http://localhost:8080";
 /** When true, load the Vite dev server (use `npm run electron:dev`). Otherwise load built `dist/` via app:// */
@@ -86,6 +160,8 @@ function createWindow() {
   });
 
   win.once("ready-to-show", () => win.show());
+  setLocalGgufProgressTarget(win);
+  setUpdaterTargetWindow(win);
 
   if (useViteDevServer) {
     const devBase = VITE_DEV_URL.replace(/\/$/, "");
@@ -100,7 +176,20 @@ function createWindow() {
   }
 }
 
+if (singleInstanceLock) {
+  app.on("second-instance", () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+}
+
 app.whenReady().then(() => {
+  registerDesktopUpdaterIpc();
+  registerHfSecretIpc(ipcMain, app);
+  registerLocalGgufIpc(ipcMain, app);
   if (!useViteDevServer) {
     registerAppProtocolHandler();
   }
@@ -109,6 +198,10 @@ app.whenReady().then(() => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on("before-quit", () => {
+  cleanupLocalGgufOnQuit();
 });
 
 app.on("window-all-closed", () => {

@@ -37,7 +37,7 @@ export const ChatThreadBar: React.FC<ChatThreadBarProps> = ({ searchQuery, onSea
           type="search"
           value={searchQuery}
           onChange={(e) => onSearchQueryChange(e.target.value)}
-          placeholder="Search this thread…"
+          placeholder="Search this chat…"
           className="h-8 pl-8 text-xs"
           aria-label="Search messages in this chat"
         />

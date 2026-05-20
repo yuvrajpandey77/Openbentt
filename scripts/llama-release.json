@@ -1,0 +1,14 @@
+{
+  "repo": "ggml-org/llama.cpp",
+  "tag": "b9222",
+  "assets": {
+    "linux": "llama-b9222-bin-ubuntu-x64.tar.gz",
+    "darwin": "llama-b9222-bin-macos-arm64.tar.gz",
+    "darwin-x64": "llama-b9222-bin-macos-x64.tar.gz",
+    "win32": "llama-b9222-bin-win-cpu-x64.zip"
+  },
+  "binaryInArchive": {
+    "tar": "llama-b9222/llama-server",
+    "zip": "llama-b9222/llama-server.exe"
+  }
+}

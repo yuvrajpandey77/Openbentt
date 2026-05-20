@@ -24,12 +24,15 @@ They can **describe the document in the main composer** (the chat input). You sh
 - **Full LaTeX** (starts with \\documentclass or a standard preamble + \\begin{document}): output is a **real PDF** via **pdflatex** (run npm run latex-compile locally with TeX Live, or set VITE_LATEX_COMPILE_URL in production). Use valid book/article LaTeX: \\chapter, \\section, lists, titlepage, \\tableofcontents, etc. The compile step sends **only the .tex string** (no project folder). **\\includegraphics{...}** is rewritten to a framed placeholder so the PDF still builds; for real images use a full TeX setup with files on disk. Prefer **TikZ/tikz-cd** for diagrams when possible.
 - **Plain / extracted text** with --- PDF PAGE i / n --- markers: **Compile** builds a simple multi-page text PDF (jsPDF). **Original** preview keeps the uploaded PDF (images, layout); **Compiled** is never pixel-identical to a complex PDF.
 
+When the user wants a proper book or **research paper** (arXiv-style or PDF), still respond with a **full** \`latex\` fenced block: use a standard preamble (e.g. \\documentclass[11pt,a4paper]{article}), **abstract**, **sections** (\\section{Introduction}, Related work, Method, …), theorems, algorithms, and **\\bibliography** or a manual **thebibliography** with real-looking entries (no fake DOIs; cite only from user/fetched context when applicable). The small on-device model may be brief, but the **skeleton and LaTeX must be valid and complete** so the user can compile.
+
 When the user wants a proper book or paper, prefer **complete .tex** (fenced) and remind them that LaTeX **Compile** needs the pdflatex service when applicable.`,
   },
   "/labs": {
     tag: "Labs",
     title: "Research labs",
-    subtitle: "BibTeX, citation graph, Hugging Face dataset cards — prompts reference this tooling.",
+    subtitle:
+      "BibTeX, citation graph, Hugging Face dataset cards — in-app GGUF downloads planned (see docs/local-model-lab-roadmap.md).",
     composerPlaceholder:
       "Ask about papers, BibTeX, citation links, or HF datasets you loaded in this page…",
     systemAssist: `The user is in **Research labs**: BibTeX parsing, mini citation graphs, and Hugging Face dataset card previews may be relevant. Help summarize literature, suggest related work, debug BibTeX, and interpret dataset metadata. Be precise about what is inferred vs loaded.`,

@@ -13,6 +13,7 @@ const ShareViewPage: React.FC = () => {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
+    document.title = "Shared run · Openbentt";
     const h = window.location.hash.replace(/^#/, "");
     if (!h) {
       setErr("No snapshot in URL hash.");
@@ -29,33 +30,46 @@ const ShareViewPage: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-3xl mx-auto space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/chat">← Thread</Link>
+    <div className="marketing-page min-h-screen bg-background">
+      <header className="border-b border-border/50">
+        <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-3 px-4 md:px-6">
+          <Link to="/" className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+            <img src="/openbentt-logo.svg" alt="" width={24} height={24} className="rounded-md" />
+            Openbentt
+          </Link>
+          <Button variant="outline" size="sm" className="rounded-lg" asChild>
+            <Link to="/chat">Open app</Link>
           </Button>
-          <Badge variant="secondary">Read-only</Badge>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold">{title}</h1>
-          {frozenAt && <p className="text-xs text-muted-foreground mt-1">Frozen {new Date(frozenAt).toLocaleString()}</p>}
+      </header>
+
+      <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 md:px-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="font-display text-2xl font-bold tracking-tight">{title}</h1>
+            {frozenAt && (
+              <p className="mt-1 text-sm text-muted-foreground">Frozen {new Date(frozenAt).toLocaleString()}</p>
+            )}
+          </div>
+          <Badge variant="secondary">Read-only snapshot</Badge>
         </div>
-        {err && <p className="text-destructive text-sm">{err}</p>}
-        <div className="space-y-6">
+
+        {err && <p className="text-sm text-destructive">{err}</p>}
+
+        <div className="space-y-5">
           {messages.map((m) => (
-            <div
+            <article
               key={m.id}
-              className={`rounded-lg border border-border/80 p-4 ${m.role === "user" ? "bg-secondary/30" : "bg-card"}`}
+              className={`rounded-xl border border-border/70 p-4 ${m.role === "user" ? "bg-muted/30" : "bg-card"}`}
             >
-              <div className="text-[10px] uppercase text-muted-foreground mb-2">{m.role}</div>
+              <p className="mb-2 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">{m.role}</p>
               {m.role === "assistant" ? (
                 <>
                   <AssistantContent content={m.content} />
                   {m.researchSources && m.researchSources.length > 0 && (
-                    <div className="mt-3 rounded-md border border-border/60 bg-muted/20 p-3 text-xs">
-                      <div className="font-semibold mb-2">Sources (frozen)</div>
-                      <ul className="space-y-2 list-none p-0 m-0">
+                    <div className="mt-3 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
+                      <p className="mb-2 font-semibold">Sources (frozen)</p>
+                      <ul className="m-0 list-none space-y-2 p-0">
                         {m.researchSources.map((s, i) => (
                           <li key={i}>
                             <span className="font-medium">{s.title}</span>
@@ -65,11 +79,16 @@ const ShareViewPage: React.FC = () => {
                               </Badge>
                             )}
                             {s.url && (
-                              <a href={s.url} className="block text-primary text-[11px] break-all" target="_blank" rel="noreferrer">
+                              <a
+                                href={s.url}
+                                className="mt-1 block break-all text-[11px] text-primary"
+                                target="_blank"
+                                rel="noreferrer"
+                              >
                                 {s.url}
                               </a>
                             )}
-                            <p className="text-muted-foreground mt-1">{s.snippet}</p>
+                            <p className="mt-1 text-muted-foreground">{s.snippet}</p>
                           </li>
                         ))}
                       </ul>
@@ -77,12 +96,12 @@ const ShareViewPage: React.FC = () => {
                   )}
                 </>
               ) : (
-                <p className="whitespace-pre-wrap text-sm">{m.content}</p>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.content}</p>
               )}
-            </div>
+            </article>
           ))}
         </div>
-      </div>
+      </main>
     </div>
   );
 };

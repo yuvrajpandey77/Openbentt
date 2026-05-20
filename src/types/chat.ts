@@ -1,3 +1,8 @@
+import { isLocalGemmaModelId, LOCAL_TINY_MODEL_ID } from "@/lib/gemmaWebGpu/models";
+import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
+import { GGUF_MODEL_NONE, parseGgufRegistryId } from "@/lib/localGguf/ids";
+import { normalizeGgufMaxParamB } from "@/lib/localGguf/guardrails";
+
 export type Role = "assistant" | "user" | "system";
 
 /** Multimodal / PDF parts for user messages. */
@@ -96,6 +101,8 @@ export const DEPRECATED_DEFAULT_MODEL_IDS: readonly string[] = [
 
 /** Where API calls are routed. OpenRouter aggregates many vendors with one key; others use vendor keys or compatible bases. */
 export type AiProvider =
+  | "webgpu_gemma"
+  | "local_gguf"
   | "openrouter"
   | "openai_direct"
   | "openai_compatible"
@@ -107,6 +114,12 @@ export type ResearchDepth = "quick" | "standard" | "deep";
 
 /** Extra system emphasis on step-by-step reasoning (all providers). Vendor-native “thinking” APIs vary; this is the portable layer. */
 export type ReasoningPreference = "default" | "more";
+
+/**
+ * On-device (WebGPU / WASM) resource profile. Eco limits tokens and context to reduce RAM/VRAM use;
+ * performance matches model defaults and keeps more history in the prompt.
+ */
+export type LocalInferenceProfile = "eco" | "balanced" | "performance";
 
 export interface ApiKeyConfig {
   aiProvider: AiProvider;
@@ -147,17 +160,32 @@ export interface ApiKeyConfig {
   redTeamModeEnabled: boolean;
   /** Show collapsible research/tool trace on assistant messages */
   showAgentTraces: boolean;
+  /** WebGPU / WASM: lower = less RAM, smaller effective context and max output unless you choose Performance. */
+  localInferenceProfile: LocalInferenceProfile;
+  /** If true, research can run while using the on-device model (uses network; context is still built client-side). */
+  researchWithLocalModel: boolean;
+  /**
+   * Desktop GGUF: optional path to `llama-server` when not on PATH / bundled.
+   * Empty = auto-detect (PATH, OPENBENTT_LLAMA_SERVER_PATH, resources/llama).
+   */
+  localGgufBinaryPath: string;
+  /** Hugging Face token for gated / rate-limited GGUF downloads (stored locally in the app). */
+  huggingFaceToken: string;
+  /** Desktop GGUF safety: max parameter count (billions) allowed for downloads — 8 default, 16 advanced. */
+  localGgufMaxParamB: 8 | 16;
+  /** User confirmed multi-GB local weight downloads (GGUF hub). */
+  localGgufDownloadConsent: boolean;
 }
 
 export function defaultApiConfig(): ApiKeyConfig {
   return {
-    aiProvider: "openrouter",
+    aiProvider: "webgpu_gemma",
     apiKey: "",
-    model: DEFAULT_MODEL_ID,
+    model: LOCAL_TINY_MODEL_ID,
     customModelIds: [],
     comparisonEnabled: false,
-    comparisonModelIds: [DEFAULT_MODEL_ID],
-    researchEnabled: true,
+    comparisonModelIds: [LOCAL_TINY_MODEL_ID],
+    researchEnabled: false,
     researchDepth: "standard",
     reasoningPreference: "default",
     braveSearchApiKey: "",
@@ -168,36 +196,75 @@ export function defaultApiConfig(): ApiKeyConfig {
     openAiCompatibleBaseUrl: "",
     redTeamModeEnabled: false,
     showAgentTraces: false,
+    localInferenceProfile: "eco",
+    researchWithLocalModel: true,
+    localGgufBinaryPath: "",
+    huggingFaceToken: "",
+    localGgufMaxParamB: 8,
+    localGgufDownloadConsent: false,
   };
 }
 
 export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
   const base = defaultApiConfig();
   const allowed: AiProvider[] = [
+    "webgpu_gemma",
+    "local_gguf",
     "openrouter",
     "openai_direct",
     "openai_compatible",
     "anthropic",
     "google",
   ];
-  const aiProvider =
-    typeof raw.aiProvider === "string" && allowed.includes(raw.aiProvider as AiProvider)
-      ? (raw.aiProvider as AiProvider)
-      : base.aiProvider;
-  const rawModel = typeof raw.model === "string" && raw.model ? raw.model : base.model;
-  const model = DEPRECATED_DEFAULT_MODEL_IDS.includes(rawModel) ? base.model : rawModel;
+  const rawProvider = typeof raw.aiProvider === "string" ? raw.aiProvider.trim() : "";
+  const aiProvider: AiProvider =
+    rawProvider && allowed.includes(rawProvider as AiProvider)
+      ? (rawProvider as AiProvider)
+      : typeof raw.model === "string" && raw.model.trim() && isLocalGemmaModelId(raw.model.trim())
+        ? "webgpu_gemma"
+        : typeof raw.openAiCompatibleBaseUrl === "string" && raw.openAiCompatibleBaseUrl.trim()
+          ? "openai_compatible"
+          : typeof raw.model === "string" &&
+              raw.model.trim() &&
+              raw.model.includes("/") &&
+              !raw.model.trim().startsWith("openbentt/")
+            ? "openrouter"
+            : base.aiProvider;
+
+  const defaultModelForProvider = (p: AiProvider): string =>
+    p === "webgpu_gemma" ? LOCAL_TINY_MODEL_ID : p === "local_gguf" ? GGUF_MODEL_NONE : DEFAULT_MODEL_ID;
+
+  const rawModel =
+    typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : defaultModelForProvider(aiProvider);
+
+  let model = rawModel;
+  if (aiProvider === "webgpu_gemma") {
+    if (!isLocalGemmaModelId(model)) {
+      model = LOCAL_TINY_MODEL_ID;
+    }
+  } else if (aiProvider === "local_gguf") {
+    if (!parseGgufRegistryId(model)) {
+      model = GGUF_MODEL_NONE;
+    }
+  } else if (DEPRECATED_DEFAULT_MODEL_IDS.includes(rawModel)) {
+    model = DEFAULT_MODEL_ID;
+  }
   const customModelIds = Array.isArray(raw.customModelIds)
     ? (raw.customModelIds as string[])
         .filter((s) => typeof s === "string" && s.trim())
         .map((s) => (s as string).trim())
     : base.customModelIds;
-  const comparisonEnabled = typeof raw.comparisonEnabled === "boolean" ? raw.comparisonEnabled : base.comparisonEnabled;
+  let comparisonEnabled = typeof raw.comparisonEnabled === "boolean" ? raw.comparisonEnabled : base.comparisonEnabled;
   let comparisonModelIds = Array.isArray(raw.comparisonModelIds)
     ? (raw.comparisonModelIds as string[])
         .filter((s) => typeof s === "string" && s.trim())
         .map((s) => (s as string).trim())
     : base.comparisonModelIds;
   if (comparisonModelIds.length === 0) {
+    comparisonModelIds = [model];
+  }
+  if (aiProvider === "webgpu_gemma" || aiProvider === "local_gguf") {
+    comparisonEnabled = false;
     comparisonModelIds = [model];
   }
   const researchEnabled =
@@ -226,6 +293,24 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
     typeof raw.redTeamModeEnabled === "boolean" ? raw.redTeamModeEnabled : base.redTeamModeEnabled;
   const showAgentTraces =
     typeof raw.showAgentTraces === "boolean" ? raw.showAgentTraces : base.showAgentTraces;
+  const localProfileRaw = raw.localInferenceProfile;
+  const localInferenceProfile: LocalInferenceProfile =
+    localProfileRaw === "eco" || localProfileRaw === "balanced" || localProfileRaw === "performance"
+      ? localProfileRaw
+      : base.localInferenceProfile;
+  const researchWithLocalModel =
+    typeof raw.researchWithLocalModel === "boolean" ? raw.researchWithLocalModel : base.researchWithLocalModel;
+  const localGgufBinaryPath =
+    typeof raw.localGgufBinaryPath === "string" ? raw.localGgufBinaryPath.trim() : base.localGgufBinaryPath;
+  const huggingFaceToken =
+    typeof raw.huggingFaceToken === "string" ? raw.huggingFaceToken.trim() : base.huggingFaceToken;
+  const localGgufMaxParamB = normalizeGgufMaxParamB(
+    raw.localGgufMaxParamB ?? base.localGgufMaxParamB
+  );
+  const localGgufDownloadConsent =
+    typeof raw.localGgufDownloadConsent === "boolean"
+      ? raw.localGgufDownloadConsent
+      : base.localGgufDownloadConsent;
 
   return {
     aiProvider,
@@ -245,6 +330,12 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
     openAiCompatibleBaseUrl,
     redTeamModeEnabled,
     showAgentTraces,
+    localInferenceProfile,
+    researchWithLocalModel,
+    localGgufBinaryPath,
+    huggingFaceToken,
+    localGgufMaxParamB,
+    localGgufDownloadConsent,
   };
 }
 
@@ -255,6 +346,12 @@ export function dedupeModels(ids: string[]): string[] {
 /** User can run chat for the selected provider (key and/or compatible base URL). */
 export function canSendChat(cfg: ApiKeyConfig): boolean {
   switch (cfg.aiProvider) {
+    case "webgpu_gemma":
+      /** WASM (CPU) fallback keeps on-device Gemma usable even when WebGPU is missing. */
+      return typeof navigator !== "undefined";
+    case "local_gguf":
+      /** Desktop shell only; model can be picked after entering the app (Labs → hub). */
+      return typeof navigator !== "undefined" && Boolean(getLocalGgufApi());
     case "openrouter":
     case "openai_direct":
     case "anthropic":
@@ -265,4 +362,11 @@ export function canSendChat(cfg: ApiKeyConfig): boolean {
     default:
       return false;
   }
+}
+
+/** Provider configured and ready to send a message (stricter than {@link canSendChat}). */
+export function canSendMessage(cfg: ApiKeyConfig): boolean {
+  if (!canSendChat(cfg)) return false;
+  if (cfg.aiProvider === "local_gguf" && !parseGgufRegistryId(cfg.model)) return false;
+  return true;
 }

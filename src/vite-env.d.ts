@@ -27,4 +27,10 @@ interface OpenbenttDesktopApi {
 
 interface Window {
   readonly openbenttDesktop?: OpenbenttDesktopApi;
+  readonly openbenttLocalGguf?: import("@/lib/localGguf/desktopApi").OpenbenttLocalGgufApi;
+}
+
+/** WebGPU (Chrome / Edge / Electron); optional until DOM lib catches up. */
+interface Navigator {
+  readonly gpu?: GPU;
 }

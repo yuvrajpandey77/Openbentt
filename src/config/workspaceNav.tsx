@@ -1,42 +1,61 @@
 import type { LucideIcon } from "lucide-react";
-import { BookOpen, FlaskConical, BarChart2, Cpu } from "lucide-react";
+import { BookOpen, FlaskConical, FileCode2, Gauge, Cpu } from "lucide-react";
+import { isWebClient } from "@/config/platformSurface";
 
 export interface WorkspaceNavItem {
   to: string;
   label: string;
   description: string;
   Icon: LucideIcon;
-  /** Shown in sidebar but not navigable (muted). LaTeX lives under Notebook — no separate route here. */
-  disabled?: boolean;
+  /** When false, hidden from sidebar and empty-state chips on web. Default true. */
+  web?: boolean;
 }
 
-/** Routes under “Workspace” in the sidebar. */
-export const WORKSPACE_NAV_ITEMS: WorkspaceNavItem[] = [
+const ALL_WORKSPACE_NAV_ITEMS: WorkspaceNavItem[] = [
   {
     to: "/notebook",
     label: "Notebook",
     description: "PDF, LaTeX source, compile & preview",
     Icon: BookOpen,
+    web: true,
   },
   {
     to: "/labs",
-    label: "Labs",
-    description: "Research experiments (coming later)",
+    label: "Research labs",
+    description: "BibTeX, citation graph, HF datasets (desktop: local GGUF hub)",
     Icon: FlaskConical,
-    disabled: true,
+    web: false,
+  },
+  {
+    to: "/write",
+    label: "LaTeX write",
+    description: "Compose and compile LaTeX documents",
+    Icon: FileCode2,
+    web: false,
   },
   {
     to: "/benchmark",
     label: "Benchmark",
-    description: "Latency runs (coming later)",
-    Icon: BarChart2,
-    disabled: true,
+    description: "Compare model latency and throughput",
+    Icon: Gauge,
+    web: false,
   },
   {
     to: "/webgpu",
-    label: "WebGPU",
-    description: "Browser GPU probe (coming later)",
+    label: "WebGPU lab",
+    description: "On-device Transformers.js diagnostics",
     Icon: Cpu,
-    disabled: true,
+    web: false,
   },
 ];
+
+/** Sidebar + welcome chips — filtered for web vs desktop. */
+export function getWorkspaceNavItems(): WorkspaceNavItem[] {
+  if (isWebClient()) {
+    return ALL_WORKSPACE_NAV_ITEMS.filter((item) => item.web !== false);
+  }
+  return ALL_WORKSPACE_NAV_ITEMS;
+}
+
+/** @deprecated Use getWorkspaceNavItems() */
+export const WORKSPACE_NAV_ITEMS = ALL_WORKSPACE_NAV_ITEMS;

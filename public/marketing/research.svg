@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" fill="none" role="img" aria-label="Research sources preview">
+  <rect width="1280" height="800" fill="#0f172a"/>
+  <rect x="100" y="100" width="1080" height="600" rx="16" fill="#1e293b" stroke="#334155"/>
+  <rect x="140" y="160" width="320" height="120" rx="10" fill="#134e4a"/>
+  <rect x="140" y="300" width="420" height="80" rx="8" fill="#334155"/>
+  <rect x="140" y="400" width="380" height="80" rx="8" fill="#334155"/>
+  <rect x="500" y="160" width="640" height="360" rx="12" fill="#0f172a" stroke="#14b8a6"/>
+  <rect x="530" y="200" width="560" height="10" rx="3" fill="#94a3b8"/>
+  <rect x="530" y="230" width="500" height="10" rx="3" fill="#64748b"/>
+  <text x="640" y="760" fill="#64748b" font-family="system-ui,sans-serif" font-size="22" text-anchor="middle">Wikipedia · papers · URLs in context</text>
+</svg>

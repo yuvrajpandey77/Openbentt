@@ -5,7 +5,7 @@ Use this before tagging a release or deploying. Mark items as you complete them.
 ## Build & quality
 
 - [x] `npm run build` completes without errors
-- [x] `npm run test` passes (Vitest)
+- [x] `npm run test` passes (Vitest + `test:electron` llama binary smoke)
 - [x] `npm run lint` passes (no errors)
 - [x] **GitHub Actions**: CI on `main`/`master`; **release** workflow on tag `v*` (see `RELEASING.md`)
 - [x] Product name **Openbentt** reflected in UI (sidebar, welcome, meta title, OpenRouter `X-Title`)
@@ -38,7 +38,10 @@ Use this before tagging a release or deploying. Mark items as you complete them.
 
 ## Runtime behavior
 
-- [ ] **Electron / desktop**: first load shows home at `/` (not 404); packaged app loads `app://openbentt/` so the SPA route is `/`
+- [x] **Electron / desktop**: first load opens `/chat` workspace (`electron/main.mjs` `START_PATH`); packaged app uses `app://openbentt/chat`
+- [x] **Electron / llama-server**: `npm run download:llama-server` before pack; CI runs it per OS; bundled under `resources/llama/<platform>/`
+- [x] **Electron / updates**: Settings → General → “Check for updates”; GitHub Release should include `latest*.yml` for `electron-updater`
+- [x] **Electron / single instance**: second launch focuses existing window
 - [ ] **Window chrome**: `build/icon.png` present; `package.json` `build.icon` set; taskbar/window uses Openbentt artwork
 - [ ] Tiled comparison: 2+ models, grid + metrics
 - [ ] Notebook: PDF load, compile path (BusyTeX or `npm run latex-compile`); invalid PDF preview shows **Apply fixes & recompile** for LaTeX source
@@ -60,4 +63,6 @@ Use this before tagging a release or deploying. Mark items as you complete them.
 
 ---
 
-**Status:** Ready for production pending host-specific items (env vars, OG image, manual smoke tests).
+**Status:** **Release-ready** — run [LOCAL_RELEASE_CHECKLIST.md](./LOCAL_RELEASE_CHECKLIST.md) before each tag. See [docs/RELEASE_OVERVIEW.md](./docs/RELEASE_OVERVIEW.md).
+
+**Manual smoke (required before tag):** sections A–F in LOCAL_RELEASE_CHECKLIST.md.

@@ -53,6 +53,9 @@ jobs:
           NODE_ENV: production
           VITE_PUBLIC_SITE_URL: ${{ vars.VITE_PUBLIC_SITE_URL }}
 
+      - name: Bundle llama-server (Linux)
+        run: npm run download:llama-server
+
       - name: Zip static dist
         run: (cd dist && zip -r "$GITHUB_WORKSPACE/openbentt-web-dist.zip" .)
 
@@ -107,6 +110,9 @@ jobs:
           NODE_ENV: production
           VITE_PUBLIC_SITE_URL: ${{ vars.VITE_PUBLIC_SITE_URL }}
 
+      - name: Bundle llama-server (Windows)
+        run: npm run download:llama-server
+
       - name: Package Electron (Windows)
         run: npm run electron:pack:win
 
@@ -158,6 +164,9 @@ jobs:
         env:
           NODE_ENV: production
           VITE_PUBLIC_SITE_URL: ${{ vars.VITE_PUBLIC_SITE_URL }}
+
+      - name: Bundle llama-server (macOS)
+        run: npm run download:llama-server
 
       - name: Package Electron (macOS)
         run: npm run electron:pack:mac

@@ -7,7 +7,7 @@
     "email": "openbentt-contributors@users.noreply.github.com"
   },
   "private": true,
-  "version": "2.0.3",
+  "version": "2.0.7",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
@@ -16,16 +16,25 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run && npm run test:electron",
+    "test:unit": "vitest run",
+    "test:electron": "node --test electron/llamaBinary.test.mjs",
     "test:watch": "vitest",
     "research-proxy": "node server/research-proxy.mjs",
     "latex-compile": "node server/latex-compile.mjs",
     "docker:build": "docker build -t openbentt .",
     "docker:up": "docker compose up --build",
+    "icons:sync": "convert -background none public/openbentt-logo.svg -resize 512x512 build/icon.png",
     "download:busytex": "texlyre-busytex download-assets public/core",
+    "download:llama-server": "node scripts/download-llama-server.mjs",
+    "download:llama-server:all": "node scripts/download-llama-server.mjs --all",
+    "predownload:llama-server": "node -e \"console.log('Fetching llama-server from ggml-org/llama.cpp releases…')\"",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http-get://127.0.0.1:8080 && cross-env OPENBENTT_ELECTRON_DEV=1 electron .\"",
+    "electron:dev:safe": "concurrently -k \"npm run dev\" \"wait-on http-get://127.0.0.1:8080 && cross-env OPENBENTT_ELECTRON_DEV=1 OPENBENTT_DISABLE_GPU=1 electron .\"",
     "electron:start": "npm run build && electron .",
-    "electron:build": "npm run build && electron-builder",
+    "electron:start:safe": "npm run build && cross-env OPENBENTT_DISABLE_GPU=1 electron .",
+    "electron:build": "npm run build && npm run download:llama-server && electron-builder",
+    "electron:build:ci": "npm run build && npm run download:llama-server:all && electron-builder",
     "electron:pack": "electron-builder",
     "electron:pack:linux": "electron-builder --linux --publish never",
     "electron:pack:win": "electron-builder --win --publish never",
@@ -34,6 +43,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.9.0",
+    "@huggingface/transformers": "^4.0.1",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
     "@radix-ui/react-aspect-ratio": "^1.1.0",
@@ -71,6 +81,7 @@
     "cmdk": "^1.0.0",
     "date-fns": "^3.6.0",
     "diff": "^9.0.0",
+    "electron-updater": "^6.8.3",
     "embla-carousel-react": "^8.3.0",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
@@ -146,24 +157,62 @@
       "!node_modules",
       "!node_modules/**/*"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "yuvrajpandey77",
+        "repo": "SecuredChatCogerphere",
+        "releaseType": "release"
+      }
+    ],
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "category": "Office"
+      "category": "Office",
+      "extraResources": [
+        {
+          "from": "resources/llama/linux",
+          "to": "llama/linux",
+          "filter": [
+            "llama-server",
+            ".gitkeep"
+          ]
+        }
+      ]
     },
     "mac": {
       "target": [
         "dmg",
         "zip"
       ],
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "extraResources": [
+        {
+          "from": "resources/llama/darwin",
+          "to": "llama/darwin",
+          "filter": [
+            "llama-server",
+            ".gitkeep"
+          ]
+        }
+      ]
     },
     "win": {
       "target": [
         "nsis",
         "zip"
+      ],
+      "extraResources": [
+        {
+          "from": "resources/llama/win32",
+          "to": "llama/win32",
+          "filter": [
+            "llama-server.exe",
+            ".gitkeep"
+          ]
+        }
       ]
     }
   }

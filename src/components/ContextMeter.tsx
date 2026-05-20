@@ -1,11 +1,13 @@
 import React, { useMemo } from "react";
 import { useChat } from "@/context/ChatContext";
 import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRouterModels";
+import { useLocalGgufRegistryModels } from "@/hooks/useLocalGgufRegistryModels";
 import {
   contextFillRatio,
   estimateTokensFromMessagesRough,
   resolveContextLimit,
 } from "@/lib/contextMeter";
+import { LOCAL_GEMMA_SELECTABLE_MODELS } from "@/lib/gemmaWebGpu/models";
 import { cn } from "@/lib/utils";
 import { AlertTriangle } from "lucide-react";
 
@@ -17,16 +19,27 @@ export const ContextMeter: React.FC = () => {
     apiConfig.openAiCompatibleBaseUrl,
     apiConfig.aiProvider
   );
+  const { data: ggufModels } = useLocalGgufRegistryModels(apiConfig.aiProvider === "local_gguf");
 
   const selectable = useMemo(
     () =>
-      buildSelectableModels(
-        models,
-        apiConfig.customModelIds,
-        [apiConfig.model, ...apiConfig.comparisonModelIds],
-        { includeAllFromApi: apiConfig.aiProvider !== "openrouter" }
-      ),
-    [models, apiConfig.customModelIds, apiConfig.model, apiConfig.comparisonModelIds, apiConfig.aiProvider]
+      apiConfig.aiProvider === "webgpu_gemma"
+        ? buildSelectableModels(LOCAL_GEMMA_SELECTABLE_MODELS, apiConfig.customModelIds, [
+            apiConfig.model,
+            ...apiConfig.comparisonModelIds,
+          ], { includeAllFromApi: true })
+        : apiConfig.aiProvider === "local_gguf"
+          ? buildSelectableModels(ggufModels, apiConfig.customModelIds, [
+              apiConfig.model,
+              ...apiConfig.comparisonModelIds,
+            ], { includeAllFromApi: true })
+          : buildSelectableModels(
+              models,
+              apiConfig.customModelIds,
+              [apiConfig.model, ...apiConfig.comparisonModelIds],
+              { includeAllFromApi: apiConfig.aiProvider !== "openrouter" }
+            ),
+    [models, ggufModels, apiConfig.customModelIds, apiConfig.model, apiConfig.comparisonModelIds, apiConfig.aiProvider]
   );
 
   const meta = useMemo(

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" fill="none" role="img" aria-label="Notebook workspace preview">
+  <rect width="1280" height="720" fill="#fafafa"/>
+  <rect x="48" y="40" width="1184" height="640" rx="16" fill="#fff" stroke="#e8e8ef"/>
+  <rect x="48" y="40" width="220" height="640" rx="16" fill="#f8f7fc"/>
+  <rect x="72" y="72" width="80" height="10" rx="3" fill="#6C5CE7" opacity="0.9"/>
+  <rect x="72" y="100" width="140" height="8" rx="3" fill="#c4b5fd" opacity="0.5"/>
+  <rect x="72" y="124" width="120" height="8" rx="3" fill="#6C5CE7" opacity="0.25"/>
+  <rect x="72" y="148" width="100" height="8" rx="3" fill="#e2e8f0"/>
+  <rect x="300" y="56" width="420" height="628" rx="10" fill="#fff" stroke="#ececf2"/>
+  <rect x="320" y="80" width="120" height="12" rx="4" fill="#6C5CE7" opacity="0.85"/>
+  <rect x="320" y="108" width="360" height="8" rx="3" fill="#e2e8f0"/>
+  <rect x="320" y="128" width="320" height="8" rx="3" fill="#e2e8f0"/>
+  <rect x="320" y="148" width="280" height="8" rx="3" fill="#f1f5f9"/>
+  <rect x="320" y="180" width="200" height="8" rx="3" fill="#ddd6fe" opacity="0.6"/>
+  <rect x="752" y="56" width="456" height="628" rx="10" fill="#fff" stroke="#ececf2"/>
+  <rect x="772" y="80" width="100" height="12" rx="4" fill="#64748b"/>
+  <rect x="772" y="120" width="416" height="520" rx="8" fill="#f8fafc" stroke="#e8e8ef"/>
+  <rect x="800" y="160" width="200" height="14" rx="4" fill="#1e293b" opacity="0.15"/>
+  <rect x="800" y="190" width="360" height="8" rx="3" fill="#cbd5e1"/>
+  <rect x="800" y="212" width="340" height="8" rx="3" fill="#cbd5e1"/>
+  <rect x="800" y="234" width="300" height="8" rx="3" fill="#e2e8f0"/>
+  <text x="640" y="698" fill="#64748b" font-family="Plus Jakarta Sans, system-ui, sans-serif" font-size="18" font-weight="500" text-anchor="middle">LaTeX source and live PDF preview</text>
+</svg>

@@ -6,6 +6,8 @@ import { shortModelLabel } from "@/lib/openrouter";
 import { cn } from "@/lib/utils";
 
 const PROVIDER_LABEL: Record<string, string> = {
+  webgpu_gemma: "Gemma 4 (WebGPU)",
+  local_gguf: "Local GGUF",
   openrouter: "OpenRouter",
   openai_direct: "OpenAI",
   openai_compatible: "OpenAI-compatible",
