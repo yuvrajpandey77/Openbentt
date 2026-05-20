@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useChat } from "@/context/ChatContext";
 import { defaultApiConfig, normalizeApiConfig, canSendChat } from "@/types/chat";
@@ -8,28 +8,32 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/use-toast";
 import { useForm } from "react-hook-form";
-import { Cpu, Cloud, Server, ArrowRight, Check } from "lucide-react";
+import { Cpu, Cloud, Server, ArrowRight, Check, HardDrive } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isWebClient } from "@/config/platformSurface";
+import { isDesktopApp } from "@/lib/isDesktopApp";
+import { isLocalGgufDesktopAvailable } from "@/lib/localGguf/desktopApi";
+import { GGUF_MODEL_NONE } from "@/lib/localGguf/ids";
 
-type Provider = "ondevice" | "openrouter" | "local";
+type Provider = "ondevice" | "openrouter" | "local" | "local_gguf";
 
 interface FormValues {
   apiKey: string;
   localUrl: string;
 }
 
-const PROVIDERS: { id: Provider; icon: React.ReactNode; title: string; subtitle: string }[] = [
+const BASE_PROVIDERS: { id: Provider; icon: React.ReactNode; title: string; subtitle: string }[] = [
   {
     id: "ondevice",
     icon: <Cpu size={22} />,
-    title: "Run on this device",
-    subtitle: "No API key needed. Downloads ~500 MB on first use via your browser's GPU.",
+    title: "Run on this device (browser GPU)",
+    subtitle: "No API key. Downloads ~400 MB–1.5 GB on first use via WebGPU in the app window.",
   },
   {
     id: "openrouter",
     icon: <Cloud size={22} />,
     title: "OpenRouter (cloud)",
-    subtitle: "Access hundreds of cloud models. Bring your own key — stays in this browser only.",
+    subtitle: "Access hundreds of cloud models. Bring your own key — stored on this device only.",
   },
   {
     id: "local",
@@ -39,12 +43,29 @@ const PROVIDERS: { id: Provider; icon: React.ReactNode; title: string; subtitle:
   },
 ];
 
+const DESKTOP_GGUF_PROVIDER = {
+  id: "local_gguf" as const,
+  icon: <HardDrive size={22} />,
+  title: "Local GGUF files (recommended)",
+  subtitle:
+    "Download quantized models from Hugging Face and run with llama-server. Best for offline use on this desktop app.",
+};
+
 const SetupPage: React.FC = () => {
   const navigate = useNavigate();
   const { apiConfig, setApiConfig } = useChat();
   const { toast } = useToast();
   const [step, setStep] = useState<1 | 2>(1);
-  const [provider, setProvider] = useState<Provider>("openrouter");
+  const showGguf = isDesktopApp() && isLocalGgufDesktopAvailable();
+  const providers = useMemo(() => {
+    const base = isWebClient()
+      ? BASE_PROVIDERS.filter((p) => p.id === "openrouter" || p.id === "ondevice")
+      : BASE_PROVIDERS;
+    return showGguf ? [DESKTOP_GGUF_PROVIDER, ...base] : base;
+  }, [showGguf]);
+  const [provider, setProvider] = useState<Provider>(() =>
+    showGguf ? "local_gguf" : "openrouter"
+  );
 
   const form = useForm<FormValues>({
     defaultValues: { apiKey: "", localUrl: "http://127.0.0.1:11434/v1" },
@@ -56,6 +77,22 @@ const SetupPage: React.FC = () => {
   }
 
   const handleProviderContinue = () => {
+    if (provider === "local_gguf") {
+      setApiConfig(
+        normalizeApiConfig({
+          ...defaultApiConfig(),
+          aiProvider: "local_gguf",
+          model: GGUF_MODEL_NONE,
+          apiKey: "",
+        })
+      );
+      toast({
+        title: "Local GGUF selected",
+        description: "Download a model in Labs, then pick it in Settings → AI provider.",
+      });
+      navigate("/labs", { replace: true });
+      return;
+    }
     if (provider === "ondevice") {
       if (typeof navigator !== "undefined" && !navigator.gpu) {
         toast({
@@ -138,7 +175,7 @@ const SetupPage: React.FC = () => {
         {/* Step 1: Choose provider */}
         {step === 1 && (
           <div className="space-y-3">
-            {PROVIDERS.map((p) => (
+            {providers.map((p) => (
               <button
                 key={p.id}
                 type="button"

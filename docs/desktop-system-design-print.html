@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Openbentt Desktop — System Design</title>
+  <style>
+    @page { margin: 14mm; size: A4; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.45;
+      color: #1a1a1a;
+      max-width: 48rem;
+      margin: 0 auto;
+      padding: 1rem 1.25rem 2rem;
+      font-size: 10.5pt;
+    }
+    h1 { font-size: 1.45rem; border-bottom: 2px solid #333; padding-bottom: 0.35rem; }
+    h2 { font-size: 1.15rem; margin-top: 1.35rem; color: #222; }
+    h3 { font-size: 1.02rem; margin-top: 1rem; color: #333; }
+    table { border-collapse: collapse; width: 100%; margin: 0.6rem 0; font-size: 9.5pt; }
+    th, td { border: 1px solid #bbb; padding: 0.35rem 0.5rem; text-align: left; vertical-align: top; }
+    th { background: #f4f4f4; }
+    code, pre { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 9pt; }
+    pre {
+      background: #f6f8fa;
+      padding: 0.5rem 0.65rem;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+    .meta { color: #555; font-size: 9.5pt; margin-bottom: 1rem; }
+    .diagram-wrap { margin: 1rem 0; overflow: auto; }
+    svg text { font-family: system-ui, sans-serif; }
+    ul { padding-left: 1.2rem; }
+    li { margin: 0.2rem 0; }
+    .page-break { break-before: page; }
+  </style>
+</head>
+<body>
+
+<h1>Openbentt — Desktop System Design</h1>
+<p class="meta"><strong>Scope:</strong> Electron desktop only. Product: Openbentt (local-first chat + OpenRouter + workspaces).</p>
+
+<h2>1. Problem solved</h2>
+<ul>
+  <li><strong>Privacy / offline-capable AI:</strong> On-device inference via <strong>WebGPU/WASM</strong> (Transformers.js in the renderer) or native <strong>GGUF</strong> via a local <strong>llama-server</strong> child process.</li>
+  <li><strong>One UI everywhere:</strong> Same Vite/React app; Electron adds shell, IPC, and Chromium flags.</li>
+  <li><strong>GGUF without Ollama:</strong> Main process downloads <code>.gguf</code>, manages registry under <code>userData</code>, spawns OpenAI-compatible server on <code>127.0.0.1</code>.</li>
+  <li><strong>Linux WebGPU:</strong> Early <code>app.commandLine.appendSwitch</code> calls enable WebGPU paths that often fail in stock browser profiles.</li>
+  <li><strong>HF token handling:</strong> <code>safeStorage</code>-backed (or restricted fallback) storage for gated model downloads.</li>
+</ul>
+
+<h2>2. System chart (logical)</h2>
+<div class="diagram-wrap">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" width="100%" style="max-width:720px;height:auto;">
+  <defs>
+    <style>
+      .box { fill: #fff; stroke: #333; stroke-width: 1.5; }
+      .main { fill: #e8f4fc; }
+      .pre { fill: #f5f0e6; }
+      .rend { fill: #e8f8f0; }
+      .proc { fill: #fce8e8; }
+      .title { font-size: 13px; font-weight: 700; }
+      .small { font-size: 11px; }
+    </style>
+  </defs>
+  <!-- Main -->
+  <rect class="box main" x="8" y="8" width="704" height="128" rx="6"/>
+  <text class="title" x="20" y="30">Electron main process (Node)</text>
+  <text class="small" x="20" y="50">app:// → dist/ · BrowserWindow · IPC (localGguf, hfSecret)</text>
+  <text class="small" x="20" y="68">Spawn llama-server (127.0.0.1:dynamic) · HF download · userData/gguf-models</text>
+  <text class="small" x="20" y="86">Chromium flags: WebGPU, Ozone/X11 Linux workarounds, optional disable GPU</text>
+  <!-- Preload -->
+  <rect class="box pre" x="8" y="148" width="704" height="52" rx="6"/>
+  <text class="title" x="20" y="172">Preload (contextBridge)</text>
+  <text class="small" x="20" y="190">openbenttDesktop · openbenttLocalGguf → ipcRenderer.invoke / on progress</text>
+  <!-- Renderer -->
+  <rect class="box rend" x="8" y="212" width="704" height="118" rx="6"/>
+  <text class="title" x="20" y="236">Renderer — React SPA (same as web)</text>
+  <text class="small" x="20" y="256">ChatContext: aiProvider = openrouter | webgpu_gemma | local_gguf</text>
+  <text class="small" x="20" y="274">webgpu_gemma: Transformers.js in-process · WebGPU or WASM fallback</text>
+  <text class="small" x="20" y="292">local_gguf: HTTP to llama-server (OpenAI-compatible stream)</text>
+  <text class="small" x="20" y="310">openrouter: HTTPS api.openrouter.ai (keys in localStorage)</text>
+  <!-- Child -->
+  <rect class="box proc" x="8" y="342" width="320" height="68" rx="6"/>
+  <text class="title" x="20" y="366">llama-server (child)</text>
+  <text class="small" x="20" y="386">Native binary — GGUF weights · -c 8192 · loopback only</text>
+  <!-- Arrows -->
+  <path d="M 360 136 L 360 148" stroke="#333" stroke-width="2" marker-end="url(#ah)"/>
+  <path d="M 360 200 L 360 212" stroke="#333" stroke-width="2" marker-end="url(#ah)"/>
+  <path d="M 360 330 L 360 342" stroke="#333" stroke-width="2" marker-end="url(#ah)"/>
+  <path d="M 400 300 L 480 376 L 336 376" fill="none" stroke="#c00" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text class="small" fill="#c00" x="420" y="352">HTTP /v1/chat</text>
+  <defs>
+    <marker id="ah" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+      <circle cx="4" cy="4" r="3" fill="#333"/>
+    </marker>
+  </defs>
+</svg>
+</div>
+
+<h2>3. How local models use system parts</h2>
+<table>
+  <tr><th>Path</th><th>Runtime</th><th>Data / compute</th></tr>
+  <tr>
+    <td><strong>webgpu_gemma</strong></td>
+    <td>Inside Chromium renderer</td>
+    <td>HF repos via Transformers.js cache; GPU WebGPU or WASM CPU; dtype/backend cascade + tiny model fallback.</td>
+  </tr>
+  <tr>
+    <td><strong>local_gguf</strong></td>
+    <td>Separate <strong>llama-server</strong> process</td>
+    <td>Registry + files in Electron userData; binary from env / settings / <code>resources/llama/</code> / PATH; chat code streams like OpenRouter but URL = localhost.</td>
+  </tr>
+</table>
+
+<h2>4. Distribution plan</h2>
+<ul>
+  <li><strong>Trigger:</strong> Git tag <code>v*</code> → <code>.github/workflows/release.yml</code>.</li>
+  <li><strong>Outputs:</strong> Linux AppImage + deb; Windows NSIS exe (+ zip); macOS dmg + zip; optional static web zip.</li>
+  <li><strong>Build:</strong> <code>npm run build</code> then <code>electron-builder</code> per OS; BusyTeX fetched for LaTeX features.</li>
+  <li><strong>Signing:</strong> Documented as optional; unsigned builds may trigger Gatekeeper / SmartScreen.</li>
+  <li><strong>Note:</strong> Shipping <code>llama-server</code> in installers may require <code>extraResources</code> — today users often rely on PATH or manual path.</li>
+</ul>
+<div class="page-break"></div>
+
+<h2>5. Improvements (desktop)</h2>
+<ul>
+  <li>Bundled per-platform <strong>llama-server</strong> in releases.</li>
+  <li>macOS notarization + Windows code signing.</li>
+  <li>Auto-update channel (e.g. electron-updater).</li>
+  <li>Strict IPC payload validation; single-instance lock.</li>
+  <li>Opt-in crash reporting (no chat content).</li>
+</ul>
+
+<h2>6. Key files</h2>
+<pre>electron/main.mjs          — window, app:// protocol, GPU/WebGPU flags
+electron/preload.cjs        — exposes openbenttLocalGguf to renderer
+electron/localGgufService.mjs — registry, HF download, llama-server lifecycle
+electron/hfSecretStore.mjs  — HF token encryption
+src/context/ChatContext.tsx — routes providers by aiProvider
+src/lib/gemmaWebGpu/*       — in-browser local LLM
+src/lib/localGguf/*         — desktop bridge + GGUF streaming</pre>
+
+<p class="meta" style="margin-top:2rem;">Openbentt desktop system design — print via browser or headless Chromium <code>--print-to-pdf</code>.</p>
+</body>
+</html>

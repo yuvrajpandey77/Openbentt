@@ -44,7 +44,8 @@ npm install       # dependencies
 npm run dev       # dev server (http://localhost:8080)
 npm run build     # production bundle → dist/
 npm run preview   # serve dist/ locally (same port config as dev; useful before deploy)
-npm run test      # unit tests (Vitest)
+npm run test      # Vitest unit tests + electron llama-server smoke
+npm run test:unit # Vitest only
 npm run lint      # ESLint
 ```
 
@@ -56,10 +57,15 @@ The **same UI** runs in a desktop window; the shell lives under `electron/` and 
 npm run electron:dev    # Vite + Electron (hot reload; DevTools open)
 npm run electron:dev:safe  # same; OPENBENTT_DISABLE_GPU=1 if GPU process crashes (Linux/NVIDIA)
 npm run electron:start  # npm run build, then open Electron loading dist/ (app://)
-npm run electron:build  # production web build + installers → release/
+npm run download:llama-server  # bundle llama.cpp server for local GGUF (once per machine)
+npm run electron:build  # web build + llama-server + installers → release/
 ```
 
 Details: **`electron/README.md`**.
+
+### Releasing
+
+Before tagging `v*`, run **`npm run test`** and follow **[LOCAL_RELEASE_CHECKLIST.md](./LOCAL_RELEASE_CHECKLIST.md)**. Overview: **[docs/RELEASE_OVERVIEW.md](./docs/RELEASE_OVERVIEW.md)** · CI: **[RELEASING.md](./RELEASING.md)**.
 
 ## Production (instant setup paths)
 

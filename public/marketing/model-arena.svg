@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" fill="none" role="img" aria-label="Model comparison preview">
+  <rect width="1280" height="720" fill="#fafafa"/>
+  <rect x="48" y="48" width="1184" height="624" rx="16" fill="#fff" stroke="#e8e8ef"/>
+  <rect x="72" y="80" width="200" height="12" rx="4" fill="#6C5CE7"/>
+  <text x="72" y="120" fill="#64748b" font-family="Plus Jakarta Sans, system-ui, sans-serif" font-size="14">Same prompt · four models</text>
+  <rect x="72" y="140" width="280" height="480" rx="10" fill="#faf9ff" stroke="#6C5CE7" stroke-width="2"/>
+  <rect x="372" y="140" width="280" height="480" rx="10" fill="#fff" stroke="#e8e8ef"/>
+  <rect x="672" y="140" width="280" height="480" rx="10" fill="#fff" stroke="#e8e8ef"/>
+  <rect x="972" y="140" width="236" height="480" rx="10" fill="#fff" stroke="#e8e8ef"/>
+  <rect x="92" y="168" width="100" height="10" rx="3" fill="#6C5CE7" opacity="0.7"/>
+  <rect x="92" y="200" width="240" height="8" rx="3" fill="#e2e8f0"/>
+  <rect x="92" y="220" width="220" height="8" rx="3" fill="#e2e8f0"/>
+  <rect x="92" y="240" width="200" height="8" rx="3" fill="#ddd6fe"/>
+  <rect x="392" y="168" width="90" height="10" rx="3" fill="#64748b"/>
+  <rect x="392" y="200" width="240" height="8" rx="3" fill="#e2e8f0"/>
+  <rect x="692" y="168" width="80" height="10" rx="3" fill="#64748b"/>
+  <rect x="692" y="200" width="240" height="8" rx="3" fill="#e2e8f0"/>
+  <rect x="992" y="168" width="70" height="10" rx="3" fill="#64748b"/>
+  <rect x="992" y="200" width="196" height="8" rx="3" fill="#e2e8f0"/>
+  <rect x="92" y="560" width="80" height="6" rx="2" fill="#6C5CE7" opacity="0.5"/>
+  <rect x="180" y="560" width="120" height="6" rx="2" fill="#94a3b8" opacity="0.4"/>
+  <text x="640" y="698" fill="#64748b" font-family="Plus Jakarta Sans, system-ui, sans-serif" font-size="18" font-weight="500" text-anchor="middle">Side-by-side model comparison with latency metrics</text>
+</svg>

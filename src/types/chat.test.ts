@@ -5,6 +5,8 @@ import {
   defaultApiConfig,
   DEFAULT_MODEL_ID,
   DEPRECATED_DEFAULT_MODEL_IDS,
+  canSendChat,
+  canSendMessage,
 } from "./chat";
 import { LOCAL_TINY_MODEL_ID } from "@/lib/gemmaWebGpu/models";
 import { GGUF_MODEL_NONE } from "@/lib/localGguf/ids";
@@ -77,6 +79,34 @@ describe("normalizeApiConfig migrations", () => {
     });
     expect(n.model).toBe(GGUF_MODEL_NONE);
     expect(n.comparisonEnabled).toBe(false);
+  });
+
+  it("canSendMessage requires a GGUF registry model when provider is local_gguf", () => {
+    const cfg = normalizeApiConfig({ aiProvider: "local_gguf", model: GGUF_MODEL_NONE });
+    expect(canSendMessage(cfg)).toBe(false);
+  });
+
+  it("canSendChat passes for openrouter with api key", () => {
+    const cfg = normalizeApiConfig({
+      aiProvider: "openrouter",
+      apiKey: "sk-or-test",
+    });
+    expect(canSendChat(cfg)).toBe(true);
+    expect(canSendMessage(cfg)).toBe(true);
+  });
+
+  it("canSendChat fails for openrouter without api key", () => {
+    const cfg = normalizeApiConfig({ aiProvider: "openrouter", apiKey: "" });
+    expect(canSendChat(cfg)).toBe(false);
+    expect(canSendMessage(cfg)).toBe(false);
+  });
+
+  it("canSendChat passes for openai_compatible with base URL", () => {
+    const cfg = normalizeApiConfig({
+      aiProvider: "openai_compatible",
+      openAiCompatibleBaseUrl: "http://127.0.0.1:11434/v1",
+    });
+    expect(canSendChat(cfg)).toBe(true);
   });
 
   it("normalizes webgpu_gemma to local model and disables comparison", () => {

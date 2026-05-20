@@ -1,6 +1,7 @@
 import { isLocalGemmaModelId, LOCAL_TINY_MODEL_ID } from "@/lib/gemmaWebGpu/models";
 import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
 import { GGUF_MODEL_NONE, parseGgufRegistryId } from "@/lib/localGguf/ids";
+import { normalizeGgufMaxParamB } from "@/lib/localGguf/guardrails";
 
 export type Role = "assistant" | "user" | "system";
 
@@ -170,6 +171,10 @@ export interface ApiKeyConfig {
   localGgufBinaryPath: string;
   /** Hugging Face token for gated / rate-limited GGUF downloads (stored locally in the app). */
   huggingFaceToken: string;
+  /** Desktop GGUF safety: max parameter count (billions) allowed for downloads — 8 default, 16 advanced. */
+  localGgufMaxParamB: 8 | 16;
+  /** User confirmed multi-GB local weight downloads (GGUF hub). */
+  localGgufDownloadConsent: boolean;
 }
 
 export function defaultApiConfig(): ApiKeyConfig {
@@ -195,6 +200,8 @@ export function defaultApiConfig(): ApiKeyConfig {
     researchWithLocalModel: true,
     localGgufBinaryPath: "",
     huggingFaceToken: "",
+    localGgufMaxParamB: 8,
+    localGgufDownloadConsent: false,
   };
 }
 
@@ -297,6 +304,13 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
     typeof raw.localGgufBinaryPath === "string" ? raw.localGgufBinaryPath.trim() : base.localGgufBinaryPath;
   const huggingFaceToken =
     typeof raw.huggingFaceToken === "string" ? raw.huggingFaceToken.trim() : base.huggingFaceToken;
+  const localGgufMaxParamB = normalizeGgufMaxParamB(
+    raw.localGgufMaxParamB ?? base.localGgufMaxParamB
+  );
+  const localGgufDownloadConsent =
+    typeof raw.localGgufDownloadConsent === "boolean"
+      ? raw.localGgufDownloadConsent
+      : base.localGgufDownloadConsent;
 
   return {
     aiProvider,
@@ -320,6 +334,8 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
     researchWithLocalModel,
     localGgufBinaryPath,
     huggingFaceToken,
+    localGgufMaxParamB,
+    localGgufDownloadConsent,
   };
 }
 
@@ -334,11 +350,8 @@ export function canSendChat(cfg: ApiKeyConfig): boolean {
       /** WASM (CPU) fallback keeps on-device Gemma usable even when WebGPU is missing. */
       return typeof navigator !== "undefined";
     case "local_gguf":
-      return (
-        typeof navigator !== "undefined" &&
-        Boolean(getLocalGgufApi()) &&
-        Boolean(parseGgufRegistryId(cfg.model))
-      );
+      /** Desktop shell only; model can be picked after entering the app (Labs → hub). */
+      return typeof navigator !== "undefined" && Boolean(getLocalGgufApi());
     case "openrouter":
     case "openai_direct":
     case "anthropic":
@@ -349,4 +362,11 @@ export function canSendChat(cfg: ApiKeyConfig): boolean {
     default:
       return false;
   }
+}
+
+/** Provider configured and ready to send a message (stricter than {@link canSendChat}). */
+export function canSendMessage(cfg: ApiKeyConfig): boolean {
+  if (!canSendChat(cfg)) return false;
+  if (cfg.aiProvider === "local_gguf" && !parseGgufRegistryId(cfg.model)) return false;
+  return true;
 }

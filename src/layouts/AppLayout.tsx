@@ -79,10 +79,11 @@ const AppLayout: React.FC = () => {
 
   if (isLoadingConfig) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background px-4">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-muted border-t-primary" />
         <div className="text-center">
-          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
-          <p className="text-muted-foreground">Loading your workspace…</p>
+          <p className="font-medium text-foreground">Loading Openbentt</p>
+          <p className="mt-1 text-sm text-muted-foreground">Restoring settings and chat history…</p>
         </div>
       </div>
     );

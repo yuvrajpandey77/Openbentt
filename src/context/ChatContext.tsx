@@ -13,6 +13,7 @@ import {
   defaultApiConfig,
   dedupeModels,
   canSendChat,
+  canSendMessage,
 } from "@/types/chat";
 import { useToast } from "@/components/ui/use-toast";
 import { buildChatCompletionMessages, isStreamHttpError, StreamHttpError } from "@/lib/openrouter";
@@ -27,6 +28,8 @@ import { LOCAL_STORAGE_KEYS } from "@/lib/storageMigrate";
 import { formatUserFacingError } from "@/lib/userFacingError";
 import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
 import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
+import { coerceApiConfigForPlatform } from "@/config/platformSurface";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 
 interface ChatContextProps {
   chats: Chat[];
@@ -98,13 +101,9 @@ interface PipelineExtras {
   agentTrace?: AgentTraceStep[];
 }
 
-function isElectronDesktopShell(): boolean {
-  return typeof window !== "undefined" && window.openbenttDesktop?.isElectron === true;
-}
-
 /** Hugging Face token is stored in the main process on desktop; never persist plaintext in localStorage. */
 function apiConfigForBrowserStorage(cfg: ApiKeyConfig): ApiKeyConfig {
-  if (isElectronDesktopShell()) {
+  if (isDesktopApp()) {
     return { ...cfg, huggingFaceToken: "" };
   }
   return cfg;
@@ -193,10 +192,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (savedApiConfig) {
         try {
           const parsed = JSON.parse(savedApiConfig) as Partial<ApiKeyConfig>;
-          let normalized = normalizeApiConfig(parsed);
+          let normalized = coerceApiConfigForPlatform(normalizeApiConfig(parsed));
           const api = getLocalGgufApi();
           const plain = normalized.huggingFaceToken.trim();
-          if (isElectronDesktopShell() && plain && api?.hfSecretSet) {
+          if (isDesktopApp() && plain && api?.hfSecretSet) {
             await api.hfSecretSet(plain);
             normalized = normalizeApiConfig({ ...parsed, huggingFaceToken: "" });
             try {
@@ -269,7 +268,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const setApiConfig = (config: ApiKeyConfig) => {
-    setApiConfigState(normalizeApiConfig(config));
+    setApiConfigState(coerceApiConfigForPlatform(normalizeApiConfig(config)));
     toast({
       title: "Configuration updated",
       description: "Your API settings have been saved locally.",
@@ -410,7 +409,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const regenerateLastResponse = async () => {
-    if (!canSendChat(apiConfig) || isLoading || !currentChatId) return;
+    if (!canSendMessage(apiConfig) || isLoading || !currentChatId) return;
     if (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
       toast({
         title: "On-device model not enabled",
@@ -871,6 +870,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : apiConfig.aiProvider === "local_gguf"
               ? "Use the Openbentt desktop app, install llama-server on PATH (or set a binary path), download a GGUF in Labs, and pick it in Settings."
               : "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in Settings.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!canSendMessage(apiConfig)) {
+      toast({
+        title: "Local model not selected",
+        description: "Download a GGUF in Labs → Local model hub, then choose it in Settings → AI & models.",
         variant: "destructive",
       });
       return;

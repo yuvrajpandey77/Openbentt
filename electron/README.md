@@ -18,13 +18,15 @@ npm run electron:dev
 
 ## Production-like desktop build
 
-Build the web app, then package Electron:
+Build the web app, bundle **llama-server**, then package Electron:
 
 ```bash
 npm run electron:build
 ```
 
-Installers / artifacts appear under `release/` (platform-dependent).
+`electron:build` runs `download:llama-server` for the current OS (~8–50 MB from [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases)). CI does the same per runner before `electron:pack:*`.
+
+Installers / artifacts appear under `release/` (platform-dependent). GitHub Releases feed **Settings → Check for updates** via `electron-updater`.
 
 ## How routing works
 
@@ -36,4 +38,6 @@ Installers / artifacts appear under `release/` (platform-dependent).
 | File        | Role                                      |
 |------------|-------------------------------------------|
 | `main.mjs` | Window, dev URL vs `app://`, SPA protocol |
-| `preload.mjs` | `contextBridge` — safe desktop hints   |
+| `preload.cjs` | `contextBridge` — GGUF IPC, updates |
+| `localGgufService.mjs` | HF downloads, registry, llama-server |
+| `updater.mjs` | GitHub Releases auto-update |

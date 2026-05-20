@@ -58,6 +58,8 @@ export interface OpenbenttLocalGgufApi {
     fileName: string;
     revision?: string;
     token?: string;
+    /** Safety cap (billions of parameters); clamped to 8–16 in main process. */
+    maxParamB?: 8 | 16;
   }): Promise<LocalGgufRegistryEntry>;
   deleteEntry(entryId: string): Promise<{ ok: boolean }>;
   ensureServer(opts: { registryId: string; binaryOverride?: string }): Promise<EnsureServerResult>;

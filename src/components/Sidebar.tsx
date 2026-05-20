@@ -14,11 +14,13 @@ import {
   ChevronRight,
   LayoutGrid,
   MessagesSquare,
+  Cpu,
   Download,
 } from "lucide-react";
 import { appHomePath } from "@/lib/appHomePath";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 import { cn } from "@/lib/utils";
-import { WORKSPACE_NAV_ITEMS } from "@/config/workspaceNav";
+import { getWorkspaceNavItems } from "@/config/workspaceNav";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isMobile = useIsMobile();
   const narrow = collapsed && !isMobile;
   const location = useLocation();
+  const desktopApp = isDesktopApp();
 
   const {
     chats,
@@ -225,7 +228,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               Workspace
             </div>
           )}
-          {WORKSPACE_NAV_ITEMS.map((item) => {
+          {getWorkspaceNavItems().map((item) => {
             const active =
               location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
 
@@ -369,12 +372,58 @@ const Sidebar: React.FC<SidebarProps> = ({
           </ScrollArea>
         </div>
 
-        {/* Footer: Download, Settings, Clear chats */}
+        {/* Footer: web installers / desktop local models, Settings, Clear chats */}
         <div className={cn("mt-auto space-y-1 pt-2", narrow && "flex w-full flex-col items-center")}>
           <Separator className={cn("mb-2 bg-sidebar-border/80", narrow && "mx-auto w-8")} />
 
-          {/* Download desktop app */}
-          {narrow ? (
+          {desktopApp ? (
+            narrow ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <NavLink
+                    to="/labs"
+                    onClick={onCloseMobile}
+                    className={cn(
+                      "flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
+                      location.pathname === "/labs"
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                        : "text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                    )}
+                    aria-current={location.pathname === "/labs" ? "page" : undefined}
+                  >
+                    <Cpu className="h-[18px] w-[18px]" strokeWidth={2} />
+                  </NavLink>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-[220px]">
+                  <p className="font-medium">Local models</p>
+                  <p className="text-xs text-muted-foreground">Download and run GGUF weights</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <NavLink
+                to="/labs"
+                onClick={onCloseMobile}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-colors",
+                    isActive
+                      ? "bg-sidebar-primary/12 font-medium text-sidebar-primary"
+                      : "text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <Cpu
+                      className={cn("h-4 w-4 shrink-0", isActive ? "text-sidebar-primary" : "text-sidebar-foreground/70")}
+                      strokeWidth={2}
+                    />
+                    <span className="min-w-0 flex-1 truncate">Local models</span>
+                  </>
+                )}
+              </NavLink>
+            )
+          ) : narrow ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <NavLink
@@ -392,7 +441,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </NavLink>
               </TooltipTrigger>
               <TooltipContent side="right" className="max-w-[200px]">
-                <p className="font-medium">Download desktop app</p>
+                <p className="font-medium">Get the desktop app</p>
               </TooltipContent>
             </Tooltip>
           ) : (
@@ -414,7 +463,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     className={cn("h-4 w-4 shrink-0", isActive ? "text-sidebar-primary" : "text-sidebar-foreground/70")}
                     strokeWidth={2}
                   />
-                  <span className="min-w-0 flex-1 truncate">Download desktop app</span>
+                  <span className="min-w-0 flex-1 truncate">Get the desktop app</span>
                 </>
               )}
             </NavLink>

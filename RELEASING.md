@@ -27,7 +27,7 @@ git push origin v1.0.0
 
 Then **`publish`** downloads those artifacts and creates **one GitHub Release** with all files attached (plus generated release notes).
 
-Shared steps on each builder: restore or download **BusyTeX** (`npm run download:busytex`, cached per OS), then **`npm run build`**, then **`electron-builder`** for that platform.
+Shared steps on each builder: restore or download **BusyTeX** (`npm run download:busytex`, cached per OS), then **`npm run build`**, then **`npm run download:llama-server`** (platform binary), then **`electron-builder`** for that platform.
 
 ### Optional: absolute site URL in the build
 
@@ -44,5 +44,16 @@ Shared steps on each builder: restore or download **BusyTeX** (`npm run download
 
 ## Manual checks before tagging
 
-- `npm run lint` and `npm run test` pass locally.
-- `PRODUCTION_CHECKLIST.md` items relevant to your host are done.
+1. **Automated:**
+   ```bash
+   npm ci
+   npm run lint
+   npm run test
+   npm run build
+   npm run download:llama-server   # optional locally; CI runs per OS
+   ```
+2. **Manual:** complete [LOCAL_RELEASE_CHECKLIST.md](./LOCAL_RELEASE_CHECKLIST.md) (sections A–F).
+3. **Version:** `package.json` `version` matches tag (e.g. `2.0.6` ↔ `v2.0.6`); update [CHANGELOG.md](./CHANGELOG.md).
+4. **Host/deploy:** [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md) for Vercel/Docker env vars.
+
+**Product summary:** [docs/RELEASE_OVERVIEW.md](./docs/RELEASE_OVERVIEW.md)

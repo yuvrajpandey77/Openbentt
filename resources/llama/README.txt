@@ -1,12 +1,17 @@
-Optional bundled llama-server (llama.cpp) for Openbentt Local GGUF
+Bundled llama-server (llama.cpp) for Openbentt Local GGUF
 
-Place the platform executable here before packaging:
+Download before packaging (not committed — large binaries):
+
+  npm run download:llama-server        # current OS only
+  npm run download:llama-server:all    # linux + macOS + Windows (CI)
+
+Install paths (electron-builder extraResources → process.resourcesPath/llama/):
 
   linux/llama-server
-  darwin/llama-server    (macOS)
-  win32/llama-server.exe (Windows)
+  darwin/llama-server
+  win32/llama-server.exe
 
-The app resolves, in order:
-  OPENBENTT_LLAMA_SERVER_PATH → Settings binary path → this folder → `which llama-server` / `where llama-server`
+Pinned release: scripts/llama-release.json (override with LLAMA_CPP_TAG=b9222).
 
-Build binaries from https://github.com/ggerganov/llama.cpp (target must include server).
+Resolve order in the app:
+  OPENBENTT_LLAMA_SERVER_PATH → Settings path → bundled resources → PATH.

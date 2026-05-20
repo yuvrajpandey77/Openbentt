@@ -148,10 +148,9 @@ export default {
 				'bounce-light': 'bounce-light 2s infinite'
 			},
 			fontFamily: {
-				/* Primary UI: clean, readable */
 				sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
-				openbentt: ['"Plus Jakarta Sans"', '"Exo 2"', 'system-ui', 'sans-serif'],
-				display: ['"Exo 2"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+				openbentt: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+				display: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
 				mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
 			}
 		}

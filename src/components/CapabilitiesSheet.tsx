@@ -61,12 +61,11 @@ export const CapabilitiesSheet: React.FC = () => {
               </p>
             </section>
             <section>
-              <h3 className="mb-1 font-medium text-foreground">Notebook (PDF & LaTeX), Labs, Benchmark, WebGPU</h3>
+              <h3 className="mb-1 font-medium text-foreground">Notebook workspace</h3>
               <p>
-                These are <strong className="text-foreground">playgrounds</strong> that share your{" "}
-                <strong className="text-foreground">Home → Settings</strong> provider and{" "}
-                <strong className="text-foreground">Open in Home chat</strong> for full LLM turns. They are not separate
-                hosted agents; WebGPU probes run in-browser and LLM calls still go through your configured API.
+                <strong className="text-foreground">Notebook</strong> (PDF & LaTeX) is available in the web app and shares
+                your Settings provider. Research labs, benchmarks, local GGUF downloads, and WebGPU diagnostics are in the{" "}
+                <strong className="text-foreground">desktop app</strong> only.
               </p>
             </section>
             <section>

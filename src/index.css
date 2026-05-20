@@ -1,13 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  /* Research / lab light — clean white, subtle cool gray, teal accent */
+  /* Light — warm off-white, charcoal text, violet accent (launch creative) */
   :root {
-    --background: 210 20% 99%;
+    --background: 40 25% 98%;
     --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
@@ -16,38 +16,37 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 187 72% 38%;
+    --primary: 252 56% 57%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 25% 94%;
+    --secondary: 220 18% 95%;
     --secondary-foreground: 222 40% 18%;
 
-    --muted: 210 20% 96%;
-    --muted-foreground: 215 16% 40%;
+    --muted: 220 16% 96%;
+    --muted-foreground: 215 14% 42%;
 
-    --accent: 210 30% 94%;
-    --accent-foreground: 222 40% 18%;
+    --accent: 252 40% 96%;
+    --accent-foreground: 252 45% 32%;
 
     --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 214 20% 88%;
-    --input: 214 20% 88%;
-    --ring: 187 72% 38%;
+    --border: 220 14% 90%;
+    --input: 220 14% 90%;
+    --ring: 252 56% 57%;
 
-    --radius: 0.875rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 210 22% 97%;
+    --sidebar-background: 220 20% 97%;
     --sidebar-foreground: 222 40% 15%;
-    --sidebar-primary: 187 72% 38%;
+    --sidebar-primary: 252 56% 57%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 25% 93%;
+    --sidebar-accent: 220 18% 94%;
     --sidebar-accent-foreground: 222 40% 18%;
-    --sidebar-border: 214 18% 88%;
-    --sidebar-ring: 187 72% 38%;
+    --sidebar-border: 220 14% 90%;
+    --sidebar-ring: 252 56% 57%;
   }
 
-  /* Night / focus dark — deep slate + teal (not pure black) */
   .dark {
     --background: 222 24% 9%;
     --foreground: 210 36% 96%;
@@ -58,7 +57,7 @@
     --popover: 222 22% 10%;
     --popover-foreground: 210 36% 96%;
 
-    --primary: 172 55% 48%;
+    --primary: 252 58% 65%;
     --primary-foreground: 222 24% 9%;
 
     --secondary: 222 18% 16%;
@@ -67,24 +66,24 @@
     --muted: 222 16% 18%;
     --muted-foreground: 215 18% 62%;
 
-    --accent: 222 18% 15%;
-    --accent-foreground: 210 36% 96%;
+    --accent: 252 30% 18%;
+    --accent-foreground: 252 70% 88%;
 
     --destructive: 0 58% 48%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 222 16% 20%;
     --input: 222 16% 20%;
-    --ring: 172 55% 48%;
+    --ring: 252 58% 65%;
 
     --sidebar-background: 222 26% 7%;
     --sidebar-foreground: 210 36% 96%;
-    --sidebar-primary: 172 55% 48%;
+    --sidebar-primary: 252 58% 65%;
     --sidebar-primary-foreground: 222 24% 9%;
     --sidebar-accent: 222 18% 14%;
     --sidebar-accent-foreground: 210 36% 96%;
     --sidebar-border: 222 16% 16%;
-    --sidebar-ring: 172 55% 48%;
+    --sidebar-ring: 252 58% 65%;
   }
 }
 
@@ -95,18 +94,6 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    background-image: radial-gradient(
-      rgba(15, 80, 90, 0.06) 1px,
-      transparent 1px
-    );
-    background-size: 22px 22px;
-  }
-
-  .dark body {
-    background-image: radial-gradient(
-      rgba(120, 180, 190, 0.07) 1px,
-      transparent 1px
-    );
   }
 }
 
@@ -116,7 +103,7 @@
   }
 
   .openbentt-gradient {
-    @apply bg-gradient-to-br from-teal-50 to-cyan-100 dark:from-teal-950/40 dark:to-slate-900/80;
+    @apply bg-gradient-to-br from-violet-50 to-slate-100 dark:from-violet-950/30 dark:to-slate-900/80;
   }
 
   .openbentt-button {
@@ -169,6 +156,169 @@
 
   .streaming-message:last-child {
     animation: slideInFromBottom 0.25s ease-out;
+  }
+
+  /* Marketing pages: flat canvas, no app dot grid */
+  body:has(.marketing-page) {
+    background-image: none;
+    overflow-x: clip;
+  }
+
+  .marketing-page {
+    background-image: none;
+    scroll-padding-top: 5.5rem;
+    overflow-x: clip;
+    max-width: 100%;
+    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .marketing-page .font-display {
+    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  }
+
+  .marketing-page main {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .marketing-page:has(.marketing-hero-stage) > .marketing-glow {
+    display: none;
+  }
+
+  .marketing-container {
+    @apply mx-auto w-full max-w-[1400px] px-5 md:px-10;
+  }
+
+  .marketing-hero {
+    @apply w-full pb-20 pt-0 md:pb-28;
+  }
+
+  .marketing-hero-actions {
+    @apply pt-12 md:pt-16;
+  }
+
+  .marketing-hero-cta {
+    @apply flex flex-wrap items-center justify-center gap-4;
+  }
+
+  .marketing-hero-web-link {
+    @apply mt-6 text-center text-base text-muted-foreground md:mt-7 md:text-lg;
+  }
+
+  .marketing-section-lead {
+    @apply mt-4 text-center text-lg text-muted-foreground md:mt-5 md:text-xl;
+  }
+
+  .marketing-feature-stack {
+    @apply mt-16 space-y-24 md:mt-20 md:space-y-32 lg:space-y-36;
+  }
+
+  .marketing-section--cta {
+    @apply pb-24 md:pb-32;
+  }
+
+  /* Hero band spans layout width (avoid 100vw — causes horizontal scroll with scrollbar) */
+  .marketing-hero-stage {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    background: #ffffff;
+  }
+
+  .marketing-hero-inner {
+    @apply marketing-container pb-8 pt-10 md:pb-12 md:pt-14 lg:pt-16;
+  }
+
+  .marketing-hero-blobs {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 70% 85% at 0% 45%, rgba(186, 168, 255, 0.48), transparent 72%),
+      radial-gradient(ellipse 55% 65% at 0% 88%, rgba(147, 197, 253, 0.32), transparent 68%),
+      radial-gradient(ellipse 68% 80% at 100% 38%, rgba(253, 186, 140, 0.44), transparent 70%),
+      radial-gradient(ellipse 50% 60% at 100% 82%, rgba(251, 207, 232, 0.28), transparent 65%),
+      #ffffff;
+  }
+
+  .dark .marketing-hero-blobs {
+    background:
+      radial-gradient(ellipse 70% 85% at 0% 45%, hsl(var(--primary) / 0.18), transparent 72%),
+      radial-gradient(ellipse 68% 80% at 100% 38%, hsl(25 80% 50% / 0.14), transparent 70%),
+      hsl(var(--card));
+  }
+
+  .dark .marketing-hero-stage {
+    background: hsl(var(--card));
+  }
+
+  .marketing-hero-subhead {
+    @apply mx-auto mt-6 max-w-3xl text-center text-lg leading-relaxed md:mt-8 md:max-w-4xl md:text-xl lg:mt-9 lg:text-[1.4rem] lg:leading-relaxed;
+    color: hsl(215 14% 42%);
+  }
+
+  .dark .marketing-hero-subhead {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .marketing-hero-accent {
+    font-weight: 600;
+    color: hsl(252 56% 52%);
+  }
+
+  .dark .marketing-hero-accent {
+    color: hsl(var(--primary));
+  }
+
+  .marketing-hero-card-wrap {
+    @apply mx-auto mt-12 max-w-5xl sm:max-w-6xl md:mt-16 lg:max-w-[72rem];
+  }
+
+  .marketing-hero-card-img {
+    @apply h-auto w-full rounded-xl bg-white md:rounded-2xl;
+    box-shadow:
+      0 4px 6px -2px rgba(15, 23, 42, 0.04),
+      0 24px 64px -28px rgba(88, 63, 180, 0.18);
+  }
+
+  .marketing-section {
+    @apply py-20 md:py-28;
+  }
+
+  .marketing-section-title {
+    @apply text-center text-3xl font-semibold tracking-tight md:text-4xl;
+  }
+
+  .marketing-glow {
+    background:
+      radial-gradient(ellipse 55% 45% at 0% 0%, hsl(280 60% 92% / 0.55), transparent 55%),
+      radial-gradient(ellipse 50% 40% at 100% 0%, hsl(210 70% 92% / 0.45), transparent 50%),
+      radial-gradient(ellipse 45% 35% at 85% 100%, hsl(25 80% 94% / 0.4), transparent 45%),
+      hsl(var(--background));
+  }
+
+  .dark .marketing-glow {
+    background:
+      radial-gradient(ellipse 70% 50% at 50% -10%, hsl(var(--primary) / 0.1), transparent 55%),
+      hsl(var(--background));
+  }
+
+  .text-brand-gradient {
+    @apply bg-gradient-to-r from-[hsl(262_72%_58%)] via-[hsl(252_56%_55%)] to-[hsl(22_92%_68%)] bg-clip-text text-transparent;
+  }
+
+  .marketing-stat {
+    @apply rounded-2xl border border-border/60 bg-card/80 px-5 py-4;
+  }
+
+  .marketing-showcase-panel {
+    @apply transition-shadow duration-300;
+  }
+
+  .marketing-news-card {
+    @apply transition-colors duration-200;
   }
 
   @keyframes slideInFromBottom {

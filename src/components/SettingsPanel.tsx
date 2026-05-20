@@ -48,10 +48,13 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
+import DesktopUpdateCard from "@/components/DesktopUpdateCard";
+import { isWebClient } from "@/config/platformSurface";
 
 const MAX_COMPARE = 4;
 
 const SettingsPanel: React.FC = () => {
+  const webClient = isWebClient();
   const { apiConfig, setApiConfig } = useChat();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -81,6 +84,7 @@ const SettingsPanel: React.FC = () => {
   const [localInferenceProfile, setLocalInferenceProfile] = useState<LocalInferenceProfile>(apiConfig.localInferenceProfile);
   const [localResearchWithLocal, setLocalResearchWithLocal] = useState(apiConfig.researchWithLocalModel);
   const [localGgufBinaryPath, setLocalGgufBinaryPath] = useState(apiConfig.localGgufBinaryPath);
+  const [localGgufMaxParamB, setLocalGgufMaxParamB] = useState<8 | 16>(apiConfig.localGgufMaxParamB);
   const [localHuggingFaceToken, setLocalHuggingFaceToken] = useState(apiConfig.huggingFaceToken);
   const [presetName, setPresetName] = useState("");
   const [presets, setPresets] = useState<ExperimentPreset[]>(() => listExperimentPresets());
@@ -124,6 +128,7 @@ const SettingsPanel: React.FC = () => {
     setLocalInferenceProfile(apiConfig.localInferenceProfile);
     setLocalResearchWithLocal(apiConfig.researchWithLocalModel);
     setLocalGgufBinaryPath(apiConfig.localGgufBinaryPath);
+    setLocalGgufMaxParamB(apiConfig.localGgufMaxParamB);
     setLocalHuggingFaceToken(apiConfig.huggingFaceToken);
   }, [apiConfig]);
 
@@ -215,6 +220,7 @@ const SettingsPanel: React.FC = () => {
         localInferenceProfile: localInferenceProfile,
         researchWithLocalModel: localResearchWithLocal,
         localGgufBinaryPath: localGgufBinaryPath,
+        localGgufMaxParamB,
         huggingFaceToken: electron ? "" : localHuggingFaceToken.trim(),
       })
     );
@@ -259,6 +265,7 @@ const SettingsPanel: React.FC = () => {
         localInferenceProfile: localInferenceProfile,
         researchWithLocalModel: localResearchWithLocal,
         localGgufBinaryPath,
+        localGgufMaxParamB,
         huggingFaceToken: electron ? "" : localHuggingFaceToken.trim(),
       })
     );
@@ -288,6 +295,7 @@ const SettingsPanel: React.FC = () => {
     setLocalInferenceProfile(c.localInferenceProfile ?? "balanced");
     setLocalResearchWithLocal(c.researchWithLocalModel ?? true);
     setLocalGgufBinaryPath(c.localGgufBinaryPath ?? "");
+    setLocalGgufMaxParamB(c.localGgufMaxParamB === 16 ? 16 : 8);
     setLocalHuggingFaceToken(c.huggingFaceToken ?? "");
   };
 
@@ -317,7 +325,11 @@ const SettingsPanel: React.FC = () => {
 
   return (
     <Tabs defaultValue="ai" className="w-full">
-      <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-muted/50 p-1 sm:grid-cols-4">
+      <TabsList
+        className={`grid h-auto w-full gap-1 rounded-xl bg-muted/50 p-1 ${
+          webClient ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
+        }`}
+      >
         <TabsTrigger value="general" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
           <Sparkles className="h-3.5 w-3.5 opacity-80" aria-hidden />
           General
@@ -330,10 +342,12 @@ const SettingsPanel: React.FC = () => {
           <Search className="h-3.5 w-3.5 opacity-80" aria-hidden />
           Research
         </TabsTrigger>
-        <TabsTrigger value="experiments" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
-          <FlaskConical className="h-3.5 w-3.5 opacity-80" aria-hidden />
-          Experiments
-        </TabsTrigger>
+        {!webClient && (
+          <TabsTrigger value="experiments" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
+            <FlaskConical className="h-3.5 w-3.5 opacity-80" aria-hidden />
+            Experiments
+          </TabsTrigger>
+        )}
       </TabsList>
 
       <TabsContent value="general" className="mt-4 space-y-4 outline-none">
@@ -359,6 +373,7 @@ const SettingsPanel: React.FC = () => {
             </p>
           </CardContent>
         </Card>
+        <DesktopUpdateCard />
       </TabsContent>
 
       <TabsContent value="ai" className="mt-4 space-y-4 outline-none">
@@ -375,21 +390,27 @@ const SettingsPanel: React.FC = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="webgpu_gemma">On-device model (no API key needed)</SelectItem>
-                  <SelectItem value="local_gguf">Local file model — desktop app (GGUF)</SelectItem>
                   <SelectItem value="openrouter">OpenRouter (many models, one key)</SelectItem>
-                  <SelectItem value="openai_direct">OpenAI (api.openai.com)</SelectItem>
-                  <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
-                  <SelectItem value="google">Google Gemini (AI Studio key)</SelectItem>
-                  <SelectItem value="openai_compatible">OpenAI-compatible URL (Ollama, Grok, Kimi, …)</SelectItem>
+                  <SelectItem value="openai_compatible">OpenAI-compatible URL (Ollama, LM Studio, …)</SelectItem>
+                  <SelectItem value="webgpu_gemma">On-device model (WebGPU / WASM)</SelectItem>
+                  {!webClient && (
+                    <>
+                      <SelectItem value="local_gguf">Local file model — desktop app (GGUF)</SelectItem>
+                      <SelectItem value="openai_direct">OpenAI (api.openai.com)</SelectItem>
+                      <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
+                      <SelectItem value="google">Google Gemini (AI Studio key)</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] leading-relaxed text-muted-foreground">
-                <strong>Grok (xAI):</strong> OpenAI-compatible base{" "}
-                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">https://api.x.ai/v1</code>.{" "}
-                <strong>Kimi:</strong>{" "}
-                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">https://api.moonshot.cn/v1</code>.
-              </p>
+              {!webClient && (
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  <strong>Grok (xAI):</strong> OpenAI-compatible base{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">https://api.x.ai/v1</code>.{" "}
+                  <strong>Kimi:</strong>{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">https://api.moonshot.cn/v1</code>.
+                </p>
+              )}
             </div>
 
             {localAiProvider !== "webgpu_gemma" && localAiProvider !== "local_gguf" && <Separator />}
@@ -441,6 +462,24 @@ const SettingsPanel: React.FC = () => {
                     <code className="font-mono text-[10px]">127.0.0.1</code> only. You are responsible for model licenses.
                   </AlertDescription>
                 </Alert>
+                <div className="space-y-2">
+                  <Label>Local model safety limit</Label>
+                  <Select
+                    value={String(localGgufMaxParamB)}
+                    onValueChange={(v) => setLocalGgufMaxParamB(v === "16" ? 16 : 8)}
+                  >
+                    <SelectTrigger className="openbentt-input h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="8">Up to 8B parameters (recommended)</SelectItem>
+                      <SelectItem value="16">Up to 16B parameters (advanced)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Blocks oversized GGUF downloads and very large files. Absolute maximum is 16B.
+                  </p>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="llama-bin">Optional: path to llama-server</Label>
                   <Input
@@ -683,15 +722,67 @@ const SettingsPanel: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+
+        {webClient && (
+          <Card className="border-border/70 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="font-display text-lg">Tiled comparison</CardTitle>
+              <CardDescription>Send the same prompt to 2–4 cloud models side by side.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
+                <Label className="text-sm font-medium">Enable tiled comparison</Label>
+                <Switch
+                  checked={localComparisonEnabled}
+                  onCheckedChange={setLocalComparisonEnabled}
+                  disabled={localAiProvider === "webgpu_gemma"}
+                />
+              </div>
+              {localAiProvider === "webgpu_gemma" && (
+                <p className="text-[11px] text-muted-foreground">
+                  Switch to OpenRouter or a local OpenAI-compatible server to compare multiple models.
+                </p>
+              )}
+              <ScrollArea className="h-44 rounded-xl border border-border/60">
+                <div className="space-y-1 p-3">
+                  {selectable.map((m) => {
+                    const checked = dedupeModels(localComparisonIds).includes(m.id);
+                    return (
+                      <label
+                        key={`web-cmp-${m.id}`}
+                        className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-2 hover:bg-muted/40"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) => toggleCompareId(m.id, v === true)}
+                          className="mt-0.5"
+                        />
+                        <span className="text-xs leading-snug">
+                          <span className="block font-medium">{m.name || shortModelLabel(m.id)}</span>
+                          <span className="break-all font-mono text-[10px] text-muted-foreground">{m.id}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
       </TabsContent>
 
       <TabsContent value="research" className="mt-4 space-y-4 outline-none">
         <Card className="border-border/70 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="font-display text-lg">Research & tools</CardTitle>
-            <CardDescription>Defaults for Wikipedia, URLs, optional Brave via proxy, and assistant modes.</CardDescription>
+            <CardDescription>
+              {webClient
+                ? "Wikipedia and public URLs in the browser. Proxy and Brave search need a self-hosted setup."
+                : "Defaults for Wikipedia, URLs, optional Brave via proxy, and assistant modes."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!webClient && (
             <Alert className="border-amber-500/35 bg-amber-500/[0.06]">
               <AlertTitle className="text-sm">Security</AlertTitle>
               <AlertDescription className="text-[11px] leading-relaxed text-muted-foreground">
@@ -699,6 +790,7 @@ const SettingsPanel: React.FC = () => {
                 (see README) so secrets are not exposed to every page script.
               </AlertDescription>
             </Alert>
+            )}
 
             <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
               <Label className="text-sm font-medium">Research (Wikipedia + URLs + optional Brave)</Label>
@@ -727,6 +819,8 @@ const SettingsPanel: React.FC = () => {
               </p>
             </div>
 
+            {!webClient && (
+              <>
             <div className="space-y-2">
               <Label className="text-xs font-medium">Brave Search API key (optional)</Label>
               <p className="text-[11px] leading-snug text-muted-foreground">
@@ -768,32 +862,39 @@ const SettingsPanel: React.FC = () => {
             </div>
 
             <Separator />
+              </>
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="flex items-center justify-between gap-2 rounded-xl border border-border/60 px-3 py-2.5">
                 <Label className="text-sm">Math mode</Label>
                 <Switch checked={localMathMode} onCheckedChange={setLocalMathMode} />
               </div>
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-border/60 px-3 py-2.5">
-                <Label className="text-sm">Debug / code mode</Label>
-                <Switch checked={localDebugMode} onCheckedChange={setLocalDebugMode} />
-              </div>
-              <div className="flex flex-col gap-1 rounded-xl border border-border/60 px-3 py-2.5 sm:col-span-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label className="text-sm">Red-team / safety eval</Label>
-                  <Switch checked={localRedTeam} onCheckedChange={setLocalRedTeam} />
-                </div>
-                <p className="text-[10px] text-muted-foreground">Authorized jailbreak and policy-testing preset.</p>
-              </div>
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-border/60 px-3 py-2.5 sm:col-span-2">
-                <Label className="text-sm">Show agent / research trace</Label>
-                <Switch checked={localShowTrace} onCheckedChange={setLocalShowTrace} />
-              </div>
+              {!webClient && (
+                <>
+                  <div className="flex items-center justify-between gap-2 rounded-xl border border-border/60 px-3 py-2.5">
+                    <Label className="text-sm">Debug / code mode</Label>
+                    <Switch checked={localDebugMode} onCheckedChange={setLocalDebugMode} />
+                  </div>
+                  <div className="flex flex-col gap-1 rounded-xl border border-border/60 px-3 py-2.5 sm:col-span-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-sm">Red-team / safety eval</Label>
+                      <Switch checked={localRedTeam} onCheckedChange={setLocalRedTeam} />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">Authorized jailbreak and policy-testing preset.</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 rounded-xl border border-border/60 px-3 py-2.5 sm:col-span-2">
+                    <Label className="text-sm">Show agent / research trace</Label>
+                    <Switch checked={localShowTrace} onCheckedChange={setLocalShowTrace} />
+                  </div>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
       </TabsContent>
 
+      {!webClient && (
       <TabsContent value="experiments" className="mt-4 space-y-4 outline-none">
         <Card className="border-border/70 shadow-sm">
           <CardHeader className="pb-3">
@@ -896,6 +997,7 @@ const SettingsPanel: React.FC = () => {
           </CardContent>
         </Card>
       </TabsContent>
+      )}
 
       <div className="sticky bottom-0 mt-6 border-t border-border/60 bg-background/95 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <Button className="openbentt-button h-11 w-full text-base font-semibold shadow-sm" onClick={handleSave}>

@@ -42,7 +42,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRouterModels";
 import { useLocalGgufRegistryModels } from "@/hooks/useLocalGgufRegistryModels";
 import { shortModelLabel } from "@/lib/openrouter";
-import { dedupeModels, normalizeApiConfig, canSendChat, type MessageAttachment } from "@/types/chat";
+import { dedupeModels, normalizeApiConfig, canSendChat, canSendMessage, type MessageAttachment } from "@/types/chat";
+import { parseGgufRegistryId } from "@/lib/localGguf/ids";
+import { Link } from "react-router-dom";
+import { getComposerPlaceholder } from "@/lib/composerPlaceholder";
+import { ModelDownloadProgressBar } from "@/components/ModelDownloadProgressBar";
 import { ensureLocalGemmaLoaded } from "@/lib/gemmaWebGpu/localGemmaInference";
 import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
 import { DEFAULT_LOCAL_GEMMA_MODEL_ID, LOCAL_GEMMA_SELECTABLE_MODELS, LOCAL_MODEL_CATALOG, type LocalModelEntry } from "@/lib/gemmaWebGpu/models";
@@ -65,6 +69,7 @@ import { ModelCapabilityBadges } from "@/components/ModelCapabilityBadges";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import LocalOnDeviceModelBar from "@/components/LocalOnDeviceModelBar";
 import type { WorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
+import { isWebClient } from "@/config/platformSurface";
 
 interface ChatInputProps {
   isLoading: boolean;
@@ -377,6 +382,22 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
         {/* On-device model consent bar — only shown before user consents */}
         <LocalOnDeviceModelBar />
 
+        {!isWebClient() &&
+          apiConfig.aiProvider === "local_gguf" &&
+          canSendChat(apiConfig) &&
+          !parseGgufRegistryId(apiConfig.model) && (
+            <Alert variant="default" className="border-amber-500/40 bg-amber-500/5">
+              <AlertTitle className="text-sm">Local model not selected</AlertTitle>
+              <AlertDescription className="text-xs">
+                Download a GGUF in{" "}
+                <Link to="/labs" className="font-medium text-primary hover:underline">
+                  Labs → Local model hub
+                </Link>
+                , then pick it under Settings → AI & models → Local file model (GGUF).
+              </AlertDescription>
+            </Alert>
+          )}
+
         {(apiConfig.braveSearchApiKey || apiConfig.researchProxyUrl) && (
           <Alert variant="default" className="border-amber-500/40 bg-amber-500/5">
             <AlertTitle className="text-sm">API keys in browser</AlertTitle>
@@ -420,18 +441,18 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
         )}
 
         {isLoading && apiConfig.aiProvider === "webgpu_gemma" && webgpuModelDownloadProgress != null && (
-          <div className="rounded-xl border border-teal-500/25 bg-teal-500/[0.06] px-3 py-2.5 space-y-2">
-            <div className="flex items-center justify-between gap-2 text-xs">
-              <span className="font-medium text-foreground">Downloading on-device model (one-time)</span>
-              <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
-                {webgpuModelDownloadProgress}%
-              </span>
-            </div>
-            <Progress value={webgpuModelDownloadProgress} className="h-2" />
-            <p className="text-[11px] leading-snug text-muted-foreground">
-              ~400 MB–1.5 GB depending on model. Cached after first download. Keep this tab open.
-            </p>
-          </div>
+          <ModelDownloadProgressBar
+            title="Downloading on-device model (one-time)"
+            percentOnly
+            progress={{
+              percent: webgpuModelDownloadProgress,
+              received: null,
+              total: null,
+              speedBps: null,
+              etaSeconds: null,
+            }}
+            hint="~400 MB–1.5 GB depending on model. Cached after the first download."
+          />
         )}
 
         <div className="composer-shell relative p-1.5 sm:p-2">
@@ -439,18 +460,12 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={
-              isLoadingConfig
-                ? "Loading..."
-                : !canSendChat(apiConfig)
-                  ? "Add an API key or local server URL in Settings to get started"
-                  : workspaceMeta
-                    ? workspaceMeta.composerPlaceholder
-                    : apiConfig.comparisonEnabled
-                      ? "Same prompt goes to each selected model…"
-                      : "Ask anything — attach images, audio, or files with the paperclip"
-            }
-            disabled={isLoading || isLoadingConfig || !canSendChat(apiConfig)}
+            placeholder={getComposerPlaceholder(apiConfig, {
+              isLoadingConfig,
+              workspacePlaceholder: workspaceMeta?.composerPlaceholder,
+              comparisonEnabled: apiConfig.comparisonEnabled,
+            })}
+            disabled={isLoading || isLoadingConfig || !canSendMessage(apiConfig)}
             className="min-h-[7.5rem] max-h-96 resize-none border-0 bg-transparent px-3 pb-14 pt-3 text-[15px] leading-relaxed text-foreground shadow-none outline-none placeholder:text-muted-foreground/75 focus:border-0 focus:outline-none focus-visible:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:text-base"
             style={{
               height: "auto",
@@ -658,7 +673,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
                     onClick={isLoading ? () => stopStreaming() : () => void handleSendMessage()}
                     disabled={
                       (!message.trim() && attachments.length === 0) ||
-                      !canSendChat(apiConfig) ||
+                      !canSendMessage(apiConfig) ||
                       isLoadingConfig ||
                       (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())
                     }

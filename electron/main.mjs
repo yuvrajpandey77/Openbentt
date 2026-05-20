@@ -13,8 +13,15 @@ import {
   setLocalGgufProgressTarget,
 } from "./localGgufService.mjs";
 import { registerHfSecretIpc } from "./hfSecretStore.mjs";
+import { registerDesktopUpdaterIpc, setUpdaterTargetWindow } from "./updater.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/** One app instance — second launch focuses the existing window. */
+const singleInstanceLock = app.requestSingleInstanceLock();
+if (!singleInstanceLock) {
+  app.quit();
+}
 
 /**
  * Linux display: on **Wayland**, Chromium logs `--ozone-platform=wayland is not compatible with Vulkan`
@@ -154,6 +161,7 @@ function createWindow() {
 
   win.once("ready-to-show", () => win.show());
   setLocalGgufProgressTarget(win);
+  setUpdaterTargetWindow(win);
 
   if (useViteDevServer) {
     const devBase = VITE_DEV_URL.replace(/\/$/, "");
@@ -168,7 +176,18 @@ function createWindow() {
   }
 }
 
+if (singleInstanceLock) {
+  app.on("second-instance", () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+}
+
 app.whenReady().then(() => {
+  registerDesktopUpdaterIpc();
   registerHfSecretIpc(ipcMain, app);
   registerLocalGgufIpc(ipcMain, app);
   if (!useViteDevServer) {

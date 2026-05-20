@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Openbentt — Product Document</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  @page { margin: 16mm 14mm; size: A4; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 9.5pt;
+    line-height: 1.5;
+    color: #1c1c1e;
+    background: #fff;
+    max-width: 52rem;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 3rem;
+  }
+
+  /* ---- COVER ---- */
+  .cover {
+    min-height: 240px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 55%, #0369a1 100%);
+    border-radius: 10px;
+    padding: 2.5rem 2.5rem 2rem;
+    margin-bottom: 2rem;
+    color: #fff;
+  }
+  .cover-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 20px;
+    font-size: 8pt;
+    padding: 3px 10px;
+    letter-spacing: .5px;
+    margin-bottom: 1rem;
+  }
+  .cover h1 { font-size: 2rem; font-weight: 700; letter-spacing: -.5px; margin-bottom: .4rem; }
+  .cover .subtitle { font-size: 1.05rem; color: rgba(255,255,255,.75); margin-bottom: 1.4rem; }
+  .cover-meta { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+  .cover-meta span { font-size: 8.5pt; color: rgba(255,255,255,.6); }
+  .cover-meta strong { color: rgba(255,255,255,.9); }
+
+  /* ---- TOC ---- */
+  .toc { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem 1.5rem; margin-bottom: 2rem; }
+  .toc h2 { font-size: 10pt; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: .5px; margin-bottom: .75rem; }
+  .toc ol { padding-left: 1.25rem; }
+  .toc li { margin: .2rem 0; }
+  .toc a { color: #0369a1; text-decoration: none; font-size: 9.5pt; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* ---- SECTIONS ---- */
+  section { margin-bottom: 2.5rem; }
+  h1.section-title {
+    font-size: 1.3rem; font-weight: 700;
+    color: #0f172a;
+    border-bottom: 2px solid #0369a1;
+    padding-bottom: .4rem;
+    margin-bottom: 1.1rem;
+  }
+  h2 { font-size: 1.05rem; font-weight: 600; color: #1e3a5f; margin: 1.3rem 0 .5rem; }
+  h3 { font-size: .95rem; font-weight: 600; color: #334155; margin: 1rem 0 .4rem; }
+  h4 { font-size: .88rem; font-weight: 600; color: #475569; margin: .8rem 0 .3rem; }
+  p { margin-bottom: .6rem; color: #374151; }
+
+  /* ---- TABLES ---- */
+  table { width: 100%; border-collapse: collapse; margin: .7rem 0 1rem; font-size: 8.8pt; }
+  th { background: #1e3a5f; color: #fff; font-weight: 600; padding: .35rem .55rem; text-align: left; }
+  td { border: 1px solid #dde3ec; padding: .3rem .55rem; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+
+  /* ---- CODE ---- */
+  code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 8pt; background: #f1f5f9; padding: 1px 4px; border-radius: 3px; color: #0f172a; }
+  pre { background: #0f172a; color: #e2e8f0; font-family: 'JetBrains Mono', monospace; font-size: 8pt; padding: .75rem 1rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; margin: .6rem 0 1rem; line-height: 1.55; }
+
+  /* ---- LISTS ---- */
+  ul, ol { padding-left: 1.25rem; margin: .4rem 0 .8rem; }
+  li { margin: .2rem 0; color: #374151; }
+  li strong { color: #1c1c1e; }
+
+  /* ---- CALLOUTS ---- */
+  .callout { border-left: 4px solid; border-radius: 0 6px 6px 0; padding: .6rem .9rem; margin: .8rem 0; }
+  .callout-info { border-color: #0369a1; background: #eff6ff; }
+  .callout-warn { border-color: #d97706; background: #fffbeb; }
+  .callout-danger { border-color: #dc2626; background: #fef2f2; }
+  .callout p { margin: 0; }
+  .callout-title { font-weight: 700; font-size: 9pt; margin-bottom: .2rem; }
+
+  /* ---- STATUS BADGES ---- */
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 7.5pt; font-weight: 600; vertical-align: middle; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-yellow { background: #fef9c3; color: #854d0e; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .badge-gray { background: #f1f5f9; color: #475569; }
+
+  /* ---- PHASE BLOCKS ---- */
+  .phase {
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    margin: 1rem 0 1.5rem;
+    overflow: hidden;
+  }
+  .phase-header {
+    background: #1e3a5f;
+    color: #fff;
+    padding: .55rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+  }
+  .phase-num { background: rgba(255,255,255,.18); border-radius: 50%; width: 22px; height: 22px; font-size: 9pt; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .phase-name { font-weight: 700; font-size: 10pt; }
+  .phase-timeline { margin-left: auto; font-size: 8pt; color: rgba(255,255,255,.7); }
+  .phase-goal { background: #eff6ff; padding: .4rem 1rem; font-size: 8.8pt; color: #1e40af; border-bottom: 1px solid #dbeafe; }
+  .phase-body { padding: .75rem 1rem; }
+  .phase-body ul { margin: 0; }
+  .phase-body li { font-size: 8.8pt; margin: .18rem 0; }
+
+  /* ---- CHART-LIKE GRID ---- */
+  .flow-box {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .5rem;
+    margin: .8rem 0 1.2rem;
+  }
+  .flow-row {
+    border: 1px solid #dde3ec;
+    border-radius: 6px;
+    padding: .5rem .75rem;
+    background: #fafbfc;
+    font-size: 8.5pt;
+  }
+  .flow-row strong { color: #0369a1; }
+
+  /* ---- CHECKLIST ---- */
+  .checklist li::marker { content: "☐  "; }
+  .checklist li.done::marker { content: "✅ "; }
+
+  /* ---- FOOTER ---- */
+  .footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 8pt; text-align: center; }
+
+  /* ---- PAGE BREAKS ---- */
+  .pb { break-before: page; }
+  section { break-inside: avoid-page; }
+  .phase { break-inside: avoid; }
+  table { break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-badge">Senior Engineer Product Document</div>
+  <h1>Openbentt</h1>
+  <p class="subtitle">Local-first, privacy-respecting AI chat client — Web + Electron Desktop</p>
+  <div class="cover-meta">
+    <span><strong>Version</strong> 2.0.6</span>
+    <span><strong>Date</strong> May 2026</span>
+    <span><strong>Scope</strong> Full product — web &amp; desktop</span>
+    <span><strong>Status</strong> Active development</span>
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#s1">Executive Summary</a></li>
+    <li><a href="#s2">Problem Statement</a></li>
+    <li><a href="#s3">What Openbentt Does</a></li>
+    <li><a href="#s4">System Architecture</a></li>
+    <li><a href="#s5">Feature Inventory</a></li>
+    <li><a href="#s6">Current State Assessment</a></li>
+    <li><a href="#s7">UX Improvement Plan</a></li>
+    <li><a href="#s8">Testing Plan</a></li>
+    <li><a href="#s9">Phased Completion Roadmap</a></li>
+    <li><a href="#s10">Distribution &amp; Release Plan</a></li>
+    <li><a href="#s11">Tech Debt &amp; Known Issues</a></li>
+    <li><a href="#s12">Success Metrics</a></li>
+  </ol>
+</div>
+
+<!-- S1 -->
+<section id="s1">
+<h1 class="section-title">1. Executive Summary</h1>
+<p>Openbentt is a <strong>local-first, privacy-respecting multi-provider AI chat client</strong> packaged as both a static web app and an Electron desktop application. Users bring their own API keys (OpenRouter, OpenAI, Anthropic, Google Gemini, or any OpenAI-compatible endpoint) and run chats, document workspaces, research pipelines, and on-device language models — all without any backend account system.</p>
+
+<table>
+<tr><th>Unique Value</th><th>Why it matters</th></tr>
+<tr><td>API keys never leave the user's browser or device</td><td>No server-side account, no data leakage risk</td></tr>
+<tr><td>On-device inference (WebGPU/WASM + native GGUF)</td><td>Works offline; privacy-critical use cases</td></tr>
+<tr><td>Compare 2–4 models side-by-side with real timing</td><td>Inform model selection decisions with actual data</td></tr>
+<tr><td>Document-grade workspaces (LaTeX ↔ AI ↔ PDF)</td><td>Academic writing + AI in one surface</td></tr>
+<tr><td>Research augmentation with citation graphs</td><td>BibTeX, arXiv, Semantic Scholar, HF datasets</td></tr>
+</table>
+
+<div class="callout callout-info">
+  <div class="callout-title">Current maturity</div>
+  <p>The core chat engine and workspace features are functionally complete. Key gaps: three workspace routes are hidden from nav, no integration/E2E tests, llama-server not bundled in releases, and macOS/Windows builds are unsigned.</p>
+</div>
+</section>
+
+<!-- S2 -->
+<section id="s2">
+<h1 class="section-title">2. Problem Statement</h1>
+<table>
+<tr><th>User Pain</th><th>Current tools fail because…</th><th>Openbentt's answer</th></tr>
+<tr><td>API keys sent to third-party chat wrappers</td><td>Keys stored server-side; breach risk</td><td>Keys in browser localStorage; zero server-side account</td></tr>
+<tr><td>Can't compare models on my own prompts</td><td>One model per tab; manual copy-paste</td><td>Parallel 2–4 model comparison, one send, live metrics</td></tr>
+<tr><td>Cloud-only inference — privacy concerns</td><td>Every token goes to a cloud provider</td><td>On-device Gemma/Qwen (WebGPU/CPU) + GGUF via llama-server</td></tr>
+<tr><td>Academic writing tools are separate from AI</td><td>Overleaf + ChatGPT in separate tabs</td><td>Notebook: AI ↔ LaTeX/PDF ↔ diff/apply in one surface</td></tr>
+<tr><td>Gated HF model tokens scattered</td><td>Manual env vars on every machine</td><td>Electron: encrypted HF token via OS keychain (safeStorage)</td></tr>
+<tr><td>No way to share a conversation</td><td>Screenshot or copy-paste</td><td>Share URL via compressed hash snapshot (no server needed)</td></tr>
+</table>
+</section>
+
+<!-- S3 -->
+<section id="s3" class="pb">
+<h1 class="section-title">3. What Openbentt Does — In Plain Language</h1>
+
+<h2>3.1 Core Chat</h2>
+<p>Pick a provider and model, type a message, get a streamed reply. All threads stored in browser localStorage — no account, no server. Multiple threads with auto-named titles.</p>
+
+<h2>3.2 Model Comparison</h2>
+<p>Send one prompt → parallel replies from 2–4 models. Each reply shows <strong>Time to First Token</strong>, total response time, and token counts. Great for model evaluation on real tasks.</p>
+
+<h2>3.3 On-Device Inference</h2>
+<ul>
+  <li><strong>WebGPU / WASM (web + desktop):</strong> <code>@huggingface/transformers</code> runs Gemma, Qwen-0.5B, etc. inside the browser. Auto-falls back: WebGPU → WASM CPU → smaller model.</li>
+  <li><strong>Local GGUF (desktop only):</strong> Download any GGUF from Hugging Face in the Labs panel. Electron spawns <code>llama-server</code> on localhost; the chat stack talks to it as an OpenAI-compatible API.</li>
+</ul>
+
+<h2>3.4 Notebook Workspace</h2>
+<p>Upload a PDF or write LaTeX. Ask AI to improve sections, add citations, fix errors. Changes diff before applying. Compiles PDF via BusyTeX WASM (in-browser) or remote <code>pdflatex</code> server.</p>
+
+<h2>3.5 Research Labs</h2>
+<ul>
+  <li>BibTeX management and citation graph visualization</li>
+  <li>Hugging Face dataset card browser</li>
+  <li>Local GGUF Hub: search, download, manage, and chat with models</li>
+  <li>Research proxy: enriches queries with Wikipedia, arXiv, Semantic Scholar, Brave Search</li>
+</ul>
+
+<h2>3.6 Additional Workspaces</h2>
+<ul>
+  <li><strong>LaTeX Write (<code>/write</code>):</strong> KaTeX preview + PDF export — lighter than full Notebook</li>
+  <li><strong>Benchmark (<code>/benchmark</code>):</strong> Run a prompt N times across models; plot latency distributions</li>
+  <li><strong>WebGPU Diagnostics (<code>/webgpu</code>):</strong> Probe GPU, check adapter, run Gemma smoke test</li>
+</ul>
+
+<h2>3.7 Share, Export, Settings</h2>
+<p>Share any chat as a compressed URL (no server). Export to Markdown or PDF. Full settings: provider, model, theme, research toggle, GGUF path, HF token, keyboard shortcuts.</p>
+</section>
+
+<!-- S4 -->
+<section id="s4" class="pb">
+<h1 class="section-title">4. System Architecture</h1>
+
+<h2>4.1 Three-Layer Model</h2>
+<div class="flow-box">
+  <div class="flow-row"><strong>Electron main process (Node)  [desktop only]</strong><br/>
+    app:// protocol → dist/ · BrowserWindow · IPC handlers · spawns llama-server (127.0.0.1) · HF download · userData registry · safeStorage HF token
+  </div>
+  <div class="flow-row"><strong>Preload bridge (contextBridge)</strong><br/>
+    Exposes <code>window.openbenttLocalGguf</code> and <code>window.openbenttDesktop</code> — no Node in renderer, context isolation, sandbox
+  </div>
+  <div class="flow-row"><strong>Renderer — React SPA (same for web + desktop)</strong><br/>
+    ChatContext → routes by <code>aiProvider</code> → OpenRouter (HTTPS) / WebGPU WASM (in-process) / Local GGUF (HTTP loopback via IPC) · localStorage keys + chat history
+  </div>
+</div>
+
+<h2>4.2 AI Provider Routing</h2>
+<pre>ChatContext.runAssistantPipeline
+ ├── "openrouter"        → streamOpenRouterChat (HTTPS to api.openrouter.ai)
+ ├── "openai_direct"     → streamOpenRouterChat w/ openai base URL
+ ├── "openai_compatible" → streamOpenRouterChat w/ custom base URL (Ollama, LM Studio…)
+ ├── "webgpu_gemma"      → streamLocalGemmaChat (Transformers.js in-renderer)
+ │    └── ensureLocalGemmaLoaded → WebGPU preferred, WASM fallback, tiny-model fallback
+ └── "local_gguf"        → streamLocalGgufChat
+      └── IPC: ensureServer(registryId) → main spawns llama-server
+      └── HTTP POST 127.0.0.1:&lt;port&gt;/v1/chat/completions (OpenAI-compatible stream)</pre>
+
+<h2>4.3 Key Files Reference</h2>
+<table>
+<tr><th>Area</th><th>Files</th></tr>
+<tr><td>App entry + routing</td><td><code>src/App.tsx</code>, <code>src/main.tsx</code></td></tr>
+<tr><td>Core state machine</td><td><code>src/context/ChatContext.tsx</code> (~900 lines)</td></tr>
+<tr><td>Domain types</td><td><code>src/types/chat.ts</code></td></tr>
+<tr><td>AI streaming</td><td><code>src/lib/aiStream.ts</code>, <code>openrouter.ts</code></td></tr>
+<tr><td>WebGPU / WASM local</td><td><code>src/lib/gemmaWebGpu/*</code></td></tr>
+<tr><td>GGUF / llama-server</td><td><code>src/lib/localGguf/*</code></td></tr>
+<tr><td>Notebook + LaTeX</td><td><code>src/lib/compileNotebook.ts</code>, <code>latexWasmCompile.ts</code>, 8+ latex helpers</td></tr>
+<tr><td>Research</td><td><code>src/lib/researchSources.ts</code>, <code>bibtex.ts</code>, <code>citationGraph.ts</code></td></tr>
+<tr><td>Electron shell</td><td><code>electron/main.mjs</code>, <code>localGgufService.mjs</code>, <code>hfSecretStore.mjs</code></td></tr>
+<tr><td>Electron bridge</td><td><code>electron/preload.cjs</code></td></tr>
+<tr><td>Optional servers</td><td><code>server/research-proxy.mjs</code>, <code>server/latex-compile.mjs</code></td></tr>
+</table>
+
+<h2>4.4 Deploy Modes</h2>
+<table>
+<tr><th>Mode</th><th>What runs</th><th>Features available</th></tr>
+<tr><td>Static hosting</td><td>Just <code>dist/</code> on CDN/nginx</td><td>Chat, comparison, WebGPU, share, notebook (WASM LaTeX)</td></tr>
+<tr><td>Docker</td><td>nginx + research-proxy.mjs</td><td>All static + research proxy enrichment (+ Brave if key set)</td></tr>
+<tr><td>Docker + LaTeX</td><td>nginx + research + latex-compile.mjs</td><td>All above + server-side pdflatex (for full document compile)</td></tr>
+<tr><td>Electron desktop</td><td>Chromium + main.mjs</td><td>All above + GGUF + safeStorage HF token + auto GPU flags</td></tr>
+</table>
+</section>
+
+<!-- S5 -->
+<section id="s5" class="pb">
+<h1 class="section-title">5. Feature Inventory</h1>
+
+<h2>5.1 Complete <span class="badge badge-green">✅ Done</span></h2>
+<table>
+<tr><th>Feature</th><th>Evidence</th></tr>
+<tr><td>Multi-provider chat streaming</td><td><code>aiStream.ts</code>, ChatContext</td></tr>
+<tr><td>OpenRouter model list + free-tier highlights</td><td><code>openrouter.ts</code>, <code>useOpenRouterModels.ts</code></td></tr>
+<tr><td>Multi-thread chat (titles, search, history)</td><td>ChatContext, ChatThreadBar</td></tr>
+<tr><td>Parallel model comparison (2–4)</td><td>Comparison pipeline in ChatContext</td></tr>
+<tr><td>Multimodal attachments (image, audio, video, PDF)</td><td>ChatInput, ChatContext</td></tr>
+<tr><td>In-chat charts (<code>openbentt-chart</code> fences)</td><td><code>chartSpec.ts</code>, OpenbenttChartViews</td></tr>
+<tr><td>Share URL — hash snapshot (no server)</td><td><code>shareRun.ts</code>, ShareViewPage</td></tr>
+<tr><td>Export: Markdown + PDF</td><td><code>chatExportMarkdown.ts</code>, <code>chatExportPdf.ts</code></td></tr>
+<tr><td>Keyboard shortcuts</td><td>KeyboardShortcutsSheet</td></tr>
+<tr><td>Prompt snippets (saved, local)</td><td><code>promptSnippets.ts</code></td></tr>
+<tr><td>Context window meter + quota meter</td><td><code>contextMeter.ts</code>, ProviderQuotaMeter</td></tr>
+<tr><td>Dark / light theme</td><td>ThemeContext</td></tr>
+<tr><td>WebGPU / WASM local Gemma</td><td><code>gemmaWebGpu/*</code></td></tr>
+<tr><td>Local GGUF download + llama-server lifecycle</td><td><code>localGgufService.mjs</code>, LocalGgufHub</td></tr>
+<tr><td>HF token encrypted storage (desktop)</td><td><code>hfSecretStore.mjs</code> (safeStorage)</td></tr>
+<tr><td>Notebook LaTeX/PDF workspace</td><td>NotebookPdfWorkspace, compileNotebook</td></tr>
+<tr><td>Research Labs (BibTeX, citation graph, HF datasets)</td><td>ResearchLabsPage, bibtex.ts, citationGraph.ts</td></tr>
+<tr><td>Research proxy server (Docker)</td><td><code>server/research-proxy.mjs</code></td></tr>
+<tr><td>LaTeX compile server</td><td><code>server/latex-compile.mjs</code></td></tr>
+<tr><td>Docker deploy (nginx + proxy)</td><td>Dockerfile, docker-compose.yml</td></tr>
+<tr><td>Electron packaging (AppImage, deb, NSIS, dmg)</td><td>electron-builder config</td></tr>
+<tr><td>CI: lint + test + build</td><td>.github/workflows/ci.yml</td></tr>
+<tr><td>Release pipeline: tag → multi-platform GitHub Release</td><td>.github/workflows/release.yml</td></tr>
+<tr><td>Storage migration (legacy cogerphere-* keys)</td><td><code>storageMigrate.ts</code></td></tr>
+</table>
+
+<h2>5.2 Partial / Needs Work <span class="badge badge-yellow">⚠️ Partial</span></h2>
+<table>
+<tr><th>Feature</th><th>What exists</th><th>What's missing</th></tr>
+<tr><td>Route discovery for /write, /benchmark, /webgpu</td><td>Routes exist and work</td><td>Not in sidebar nav — users can't find them</td></tr>
+<tr><td>WebGPU setup messaging</td><td>SetupPage blocks if <code>!navigator.gpu</code></td><td>WASM/CPU always works; messaging should reflect this</td></tr>
+<tr><td>llama-server distribution</td><td>Code handles bundled binary path</td><td>Binary not in CI artifacts; users hit "not found"</td></tr>
+<tr><td>Comparison mode disabled for local providers</td><td>Correctly disabled</td><td>No UI explanation of why</td></tr>
+<tr><td>LaTeX Write workspace</td><td><code>LatexWorkspacePage.tsx</code> renders</td><td>No sidebar link; PDF export is raster not vector</td></tr>
+<tr><td>Benchmark page</td><td>Works</td><td>No sidebar link; results not persisted; no export</td></tr>
+<tr><td>Mobile layout</td><td>Responsive classes present</td><td>Keyboard overlap; not touch-optimized</td></tr>
+<tr><td>First-run onboarding</td><td>SetupPage for API key</td><td>No guide for desktop GGUF; no feature discovery tour</td></tr>
+</table>
+
+<h2>5.3 Not Started <span class="badge badge-red">❌ Missing</span></h2>
+<table>
+<tr><th>Feature</th><th>Priority</th><th>Notes</th></tr>
+<tr><td>Electron auto-update</td><td><span class="badge badge-red">High</span></td><td>electron-updater not configured; users manually re-download</td></tr>
+<tr><td>Code signing / notarization</td><td><span class="badge badge-red">High</span></td><td>Unsigned builds trigger Gatekeeper/SmartScreen</td></tr>
+<tr><td>E2E / integration tests</td><td><span class="badge badge-red">High</span></td><td>Zero coverage for chat flow, routing, Electron IPC</td></tr>
+<tr><td>Component tests (React)</td><td><span class="badge badge-yellow">Medium</span></td><td>No .test.tsx files; ChatContext entirely untested</td></tr>
+<tr><td>System prompt editor (per-thread)</td><td><span class="badge badge-yellow">Medium</span></td><td>Only workspace-injected; no user-editable prompt</td></tr>
+<tr><td>True inline user message edit</td><td><span class="badge badge-yellow">Medium</span></td><td>Current: reloads composer. Missing: inline edit + auto-regen</td></tr>
+<tr><td>Conversation branching</td><td><span class="badge badge-yellow">Medium</span></td><td>No fork from message; retry replaces in-place</td></tr>
+<tr><td>Model pinning / favorites</td><td><span class="badge badge-gray">Low–Med</span></td><td>Model selector has no pin</td></tr>
+<tr><td>Historical token / cost dashboard</td><td><span class="badge badge-gray">Low–Med</span></td><td>Per-session metrics only</td></tr>
+<tr><td>Structured tool-call display</td><td><span class="badge badge-gray">Low–Med</span></td><td>Tool calls appear as raw text</td></tr>
+<tr><td>Voice input / TTS</td><td><span class="badge badge-gray">Low</span></td><td>Not present</td></tr>
+<tr><td>Cross-device sync</td><td><span class="badge badge-gray">Low</span></td><td>localStorage only</td></tr>
+</table>
+</section>
+
+<!-- S6 -->
+<section id="s6" class="pb">
+<h1 class="section-title">6. Current State Assessment</h1>
+
+<h2>What works well</h2>
+<ul>
+  <li>Core chat loop is solid; unit-tested parsers and helpers</li>
+  <li>Provider abstraction in <code>aiStream.ts</code> is clean and extensible</li>
+  <li>Notebook workflow is genuinely powerful (LaTeX ↔ AI ↔ PDF in one surface)</li>
+  <li>Electron shell is well-secured (context isolation, sandbox, no Node in renderer)</li>
+  <li>GGUF download / llama-server lifecycle is robust (resume download, disk check, SHA-256, cleanup on quit)</li>
+  <li>HF token handling uses OS-level encryption on desktop</li>
+</ul>
+
+<h2>Core concerns</h2>
+<div class="callout callout-danger">
+  <div class="callout-title">Discoverability gap</div>
+  <p>Three full workspaces (<code>/write</code>, <code>/benchmark</code>, <code>/webgpu</code>) are invisible to users navigating via the sidebar. The product is larger than it appears from the nav.</p>
+</div>
+<div class="callout callout-danger">
+  <div class="callout-title">Testing gap</div>
+  <p><code>ChatContext.tsx</code> is the application's core state machine (~900 lines) and has zero test coverage. A provider or streaming change could silently break core chat.</p>
+</div>
+<div class="callout callout-warn">
+  <div class="callout-title">Distribution gap</div>
+  <p><code>llama-server</code> is the centerpiece of the desktop's local AI story but is not bundled in CI artifacts. Most desktop users hit a manual installation step.</p>
+</div>
+<div class="callout callout-warn">
+  <div class="callout-title">Signing gap</div>
+  <p>macOS and Windows builds are unsigned. This is a blocking issue for non-technical users who see Gatekeeper / SmartScreen warnings.</p>
+</div>
+<div class="callout callout-info">
+  <div class="callout-title">Documentation drift</div>
+  <p><code>PRODUCTION_CHECKLIST.md</code> and <code>electron/README.md</code> have stale references (<code>preload.mjs</code> vs actual <code>preload.cjs</code>; Electron first-load path note).</p>
+</div>
+</section>
+
+<!-- S7 -->
+<section id="s7" class="pb">
+<h1 class="section-title">7. UX Improvement Plan</h1>
+
+<h2>7.1 Navigation &amp; Discovery</h2>
+<ul>
+  <li>Add <code>/write</code>, <code>/benchmark</code>, <code>/webgpu</code> to <code>WORKSPACE_NAV_ITEMS</code> with appropriate icons (PenLine, BarChart2, Cpu)</li>
+  <li>Add a collapsible "Advanced" group in the sidebar if it becomes crowded</li>
+  <li>Add "What's new / Download latest" callout to Settings when a newer GitHub Release is detected</li>
+</ul>
+
+<h2>7.2 Setup &amp; Onboarding</h2>
+<ul>
+  <li>Rewrite the on-device setup card: remove hard GPU block; say "GPU recommended, CPU also works"</li>
+  <li>Show a hardware detection badge with the actual result (WebGPU / WASM / GPU model)</li>
+  <li>Desktop first-run: 3-step guided modal for GGUF ("Download a model → Pick Local GGUF → Chat"), gated by <code>userData/onboarded.json</code></li>
+</ul>
+
+<h2>7.3 Chat Interface</h2>
+<ul>
+  <li>True inline user message edit with confirmation + auto-regenerate (replaces composer-reload)</li>
+  <li>Retry history: keep previous responses behind "See previous" toggle (like ChatGPT retries)</li>
+  <li>Detect OpenAI tool-call JSON in assistant replies → render as collapsible "Tool call" cards</li>
+  <li>System prompt editor per thread (text field in thread settings sidebar)</li>
+</ul>
+
+<h2>7.4 Mobile</h2>
+<ul>
+  <li>Use <code>visualViewport</code> resize handler to push chat input above keyboard</li>
+  <li>Swipe-to-switch-thread gesture on mobile viewport</li>
+  <li>Set <code>overflow: hidden</code> on body when soft keyboard is open to prevent scroll jank</li>
+</ul>
+
+<h2>7.5 Settings Refactor</h2>
+<ul>
+  <li>Split single large panel into tabbed sections: General · Models · Providers · Desktop (Electron-only) · Privacy · Advanced</li>
+  <li>Desktop tab only visible when <code>window.openbenttDesktop?.isElectron</code> is true</li>
+</ul>
+
+<h2>7.6 Error States</h2>
+<ul>
+  <li>Parse HTTP 429 <code>x-ratelimit-reset-requests</code> header → show "Try again in X sec" countdown</li>
+  <li>GGUF "binary not found" → show diagnostic checklist UI: ✅ Model downloaded · ❌ llama-server missing → [Install guide]</li>
+  <li>WebGPU load progress: show download % + estimated time for model weights</li>
+  <li>On API key missing: show actionable empty state with button → Settings (not just an error toast)</li>
+</ul>
+
+<h2>7.7 Performance</h2>
+<ul>
+  <li>Add proper loading skeleton to <code>LocalGgufHub</code> while registry loads</li>
+  <li>Use <code>startTransition</code> for model selector updates to avoid blocking input</li>
+  <li>Verify Rollup <code>manualChunks</code> splits are actually reducing initial bundle size (measure with <code>vite-bundle-analyzer</code>)</li>
+  <li>Lazy-load heavy workspace deps (busytex, pdfjs, transformers) — partially done; validate with Lighthouse</li>
+</ul>
+</section>
+
+<!-- S8 -->
+<section id="s8" class="pb">
+<h1 class="section-title">8. Testing Plan</h1>
+
+<h2>8.1 Current Coverage Map</h2>
+<table>
+<tr><th>Layer</th><th>Current</th><th>Target</th></tr>
+<tr><td>Lib unit tests (parsers, helpers)</td><td>~22 files, solid</td><td>Keep + expand (+10 files)</td></tr>
+<tr><td>ChatContext / state machine</td><td>0</td><td>Full coverage of critical paths</td></tr>
+<tr><td>Component tests (.test.tsx)</td><td>0</td><td>ChatInput, SettingsPanel, LocalGgufHub</td></tr>
+<tr><td>Route / integration tests</td><td>0</td><td>8 happy-path flows with MSW</td></tr>
+<tr><td>Electron main-process unit tests</td><td>0</td><td>IPC handlers, binary resolution, disk checks</td></tr>
+<tr><td>E2E (Playwright)</td><td>0</td><td>7 user-journey scenarios</td></tr>
+<tr><td>Server tests (research-proxy, latex-compile)</td><td>0</td><td>Basic request/response coverage</td></tr>
+</table>
+
+<h2>8.2 Unit Tests to Add (Immediate)</h2>
+
+<h4>ChatContext (<code>src/context/ChatContext.tsx</code>)</h4>
+<ul>
+  <li><code>canSendChat</code> returns correct boolean for each provider + config combination</li>
+  <li><code>normalizeApiConfig</code>: migration of deprecated defaults; model reset on provider switch</li>
+  <li>Message append + streaming accumulation (mock stream)</li>
+  <li>Error handling: network error, AbortSignal, HTTP 429 rate limit</li>
+  <li>Comparison mode: parallel requests started, dedup applied, all replies arrive</li>
+</ul>
+
+<h4>Components</h4>
+<ul>
+  <li><code>ChatInput</code>: submit on Enter, Shift+Enter newline, attachment add/remove, snippet insert</li>
+  <li><code>SettingsPanel</code>: switching provider resets model field to provider default</li>
+  <li><code>LocalGgufHub</code>: registry empty state, download in-progress state, "Use in chat" button</li>
+</ul>
+
+<h4>Electron main-process (<code>electron/localGgufService.mjs</code>)</h4>
+<ul>
+  <li><code>resolveLlamaServerBinary</code>: env &gt; settings &gt; bundled &gt; PATH precedence</li>
+  <li><code>getDiskFreeBytesApprox</code>: parse <code>df</code> output correctly</li>
+  <li>IPC payload validation: invalid <code>repoId</code> throws; non-<code>.gguf</code> filename throws</li>
+</ul>
+
+<h2>8.3 Integration Tests (Vitest + @testing-library/react + MSW)</h2>
+<ul>
+  <li>Full chat send → receive → display: mock OpenRouter response with streaming</li>
+  <li>Share flow: encode thread → decode → render read-only view</li>
+  <li>Notebook: upload PDF text → AI apply suggestion → diff view → accept</li>
+  <li>Research: proxy returns sources → context injected in next message payload</li>
+  <li>Setup page: incomplete config → redirect to <code>/setup</code>; complete config → <code>/chat</code></li>
+  <li>Comparison: two models → both response streams complete → metrics displayed</li>
+</ul>
+
+<h2>8.4 E2E Tests (Playwright)</h2>
+<table>
+<tr><th>Scenario</th><th>Rationale</th></tr>
+<tr><td>New user: enter API key → send message → receive reply</td><td>Core loop regression</td></tr>
+<tr><td>Compare mode: pick 2 models → send → both reply with metrics</td><td>Comparison regression</td></tr>
+<tr><td>Export chat as Markdown: download file contains messages</td><td>Data portability</td></tr>
+<tr><td>Share: encode → open share URL → read-only view renders</td><td>Sharing</td></tr>
+<tr><td>Settings: toggle dark mode → persists after page reload</td><td>Persistence</td></tr>
+<tr><td>Setup page: enter valid key → redirects to /chat</td><td>Onboarding</td></tr>
+<tr><td>Desktop: download GGUF → select local GGUF provider → send message</td><td>Desktop GGUF regression</td></tr>
+</table>
+
+<h2>8.5 CI Integration</h2>
+<ul>
+  <li><strong>Every PR:</strong> unit tests + component tests + integration tests (<code>npm run test</code>)</li>
+  <li><strong>Main push + nightly:</strong> E2E suite (Playwright, headless Chromium)</li>
+  <li><strong>Release tag builds:</strong> Electron E2E after packaging, macOS notarization check</li>
+</ul>
+</section>
+
+<!-- S9 -->
+<section id="s9" class="pb">
+<h1 class="section-title">9. Phased Completion Roadmap</h1>
+
+<div class="phase">
+  <div class="phase-header">
+    <div class="phase-num">0</div>
+    <div class="phase-name">Foundation Cleanup</div>
+    <div class="phase-timeline">1–2 weeks</div>
+  </div>
+  <div class="phase-goal">Goal: Remove confusion, fix docs drift, make hidden routes discoverable.</div>
+  <div class="phase-body">
+    <ul>
+      <li>Delete unused <code>src/lib/agentWorkflow.ts</code> (no imports)</li>
+      <li>Delete or repurpose unused <code>src/components/PlaygroundShell.tsx</code></li>
+      <li>Fix <code>electron/README.md</code>: <code>preload.mjs</code> → <code>preload.cjs</code></li>
+      <li>Fix <code>PRODUCTION_CHECKLIST.md</code>: stale Electron first-load path entry</li>
+      <li>Add <code>/write</code>, <code>/benchmark</code>, <code>/webgpu</code> to <code>WORKSPACE_NAV_ITEMS</code> with icons</li>
+      <li>Write 5 highest-value unit tests for <code>ChatContext</code> (<code>canSendChat</code>, <code>normalizeApiConfig</code>)</li>
+      <li>Update <code>CHANGELOG.md</code> with all [Unreleased] changes</li>
+      <li>Sync Download page links to current artifact URLs</li>
+    </ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="phase-header">
+    <div class="phase-num">1</div>
+    <div class="phase-name">Chat Polish</div>
+    <div class="phase-timeline">2–3 weeks</div>
+  </div>
+  <div class="phase-goal">Goal: Core chat loop is delightful and production-ready.</div>
+  <div class="phase-body">
+    <ul>
+      <li>True inline user message edit (replace composer-reload behavior)</li>
+      <li>Retry history: keep previous assistant responses; "See previous" toggle</li>
+      <li>Mobile: <code>visualViewport</code> keyboard push-up fix</li>
+      <li>Settings: split into tabbed sections (General, Models, Providers, Desktop, Privacy, Advanced)</li>
+      <li>Error UX: rate-limit countdown timer; GGUF diagnostic checklist</li>
+      <li>Actionable empty states when API key missing / no model selected</li>
+      <li>Model selector: favorites / pin to top</li>
+      <li>Thread sidebar: collapse/expand by date groups</li>
+      <li>Add <code>startTransition</code> for model switch</li>
+      <li>Component tests: ChatInput, SettingsPanel</li>
+    </ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="phase-header">
+    <div class="phase-num">2</div>
+    <div class="phase-name">Local Models &amp; Desktop</div>
+    <div class="phase-timeline">2–3 weeks</div>
+  </div>
+  <div class="phase-goal">Goal: Local inference works out-of-the-box; desktop is a first-class experience.</div>
+  <div class="phase-body">
+    <ul>
+      <li>Bundle <code>llama-server</code> per-platform in CI via <code>electron-builder</code> <code>extraResources</code></li>
+      <li>macOS code signing + notarization secrets in GitHub Actions</li>
+      <li>Desktop first-run guide (3-step onboarding modal gated by <code>userData/onboarded.json</code>)</li>
+      <li>Fix Setup page: WASM/CPU path always available; remove hard GPU block</li>
+      <li>UI explanation when comparison mode is disabled for local providers</li>
+      <li>GGUF: download progress with ETA + speed; pause/resume button</li>
+      <li>GGUF: show VRAM estimate + parameter count before download</li>
+      <li>WebGPU: show active backend (WebGPU / WASM / CPU) in thread header</li>
+      <li>Electron auto-update via <code>electron-updater</code> (check on startup)</li>
+      <li>Single-instance lock (<code>app.requestSingleInstanceLock()</code>)</li>
+      <li>Electron main-process unit tests + Playwright Electron E2E</li>
+    </ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="phase-header">
+    <div class="phase-num">3</div>
+    <div class="phase-name">Workspaces &amp; Research</div>
+    <div class="phase-timeline">2–3 weeks</div>
+  </div>
+  <div class="phase-goal">Goal: Notebook, Research Labs, Write, and Benchmark are polished and integrated.</div>
+  <div class="phase-body">
+    <ul>
+      <li>Notebook: progress indicator during WASM PDF compilation</li>
+      <li>Notebook: auto-save draft to localStorage (prevent data loss on reload)</li>
+      <li>Notebook: side-by-side diff view before apply</li>
+      <li>Research Labs: attach research context directly to a chat thread</li>
+      <li>GGUF Hub: add VRAM badge + parameter count from HF model card</li>
+      <li><code>/write</code> workspace: add to sidebar nav; upgrade PDF export to vector</li>
+      <li>Benchmark: persist results to localStorage; export as CSV; add to sidebar nav</li>
+      <li>Agent workflow: implement basic multi-step (search → summarize → cite)</li>
+      <li>Per-thread system prompt editor</li>
+      <li>Integration tests: Notebook apply-from-chat; research proxy flow</li>
+    </ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="phase-header">
+    <div class="phase-num">4</div>
+    <div class="phase-name">Quality &amp; Hardening</div>
+    <div class="phase-timeline">2 weeks</div>
+  </div>
+  <div class="phase-goal">Goal: Production-ready with confidence; security and accessibility solid.</div>
+  <div class="phase-body">
+    <ul>
+      <li>Full E2E suite (Playwright): all flows from Phases 1–3</li>
+      <li>Server tests: research-proxy.mjs, latex-compile.mjs</li>
+      <li>IPC handlers: Zod validation for all <code>localGguf:*</code> payloads</li>
+      <li>CSP headers in Docker nginx config (currently absent)</li>
+      <li>Security audit: no path traversal in IPC; no unintended localStorage exposure</li>
+      <li>Performance profiling: cold start, first chat latency, WASM init time</li>
+      <li>Bundle audit: remove unused dependencies (<code>knip</code> / <code>depcheck</code>)</li>
+      <li>Accessibility: ARIA roles for messages, keyboard nav, focus management</li>
+      <li>Error boundary: add opt-in crash reporting (no chat content)</li>
+      <li>Finalize and sign off <code>PRODUCTION_CHECKLIST.md</code></li>
+    </ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="phase-header">
+    <div class="phase-num">5</div>
+    <div class="phase-name">Distribution &amp; Launch</div>
+    <div class="phase-timeline">1–2 weeks</div>
+  </div>
+  <div class="phase-goal">Goal: Users can discover, install, and update with zero friction.</div>
+  <div class="phase-body">
+    <ul>
+      <li>GitHub Releases: all platform artifacts correctly named + checksums attached</li>
+      <li>Landing page: update with current feature set + download buttons</li>
+      <li>Auto-update channel live (electron-updater → GitHub releases)</li>
+      <li>Docker image published to GitHub Container Registry (GHCR) with version tags</li>
+      <li>SEO: verify <code>VITE_PUBLIC_SITE_URL</code>, Open Graph tags, sitemap</li>
+      <li>Version bump workflow documented: <code>npm version patch/minor/major</code> + tag → pipeline</li>
+    </ul>
+  </div>
+</div>
+</section>
+
+<!-- S10 -->
+<section id="s10" class="pb">
+<h1 class="section-title">10. Distribution &amp; Release Plan</h1>
+
+<h2>Current Pipeline</h2>
+<pre>git tag v2.0.7 &amp;&amp; git push origin v2.0.7
+         │
+         ▼
+.github/workflows/release.yml
+  ├── build-linux-web  → AppImage + .deb + web-dist.zip
+  ├── build-windows    → NSIS .exe + zip
+  └── build-macos      → .dmg + zip
+         │
+         ▼
+publish job → single GitHub Release (all artifacts attached)</pre>
+
+<h2>Gaps &amp; Fixes</h2>
+<table>
+<tr><th>Gap</th><th>Fix</th><th>Priority</th></tr>
+<tr><td>llama-server not in artifacts</td><td>Add <code>extraResources</code> to electron-builder; build per-platform in CI</td><td><span class="badge badge-red">High</span></td></tr>
+<tr><td>macOS unsigned</td><td>Apple Developer cert + notarization in <code>build-macos</code> job (secrets: APPLE_ID, CSC_LINK…)</td><td><span class="badge badge-red">High</span></td></tr>
+<tr><td>Windows unsigned</td><td>Authenticode cert; document workflow as "coming soon" for now</td><td><span class="badge badge-yellow">Medium</span></td></tr>
+<tr><td>No auto-update feed</td><td><code>electron-updater</code> + <code>publish</code> config in electron-builder pointing at GitHub</td><td><span class="badge badge-red">High</span></td></tr>
+<tr><td>Docker not published</td><td>Add <code>docker/build-push</code> step in release workflow → GHCR</td><td><span class="badge badge-yellow">Medium</span></td></tr>
+<tr><td>No checksums</td><td>Add <code>sha256sum</code> step; attach <code>checksums.txt</code> to release</td><td><span class="badge badge-yellow">Medium</span></td></tr>
+<tr><td>Download page URL drift</td><td><code>releaseDownloads.ts</code> should read <code>package.json</code> version dynamically</td><td><span class="badge badge-yellow">Medium</span></td></tr>
+</table>
+
+<h2>Versioning Strategy</h2>
+<ul>
+  <li><strong>Patch</strong> (2.0.x): bug fixes, doc updates, minor UX tweaks</li>
+  <li><strong>Minor</strong> (2.x.0): new features, new providers, new workspaces</li>
+  <li><strong>Major</strong> (x.0.0): breaking changes — storage schema, API contract changes</li>
+</ul>
+</section>
+
+<!-- S11 -->
+<section id="s11" class="pb">
+<h1 class="section-title">11. Tech Debt &amp; Known Issues</h1>
+<table>
+<tr><th>Item</th><th>Severity</th><th>Location</th></tr>
+<tr><td><code>agentWorkflow.ts</code> exported but never imported</td><td><span class="badge badge-gray">Low</span></td><td><code>src/lib/agentWorkflow.ts</code></td></tr>
+<tr><td><code>PlaygroundShell.tsx</code> appears unused</td><td><span class="badge badge-gray">Low</span></td><td><code>src/components/PlaygroundShell.tsx</code></td></tr>
+<tr><td><code>src/pages/Index.tsx</code> dead re-export (nothing imports it)</td><td><span class="badge badge-gray">Low</span></td><td><code>src/pages/Index.tsx</code></td></tr>
+<tr><td><code>electron/README.md</code> says <code>preload.mjs</code> (should be <code>preload.cjs</code>)</td><td><span class="badge badge-yellow">Medium</span></td><td><code>electron/README.md</code></td></tr>
+<tr><td><code>PRODUCTION_CHECKLIST.md</code> Electron path item stale</td><td><span class="badge badge-yellow">Medium</span></td><td><code>PRODUCTION_CHECKLIST.md</code></td></tr>
+<tr><td>No CSP in Docker nginx config</td><td><span class="badge badge-red">High</span></td><td><code>docker/nginx-docker.conf</code></td></tr>
+<tr><td>IPC payloads: no Zod validation (trust renderer inputs)</td><td><span class="badge badge-yellow">Medium</span></td><td><code>electron/localGgufService.mjs</code></td></tr>
+<tr><td><code>ChatContext.tsx</code> ~900 lines; zero test coverage</td><td><span class="badge badge-red">High</span></td><td><code>src/context/ChatContext.tsx</code></td></tr>
+<tr><td>No single-instance lock in Electron</td><td><span class="badge badge-yellow">Medium</span></td><td><code>electron/main.mjs</code></td></tr>
+<tr><td>Download page release URLs may drift from actual releases</td><td><span class="badge badge-yellow">Medium</span></td><td><code>src/config/releaseDownloads.ts</code></td></tr>
+<tr><td><code>use-toast.ts</code> duplicated in hooks/ and components/ui/</td><td><span class="badge badge-gray">Low</span></td><td>Both locations</td></tr>
+<tr><td>No localStorage quota management; can fill up silently</td><td><span class="badge badge-yellow">Medium</span></td><td>ChatContext storage writes</td></tr>
+<tr><td>WebGPU WASM cold load (30–120s) with no meaningful progress</td><td><span class="badge badge-red">High</span></td><td>WebGpuPage, LocalOnDeviceModelBar</td></tr>
+</table>
+</section>
+
+<!-- S12 -->
+<section id="s12">
+<h1 class="section-title">12. Success Metrics</h1>
+
+<table>
+<tr><th>Metric</th><th>Current</th><th>Target (Phase 5)</th></tr>
+<tr><td>Core unit test files (lib/)</td><td>~22 files</td><td>32+ files incl. ChatContext</td></tr>
+<tr><td>Integration test flows</td><td>0</td><td>8 happy paths</td></tr>
+<tr><td>E2E scenarios</td><td>0</td><td>7</td></tr>
+<tr><td>Hidden workspace routes discoverable</td><td>0 / 3</td><td>3 / 3</td></tr>
+<tr><td>Electron macOS signed + notarized</td><td>No</td><td>Yes</td></tr>
+<tr><td>llama-server bundled in release</td><td>No</td><td>Yes (all platforms)</td></tr>
+<tr><td>Auto-update (Electron)</td><td>No</td><td>Yes</td></tr>
+<tr><td>CSP in Docker nginx</td><td>No</td><td>Yes</td></tr>
+<tr><td>WebGPU load progress feedback</td><td>Minimal</td><td>% + ETA shown</td></tr>
+</table>
+
+<h2>Release Readiness Checklist</h2>
+<ul class="checklist">
+  <li><code>npm run lint</code> passes</li>
+  <li><code>npm run test</code> passes (all unit tests)</li>
+  <li>E2E suite passes against latest build</li>
+  <li>macOS build signed + notarized</li>
+  <li>llama-server bundled for all platforms</li>
+  <li>CHANGELOG.md updated</li>
+  <li>Download page URLs match new release</li>
+  <li>PRODUCTION_CHECKLIST.md reviewed and signed off</li>
+  <li>Docker image builds and serves correctly</li>
+  <li>Version tag applied and pipeline green</li>
+</ul>
+</section>
+
+<div class="footer">
+  Openbentt Product Document · v2.0.6 · May 2026 · Generated from repository analysis
+</div>
+
+</body>
+</html>

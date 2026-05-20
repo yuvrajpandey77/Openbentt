@@ -24,7 +24,7 @@ import { ensureLocalGemmaLoaded } from "@/lib/gemmaWebGpu/localGemmaInference";
 import { DEFAULT_LOCAL_GEMMA_MODEL_ID, LOCAL_MODEL_CATALOG, type LocalModelEntry } from "@/lib/gemmaWebGpu/models";
 import { normalizeApiConfig, type LocalInferenceProfile } from "@/types/chat";
 import { useToast } from "@/components/ui/use-toast";
-import { Progress } from "@/components/ui/progress";
+import { ModelDownloadProgressBar } from "@/components/ModelDownloadProgressBar";
 
 const LABEL_BY_PROFILE: Record<LocalInferenceProfile, string> = {
   eco: "Eco (low RAM, shorter replies)",
@@ -179,13 +179,18 @@ const LocalOnDeviceModelBar: React.FC = () => {
 
             {/* Download progress */}
             {barPct != null && (
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-[11px] text-muted-foreground">
-                  <span>Downloading…</span>
-                  <span>{barPct}%</span>
-                </div>
-                <Progress value={barPct} className="h-1.5" />
-              </div>
+              <ModelDownloadProgressBar
+                title="Downloading model to cache…"
+                percentOnly
+                className="border-0 bg-transparent p-0"
+                progress={{
+                  percent: barPct,
+                  received: null,
+                  total: null,
+                  speedBps: null,
+                  etaSeconds: null,
+                }}
+              />
             )}
 
             {/* Consent checkbox */}

@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { readHfTokenMaybe } from "./hfSecretStore.mjs";
+import { assertGgufDownloadAllowed } from "./ggufGuardrails.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,7 +39,21 @@ export function getDiskFreeBytesApprox(dir) {
   try {
     const target = path.resolve(dir);
     if (process.platform === "win32") {
-      return null;
+      const root = path.parse(target).root;
+      const letter = root.replace(/[\\/:]/g, "").charAt(0);
+      if (!letter) return null;
+      const out = execFileSync(
+        "powershell",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          `(Get-PSDrive -Name '${letter}').Free`,
+        ],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 8000 }
+      );
+      const n = parseInt(String(out).trim(), 10);
+      return Number.isFinite(n) && n > 0 ? n : null;
     }
     const out = execFileSync("df", ["-B1", target], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
     const lines = out.trim().split("\n").filter(Boolean);
@@ -499,6 +514,12 @@ export function registerLocalGgufIpc(ipcMain, app) {
       await fsp.mkdir(filesDir, { recursive: true });
 
       const expectedSize = await hfHeadSize(repoId, revision, fileName).catch(() => 0);
+      assertGgufDownloadAllowed({
+        repoId,
+        fileName,
+        fileSizeBytes: expectedSize > 0 ? expectedSize : null,
+        maxParamB: payload?.maxParamB,
+      });
       const free = getDiskFreeBytesApprox(root);
       if (expectedSize > 0 && free !== null && free < expectedSize * 1.15 + 512 * 1024 * 1024) {
         throw new Error(`Not enough free disk space (need ~${Math.ceil(expectedSize / 1024 ** 3)} GiB plus headroom).`);

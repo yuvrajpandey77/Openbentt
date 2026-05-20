@@ -3,6 +3,15 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("openbenttDesktop", {
   platform: process.platform,
   isElectron: true,
+  getAppVersion: () => ipcRenderer.invoke("desktop:getAppVersion"),
+  checkForUpdates: () => ipcRenderer.invoke("desktop:checkForUpdates"),
+  downloadUpdate: () => ipcRenderer.invoke("desktop:downloadUpdate"),
+  installUpdate: () => ipcRenderer.invoke("desktop:installUpdate"),
+  onUpdateStatus: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on("desktop:updateStatus", handler);
+    return () => ipcRenderer.removeListener("desktop:updateStatus", handler);
+  },
 });
 
 contextBridge.exposeInMainWorld("openbenttLocalGguf", {

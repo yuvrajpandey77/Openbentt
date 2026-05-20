@@ -9,8 +9,10 @@ import { fetchHfDatasetCard, hfDatasetViewerUrl, type HfDatasetCard } from "@/li
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 import LocalGgufHub from "@/components/LocalGgufHub";
+import { isWebClient } from "@/config/platformSurface";
 
 const ResearchLabsPage: React.FC = () => {
+  const webClient = isWebClient();
   const { toast } = useToast();
   const [bibRaw, setBibRaw] = useState("");
   const [entries, setEntries] = useState<BibEntry[]>([]);
@@ -64,10 +66,11 @@ const ResearchLabsPage: React.FC = () => {
     <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
       <div className="mx-auto max-w-4xl space-y-8">
         <p className="text-sm text-muted-foreground">
-          BibTeX, citation graph, and HF cards — ask in the main composer for help; prompts include Labs context.
+          BibTeX, citation graph, and Hugging Face dataset cards — ask in the main composer for help.
         </p>
-        <LocalGgufHub />
+        {!webClient && <LocalGgufHub />}
 
+        {!webClient && (
         <Card className="space-y-3 p-4">
           <h2 className="font-semibold">WebGPU</h2>
           <p className="text-sm text-muted-foreground">
@@ -76,6 +79,7 @@ const ResearchLabsPage: React.FC = () => {
             server.
           </p>
         </Card>
+        )}
 
         <Card className="p-4 space-y-3">
           <h2 className="font-semibold">Zotero / BibTeX import</h2>
