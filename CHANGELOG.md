@@ -50,6 +50,28 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [2.0.8] — 2026-05-20
+
+### Added
+
+- **Desktop research persistence (SQLite v4):** Composite `corpus_chunks` keys, debounced draft save → background rechunk, SQLite-only project index on desktop.
+- **Main-process embedding jobs:** Shared `embedCore.mjs`, incremental embed/prune, batched vector load (vectors stay in SQLite, not React state).
+- **Research orchestrator:** Notebook writing/citation prompts use hybrid corpus retrieval + model routing hints.
+- **Testing:** Electron IPC smoke, failure tests (corrupt DB, cancel embed/rechunk), `verify:release` gate; Playwright e2e in CI.
+- **Production hardening:** `docs/THREAT_MODEL.md`, Electron security lint, debounced DB backups, Ctrl+S snapshot, Zotero apply-after-sync UX.
+- **Release:** `latest*.yml` for auto-update; `npm run verify:release` / optional `verify:release:pack`.
+
+### Changed
+
+- Unified draft save indicator in workspace chrome; honest similarity/synthesis labels (lexical vs MiniLM).
+- Staged research DB init (non-blocking app shell); web Zotero creds cleared on desktop connect.
+
+### Fixed
+
+- Embed worker illegal top-level return; DB auto-recovery on corrupt open; rechunk race when job pending.
+
+---
+
 ## [Unreleased]
 
 ### Added (prior work merged into 2.0.6)

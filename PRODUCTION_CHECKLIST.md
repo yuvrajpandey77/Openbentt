@@ -15,8 +15,16 @@ Use this before tagging a release or deploying. Mark items as you complete them.
 ## Configuration & secrets
 
 - [ ] **OpenRouter**: production keys only via in-app Settings; never commit keys
-- [ ] **Vercel / host**: environment variables set (`VITE_PUBLIC_SITE_URL`, optional `VITE_LATEX_COMPILE_URL`, `VITE_LATEX_REMOTE`, `VITE_RESEARCH_PROXY_URL`)
-- [ ] **Download page**: `VITE_GITHUB_REPO=owner/repo` and optional `VITE_DESKTOP_ASSET_VERSION` match published release filenames (see `.env.example`)
+- [ ] **Vercel / host** — set in **Project → Settings → Environment Variables** (Production + Preview), then **Redeploy**:
+  | Variable | Example | When to update |
+  |----------|---------|----------------|
+  | `VITE_PUBLIC_SITE_URL` | `https://openbentt.vercel.app` | Once per domain |
+  | `VITE_GITHUB_REPO` | `yuvrajpandey77/SecuredChatCogerphere` | If fork/self-host |
+  | `VITE_DESKTOP_ASSET_VERSION` | `2.0.8` | **Every release tag** (must match `package.json` / GitHub asset names) |
+  | `VITE_RESEARCH_PROXY_URL` | optional proxy base URL | If using hosted research proxy |
+  | `VITE_LATEX_COMPILE_URL` | optional compile API | If not using WASM-only Notebook |
+  | `VITE_LATEX_REMOTE` | `1` | When forcing HTTP LaTeX compile |
+- [ ] **Download page**: after GitHub Release CI finishes, confirm `/download` links resolve (depends on `VITE_DESKTOP_ASSET_VERSION`)
 - [ ] **Research proxy**: `BRAVE_SEARCH_API_KEY` set only in Docker / host env if Brave search is required; **not** a `VITE_*` var so it never lands in the bundle
 - [ ] **CSP / headers**: reverse proxy ok (nginx sets `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`). Add a stricter CSP at the edge if your deployment allows it (WASM + dynamic imports require permissive `script-src`/`worker-src`)
 
