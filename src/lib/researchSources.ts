@@ -1,4 +1,5 @@
 import type { ApiKeyConfig, ResearchDepth } from "@/types/chat";
+import { isNetworkResearchAllowed, loadPrivacyPreferences } from "@/lib/privacy/privacyPreferences";
 import type { ResearchSourceRef } from "@/types/chat";
 import type { AgentTraceStep } from "@/types/chat";
 import { fetchResearchViaProxy } from "@/lib/researchProxyClient";
@@ -242,6 +243,14 @@ export async function gatherResearchContext(
   cfg: ApiKeyConfig,
   signal?: AbortSignal
 ): Promise<GatherResearchResult> {
+  if (!isNetworkResearchAllowed(loadPrivacyPreferences(), cfg.offlineFirst)) {
+    return {
+      contextBlock: "",
+      sources: [],
+      warnings: ["Network research is disabled (Privacy → Local-only mode)."],
+      agentTrace: [{ step: "privacy", detail: "local-only: research fetch skipped" }],
+    };
+  }
   const lim = getResearchLimits(cfg.researchDepth);
   const sources: ResearchSourceRef[] = [];
   const parts: string[] = [];

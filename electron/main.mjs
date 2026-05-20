@@ -13,7 +13,20 @@ import {
   setLocalGgufProgressTarget,
 } from "./localGgufService.mjs";
 import { registerHfSecretIpc } from "./hfSecretStore.mjs";
+import { registerSecretVaultIpc } from "./secretVault.mjs";
 import { registerDesktopUpdaterIpc, setUpdaterTargetWindow } from "./updater.mjs";
+import {
+  initResearchStorage,
+  registerResearchProjectIpc,
+  shutdownResearchServices,
+} from "./researchProjectService.mjs";
+import {
+  cleanupZoteroOnQuit,
+  registerZoteroIpc,
+  setZoteroProgressTarget,
+} from "./zoteroService.mjs";
+import { registerZoteroSecretIpc } from "./zoteroSecretStore.mjs";
+import { resolveUnderDistRoot } from "./ipcValidate.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -120,13 +133,13 @@ function registerAppProtocolHandler() {
     if (pathname === "/" || pathname === "") {
       pathname = "/index.html";
     }
-    let filePath = path.join(distRoot, pathname);
+    let filePath = resolveUnderDistRoot(distRoot, pathname);
     try {
       if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-        filePath = path.join(distRoot, "index.html");
+        filePath = path.join(path.resolve(distRoot), "index.html");
       }
     } catch {
-      filePath = path.join(distRoot, "index.html");
+      filePath = path.join(path.resolve(distRoot), "index.html");
     }
     return net.fetch(pathToFileURL(filePath).href);
   });
@@ -161,6 +174,7 @@ function createWindow() {
 
   win.once("ready-to-show", () => win.show());
   setLocalGgufProgressTarget(win);
+  setZoteroProgressTarget(win);
   setUpdaterTargetWindow(win);
 
   if (useViteDevServer) {
@@ -186,10 +200,15 @@ if (singleInstanceLock) {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   registerDesktopUpdaterIpc();
   registerHfSecretIpc(ipcMain, app);
+  registerSecretVaultIpc(ipcMain, app);
   registerLocalGgufIpc(ipcMain, app);
+  registerResearchProjectIpc(ipcMain, app);
+  registerZoteroSecretIpc(ipcMain, app);
+  registerZoteroIpc(ipcMain, app);
+  await initResearchStorage(app);
   if (!useViteDevServer) {
     registerAppProtocolHandler();
   }
@@ -201,7 +220,14 @@ app.whenReady().then(() => {
 });
 
 app.on("before-quit", () => {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send("research:beforeQuit");
+    }
+  }
   cleanupLocalGgufOnQuit();
+  cleanupZoteroOnQuit();
+  shutdownResearchServices();
 });
 
 app.on("window-all-closed", () => {

@@ -21,8 +21,8 @@ const ALL_WORKSPACE_NAV_ITEMS: WorkspaceNavItem[] = [
   },
   {
     to: "/labs",
-    label: "Research labs",
-    description: "BibTeX, citation graph, HF datasets (desktop: local GGUF hub)",
+    label: "Library",
+    description: "Papers, bibliography, synthesis, local GGUF (desktop)",
     Icon: FlaskConical,
     web: false,
   },

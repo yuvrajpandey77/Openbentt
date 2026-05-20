@@ -1,4 +1,20 @@
 /** Extract plaintext from PDF in the browser (pdf.js). */
+import { sanitizeDocumentTextForPrompt } from "@/lib/security/documentPromptGuard";
+
+async function loadPdfJs() {
+  const isBrowser = typeof window !== "undefined";
+  const pdfjs = await import(
+    isBrowser ? "pdfjs-dist" : "pdfjs-dist/legacy/build/pdf.mjs"
+  );
+  const isVitest = import.meta.env.VITEST === true || import.meta.env.VITEST === "true";
+  if (!isVitest) {
+    const workerRel = isBrowser
+      ? "pdfjs-dist/build/pdf.worker.min.mjs"
+      : "pdfjs-dist/legacy/build/pdf.worker.mjs";
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL(workerRel, import.meta.url).toString();
+  }
+  return pdfjs;
+}
 
 /** Chat composer attachment: text merged into the user message (balance context vs payload). */
 export const MAX_CHARS_CHAT_PDF = 96_000;
@@ -61,12 +77,10 @@ export async function extractTextFromPdfFile(
   maxChars: number = MAX_CHARS_CHAT_PDF,
   maxPages: number = MAX_PAGES_CHAT_PDF
 ): Promise<string> {
-  const pdfjs = await import("pdfjs-dist");
-  const workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
-  pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+  const pdfjs = await loadPdfJs();
 
   const buf = await file.arrayBuffer();
-  const loading = pdfjs.getDocument({ data: new Uint8Array(buf.slice(0)) });
+  const loading = pdfjs.getDocument({ data: new Uint8Array(buf) });
   let doc: Awaited<ReturnType<typeof loading.promise>> | null = null;
   try {
     doc = await loading.promise;
@@ -86,7 +100,7 @@ export async function extractTextFromPdfFile(
     if (doc.numPages > maxPages || hitChar) {
       result += `\n\n[Note: PDF text truncated for chat — up to ${maxPages} page(s) and ${maxChars.toLocaleString()} characters.]`;
     }
-    return result;
+    return sanitizeDocumentTextForPrompt(result).text;
   } finally {
     await destroyPdfDocument(doc);
   }
@@ -96,17 +110,21 @@ export async function extractTextFromPdfFile(
  * Notebook Source: layout-aware extraction with `--- PDF PAGE i / n ---` markers.
  * Preserves line breaks and reading order so edits track structure; Compile maps each block to an output page.
  */
+async function pdfBytesFromInput(file: File | ArrayBuffer): Promise<Uint8Array> {
+  if (file instanceof ArrayBuffer) return new Uint8Array(file.slice(0));
+  const buf = await file.arrayBuffer();
+  return new Uint8Array(buf.slice(0));
+}
+
 export async function extractNotebookSourceFromPdf(
-  file: File,
+  file: File | ArrayBuffer,
   maxChars: number = MAX_CHARS_NOTEBOOK,
   maxPages: number = MAX_PAGES_NOTEBOOK
 ): Promise<string> {
-  const pdfjs = await import("pdfjs-dist");
-  const workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
-  pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+  const pdfjs = await loadPdfJs();
 
-  const buf = await file.arrayBuffer();
-  const loading = pdfjs.getDocument({ data: new Uint8Array(buf.slice(0)) });
+  const buf = await pdfBytesFromInput(file);
+  const loading = pdfjs.getDocument({ data: buf });
   let doc: Awaited<ReturnType<typeof loading.promise>> | null = null;
   try {
     doc = await loading.promise;
@@ -136,7 +154,7 @@ export async function extractNotebookSourceFromPdf(
     if (lenBeforeSlice > maxChars) {
       out += `\n\n[Note: Source truncated at ${maxChars.toLocaleString()} characters — open Source to edit or paste more.]`;
     }
-    return out;
+    return sanitizeDocumentTextForPrompt(out).text;
   } finally {
     await destroyPdfDocument(doc);
   }

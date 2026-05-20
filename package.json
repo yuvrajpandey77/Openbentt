@@ -1,7 +1,7 @@
 {
   "name": "openbentt",
   "productName": "Openbentt",
-  "description": "Local-first OpenRouter chat and workspaces (web + optional desktop shell).",
+  "description": "Desktop-first local-first AI workspace (Electron) with optional web OpenRouter chat and Notebook.",
   "author": {
     "name": "Openbentt contributors",
     "email": "openbentt-contributors@users.noreply.github.com"
@@ -18,7 +18,9 @@
     "preview": "vite preview",
     "test": "vitest run && npm run test:electron",
     "test:unit": "vitest run",
-    "test:electron": "node --test electron/llamaBinary.test.mjs",
+    "test:electron": "node --test electron/llamaBinary.test.mjs electron/researchDb.test.mjs electron/researchVectorStore.test.mjs electron/researchJobQueue.test.mjs electron/researchWorkers/chunkWorker.test.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
     "test:watch": "vitest",
     "research-proxy": "node server/research-proxy.mjs",
     "latex-compile": "node server/latex-compile.mjs",
@@ -73,9 +75,11 @@
     "@radix-ui/react-tooltip": "^1.1.4",
     "@react-oauth/google": "^0.12.1",
     "@tanstack/react-query": "^5.56.2",
+    "@tanstack/react-virtual": "^3.13.24",
     "@types/uuid": "^10.0.0",
     "@vercel/analytics": "^1.5.0",
     "@xenova/transformers": "^2.17.2",
+    "citation-js": "^0.7.22",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
@@ -114,6 +118,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/typography": "^0.5.15",
     "@types/diff": "^8.0.0",
     "@types/katex": "^0.16.8",

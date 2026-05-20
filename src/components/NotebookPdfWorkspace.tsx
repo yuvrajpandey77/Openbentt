@@ -44,6 +44,8 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useResearchWorkspaceOptional } from "@/context/ResearchWorkspaceContext";
+import { useResearchProject } from "@/context/ResearchProjectContext";
 
 type MainTab = "preview" | "source";
 /** Which PDF bytes drive the canvas — original upload vs text-compiled (images/layout only on Original). */
@@ -54,8 +56,31 @@ const ZOOM_MAX = 2.25;
 const ZOOM_STEP = 0.15;
 const ZOOM_DEFAULT = 1.1;
 
-const NotebookPdfWorkspace: React.FC = () => {
+type NotebookPdfWorkspaceProps = {
+  projectDraftTex?: string;
+  onProjectDraftChange?: (tex: string) => void;
+  /** Hide duplicate toolbar when embedded in unified research workspace. */
+  compactChrome?: boolean;
+};
+
+function parseSectionHeadings(tex: string): { label: string; line: number }[] {
+  const headings: { label: string; line: number }[] = [];
+  const lines = tex.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/\\(section|subsection|chapter)\*?\{([^}]+)\}/);
+    if (m) headings.push({ label: m[2].trim(), line: i });
+  }
+  return headings;
+}
+
+const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
+  projectDraftTex,
+  onProjectDraftChange,
+  compactChrome = false,
+}) => {
   const { toast } = useToast();
+  const workspace = useResearchWorkspaceOptional();
+  const { project: researchProject, updateProject: updateResearchProject } = useResearchProject();
   const {
     chats,
     currentChatId,
@@ -69,7 +94,7 @@ const NotebookPdfWorkspace: React.FC = () => {
   const [fileName, setFileName] = useState<string | null>(null);
   const [originalBytes, setOriginalBytes] = useState<ArrayBuffer | null>(null);
   const [compiledBytes, setCompiledBytes] = useState<ArrayBuffer | null>(null);
-  const [sourceText, setSourceText] = useState("");
+  const [sourceText, setSourceText] = useState(projectDraftTex ?? "");
   const [proposedText, setProposedText] = useState<string | null>(null);
   const [lineInclude, setLineInclude] = useState<boolean[]>([]);
   const [mainTab, setMainTab] = useState<MainTab>("preview");
@@ -101,6 +126,50 @@ const NotebookPdfWorkspace: React.FC = () => {
   useEffect(() => {
     pdfScaleRef.current = pdfScale;
   }, [pdfScale]);
+
+  const syncingFromProject = useRef(false);
+
+  useEffect(() => {
+    if (projectDraftTex == null) return;
+    if (projectDraftTex === sourceText) return;
+    syncingFromProject.current = true;
+    setSourceText(projectDraftTex);
+  }, [projectDraftTex, sourceText]);
+
+  useEffect(() => {
+    if (syncingFromProject.current) {
+      syncingFromProject.current = false;
+      return;
+    }
+    workspace?.setSaveStatus("saving");
+    onProjectDraftChange?.(sourceText);
+    const t = window.setTimeout(() => workspace?.setSaveStatus("saved"), 600);
+    return () => window.clearTimeout(t);
+  }, [sourceText, onProjectDraftChange, workspace]);
+
+  useEffect(() => {
+    workspace?.setSectionHeadings(parseSectionHeadings(sourceText));
+  }, [sourceText, workspace]);
+
+  const debouncedSourceForHistory = useDebouncedValue(sourceText, 800);
+
+  useEffect(() => {
+    if (!workspace) return;
+    workspace.pushDraftHistory(debouncedSourceForHistory);
+  }, [debouncedSourceForHistory, workspace]);
+
+  useEffect(() => {
+    const onUndo = (e: Event) => {
+      const tex = (e as CustomEvent<string>).detail;
+      if (typeof tex === "string") setSourceText(tex);
+    };
+    window.addEventListener("openbentt-draft-undo", onUndo);
+    window.addEventListener("openbentt-draft-redo", onUndo);
+    return () => {
+      window.removeEventListener("openbentt-draft-undo", onUndo);
+      window.removeEventListener("openbentt-draft-redo", onUndo);
+    };
+  }, []);
 
   const isLatexSource = useMemo(() => isLatexDocumentSource(sourceText), [sourceText]);
 
@@ -476,6 +545,58 @@ const NotebookPdfWorkspace: React.FC = () => {
     setProposedText(extracted);
     toast({ title: "Proposal loaded", description: "Review panel → fenced ```latex blocks unwrapped." });
   };
+
+  useEffect(() => {
+    if (!workspace) return;
+    workspace.registerNotebookActions({
+      compilePdf: () => void compilePdf(),
+      openPdf: () => fileRef.current?.click(),
+      openTex: () => texRef.current?.click(),
+      loadLastReplyToReview: () => pullLastAssistant(),
+      focusSource: () => setMainTab("source"),
+      focusPreview: () => setMainTab("preview"),
+      insertCitation: (key) => {
+        const k = key ?? researchProject?.bibEntries[0]?.key;
+        if (!k || !researchProject) return;
+        const insert = `\\cite{${k}}`;
+        const tex = researchProject.draftTex.includes(insert)
+          ? researchProject.draftTex
+          : researchProject.draftTex.replace(/\\end\{document\}/, `${insert}\n\\end{document}`);
+        void updateResearchProject({ draftTex: tex });
+      },
+      compareDrafts: () => {
+        if (proposedText) {
+          setMainTab("source");
+          return;
+        }
+        pullLastAssistant();
+      },
+      openPaperPicker: () => window.dispatchEvent(new CustomEvent("openbentt-open-paper-picker")),
+    });
+  }, [
+    workspace,
+    researchProject,
+    proposedText,
+    updateResearchProject,
+    lastAssistantPlain,
+    sourceText,
+  ]);
+
+  const sourceTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const line = workspace?.focusSectionLine;
+    if (line == null) return;
+    setMainTab("source");
+    const el = sourceTextareaRef.current;
+    if (!el) return;
+    const lines = sourceText.split("\n");
+    let pos = 0;
+    for (let i = 0; i < line && i < lines.length; i++) pos += lines[i].length + 1;
+    el.focus();
+    el.setSelectionRange(pos, pos);
+    workspace.clearFocusSection();
+  }, [workspace?.focusSectionLine, sourceText, workspace]);
 
   const applyLastReplyAndPreview = async () => {
     if (!lastAssistantPlain.trim()) {
@@ -864,11 +985,13 @@ const NotebookPdfWorkspace: React.FC = () => {
               </p>
             )}
             <Textarea
+              ref={sourceTextareaRef}
               value={sourceText}
               onChange={(e) => setSourceText(e.target.value)}
-              className="min-h-0 flex-1 resize-none border-border/60 font-mono text-xs leading-relaxed"
+              className="min-h-0 flex-1 resize-none border-border/60 font-mono text-xs leading-relaxed focus-visible:ring-2 focus-visible:ring-ring"
               placeholder={`Full LaTeX (\\documentclass …) or plain text with page markers.`}
               spellCheck={false}
+              aria-label="LaTeX source editor"
             />
           </div>
         )}
@@ -879,6 +1002,7 @@ const NotebookPdfWorkspace: React.FC = () => {
   return (
     <TooltipProvider delayDuration={400}>
       <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/80 shadow-sm">
+        {!compactChrome && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 bg-card/95 px-2 py-2 sm:px-3">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -990,6 +1114,22 @@ const NotebookPdfWorkspace: React.FC = () => {
             )}
           </div>
         </div>
+        )}
+        {compactChrome && (
+          <div className="flex shrink-0 items-center justify-end gap-0.5 border-b border-border/50 bg-muted/20 px-2 py-1">
+            <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => void onPickPdf(e)} />
+            <input ref={texRef} type="file" accept=".tex,text/plain" className="hidden" onChange={(e) => void onPickTex(e)} />
+            <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" disabled={busy} onClick={() => fileRef.current?.click()}>
+              PDF
+            </Button>
+            <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" disabled={busy} onClick={() => void compilePdf()}>
+              {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : "Compile"}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={pullLastAssistant} disabled={!lastAssistantPlain.trim()}>
+              Review
+            </Button>
+          </div>
+        )}
 
         {showReviewPanel ? (
           <ResizablePanelGroup

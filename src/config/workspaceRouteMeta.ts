@@ -29,13 +29,12 @@ When the user wants a proper book or **research paper** (arXiv-style or PDF), st
 When the user wants a proper book or paper, prefer **complete .tex** (fenced) and remind them that LaTeX **Compile** needs the pdflatex service when applicable.`,
   },
   "/labs": {
-    tag: "Labs",
-    title: "Research labs",
-    subtitle:
-      "BibTeX, citation graph, Hugging Face dataset cards — in-app GGUF downloads planned (see docs/local-model-lab-roadmap.md).",
+    tag: "Library",
+    title: "Research library",
+    subtitle: "Upload PDFs, manage bibliography, run cross-paper synthesis; desktop adds GGUF hub and finetune export.",
     composerPlaceholder:
-      "Ask about papers, BibTeX, citation links, or HF datasets you loaded in this page…",
-    systemAssist: `The user is in **Research labs**: BibTeX parsing, mini citation graphs, and Hugging Face dataset card previews may be relevant. Help summarize literature, suggest related work, debug BibTeX, and interpret dataset metadata. Be precise about what is inferred vs loaded.`,
+      "Ask about papers in the library, BibTeX, synthesis themes, or local models…",
+    systemAssist: `The user is in the **Library**: project papers (PDF text extracted locally), bibliography, cross-paper synthesis, and on desktop local GGUF. Help with literature summaries, BibTeX, and corpus-aware suggestions. Be precise about what is in the loaded project vs inferred.`,
   },
   "/write": {
     tag: "LaTeX",

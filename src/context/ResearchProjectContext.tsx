@@ -1,0 +1,486 @@
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { ResearchProjectData, ResearchProjectSummary } from "@/types/researchProject";
+import {
+  addPaperToProject,
+  createResearchProject,
+  deleteResearchProject,
+  getActiveProjectId,
+  loadResearchProject,
+  listResearchProjects,
+  patchProjectBibliography,
+  patchProjectDraft,
+  saveProjectEmbeddingsOnly,
+  saveResearchProject,
+  setActiveProjectId,
+} from "@/lib/research/projectStore";
+import { buildCorpusChunks } from "@/lib/research/corpusIndex";
+import { arrayBufferToBase64 } from "@/lib/research/base64";
+import { extractNotebookSourceFromPdf } from "@/lib/pdfText";
+import { inferPdfMetadata } from "@/lib/research/citationTools";
+import { extractPdfReviewAnnotations } from "@/lib/pdfAnnotations";
+import { startSemanticIndexRebuild } from "@/lib/research/semanticIndexRebuild";
+import type { EmbeddingIndexProgress } from "@/lib/research/embeddingIndex";
+import { loadIndexCheckpoint } from "@/lib/research/indexCheckpoint";
+import {
+  assessProjectPressure,
+  LIMITS,
+  type ProjectPressure,
+} from "@/lib/research/projectLimits";
+import {
+  createProjectSnapshot,
+  enqueueResearchJob,
+  initResearchDesktop,
+  onBeforeQuitSnapshot,
+  onResearchJobProgress,
+} from "@/lib/research/researchDesktopApi";
+import { useToast } from "@/components/ui/use-toast";
+import { isDesktopApp } from "@/lib/isDesktopApp";
+
+type BackgroundJobStatus = {
+  jobId: string;
+  type: string;
+  status: string;
+  progress: number;
+  message?: string;
+};
+
+export type DraftSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
+
+type ResearchProjectContextValue = {
+  projects: ResearchProjectSummary[];
+  project: ResearchProjectData | null;
+  loading: boolean;
+  draftSaveStatus: DraftSaveStatus;
+  projectPressure: ProjectPressure | null;
+  semanticIndexProgress: EmbeddingIndexProgress | null;
+  semanticIndexRebuilding: boolean;
+  backgroundJob: BackgroundJobStatus | null;
+  refreshProjects: () => Promise<void>;
+  selectProject: (id: string) => Promise<void>;
+  createProject: (title: string) => Promise<void>;
+  removeProject: (id: string) => Promise<void>;
+  updateProject: (patch: Partial<ResearchProjectData>) => Promise<void>;
+  setDraftTex: (tex: string) => void;
+  setBibliography: (bib: string) => void;
+  setTargetVenue: (venue: ResearchProjectData["targetVenue"]) => Promise<void>;
+  uploadPaperPdf: (file: File) => Promise<void>;
+  linkThread: (threadId: string) => Promise<void>;
+  recordModelAttribution: (model: string, section: string) => Promise<void>;
+  rebuildSemanticIndex: () => void;
+  cancelSemanticIndexRebuild: () => void;
+  createSnapshot: (reason?: string) => Promise<void>;
+};
+
+const ResearchProjectContext = createContext<ResearchProjectContextValue | null>(null);
+
+const DRAFT_DEBOUNCE_MS = 800;
+
+export function ResearchProjectProvider({ children }: { children: React.ReactNode }) {
+  const { toast } = useToast();
+  const [projects, setProjects] = useState<ResearchProjectSummary[]>([]);
+  const [project, setProject] = useState<ResearchProjectData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [draftSaveStatus, setDraftSaveStatus] = useState<DraftSaveStatus>("idle");
+  const [semanticIndexProgress, setSemanticIndexProgress] = useState<EmbeddingIndexProgress | null>(
+    null
+  );
+  const [semanticIndexRebuilding, setSemanticIndexRebuilding] = useState(false);
+  const [backgroundJob, setBackgroundJob] = useState<BackgroundJobStatus | null>(null);
+  const rebuildRef = useRef<ReturnType<typeof startSemanticIndexRebuild> | null>(null);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftPendingRef = useRef<string | null>(null);
+
+  const projectPressure = useMemo(
+    () => (project ? assessProjectPressure(project) : null),
+    [project]
+  );
+
+  const refreshProjects = useCallback(async () => {
+    const list = await listResearchProjects();
+    setProjects(list);
+  }, []);
+
+  const loadActive = useCallback(async () => {
+    const activeId = await getActiveProjectId();
+    if (!activeId) {
+      setProject(null);
+      return;
+    }
+    const p = await loadResearchProject(activeId);
+    setProject(p);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      if (isDesktopApp()) {
+        try {
+          await initResearchDesktop();
+        } catch {
+          /* non-fatal */
+        }
+      }
+      await refreshProjects();
+      const list = await listResearchProjects();
+      if (list.length === 0) {
+        const created = await createResearchProject("My research");
+        setProject(created);
+      } else {
+        await loadActive();
+        if (!(await getActiveProjectId())) {
+          await setActiveProjectId(list[0].id);
+          setProject(await loadResearchProject(list[0].id));
+        }
+      }
+      setLoading(false);
+    })();
+  }, [loadActive, refreshProjects]);
+
+  useEffect(() => {
+    if (!isDesktopApp() || !project) return;
+    return onResearchJobProgress((payload) => {
+      if (payload.projectId !== project.id) return;
+      setBackgroundJob({
+        jobId: payload.jobId,
+        type: "background",
+        status: payload.status,
+        progress: payload.progress,
+        message: payload.message,
+      });
+      if (payload.status === "completed" || payload.status === "failed") {
+        window.setTimeout(() => setBackgroundJob(null), 4000);
+      }
+    });
+  }, [project?.id]);
+
+  useEffect(() => {
+    if (!isDesktopApp()) return;
+    return onBeforeQuitSnapshot(() => {
+      if (project?.id) void createProjectSnapshot(project.id, "before-quit");
+    });
+  }, [project?.id]);
+
+  const cancelSemanticIndexRebuildInner = useCallback(() => {
+    rebuildRef.current?.abort();
+    rebuildRef.current = null;
+    setSemanticIndexRebuilding(false);
+    setSemanticIndexProgress(null);
+  }, []);
+
+  const cancelSemanticIndexRebuild = useCallback(() => {
+    cancelSemanticIndexRebuildInner();
+  }, [cancelSemanticIndexRebuildInner]);
+
+  const maybeResumeIndexing = useCallback(
+    (p: ResearchProjectData | null) => {
+      if (!p) return;
+      const cp = loadIndexCheckpoint(p.id);
+      const lib = p.chunks.filter((c) => c.paperId !== "draft");
+      const embedded = Object.keys(p.chunkEmbeddings ?? {}).filter((k) => k !== "__query__").length;
+      if (cp && cp.doneIds.length < cp.total && embedded < lib.length) {
+        toast({
+          title: "Resuming semantic index",
+          description: `${cp.doneIds.length}/${cp.total} passages already embedded.`,
+        });
+        runSemanticRebuildRef.current?.(p.chunks, p.id);
+      }
+    },
+    [toast]
+  );
+
+  const runSemanticRebuildRef = useRef<(chunks: ResearchProjectData["chunks"], projectId: string) => void>(
+    () => {}
+  );
+
+  const selectProject = useCallback(
+    async (id: string) => {
+      cancelSemanticIndexRebuildInner();
+      await setActiveProjectId(id);
+      const p = await loadResearchProject(id);
+      setProject(p);
+      maybeResumeIndexing(p);
+    },
+    [cancelSemanticIndexRebuildInner, maybeResumeIndexing]
+  );
+
+  const persist = useCallback(
+    async (data: ResearchProjectData) => {
+      const saved = await saveResearchProject(data);
+      setProject(saved);
+      await refreshProjects();
+      return saved;
+    },
+    [refreshProjects]
+  );
+
+  const runSemanticRebuild = useCallback(
+    (chunks: ResearchProjectData["chunks"], projectId: string) => {
+      if (chunks.filter((c) => c.paperId !== "draft").length === 0) return;
+      cancelSemanticIndexRebuildInner();
+      setSemanticIndexRebuilding(true);
+      const job = startSemanticIndexRebuild(chunks, projectId, setSemanticIndexProgress);
+      rebuildRef.current = job;
+      void job.promise
+        .then(async (vectors) => {
+          if (!vectors) return;
+          await saveProjectEmbeddingsOnly(projectId, vectors);
+          const current = await loadResearchProject(projectId);
+          if (!current) return;
+          setProject({ ...current, chunkEmbeddings: vectors });
+          toast({
+            title: "Semantic index ready",
+            description: `${Object.keys(vectors).length} passages embedded.`,
+          });
+        })
+        .catch((e) => {
+          if (e instanceof DOMException && e.name === "AbortError") return;
+          const cp = loadIndexCheckpoint(projectId);
+          toast({
+            title: "Semantic index failed",
+            description:
+              (e instanceof Error ? e.message : "error") +
+              (cp ? " — partial progress saved; retry to resume." : ""),
+            variant: "destructive",
+          });
+        })
+        .finally(() => {
+          rebuildRef.current = null;
+          setSemanticIndexRebuilding(false);
+          setSemanticIndexProgress(null);
+        });
+    },
+    [cancelSemanticIndexRebuildInner, toast]
+  );
+
+  runSemanticRebuildRef.current = runSemanticRebuild;
+
+  useEffect(() => {
+    if (project && loadIndexCheckpoint(project.id)) {
+      maybeResumeIndexing(project);
+    }
+  }, [project?.id, maybeResumeIndexing]);
+
+  const rebuildSemanticIndex = useCallback(() => {
+    if (!project) return;
+    runSemanticRebuild(project.chunks, project.id);
+  }, [project, runSemanticRebuild]);
+
+  const createProject = useCallback(
+    async (title: string) => {
+      const p = await createResearchProject(title);
+      setProject(p);
+      await refreshProjects();
+      toast({ title: "Project created", description: p.title });
+    },
+    [refreshProjects, toast]
+  );
+
+  const removeProject = useCallback(
+    async (id: string) => {
+      await deleteResearchProject(id);
+      await refreshProjects();
+      await loadActive();
+      toast({ title: "Project removed" });
+    },
+    [loadActive, refreshProjects, toast]
+  );
+
+  const updateProject = useCallback(
+    async (patch: Partial<ResearchProjectData>) => {
+      if (!project) return;
+      const next = { ...project, ...patch };
+      if (patch.papers || patch.draftTex) {
+        if (isDesktopApp() && patch.papers) {
+          await enqueueResearchJob(project.id, "rechunk", {
+            papers: next.papers.map((p) => ({
+              id: p.id,
+              fileName: p.fileName,
+              extractedText: p.extractedText,
+            })),
+            draftTex: next.draftTex,
+          });
+        }
+        next.chunks = buildCorpusChunks(
+          next.papers.map((p) => ({ id: p.id, fileName: p.fileName, extractedText: p.extractedText })),
+          next.draftTex
+        );
+        if (patch.papers) {
+          next.chunkEmbeddings = undefined;
+          runSemanticRebuild(next.chunks, next.id);
+        }
+      }
+      await persist(next);
+    },
+    [persist, project, runSemanticRebuild]
+  );
+
+  const flushDraft = useCallback(async (projectId: string, tex: string) => {
+    setDraftSaveStatus("saving");
+    try {
+      await patchProjectDraft(projectId, tex);
+      const loaded = await loadResearchProject(projectId);
+      if (loaded) setProject(loaded);
+      setDraftSaveStatus("saved");
+      window.setTimeout(() => setDraftSaveStatus((s) => (s === "saved" ? "idle" : s)), 2000);
+    } catch {
+      setDraftSaveStatus("error");
+    }
+  }, []);
+
+  const setDraftTex = useCallback(
+    (tex: string) => {
+      if (!project) return;
+      if (tex.length > LIMITS.maxDraftChars) {
+        toast({
+          title: "Draft too large",
+          description: `Maximum ${LIMITS.maxDraftChars.toLocaleString()} characters.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      setProject((p) => (p ? { ...p, draftTex: tex } : p));
+      setDraftSaveStatus("dirty");
+      draftPendingRef.current = tex;
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+      draftTimerRef.current = setTimeout(() => {
+        const pending = draftPendingRef.current;
+        if (pending != null) void flushDraft(project.id, pending);
+      }, DRAFT_DEBOUNCE_MS);
+    },
+    [flushDraft, project, toast]
+  );
+
+  const bibTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const setBibliography = useCallback(
+    (bib: string) => {
+      if (!project) return;
+      setProject((p) => (p ? { ...p, bibliography: bib } : p));
+      if (bibTimerRef.current) clearTimeout(bibTimerRef.current);
+      bibTimerRef.current = setTimeout(() => {
+        void patchProjectBibliography(project.id, bib);
+      }, DRAFT_DEBOUNCE_MS);
+    },
+    [project]
+  );
+
+  const createSnapshot = useCallback(
+    async (reason = "manual") => {
+      if (!project) return;
+      const snap = await createProjectSnapshot(project.id, reason);
+      if (snap) {
+        toast({ title: "Snapshot saved", description: snap.createdAt });
+      }
+    },
+    [project, toast]
+  );
+
+  const value = useMemo<ResearchProjectContextValue>(
+    () => ({
+      projects,
+      project,
+      loading,
+      draftSaveStatus,
+      projectPressure,
+      semanticIndexProgress,
+      semanticIndexRebuilding,
+      backgroundJob,
+      refreshProjects,
+      selectProject,
+      createProject,
+      removeProject,
+      updateProject,
+      setDraftTex,
+      setBibliography,
+      setTargetVenue: async (venue) => updateProject({ targetVenue: venue }),
+      uploadPaperPdf: async (file) => {
+        if (!project) return;
+        if (project.papers.length >= LIMITS.maxPapers) {
+          toast({
+            title: "Paper limit reached",
+            description: `This project supports up to ${LIMITS.maxPapers} PDFs.`,
+            variant: "destructive",
+          });
+          return;
+        }
+        const buf = await file.arrayBuffer();
+        const extracted = await extractNotebookSourceFromPdf(buf);
+        const meta = inferPdfMetadata(extracted);
+        const b64 = arrayBufferToBase64(buf);
+        let reviewNotes: string[] | undefined;
+        try {
+          const ann = await extractPdfReviewAnnotations(buf);
+          if (ann.length > 0) reviewNotes = ann.map((n) => `[p.${n.page}] ${n.text}`);
+        } catch {
+          /* optional */
+        }
+        const next = await addPaperToProject(project, file.name, extracted, meta, b64, reviewNotes);
+        setProject(next);
+        await refreshProjects();
+        void createProjectSnapshot(project.id, "after-upload");
+        const annCount = reviewNotes?.length ?? 0;
+        toast({
+          title: "Paper added",
+          description:
+            (meta.title ?? file.name) +
+            (annCount > 0 ? ` · ${annCount} PDF review note(s) captured` : ""),
+        });
+        runSemanticRebuild(next.chunks, next.id);
+      },
+      linkThread: async (threadId) => {
+        if (!project) return;
+        const ids = [...new Set([...project.linkedThreadIds, threadId])];
+        await updateProject({ linkedThreadIds: ids });
+      },
+      recordModelAttribution: async (model, section) => {
+        if (!project) return;
+        const modelAttributions = [
+          ...project.modelAttributions,
+          { id: crypto.randomUUID(), model, section, appliedAt: new Date().toISOString() },
+        ];
+        await updateProject({ modelAttributions });
+      },
+      rebuildSemanticIndex,
+      cancelSemanticIndexRebuild,
+      createSnapshot,
+    }),
+    [
+      project,
+      projects,
+      loading,
+      draftSaveStatus,
+      projectPressure,
+      semanticIndexProgress,
+      semanticIndexRebuilding,
+      backgroundJob,
+      refreshProjects,
+      selectProject,
+      createProject,
+      removeProject,
+      updateProject,
+      setDraftTex,
+      setBibliography,
+      rebuildSemanticIndex,
+      cancelSemanticIndexRebuild,
+      createSnapshot,
+      runSemanticRebuild,
+      toast,
+    ]
+  );
+
+  return <ResearchProjectContext.Provider value={value}>{children}</ResearchProjectContext.Provider>;
+}
+
+export function useResearchProject(): ResearchProjectContextValue {
+  const ctx = useContext(ResearchProjectContext);
+  if (!ctx) throw new Error("useResearchProject requires ResearchProjectProvider");
+  return ctx;
+}
