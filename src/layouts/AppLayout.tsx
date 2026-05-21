@@ -106,7 +106,7 @@ const AppLayout: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className={cn("flex overflow-hidden", isDesktopApp() ? "h-full" : "h-screen")}>
       <Sidebar
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}

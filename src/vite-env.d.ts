@@ -23,6 +23,11 @@ interface ImportMeta {
 interface OpenbenttDesktopApi {
   readonly isElectron: boolean;
   readonly platform: string;
+  readonly framelessTitleBar?: boolean;
+  windowMinimize?: () => Promise<void>;
+  windowToggleMaximize?: () => Promise<boolean>;
+  windowClose?: () => Promise<void>;
+  windowIsMaximized?: () => Promise<boolean>;
 }
 
 interface OpenbenttResearchApi {

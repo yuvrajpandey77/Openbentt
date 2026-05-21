@@ -12,7 +12,7 @@ export function AppShell() {
 
   return (
     <NotebookStudioSettingsProvider>
-      <div className="app-shell dark min-h-screen bg-background text-foreground">
+      <div className="app-shell dark flex h-full min-h-0 flex-col bg-background text-foreground">
         <Outlet />
         <GlobalBottomLeftDock />
       </div>

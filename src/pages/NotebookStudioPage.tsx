@@ -37,7 +37,7 @@ const NotebookStudioPage: React.FC = () => {
           <ResearchWorkspaceProvider>
             <PrivacyAnalytics />
             <DesktopUpdateNotifier />
-            <div className="flex h-screen flex-col overflow-hidden">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden">
               <NotebookUrlPanelSync />
               <NotebookStudioShell />
             </div>

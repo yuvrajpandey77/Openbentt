@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Outlet, Routes, Route } from "react-router-dom";
+import { DesktopAppFrame } from "@/components/DesktopTitleBar";
 import { ThemeProvider } from "./context/ThemeContext";
 import { ChatProvider } from "./context/ChatContext";
 import { ResearchProjectProvider } from "./context/ResearchProjectContext";
@@ -66,6 +67,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <DesktopAppFrame>
             <Suspense fallback={<RouteFallback />}>
               <Routes>
                 {/* Public / marketing routes */}
@@ -111,6 +113,7 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
+            </DesktopAppFrame>
           </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>

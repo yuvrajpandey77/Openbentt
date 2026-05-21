@@ -105,7 +105,7 @@ const ProjectsHubPage: React.FC = () => {
 
   return (
     <DesktopOnlyGate>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex h-full min-h-0 bg-background">
         <aside className="flex w-[220px] shrink-0 flex-col border-r border-border/60 bg-muted/10">
           <div className="flex items-center gap-2.5 px-4 py-4">
             <Avatar className="h-8 w-8">
