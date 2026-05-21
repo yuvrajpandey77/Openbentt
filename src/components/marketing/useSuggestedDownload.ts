@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { releaseAssets } from "@/config/releaseDownloads";
 import { getClientPlatform, type ClientPlatform } from "@/lib/detectClientPlatform";
+import { pickAsset } from "@/lib/fetchLatestReleaseAssets";
+import { useLatestReleaseAssets } from "@/hooks/useLatestReleaseAssets";
 
 export type SuggestedDownload = {
   label: string;
@@ -11,6 +13,7 @@ export type SuggestedDownload = {
 
 export function useSuggestedDownload(): SuggestedDownload | null {
   const [platform, setPlatform] = useState<ClientPlatform>("unknown");
+  const { release } = useLatestReleaseAssets();
 
   useEffect(() => {
     setPlatform(getClientPlatform());
@@ -23,24 +26,24 @@ export function useSuggestedDownload(): SuggestedDownload | null {
           platform,
           label: "Windows installer",
           hint: "NSIS · Windows 10/11 x64",
-          href: releaseAssets.windowsNsis(),
+          href: pickAsset(release, "windowsNsis") ?? releaseAssets.windowsNsis(),
         };
       case "linux":
         return {
           platform,
           label: "Linux AppImage",
           hint: "amd64 · chmod +x and run",
-          href: releaseAssets.linuxAppImage(),
+          href: pickAsset(release, "linuxAppImage") ?? releaseAssets.linuxAppImage(),
         };
       case "mac":
         return {
           platform,
           label: "macOS disk image",
           hint: "Apple Silicon (arm64)",
-          href: releaseAssets.macDmgArm64(),
+          href: pickAsset(release, "macDmgArm64") ?? releaseAssets.macDmgArm64(),
         };
       default:
         return null;
     }
-  }, [platform]);
+  }, [platform, release]);
 }

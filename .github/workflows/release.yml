@@ -200,6 +200,14 @@ jobs:
             -name 'latest*.yml' \
           \) -exec cp -f {} upload/ \;
           ls -la upload/
+          count=$(find upload -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.exe' -o -name '*.dmg' \) | wc -l)
+          if [ "$count" -lt 1 ]; then
+            echo "::error::No desktop installers in upload/. Do not create GitHub Releases manually — push a v* tag so CI builds all platforms."
+            exit 1
+          fi
+          if ! ls upload/latest*.yml 1>/dev/null 2>&1; then
+            echo "::warning::No latest*.yml auto-update manifests — desktop in-app updates may fail until electron-builder publishes them."
+          fi
 
       - name: GitHub Release
         uses: softprops/action-gh-release@v2

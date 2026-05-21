@@ -1,0 +1,122 @@
+import { GITHUB_REPO, releaseAssets } from "@/config/releaseDownloads";
+
+export type ReleaseAssetKind = keyof typeof releaseAssets;
+
+export type ResolvedReleaseAssets = {
+  version: string;
+  tagName: string;
+  releaseUrl: string;
+  /** Resolved download URLs keyed by asset kind. */
+  assets: Partial<Record<ReleaseAssetKind, string>>;
+  /** True when at least one desktop installer/archive is present (not just source). */
+  hasInstallers: boolean;
+  /** GitHub API fetch failed — fall back to static URLs. */
+  fromFallback: boolean;
+};
+
+type GhAsset = { name: string; browser_download_url: string };
+type GhRelease = {
+  tag_name: string;
+  html_url: string;
+  draft: boolean;
+  prerelease: boolean;
+  assets: GhAsset[];
+};
+
+const INSTALLER_EXTENSIONS = [".appimage", ".deb", ".exe", ".dmg", ".zip"];
+
+function isInstallerAsset(name: string): boolean {
+  const lower = name.toLowerCase();
+  if (lower.includes("source")) return false;
+  return INSTALLER_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+/** Map a GitHub release asset filename to our download row kind. */
+function classifyAsset(filename: string): ReleaseAssetKind | null {
+  const lower = filename.toLowerCase();
+  if (filename === "openbentt-web-dist.zip") return "webStaticZip";
+  if (lower.endsWith(".appimage")) return "linuxAppImage";
+  if (lower.endsWith(".deb")) return "linuxDeb";
+  if (lower.endsWith(".dmg") && lower.includes("arm64")) return "macDmgArm64";
+  if (lower.endsWith(".zip") && lower.includes("arm64") && lower.includes("mac")) return "macZipArm64";
+  if (lower.endsWith("-win.zip")) return "windowsZip";
+  if (lower.endsWith(".exe") && lower.includes("setup")) return "windowsNsis";
+  if (filename === "Openbentt.exe") return "windowsPortable";
+  return null;
+}
+
+function stripTagPrefix(tag: string): string {
+  return tag.replace(/^v/i, "");
+}
+
+function fallbackAssets(): ResolvedReleaseAssets {
+  const kinds = Object.keys(releaseAssets) as ReleaseAssetKind[];
+  const assets: Partial<Record<ReleaseAssetKind, string>> = {};
+  for (const kind of kinds) {
+    const url = releaseAssets[kind]();
+    if (url) assets[kind] = url;
+  }
+  return {
+    version: "",
+    tagName: "",
+    releaseUrl: GITHUB_REPO ? `https://github.com/${GITHUB_REPO}/releases/latest` : "",
+    assets,
+    hasInstallers: true,
+    fromFallback: true,
+  };
+}
+
+/**
+ * Fetch the latest GitHub Release and resolve real asset download URLs.
+ * Falls back to constructed `releases/latest/download/{filename}` URLs on error.
+ */
+export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets> {
+  if (!GITHUB_REPO) return fallbackAssets();
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+      headers: { Accept: "application/vnd.github+json" },
+    });
+    if (!res.ok) return fallbackAssets();
+
+    const data = (await res.json()) as GhRelease;
+    const assets: Partial<Record<ReleaseAssetKind, string>> = {};
+    let hasInstallers = false;
+
+    for (const asset of data.assets ?? []) {
+      if (isInstallerAsset(asset.name)) hasInstallers = true;
+      const kind = classifyAsset(asset.name);
+      if (kind && !assets[kind]) {
+        assets[kind] = asset.browser_download_url;
+      }
+    }
+
+    // Fill gaps with static fallback URLs (versioned filenames).
+    const kinds = Object.keys(releaseAssets) as ReleaseAssetKind[];
+    for (const kind of kinds) {
+      if (!assets[kind]) {
+        const url = releaseAssets[kind]();
+        if (url) assets[kind] = url;
+      }
+    }
+
+    return {
+      version: stripTagPrefix(data.tag_name),
+      tagName: data.tag_name,
+      releaseUrl: data.html_url,
+      assets,
+      hasInstallers,
+      fromFallback: false,
+    };
+  } catch {
+    return fallbackAssets();
+  }
+}
+
+export function pickAsset(
+  resolved: ResolvedReleaseAssets | null,
+  kind: ReleaseAssetKind
+): string | null {
+  if (!resolved) return releaseAssets[kind]();
+  return resolved.assets[kind] ?? releaseAssets[kind]() ?? null;
+}
