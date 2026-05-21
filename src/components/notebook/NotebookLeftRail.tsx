@@ -5,7 +5,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
 import { useChat } from "@/context/ChatContext";
-import { useNotebookStudio } from "@/context/NotebookStudioContext";
+import {
+  NOTEBOOK_EXPLORER_FLYOUT_WIDTH,
+  NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX,
+  useNotebookStudio,
+} from "@/context/NotebookStudioContext";
 import { RESEARCH_PANEL_NAV, parseResearchPanelFromSearch, type ResearchPanelNavItem } from "@/config/researchPanelNav";
 import { PANEL_LABELS, type ResearchSidePanelId } from "@/lib/research/workspaceLayout";
 import { ResearchSidePanel } from "@/components/research/ResearchSidePanel";
@@ -19,12 +23,11 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Search,
   Wrench,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-const RAIL_COLLAPSED_KEY = "openbentt-notebook-rail-collapsed";
 
 type RailTab = "files" | "chats" | "outline" | "tools";
 
@@ -34,13 +37,6 @@ const TAB_HINTS: Record<RailTab, string> = {
   outline: "LaTeX section headings from main.tex",
   tools: "Citations, Zotero, notes, and research panels",
 };
-
-function chatInitials(title: string): string {
-  const t = title.trim() || "?";
-  const parts = t.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase().slice(0, 2);
-  return t.slice(0, 2).toUpperCase();
-}
 
 function parseOutline(tex: string): { label: string; line: number }[] {
   const headings: { label: string; line: number }[] = [];
@@ -56,14 +52,12 @@ function RailTabButton({
   label,
   Icon,
   active,
-  collapsed,
   onSelect,
 }: {
   id: RailTab;
   label: string;
   Icon: typeof Files;
   active: boolean;
-  collapsed: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -83,7 +77,7 @@ function RailTabButton({
           <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
         </button>
       </TooltipTrigger>
-      <TooltipContent side={collapsed ? "right" : "bottom"} className="max-w-[220px]">
+      <TooltipContent side="bottom" className="max-w-[220px]">
         <p className="font-medium">{label}</p>
         <p className="text-xs text-muted-foreground">{TAB_HINTS[id]}</p>
       </TooltipContent>
@@ -94,12 +88,10 @@ function RailTabButton({
 function ToolNavButton({
   item,
   active,
-  tooltipSide,
   onClick,
 }: {
   item: ResearchPanelNavItem;
   active: boolean;
-  tooltipSide: "right" | "bottom";
   onClick: () => void;
 }) {
   return (
@@ -119,11 +111,57 @@ function ToolNavButton({
           <item.Icon className="h-4 w-4 shrink-0 opacity-85" strokeWidth={2} />
         </button>
       </TooltipTrigger>
-      <TooltipContent side={tooltipSide} className="max-w-[220px]">
+      <TooltipContent side="bottom" className="max-w-[220px]">
         <p className="font-medium">{item.label}</p>
         <p className="text-xs text-muted-foreground">{item.description}</p>
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+export function NotebookExplorerDock({ className }: { className?: string }) {
+  const { openCommandPalette } = useResearchWorkspace();
+  const { explorerOpen, toggleExplorer } = useNotebookStudio();
+
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 items-center gap-0.5 rounded-lg border border-border/80 bg-card/95 p-0.5 shadow-sm backdrop-blur-sm",
+        className
+      )}
+    >
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-muted-foreground"
+            onClick={openCommandPalette}
+            aria-label="Search commands"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Search commands</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className={cn("h-8 w-8", explorerOpen ? "text-foreground" : "text-muted-foreground")}
+            onClick={toggleExplorer}
+            aria-label={explorerOpen ? "Close explorer" : "Open explorer"}
+            aria-expanded={explorerOpen}
+          >
+            {explorerOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{explorerOpen ? "Close explorer" : "Open explorer"}</TooltipContent>
+      </Tooltip>
+    </div>
   );
 }
 
@@ -137,37 +175,24 @@ export function NotebookLeftRail() {
     sidePanelDrawerOpen,
   } = useResearchWorkspace();
   const { chats, currentChatId, selectChat, createNewChat } = useChat();
-  const { openChatPanel } = useNotebookStudio();
+  const { openChatPanel, explorerOpen, setExplorerOpen } = useNotebookStudio();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<RailTab>("files");
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem(RAIL_COLLAPSED_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
   const uploadRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(RAIL_COLLAPSED_KEY, collapsed ? "1" : "0");
-    } catch {
-      /* ignore */
-    }
-  }, [collapsed]);
-
-  useEffect(() => {
     const panel = parseResearchPanelFromSearch(searchParams.toString());
-    if (panel) setTab("tools");
-  }, [searchParams]);
+    if (panel) {
+      setTab("tools");
+      setExplorerOpen(true);
+    }
+  }, [searchParams, setExplorerOpen]);
 
   if (!project) return null;
 
   const outline = parseOutline(project.draftTex);
   const activeTool =
     layout.activeSidePanel !== "editor" ? (layout.activeSidePanel as ResearchSidePanelId) : null;
-  const toolTooltipSide = collapsed ? "right" : "bottom";
 
   const onBulkUpload = async (files: FileList | null) => {
     if (!files?.length) return;
@@ -177,6 +202,10 @@ export function NotebookLeftRail() {
   };
 
   const openTool = (id: ResearchSidePanelId) => {
+    if (activeTool === id && sidePanelDrawerOpen) {
+      closeTool();
+      return;
+    }
     openResearchToolPanel(id);
     setSearchParams({ panel: id }, { replace: true });
     setTab("tools");
@@ -184,7 +213,17 @@ export function NotebookLeftRail() {
 
   const closeTool = () => {
     closeResearchToolPanel();
-    setSearchParams({}, { replace: true });
+    const next = new URLSearchParams(searchParams);
+    next.delete("panel");
+    setSearchParams(next, { replace: true });
+  };
+
+  const onToolDrawerOpenChange = (open: boolean) => {
+    if (open) {
+      if (activeTool) openResearchToolPanel(activeTool);
+      return;
+    }
+    closeTool();
   };
 
   const tabs: { id: RailTab; label: string; Icon: typeof Files }[] = [
@@ -202,42 +241,17 @@ export function NotebookLeftRail() {
   return (
     <>
       <aside
+        aria-hidden={!explorerOpen}
         className={cn(
-          "relative flex h-full shrink-0 flex-col border-r border-border/40 bg-background transition-[width] duration-200",
-          collapsed ? "w-[52px]" : "w-[240px]"
+          "pointer-events-auto absolute bottom-3 left-2 z-[55] flex flex-col overflow-hidden rounded-lg border border-border/80 bg-card/95 shadow-xl backdrop-blur-sm transition-[opacity,transform] duration-200",
+          explorerOpen ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-2 opacity-0"
         )}
+        style={{
+          top: NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX,
+          width: NOTEBOOK_EXPLORER_FLYOUT_WIDTH,
+        }}
       >
-        <div
-          className={cn(
-            "flex shrink-0 items-center border-b border-border/40 px-1.5 py-1.5",
-            collapsed ? "justify-center" : "justify-end"
-          )}
-        >
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 text-muted-foreground"
-                onClick={() => setCollapsed((c) => !c)}
-                aria-label={collapsed ? "Expand explorer rail" : "Collapse explorer rail"}
-              >
-                {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side={collapsed ? "right" : "bottom"}>
-              {collapsed ? "Expand explorer" : "Collapse explorer"}
-            </TooltipContent>
-          </Tooltip>
-        </div>
-
-        <nav
-          className={cn(
-            "flex shrink-0 border-b border-border/40",
-            collapsed ? "flex-col items-center gap-0.5 py-2" : "flex-row items-center justify-evenly px-1 py-1.5"
-          )}
-        >
+        <nav className="flex shrink-0 flex-row items-center justify-evenly border-b border-border/40 px-1 py-1.5">
           {tabs.map(({ id, label, Icon }) => (
             <RailTabButton
               key={id}
@@ -245,7 +259,6 @@ export function NotebookLeftRail() {
               label={label}
               Icon={Icon}
               active={tab === id}
-              collapsed={collapsed}
               onSelect={() => selectTab(id)}
             />
           ))}
@@ -265,77 +278,11 @@ export function NotebookLeftRail() {
                   e.target.value = "";
                 }}
               />
-              {!collapsed ? (
-                <NotebookFileTree onUploadPdfs={() => uploadRef.current?.click()} />
-              ) : (
-                <div className="flex flex-col items-center gap-1 py-2">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="h-9 w-9"
-                        aria-label="Upload PDFs"
-                        onClick={() => uploadRef.current?.click()}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">Upload PDFs</TooltipContent>
-                  </Tooltip>
-                </div>
-              )}
+              <NotebookFileTree onUploadPdfs={() => uploadRef.current?.click()} />
             </>
           )}
 
-          {tab === "chats" && collapsed && (
-            <ScrollArea className="h-full">
-              <div className="flex flex-col items-center gap-1 py-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="outline"
-                      className="h-9 w-9"
-                      aria-label="New chat"
-                      onClick={() => createNewChat()}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">New chat</TooltipContent>
-                </Tooltip>
-                {chats.map((c) => (
-                  <Tooltip key={c.id}>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className={cn(
-                          "flex h-9 w-9 items-center justify-center rounded-md text-[10px] font-semibold transition-colors",
-                          currentChatId === c.id
-                            ? "bg-primary/10 text-primary"
-                            : "bg-muted/50 text-foreground hover:bg-muted"
-                        )}
-                        onClick={() => {
-                          selectChat(c.id);
-                          openChatPanel();
-                        }}
-                      >
-                        {chatInitials(c.title)}
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-[240px]">
-                      {c.title}
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
-              </div>
-            </ScrollArea>
-          )}
-
-          {tab === "chats" && !collapsed && (
+          {tab === "chats" && (
             <div className="flex min-h-0 flex-1 flex-col px-2 pb-2">
               <Button
                 type="button"
@@ -372,43 +319,7 @@ export function NotebookLeftRail() {
             </div>
           )}
 
-          {tab === "outline" && collapsed && (
-            <ScrollArea className="h-full">
-              <div className="flex flex-col items-center gap-1 py-2">
-                {outline.length === 0 ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground/50">
-                        <ListTree className="h-4 w-4" />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-[220px]">
-                      Add <code className="rounded bg-muted px-1">\section{"{…}"}</code> in main.tex
-                    </TooltipContent>
-                  </Tooltip>
-                ) : (
-                  outline.map((h) => (
-                    <Tooltip key={h.line}>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                          onClick={() => requestFocusSection(h.line)}
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-[240px]">
-                        {h.label}
-                      </TooltipContent>
-                    </Tooltip>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-          )}
-
-          {tab === "outline" && !collapsed && (
+          {tab === "outline" && (
             <ScrollArea className="h-full px-2 pb-2">
               {outline.length === 0 ? (
                 <p className="px-1 py-4 text-xs text-muted-foreground">
@@ -435,18 +346,12 @@ export function NotebookLeftRail() {
 
           {tab === "tools" && (
             <ScrollArea className="h-full">
-              <div
-                className={cn(
-                  "gap-1 p-2",
-                  collapsed ? "flex flex-col items-center" : "grid grid-cols-4 justify-items-center"
-                )}
-              >
+              <div className="grid grid-cols-4 justify-items-center gap-1 p-2">
                 {RESEARCH_PANEL_NAV.map((item) => (
                   <ToolNavButton
                     key={item.id}
                     item={item}
                     active={activeTool === item.id && sidePanelDrawerOpen}
-                    tooltipSide={toolTooltipSide}
                     onClick={() => openTool(item.id)}
                   />
                 ))}
@@ -456,13 +361,17 @@ export function NotebookLeftRail() {
         </div>
       </aside>
 
-      <Sheet open={sidePanelDrawerOpen} onOpenChange={(o) => !o && closeTool()}>
-        <SheetContent side="right" className="flex w-[min(400px,90vw)] flex-col p-0 sm:max-w-md">
+      <Sheet open={sidePanelDrawerOpen} onOpenChange={onToolDrawerOpenChange}>
+        <SheetContent
+          key={sidePanelDrawerOpen && activeTool ? `${activeTool}-open` : "tool-drawer-closed"}
+          side="right"
+          className="flex w-[min(400px,90vw)] flex-col p-0 sm:max-w-md"
+        >
           <SheetHeader className="border-b border-border/60 px-4 py-3 text-left">
             <SheetTitle>{activeTool ? PANEL_LABELS[activeTool] : "Research tool"}</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-hidden">
-            {activeTool && <ResearchSidePanel id={activeTool} />}
+            {activeTool && sidePanelDrawerOpen ? <ResearchSidePanel id={activeTool} /> : null}
           </div>
         </SheetContent>
       </Sheet>

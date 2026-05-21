@@ -18,14 +18,7 @@ import { isDesktopApp } from "@/lib/isDesktopApp";
 import { cn } from "@/lib/utils";
 import { getPrimaryWorkspaceNavItems } from "@/config/workspaceNav";
 import { SIDEBAR_WIDTH_EXPANDED, SIDEBAR_WIDTH_ICON } from "@/lib/sidebarLayout";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import SettingsPanel from "@/components/SettingsPanel";
+import { AppSettingsDialog } from "@/components/AppSettingsDialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -361,26 +354,20 @@ const Sidebar: React.FC<SidebarProps> = ({
               </NavLink>
             ))}
 
-          <Dialog>
-            {iconOnly ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DialogTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="h-10 w-10 border-sidebar-border bg-sidebar-accent/30"
-                      aria-label="Settings"
-                    >
-                      <Settings size={18} />
-                    </Button>
-                  </DialogTrigger>
-                </TooltipTrigger>
-                <TooltipContent side="right">Settings</TooltipContent>
-              </Tooltip>
-            ) : (
-              <DialogTrigger asChild>
+          <AppSettingsDialog
+            tooltip={iconOnly ? "Settings" : undefined}
+            trigger={
+              iconOnly ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 border-sidebar-border bg-sidebar-accent/30"
+                  aria-label="Settings"
+                >
+                  <Settings size={18} />
+                </Button>
+              ) : (
                 <Button
                   type="button"
                   variant="outline"
@@ -389,20 +376,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <Settings size={16} />
                   Settings
                 </Button>
-              </DialogTrigger>
-            )}
-            <DialogContent className="flex max-h-[min(92vh,860px)] w-[calc(100vw-1.25rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:rounded-xl">
-              <DialogHeader className="border-b border-border/60 px-6 py-4 text-left">
-                <DialogTitle className="font-display text-xl font-semibold tracking-tight">Settings</DialogTitle>
-                <p className="text-sm text-muted-foreground">
-                  AI providers, appearance, and developer tools (Benchmark, WebGPU) — stored locally.
-                </p>
-              </DialogHeader>
-              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-                <SettingsPanel />
-              </div>
-            </DialogContent>
-          </Dialog>
+              )
+            }
+          />
 
           {chats.length > 0 &&
             (iconOnly ? (

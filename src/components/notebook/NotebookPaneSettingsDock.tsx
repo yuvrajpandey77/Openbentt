@@ -29,7 +29,12 @@ const PANE_TABS: { id: NotebookPaneId; label: string }[] = [
   { id: "chat", label: "Chat" },
 ];
 
-export function NotebookPaneSettingsDock() {
+type NotebookPaneSettingsDockProps = {
+  /** When true, omit fixed positioning (parent dock handles placement). */
+  embedded?: boolean;
+};
+
+export function NotebookPaneSettingsDock({ embedded = false }: NotebookPaneSettingsDockProps) {
   const [open, setOpen] = useState(false);
   const {
     pane,
@@ -50,8 +55,9 @@ export function NotebookPaneSettingsDock() {
           size="icon"
           variant="secondary"
           className={cn(
-            "fixed bottom-4 left-4 z-[60] h-10 w-10 rounded-full shadow-lg",
-            "border border-border/80 bg-card/95 backdrop-blur-sm"
+            "h-10 w-10 rounded-full shadow-lg",
+            "border border-border/80 bg-card/95 backdrop-blur-sm",
+            !embedded && "fixed bottom-4 left-4 z-[60]"
           )}
           aria-label="Notebook pane settings"
         >
@@ -61,7 +67,7 @@ export function NotebookPaneSettingsDock() {
       <PopoverContent
         align="start"
         side="top"
-        className="z-[70] w-[min(22rem,calc(100vw-2rem))] p-0"
+        className="app-shell dark z-50 w-[min(22rem,calc(100vw-2rem))] p-0"
         sideOffset={8}
       >
         <Tabs

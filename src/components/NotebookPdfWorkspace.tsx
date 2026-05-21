@@ -61,6 +61,7 @@ import { NotebookStudioPreview } from "@/components/notebook/NotebookStudioPrevi
 import { NotebookLatexEditor, type NotebookEditorHandle } from "@/components/notebook/NotebookLatexEditor";
 import { resolveNotebookEditorLanguage } from "@/lib/codemirror/notebookLanguages";
 import { NotebookLatexToolbar } from "@/components/notebook/NotebookLatexToolbar";
+import { NotebookWritingAssistMenu } from "@/components/research/NotebookContextualStrip";
 import { useNotebookStudioSettingsOptional } from "@/context/NotebookStudioSettingsContext";
 import { editorFileKey, editorFileLabel as getEditorFileLabel, texContentForFileKey } from "@/context/NotebookStudioContext";
 import { pushDraftHistoryDesktop } from "@/lib/research/researchDesktopApi";
@@ -975,14 +976,11 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       </div>
       )}
 
-      {isStudio && (
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/50 bg-muted/20 px-3 py-1.5">
-          <span className="text-xs font-medium text-muted-foreground">{editorFileLabel}</span>
-          {fileName && (
-            <span className="truncate text-xs text-muted-foreground" title={fileName}>
-              Preview: {fileName}
-            </span>
-          )}
+      {isStudio && fileName && (
+        <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border/50 bg-muted/20 px-3 py-1.5">
+          <span className="truncate text-xs text-muted-foreground" title={fileName}>
+            Preview: {fileName}
+          </span>
         </div>
       )}
 
@@ -1295,6 +1293,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {researchProject && <NotebookWritingAssistMenu />}
             {compiledBytes && originalBytes && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1376,6 +1375,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
               </TooltipTrigger>
               <TooltipContent side="bottom">Insert book template</TooltipContent>
             </Tooltip>
+            {researchProject && <NotebookWritingAssistMenu size="icon" />}
             <Separator orientation="vertical" className="mx-0.5 hidden h-7 sm:block" />
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1453,6 +1453,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
             <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={pullLastAssistant} disabled={!lastAssistantPlain.trim()}>
               Review
             </Button>
+            {researchProject && <NotebookWritingAssistMenu className="h-7" />}
           </div>
         )}
 

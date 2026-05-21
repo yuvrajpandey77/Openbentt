@@ -88,8 +88,10 @@
 
   /*
    * App shell — Cursor default dark (projects, notebook, chat, setup).
-   * Scoped via .app-shell; marketing / landing keeps :root purple theme untouched.
+   * html.app-shell-route covers Radix portals; .app-shell covers in-tree UI.
+   * Marketing / landing keeps :root purple theme untouched.
    */
+  html.app-shell-route,
   .app-shell {
     color-scheme: dark;
     --background: 0 0% 12%;

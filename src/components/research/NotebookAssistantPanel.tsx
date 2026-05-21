@@ -7,7 +7,7 @@ import {
   keywordsPrompt,
   missingCitationPrompt,
 } from "@/lib/research/writingPrompts";
-import { applyCaption, listLatexFloats } from "@/lib/research/latexTools";
+import { applyCaption, insertAbstract, insertKeywords, listLatexFloats } from "@/lib/research/latexTools";
 import { Sparkles } from "lucide-react";
 
 const SLASH_ACTIONS = [
@@ -68,6 +68,40 @@ export function NotebookAssistantPanel() {
           </li>
         ))}
       </ul>
+
+      {project.abstractVariants.length > 0 && (
+        <div className="space-y-1.5 border-t border-border/50 pt-3">
+          <p className="text-xs font-medium text-foreground">Saved abstract variants</p>
+          {project.abstractVariants.map((a, i) => (
+            <Button
+              key={i}
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-auto w-full justify-start text-xs"
+              onClick={() => void setDraftTex(insertAbstract(project.draftTex, a))}
+            >
+              Apply abstract #{i + 1}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {project.keywordSuggestions.length > 0 && (
+        <div className="space-y-1.5 border-t border-border/50 pt-3">
+          <p className="text-xs font-medium text-foreground">Keyword suggestions</p>
+          <p className="text-[10px] text-muted-foreground">{project.keywordSuggestions.join(", ")}</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-auto w-full justify-start text-xs"
+            onClick={() => void setDraftTex(insertKeywords(project.draftTex, project.keywordSuggestions))}
+          >
+            Insert keywords into preamble
+          </Button>
+        </div>
+      )}
 
       {listLatexFloats(project.draftTex).length > 0 && (
         <div className="space-y-1.5 border-t border-border/50 pt-3">

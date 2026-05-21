@@ -28,7 +28,28 @@ export type ConnectionDrag = {
 } | null;
 
 const CHAT_PANEL_RECT_KEY = "openbentt-notebook-chat-panel-rect";
+const EXPLORER_OPEN_KEY = "openbentt-notebook-explorer-open";
 const DEFAULT_CHAT_RECT: ChatPanelRect = { x: -1, y: -1, width: 420, height: 520 };
+
+export const NOTEBOOK_EXPLORER_FLYOUT_WIDTH = 240;
+export const NOTEBOOK_EXPLORER_LEFT_PX = 8;
+/** Search + toggle cluster width in the studio toolbar row. */
+export const NOTEBOOK_EXPLORER_DOCK_WIDTH = 68;
+/** Left offset + flyout width — main column padding when explorer is open. */
+export const NOTEBOOK_EXPLORER_INSET_PX = NOTEBOOK_EXPLORER_LEFT_PX + NOTEBOOK_EXPLORER_FLYOUT_WIDTH;
+/** Extra tabs-row padding when explorer flyout is open (clears flyout beside dock). */
+export const NOTEBOOK_EXPLORER_TABS_PADDING_OPEN_PX =
+  NOTEBOOK_EXPLORER_INSET_PX - NOTEBOOK_EXPLORER_LEFT_PX - NOTEBOOK_EXPLORER_DOCK_WIDTH + 12;
+/** Studio toolbar row height — flyout anchors below this. */
+export const NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX = 40;
+
+function loadExplorerOpen(): boolean {
+  try {
+    return localStorage.getItem(EXPLORER_OPEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 export const CHAT_PANEL_EXPANDED: Pick<ChatPanelRect, "width" | "height"> = {
   width: 560,
@@ -122,6 +143,10 @@ type NotebookStudioContextValue = {
   getConnectionAnchorCenter: (id: string) => { x: number; y: number } | null;
   bumpConnectionLayout: () => void;
   connectionLayoutTick: number;
+  /** Top-left explorer flyout — persisted; shifts main editor/preview when open. */
+  explorerOpen: boolean;
+  setExplorerOpen: (open: boolean) => void;
+  toggleExplorer: () => void;
 };
 
 const NotebookStudioContext = createContext<NotebookStudioContextValue | null>(null);
@@ -143,7 +168,29 @@ export function NotebookStudioProvider({ children }: { children: React.ReactNode
   const [pendingConnection, setPendingConnection] = useState<PendingConnection>(null);
   const [connectionDrag, setConnectionDrag] = useState<ConnectionDrag>(null);
   const [connectionLayoutTick, setConnectionLayoutTick] = useState(0);
+  const [explorerOpen, setExplorerOpenState] = useState(loadExplorerOpen);
   const anchorMapRef = useRef<Map<string, HTMLElement>>(new Map());
+
+  const setExplorerOpen = useCallback((open: boolean) => {
+    setExplorerOpenState(open);
+    try {
+      localStorage.setItem(EXPLORER_OPEN_KEY, open ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const toggleExplorer = useCallback(() => {
+    setExplorerOpenState((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(EXPLORER_OPEN_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
 
   const setChatPanelRect = useCallback((rect: ChatPanelRect | ((prev: ChatPanelRect) => ChatPanelRect)) => {
     setChatPanelRectState((prev) => {
@@ -270,6 +317,9 @@ export function NotebookStudioProvider({ children }: { children: React.ReactNode
       getConnectionAnchorCenter,
       bumpConnectionLayout,
       connectionLayoutTick,
+      explorerOpen,
+      setExplorerOpen,
+      toggleExplorer,
     }),
     [
       activeFile,
@@ -297,6 +347,9 @@ export function NotebookStudioProvider({ children }: { children: React.ReactNode
       getConnectionAnchorCenter,
       bumpConnectionLayout,
       connectionLayoutTick,
+      explorerOpen,
+      setExplorerOpen,
+      toggleExplorer,
     ]
   );
 

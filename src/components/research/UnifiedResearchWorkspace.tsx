@@ -1,7 +1,6 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { WorkspaceChrome } from "@/components/research/WorkspaceChrome";
 import { ResearchCommandPalette } from "@/components/research/ResearchCommandPalette";
-import { NotebookContextualStrip } from "@/components/research/NotebookContextualStrip";
 import { ResearchSidePanel } from "@/components/research/ResearchSidePanel";
 import { ResearchWritingSync } from "@/components/research/ResearchWritingSync";
 import { ResearchTaskStatus } from "@/components/research/ResearchTaskStatus";
@@ -109,7 +108,6 @@ export function UnifiedResearchWorkspace() {
             className={cn("flex h-full min-h-0 flex-col", layout.mode === "focus" && "ring-1 ring-primary/20")}
             aria-label="Document editor"
           >
-            <NotebookContextualStrip />
             <div className="min-h-0 flex-1">
               <NotebookPdfWorkspace
                 compactChrome={layout.mode !== "default"}

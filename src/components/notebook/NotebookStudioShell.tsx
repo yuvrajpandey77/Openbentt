@@ -10,16 +10,21 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
-import { editorFileLabel, useNotebookStudio } from "@/context/NotebookStudioContext";
+import {
+  editorFileLabel,
+  NOTEBOOK_EXPLORER_INSET_PX,
+  NOTEBOOK_EXPLORER_TABS_PADDING_OPEN_PX,
+  NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX,
+  useNotebookStudio,
+} from "@/context/NotebookStudioContext";
 import { ResearchCommandPalette } from "@/components/research/ResearchCommandPalette";
 import { ResearchTaskStatus } from "@/components/research/ResearchTaskStatus";
 import { ResearchWritingSync } from "@/components/research/ResearchWritingSync";
-import { NotebookLeftRail } from "@/components/notebook/NotebookLeftRail";
+import { NotebookExplorerDock, NotebookLeftRail } from "@/components/notebook/NotebookLeftRail";
 import { NotebookFloatingChat } from "@/components/notebook/NotebookFloatingChat";
 import { NotebookConnectionCables } from "@/components/notebook/NotebookConnectionCables";
 import { NotebookEditorTabs } from "@/components/notebook/NotebookEditorTabs";
 import NotebookPdfWorkspace from "@/components/NotebookPdfWorkspace";
-import { NotebookContextualStrip } from "@/components/research/NotebookContextualStrip";
 import { NotebookViewerProvider } from "@/context/NotebookViewerContext";
 import { cn } from "@/lib/utils";
 import { ChevronDown, Command, FolderOpen, LayoutGrid } from "lucide-react";
@@ -28,8 +33,13 @@ export function NotebookStudioShell() {
   const { project, draftSaveStatus, setDraftTex, setBibliography, updateProjectFileContent } =
     useResearchProject();
   const { openCommandPalette } = useResearchWorkspace();
-  const { fileNav, activeEditorFile } = useNotebookStudio();
+  const { fileNav, activeEditorFile, explorerOpen, bumpConnectionLayout } = useNotebookStudio();
   const studioMainRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => bumpConnectionLayout());
+    return () => cancelAnimationFrame(id);
+  }, [explorerOpen, bumpConnectionLayout]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -80,7 +90,11 @@ export function NotebookStudioShell() {
 
   return (
     <NotebookViewerProvider>
-      <div className="flex h-full min-h-0 flex-col bg-background" data-notebook-studio>
+      <div
+        className="flex h-full min-h-0 flex-col bg-background"
+        data-notebook-studio
+        data-explorer-open={explorerOpen ? "true" : undefined}
+      >
         <ResearchWritingSync />
         <header className="flex shrink-0 items-center gap-2 border-b border-border/60 bg-card/95 px-3 py-2">
           <Button type="button" variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" asChild>
@@ -130,11 +144,26 @@ export function NotebookStudioShell() {
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div ref={studioMainRef} className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <NotebookLeftRail />
-          <div ref={studioMainRef} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-            <NotebookContextualStrip />
-            <NotebookEditorTabs />
+          <div
+            className="flex shrink-0 items-center border-b border-border/50 bg-muted/15 pr-2"
+            style={{ minHeight: NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX }}
+          >
+            <NotebookExplorerDock className="ml-2 shrink-0" />
+            <div
+              className="min-w-0 flex-1 overflow-hidden py-1 pl-3 transition-[padding-left] duration-200 ease-out"
+              style={{
+                paddingLeft: explorerOpen ? NOTEBOOK_EXPLORER_TABS_PADDING_OPEN_PX : undefined,
+              }}
+            >
+              <NotebookEditorTabs embedded />
+            </div>
+          </div>
+          <div
+            className="flex min-h-0 min-w-0 flex-1 flex-col transition-[padding-left] duration-200 ease-out"
+            style={{ paddingLeft: explorerOpen ? NOTEBOOK_EXPLORER_INSET_PX : 0 }}
+          >
             <div className="min-h-0 flex-1 overflow-hidden">
               <NotebookPdfWorkspace
                 layoutMode="studio"
@@ -144,9 +173,9 @@ export function NotebookStudioShell() {
                 onProjectDraftChange={onProjectDraftChange}
               />
             </div>
-            <NotebookConnectionCables containerRef={studioMainRef} />
-            <NotebookFloatingChat containerRef={studioMainRef} />
           </div>
+          <NotebookConnectionCables containerRef={studioMainRef} />
+          <NotebookFloatingChat containerRef={studioMainRef} />
         </div>
         <ResearchCommandPalette />
       </div>

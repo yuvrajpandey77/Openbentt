@@ -18,7 +18,7 @@ function TabIcon({ file }: { file: NotebookStudioFileRef }) {
   return <FileCode2 className="h-3 w-3 shrink-0 opacity-70" />;
 }
 
-export function NotebookEditorTabs() {
+export function NotebookEditorTabs({ embedded = false }: { embedded?: boolean }) {
   const { project } = useResearchProject();
   const { createNewChat, selectChat, chats } = useChat();
   const {
@@ -55,7 +55,12 @@ export function NotebookEditorTabs() {
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border/50 bg-muted/15 px-2 py-1">
+    <div
+      className={cn(
+        "flex items-center gap-1 overflow-x-auto",
+        !embedded && "shrink-0 gap-0.5 border-b border-border/50 bg-muted/15 px-2 py-1"
+      )}
+    >
       {editorTabs.map((tab) => {
         const active = fileRefEquals(tab, activeEditorFile);
         const label = editorFileLabel(tab, project);

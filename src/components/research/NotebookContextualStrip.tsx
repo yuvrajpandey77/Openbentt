@@ -3,90 +3,106 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useQueueResearchPrompt } from "@/hooks/useQueueResearchPrompt";
-import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
 import { abstractGenerationPrompt, keywordsPrompt } from "@/lib/research/writingPrompts";
-import { insertAbstract } from "@/lib/research/latexTools";
-import { ChevronDown, MoreHorizontal, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { insertAbstract, insertKeywords } from "@/lib/research/latexTools";
+import { ChevronDown, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-/** Compact writing assist — primary actions visible, rest in overflow menu. */
-export function NotebookContextualStrip() {
+type NotebookWritingAssistMenuProps = {
+  /** Toolbar button sizing — studio/compact use sm, full uses icon+label. */
+  size?: "sm" | "icon";
+  className?: string;
+};
+
+/** Writing assist actions — dropdown for editor toolbars (not header strip). */
+export function NotebookWritingAssistMenu({ size = "sm", className }: NotebookWritingAssistMenuProps) {
   const { project, setDraftTex } = useResearchProject();
   const { queueResearchPrompt, researchPromptBusy } = useQueueResearchPrompt();
-  const { layout } = useResearchWorkspace();
-  const [expanded, setExpanded] = useState(false);
 
-  if (!project || layout.mode === "distraction-free") return null;
+  if (!project) return null;
 
   const sample = project.draftTex.slice(0, 8000);
   const hasAbstracts = project.abstractVariants.length > 0;
+  const hasKeywords = project.keywordSuggestions.length > 0;
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border/40 px-2 py-1">
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        className="h-7 gap-1 text-xs"
-        disabled={researchPromptBusy}
-        onClick={() =>
-          void queueResearchPrompt(
-            abstractGenerationPrompt(sample, project.targetVenue),
-            "drafting",
-            sample
-          )
-        }
-      >
-        <Sparkles className="h-3 w-3" />
-        Abstract
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        className="h-7 text-xs"
-        disabled={researchPromptBusy}
-        onClick={() => void queueResearchPrompt(keywordsPrompt(sample), "drafting", sample)}
-      >
-        Keywords
-      </Button>
-      {hasAbstracts && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" size="sm" variant="ghost" className="h-7 gap-0.5 text-xs">
-              Apply variant
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {project.abstractVariants.map((a, i) => (
-              <DropdownMenuItem key={i} onClick={() => void setDraftTex(insertAbstract(project.draftTex, a))}>
-                Abstract #{i + 1}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        className="h-7 text-xs text-muted-foreground"
-        onClick={() => setExpanded((e) => !e)}
-        aria-expanded={expanded}
-      >
-        <MoreHorizontal className="h-3.5 w-3.5" />
-        {expanded ? "Less" : "More"}
-      </Button>
-      {expanded && (
-        <span className="w-full text-[10px] text-muted-foreground">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          size={size === "icon" ? "icon" : "sm"}
+          variant="ghost"
+          className={cn(
+            size === "icon" ? "h-9 w-9 shrink-0" : "h-8 gap-1 text-xs",
+            className
+          )}
+          disabled={researchPromptBusy}
+          aria-label="Writing assist"
+        >
+          <Sparkles className={size === "icon" ? "h-4 w-4" : "h-3 w-3"} />
+          {size !== "icon" && (
+            <>
+              Writing
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-52">
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          Queue prompts in chat
+        </DropdownMenuLabel>
+        <DropdownMenuItem
+          disabled={researchPromptBusy}
+          onClick={() =>
+            void queueResearchPrompt(
+              abstractGenerationPrompt(sample, project.targetVenue),
+              "drafting",
+              sample
+            )
+          }
+        >
+          Generate abstract
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={researchPromptBusy}
+          onClick={() => void queueResearchPrompt(keywordsPrompt(sample), "drafting", sample)}
+        >
+          Suggest keywords
+        </DropdownMenuItem>
+        {hasAbstracts && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>Apply abstract variant</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {project.abstractVariants.map((a, i) => (
+                <DropdownMenuItem key={i} onClick={() => void setDraftTex(insertAbstract(project.draftTex, a))}>
+                  Abstract #{i + 1}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
+        {hasKeywords && (
+          <DropdownMenuItem
+            onClick={() => void setDraftTex(insertKeywords(project.draftTex, project.keywordSuggestions))}
+          >
+            Insert keywords into preamble
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="max-w-[12rem] text-[10px] font-normal leading-snug text-muted-foreground">
           Outline → skeleton and captions live in chat — ask with fenced LaTeX, then review in the diff panel.
-        </span>
-      )}
-    </div>
+        </DropdownMenuLabel>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
