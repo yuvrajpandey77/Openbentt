@@ -11,6 +11,7 @@ import { briefCompileMessage, missingBundledFileHint } from "@/lib/latexErrorUi"
 import { sanitizeLatexUnicodeForPdflatex } from "@/lib/latexUnicodeSanitize";
 import { compileLatexWasmToPdf } from "@/lib/latexWasmCompile";
 import { compileProjectLatexDesktop, hasResearchDesktopApi } from "@/lib/research/researchDesktopApi";
+import { arrayBufferToBase64 } from "@/lib/research/base64";
 import { loadNotebookCompileSettings, type CompileBackend } from "@/lib/notebookCompileSettings";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 
@@ -88,7 +89,11 @@ async function compileLatexHttp(tex: string, endpoint: string, bundle?: CompileB
         if (typeof f.content === "string") {
           return { path: f.path, content: f.content, encoding: "utf8" as const };
         }
-        const b64 = btoa(String.fromCharCode(...f.content));
+        const buf = f.content.buffer.slice(
+          f.content.byteOffset,
+          f.content.byteOffset + f.content.byteLength
+        );
+        const b64 = arrayBufferToBase64(buf);
         return { path: f.path, content: b64, encoding: "base64" as const };
       }),
     };

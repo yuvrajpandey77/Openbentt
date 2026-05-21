@@ -334,7 +334,8 @@ export function NotebookFileTree({
         openEditorTab({ type: "bib" });
         viewer?.focusSource();
       } else if (node.kind === "paper" && node.paperId) {
-        void openPaper(node.paperId, node.label);
+        const paper = project?.papers.find((p) => p.id === node.paperId);
+        void openPaper(node.paperId, paper?.fileName ?? node.label);
       } else if (node.kind === "projectFile" && node.fileId) {
         openEditorTab({ type: "projectFile", fileId: node.fileId });
         viewer?.focusSource();
@@ -412,13 +413,13 @@ export function NotebookFileTree({
   if (!project) return null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="flex shrink-0 items-center gap-1 px-2 py-2">
         <Select value={reviewFilter} onValueChange={(v) => setReviewFilter(v as typeof reviewFilter)}>
           <SelectTrigger className="h-8 flex-1 text-xs">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="app-shell dark">
             <SelectItem value="all">All files</SelectItem>
             <SelectItem value="unread">Unread PDFs</SelectItem>
             <SelectItem value="reviewed">Reviewed</SelectItem>
@@ -431,7 +432,7 @@ export function NotebookFileTree({
           <Plus className="h-4 w-4" />
         </Button>
       </div>
-      <ScrollArea className="min-h-0 flex-1 px-1">
+      <ScrollArea className="h-0 min-h-0 flex-1 px-1">
         {tree.map((node) => (
           <TreeRow
             key={node.id}

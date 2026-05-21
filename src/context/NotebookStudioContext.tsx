@@ -32,9 +32,11 @@ const EXPLORER_OPEN_KEY = "openbentt-notebook-explorer-open";
 const DEFAULT_CHAT_RECT: ChatPanelRect = { x: -1, y: -1, width: 420, height: 520 };
 
 export const NOTEBOOK_EXPLORER_FLYOUT_WIDTH = 240;
-export const NOTEBOOK_EXPLORER_LEFT_PX = 8;
-/** Search + toggle cluster width in the studio toolbar row. */
-export const NOTEBOOK_EXPLORER_DOCK_WIDTH = 68;
+export const NOTEBOOK_EXPLORER_LEFT_PX = 4;
+/** Gap between toolbar row and flyout top edge. */
+export const NOTEBOOK_EXPLORER_TOP_OFFSET_PX = 6;
+/** Search + toggle cluster width in the studio toolbar row (two tab-sized icon pills + gap). */
+export const NOTEBOOK_EXPLORER_DOCK_WIDTH = 60;
 /** Left offset + flyout width — main column padding when explorer is open. */
 export const NOTEBOOK_EXPLORER_INSET_PX = NOTEBOOK_EXPLORER_LEFT_PX + NOTEBOOK_EXPLORER_FLYOUT_WIDTH;
 /** Extra tabs-row padding when explorer flyout is open (clears flyout beside dock). */

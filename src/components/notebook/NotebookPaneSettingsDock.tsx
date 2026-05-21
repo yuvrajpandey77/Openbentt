@@ -67,7 +67,7 @@ export function NotebookPaneSettingsDock({ embedded = false }: NotebookPaneSetti
       <PopoverContent
         align="start"
         side="top"
-        className="app-shell dark z-50 w-[min(22rem,calc(100vw-2rem))] p-0"
+        className="app-shell dark z-[120] w-[min(22rem,calc(100vw-2rem))] p-0"
         sideOffset={8}
       >
         <Tabs

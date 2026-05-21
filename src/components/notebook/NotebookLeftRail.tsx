@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -7,6 +7,8 @@ import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
 import { useChat } from "@/context/ChatContext";
 import {
   NOTEBOOK_EXPLORER_FLYOUT_WIDTH,
+  NOTEBOOK_EXPLORER_LEFT_PX,
+  NOTEBOOK_EXPLORER_TOP_OFFSET_PX,
   NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX,
   useNotebookStudio,
 } from "@/context/NotebookStudioContext";
@@ -119,28 +121,34 @@ function ToolNavButton({
   );
 }
 
-export function NotebookExplorerDock({ className }: { className?: string }) {
+export function NotebookExplorerDock({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: CSSProperties;
+}) {
   const { openCommandPalette } = useResearchWorkspace();
   const { explorerOpen, toggleExplorer } = useNotebookStudio();
 
+  const dockBtnClass = cn(
+    "h-7 w-7 shrink-0 rounded-md border border-border/70 bg-background shadow-sm",
+    "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+  );
+
   return (
-    <div
-      className={cn(
-        "flex shrink-0 items-center gap-0.5 rounded-lg border border-border/80 bg-card/95 p-0.5 shadow-sm backdrop-blur-sm",
-        className
-      )}
-    >
+    <div className={cn("flex shrink-0 items-center gap-1", className)} style={style}>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             type="button"
             size="icon"
             variant="ghost"
-            className="h-8 w-8 text-muted-foreground"
+            className={dockBtnClass}
             onClick={openCommandPalette}
             aria-label="Search commands"
           >
-            <Search className="h-4 w-4" />
+            <Search className="h-3.5 w-3.5" />
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom">Search commands</TooltipContent>
@@ -151,12 +159,15 @@ export function NotebookExplorerDock({ className }: { className?: string }) {
             type="button"
             size="icon"
             variant="ghost"
-            className={cn("h-8 w-8", explorerOpen ? "text-foreground" : "text-muted-foreground")}
+            className={cn(
+              dockBtnClass,
+              explorerOpen && "border-border/70 bg-background text-foreground"
+            )}
             onClick={toggleExplorer}
             aria-label={explorerOpen ? "Close explorer" : "Open explorer"}
             aria-expanded={explorerOpen}
           >
-            {explorerOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+            {explorerOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom">{explorerOpen ? "Close explorer" : "Open explorer"}</TooltipContent>
@@ -243,11 +254,12 @@ export function NotebookLeftRail() {
       <aside
         aria-hidden={!explorerOpen}
         className={cn(
-          "pointer-events-auto absolute bottom-3 left-2 z-[55] flex flex-col overflow-hidden rounded-lg border border-border/80 bg-card/95 shadow-xl backdrop-blur-sm transition-[opacity,transform] duration-200",
+          "pointer-events-auto absolute bottom-3 z-[55] flex flex-col overflow-hidden rounded-lg border border-border/80 bg-card/95 shadow-xl backdrop-blur-sm transition-[opacity,transform] duration-200",
           explorerOpen ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-2 opacity-0"
         )}
         style={{
-          top: NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX,
+          left: NOTEBOOK_EXPLORER_LEFT_PX,
+          top: NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX + NOTEBOOK_EXPLORER_TOP_OFFSET_PX,
           width: NOTEBOOK_EXPLORER_FLYOUT_WIDTH,
         }}
       >
@@ -264,9 +276,9 @@ export function NotebookLeftRail() {
           ))}
         </nav>
 
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {tab === "files" && (
-            <>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <input
                 ref={uploadRef}
                 type="file"
@@ -279,7 +291,7 @@ export function NotebookLeftRail() {
                 }}
               />
               <NotebookFileTree onUploadPdfs={() => uploadRef.current?.click()} />
-            </>
+            </div>
           )}
 
           {tab === "chats" && (
@@ -320,7 +332,7 @@ export function NotebookLeftRail() {
           )}
 
           {tab === "outline" && (
-            <ScrollArea className="h-full px-2 pb-2">
+            <ScrollArea className="min-h-0 flex-1 px-2 pb-2">
               {outline.length === 0 ? (
                 <p className="px-1 py-4 text-xs text-muted-foreground">
                   Add <code className="rounded bg-muted px-1">\section{"{…}"}</code> in main.tex.
@@ -345,7 +357,7 @@ export function NotebookLeftRail() {
           )}
 
           {tab === "tools" && (
-            <ScrollArea className="h-full">
+            <ScrollArea className="min-h-0 flex-1">
               <div className="grid grid-cols-4 justify-items-center gap-1 p-2">
                 {RESEARCH_PANEL_NAV.map((item) => (
                   <ToolNavButton

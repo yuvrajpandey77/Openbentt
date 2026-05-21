@@ -13,6 +13,7 @@ import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
 import {
   editorFileLabel,
   NOTEBOOK_EXPLORER_INSET_PX,
+  NOTEBOOK_EXPLORER_LEFT_PX,
   NOTEBOOK_EXPLORER_TABS_PADDING_OPEN_PX,
   NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX,
   useNotebookStudio,
@@ -150,7 +151,7 @@ export function NotebookStudioShell() {
             className="flex shrink-0 items-center border-b border-border/50 bg-muted/15 pr-2"
             style={{ minHeight: NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX }}
           >
-            <NotebookExplorerDock className="ml-2 shrink-0" />
+            <NotebookExplorerDock className="shrink-0" style={{ marginLeft: NOTEBOOK_EXPLORER_LEFT_PX }} />
             <div
               className="min-w-0 flex-1 overflow-hidden py-1 pl-3 transition-[padding-left] duration-200 ease-out"
               style={{

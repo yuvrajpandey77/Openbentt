@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,6 +8,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/components/ui/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { useChat } from "@/context/ChatContext";
 import { buildAssistantPlainText } from "@/lib/assistantPlainText";
 import { extractNotebookSourceFromPdf } from "@/lib/pdfText";
@@ -70,6 +70,14 @@ import { isDesktopApp } from "@/lib/isDesktopApp";
 type MainTab = "preview" | "source";
 /** Which PDF bytes drive the canvas — original upload vs text-compiled (images/layout only on Original). */
 type PreviewVariant = "original" | "compiled";
+/** Hide internal PDF-extraction markers mistaken for display titles. */
+function pdfPreviewLabel(name: string | null): string | null {
+  if (!name?.trim()) return null;
+  const t = name.trim();
+  if (t.includes("[UNTRUSTED_DOCUMENT")) return null;
+  return t;
+}
+
 
 const ZOOM_MIN = 0.65;
 const ZOOM_MAX = 2.25;
@@ -127,6 +135,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   } = useChat();
 
   const [fileName, setFileName] = useState<string | null>(null);
+  const displayPdfName = useMemo(() => pdfPreviewLabel(fileName), [fileName]);
   const [originalBytes, setOriginalBytes] = useState<ArrayBuffer | null>(null);
   const [compiledBytes, setCompiledBytes] = useState<ArrayBuffer | null>(null);
   const [sourceText, setSourceText] = useState(projectDraftTex ?? "");
@@ -134,9 +143,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   const [lineInclude, setLineInclude] = useState<boolean[]>([]);
   const [mainTab, setMainTab] = useState<MainTab>("preview");
   const [busy, setBusy] = useState(false);
-  /** Offer “Apply fixes & recompile” after bad PDF output or failed LaTeX compile. */
-  const [latexRecovery, setLatexRecovery] = useState(false);
-  /** Last failure message for the same “ask chat to fix” path as the recovery bar (cleared on successful compile). */
+  /** Last failure message for “ask chat to fix” (cleared on successful compile). */
   const [lastLatexFailure, setLastLatexFailure] = useState<{
     raw: string;
     source: NotebookLatexFailureSource;
@@ -364,6 +371,48 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     return diffLineRows(sourceText, proposedText);
   }, [sourceText, proposedText]);
 
+  const recordCompileFailure = useCallback((err: unknown, source: NotebookLatexFailureSource = "compile") => {
+    const raw = err instanceof Error ? err.message : String(err);
+    setCompileDiagnostics(parseLaTeXCompileDiagnostics(raw));
+    setLastLatexFailure({ raw, source });
+  }, []);
+
+  const notifyLatexFailure = useCallback(
+    (err: unknown, source: NotebookLatexFailureSource = "compile") => {
+      recordCompileFailure(err, source);
+      const raw = err instanceof Error ? err.message : String(err);
+      const diags = parseLaTeXCompileDiagnostics(raw);
+      const { title, description } = formatCompileFailureToast(err);
+      const firstLine = description.split("\n").find((l) => l.trim())?.trim() ?? "";
+      const shortDesc = [
+        diags.length > 0 ? `Line ${diags.map((d) => d.line).join(", ")}.` : null,
+        firstLine.length > 120 ? `${firstLine.slice(0, 117)}…` : firstLine,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      toast({
+        variant: "destructive",
+        title: diags[0] ? `Compile failed · line ${diags[0].line}` : title,
+        description: shortDesc || "Tap Fix in chat to diagnose.",
+        className: "p-4 pr-8",
+        action: (
+          <ToastAction
+            altText="Fix in chat"
+            onClick={() => {
+              queuePromptInComposer(
+                buildNotebookLatexFixPrompt({ sourceText, errorRaw: raw, failure: source })
+              );
+            }}
+          >
+            Fix in chat
+          </ToastAction>
+        ),
+      });
+    },
+    [recordCompileFailure, toast, sourceText, queuePromptInComposer]
+  );
+
   const runPreviewRender = useCallback(async () => {
     const el = previewRef.current;
     const scrollEl = pdfScrollRef.current;
@@ -371,7 +420,6 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     el.innerHTML = '<p class="text-sm text-muted-foreground p-6 text-center">Rendering…</p>';
     try {
       await renderPdfPages(previewBuffer, el, pdfScale);
-      setLatexRecovery(false);
       setLastLatexFailure(null);
       const pending = pendingPdfZoomRef.current;
       if (pending && scrollEl && Math.abs(pending.prevScale - pdfScale) > 1e-6) {
@@ -385,16 +433,16 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       pendingPdfZoomRef.current = null;
       const msg = e instanceof Error ? e.message : String(e);
       if (isLatexSource) {
-        setLatexRecovery(true);
-        setLastLatexFailure({ raw: msg, source: "pdf_render" });
+        notifyLatexFailure(e, "pdf_render");
+      } else {
+        toast({
+          title: "PDF preview failed",
+          description: msg,
+          variant: "destructive",
+        });
       }
-      toast({
-        title: "PDF preview failed",
-        description: msg,
-        variant: "destructive",
-      });
     }
-  }, [previewBuffer, pdfScale, toast, isLatexSource]);
+  }, [previewBuffer, pdfScale, toast, isLatexSource, notifyLatexFailure]);
 
   /** Re-render when buffer/scale changes, and when returning to Preview (tab unmount clears the canvas). */
   useEffect(() => {
@@ -526,7 +574,6 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
         setCompiledBytes(buf.slice(0));
         setPreviewVariant("compiled");
         setMainTab("preview");
-        setLatexRecovery(false);
         setLastLatexFailure(null);
         setCompileDiagnostics([]);
         toast({
@@ -541,7 +588,6 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       setCompiledBytes(buf.slice(0));
       setPreviewVariant("compiled");
       setMainTab("preview");
-      setLatexRecovery(false);
       setLastLatexFailure(null);
       setCompileDiagnostics([]);
       const kind = isLatexDocumentSource(text) ? "pdflatex PDF" : "text PDF";
@@ -556,12 +602,6 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     [fileName, toast, originalBytes, researchProject]
   );
 
-  const recordCompileFailure = useCallback((err: unknown) => {
-    const raw = err instanceof Error ? err.message : String(err);
-    setCompileDiagnostics(parseLaTeXCompileDiagnostics(raw));
-    setLastLatexFailure({ raw, source: "compile" });
-  }, []);
-
   const runAutofixAndRecompile = useCallback(async () => {
     if (!isLatexDocumentSource(sourceText)) {
       toast({ title: "Autofix applies to LaTeX source", description: "Switch Source to a full LaTeX document, then try again." });
@@ -573,14 +613,11 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     try {
       await doCompile(next);
     } catch (err) {
-      setLatexRecovery(true);
-      recordCompileFailure(err);
-      const { title, description } = formatCompileFailureToast(err);
-      toast({ title, description, variant: "destructive" });
+      notifyLatexFailure(err);
     } finally {
       setBusy(false);
     }
-  }, [sourceText, doCompile, toast, recordCompileFailure]);
+  }, [sourceText, doCompile, notifyLatexFailure]);
 
   const runDiagnosticFixAndRecompile = useCallback(
     async (diag: LatexCompileDiagnostic) => {
@@ -591,15 +628,12 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       try {
         await doCompile(next);
       } catch (err) {
-        setLatexRecovery(true);
-        recordCompileFailure(err);
-        const { title, description } = formatCompileFailureToast(err);
-        toast({ title, description, variant: "destructive" });
+        notifyLatexFailure(err);
       } finally {
         setBusy(false);
       }
     },
-    [sourceText, doCompile, toast, recordCompileFailure]
+    [sourceText, doCompile, notifyLatexFailure]
   );
 
   const loadFixPromptInChat = useCallback(() => {
@@ -637,25 +671,27 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       try {
         await doCompile(req.latex);
       } catch (err) {
-        if (isLatexDocumentSource(req.latex)) setLatexRecovery(true);
-        recordCompileFailure(err);
-        const { title, description } = formatCompileFailureToast(err);
-        toast({ title, description, variant: "destructive" });
+        if (isLatexDocumentSource(req.latex)) notifyLatexFailure(err);
+        else {
+          const { title, description } = formatCompileFailureToast(err);
+          toast({ title, description, variant: "destructive" });
+        }
       } finally {
         setBusy(false);
       }
     })();
-  }, [notebookLatexInsertRequest?.id, clearNotebookLatexInsertRequest, doCompile, toast, recordCompileFailure]);
+  }, [notebookLatexInsertRequest?.id, clearNotebookLatexInsertRequest, doCompile, toast, notifyLatexFailure]);
 
   const compilePdf = async () => {
     setBusy(true);
     try {
       await doCompile(sourceText);
     } catch (err) {
-      if (isLatexSource) setLatexRecovery(true);
-      recordCompileFailure(err);
-      const { title, description } = formatCompileFailureToast(err);
-      toast({ title, description, variant: "destructive" });
+      if (isLatexSource) notifyLatexFailure(err);
+      else {
+        const { title, description } = formatCompileFailureToast(err);
+        toast({ title, description, variant: "destructive" });
+      }
     } finally {
       setBusy(false);
     }
@@ -765,10 +801,11 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     try {
       await doCompile(next);
     } catch (err) {
-      if (isLatexDocumentSource(next)) setLatexRecovery(true);
-      recordCompileFailure(err);
-      const { title, description } = formatCompileFailureToast(err);
-      toast({ title, description, variant: "destructive" });
+      if (isLatexDocumentSource(next)) notifyLatexFailure(err);
+      else {
+        const { title, description } = formatCompileFailureToast(err);
+        toast({ title, description, variant: "destructive" });
+      }
     } finally {
       setBusy(false);
     }
@@ -783,10 +820,11 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     try {
       await doCompile(next);
     } catch (err) {
-      if (isLatexDocumentSource(next)) setLatexRecovery(true);
-      recordCompileFailure(err);
-      const { title, description } = formatCompileFailureToast(err);
-      toast({ title, description, variant: "destructive" });
+      if (isLatexDocumentSource(next)) notifyLatexFailure(err);
+      else {
+        const { title, description } = formatCompileFailureToast(err);
+        toast({ title, description, variant: "destructive" });
+      }
     } finally {
       setBusy(false);
     }
@@ -801,10 +839,11 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     try {
       await doCompile(merged);
     } catch (err) {
-      if (isLatexDocumentSource(merged)) setLatexRecovery(true);
-      recordCompileFailure(err);
-      const { title, description } = formatCompileFailureToast(err);
-      toast({ title, description, variant: "destructive" });
+      if (isLatexDocumentSource(merged)) notifyLatexFailure(err);
+      else {
+        const { title, description } = formatCompileFailureToast(err);
+        toast({ title, description, variant: "destructive" });
+      }
     } finally {
       setBusy(false);
     }
@@ -974,75 +1013,6 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
           Source
         </Button>
       </div>
-      )}
-
-      {isStudio && fileName && (
-        <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border/50 bg-muted/20 px-3 py-1.5">
-          <span className="truncate text-xs text-muted-foreground" title={fileName}>
-            Preview: {fileName}
-          </span>
-        </div>
-      )}
-
-      {latexRecovery && isLatexSource && (
-        <div className="shrink-0 border-b border-amber-500/35 bg-amber-500/[0.08] px-3 py-2.5 dark:bg-amber-950/25">
-          <Alert className="border-amber-500/40 bg-background/90">
-            <Wand2 className="h-4 w-4 text-amber-700 dark:text-amber-400" />
-            <AlertTitle>Fix LaTeX and try again</AlertTitle>
-            <AlertDescription className="flex flex-col gap-3">
-              <span>
-                {compileDiagnostics.length > 0 ? (
-                  <>
-                    Error on line{compileDiagnostics.length > 1 ? "s" : ""}{" "}
-                    <strong>{compileDiagnostics.map((d) => d.line).join(", ")}</strong> — marked in the editor.
-                    Use the red <strong>Fix</strong> button on the error line or below.
-                  </>
-                ) : (
-                  <>
-                    <strong>Apply fixes & recompile</strong> runs deterministic cleanup on the current Source, then compiles.{" "}
-                    <strong>Open fix prompt in chat</strong> loads Source and the captured error into chat.
-                  </>
-                )}
-              </span>
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-                {compileDiagnostics[0] && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    className="shrink-0 gap-1.5"
-                    onClick={() => void runDiagnosticFixAndRecompile(compileDiagnostics[0])}
-                    disabled={busy}
-                  >
-                    <Wand2 className="h-3.5 w-3.5" />
-                    {compileDiagnostics[0].fixLabel} (L{compileDiagnostics[0].line})
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="shrink-0 gap-1.5"
-                  onClick={() => loadFixPromptInChat()}
-                  disabled={busy || !lastLatexFailure}
-                >
-                  <MessageSquareQuote className="h-3.5 w-3.5" />
-                  Open fix prompt in chat
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="shrink-0 gap-1.5"
-                  onClick={() => void runAutofixAndRecompile()}
-                  disabled={busy}
-                >
-                  <Wand2 className="h-3.5 w-3.5" />
-                  Apply fixes & recompile
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
-        </div>
       )}
 
       <div
@@ -1308,9 +1278,12 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
               </DropdownMenu>
             )}
             <div className="ml-auto flex items-center gap-2">
-              {fileName && (
-                <span className="hidden max-w-[140px] truncate text-[11px] text-muted-foreground md:inline" title={fileName}>
-                  {fileName}
+              {displayPdfName && (
+                <span
+                  className="hidden max-w-[140px] truncate text-[11px] text-muted-foreground md:inline"
+                  title={displayPdfName}
+                >
+                  {displayPdfName}
                 </span>
               )}
               <Button
