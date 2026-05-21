@@ -71,7 +71,7 @@ describe("researchProjectService IPC smoke", () => {
     const projectId = "ipc-smoke";
 
     const init = await ipc.invoke("research:init");
-    assert.equal(init.schemaVersion, 4);
+    assert.equal(init.schemaVersion, 5);
 
     await ipc.invoke("research:saveProject", sampleProject(projectId));
     const loaded = await ipc.invoke("research:loadProject", projectId);

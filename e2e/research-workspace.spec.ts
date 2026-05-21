@@ -92,7 +92,8 @@ function seedAppStorage(project: typeof SEED_PROJECT) {
   );
 }
 
-test.describe("research workspace Phase A (unified notebook)", () => {
+test.describe.skip("research workspace Phase A (unified notebook)", () => {
+  // Notebook Studio is desktop-only; legacy web research panel routes were removed in 2.0.10.
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(seedAppStorage, SEED_PROJECT);
   });
@@ -134,6 +135,6 @@ test.describe("research workspace smoke", () => {
       localStorage.setItem("openbentt-workspace-panel-open", "1");
     });
     await page.goto("/notebook");
-    await expect(page.getByText(/E2E Research|Notebook/i).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/Desktop app required|Notebook/i).first()).toBeVisible({ timeout: 20_000 });
   });
 });

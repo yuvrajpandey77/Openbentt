@@ -72,6 +72,27 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [2.0.10] — 2026-05-21
+
+### Added
+
+- **Notebook Studio:** Projects hub, multi-file LaTeX editor (CodeMirror), PDF preview, compile pipeline (WASM + optional server), file tree CRUD, citation/bib tools, and floating chat dock.
+- **Desktop chrome:** Compact 28px dark title bar with Openbentt logo, File/Edit/View/Help menus, and frameless Linux window controls.
+- **Download page:** Live GitHub Release asset resolution for OS-specific installer links.
+- **Global settings dock:** App-wide settings + pane layout controls (bottom-left / bottom-right).
+
+### Changed
+
+- Notebook compile errors surface as compact toasts with “Fix in chat” instead of blocking banners.
+- Explorer flyout, editor tabs, and research workspace layout refactored for Notebook Studio.
+
+### Fixed
+
+- LaTeX compile stack overflow on large binary assets (chunked base64).
+- Electron title bar matches app-shell dark theme (`#1f1f1f`).
+
+---
+
 ## [Unreleased]
 
 ### Added (prior work merged into 2.0.6)

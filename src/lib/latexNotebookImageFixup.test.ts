@@ -10,7 +10,7 @@ describe("rewriteIncludegraphicsPlaceholders", () => {
     const out = rewriteIncludegraphicsPlaceholders(tex);
     expect(out).not.toContain("\\includegraphics");
     expect(out).toContain("diagram.jpg");
-    expect(out).toContain("Image not bundled");
+    expect(out).toContain("Upload image to Assets");
   });
 
   it("leaves non-LaTeX text unchanged", () => {
