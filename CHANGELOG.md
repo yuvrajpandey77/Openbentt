@@ -72,6 +72,14 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [2.0.11] — 2026-05-21
+
+### Fixed
+
+- **Windows release CI:** llama.cpp `b9222` Windows zip uses a flat layout (`llama-server.exe` at archive root). Download script updated; runtime DLLs are bundled beside the exe.
+
+---
+
 ## [2.0.10] — 2026-05-21
 
 ### Added

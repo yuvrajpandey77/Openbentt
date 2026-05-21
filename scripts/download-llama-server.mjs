@@ -5,7 +5,8 @@
  *
  * Usage:
  *   node scripts/download-llama-server.mjs           # current OS only
- *   node scripts/download-llama-server.mjs --all       # linux + darwin + win32 (CI)
+ *   node scripts/download-llama-server.mjs --all            # linux + darwin + win32 (CI)
+ *   node scripts/download-llama-server.mjs --platform win32  # single platform (CI/debug)
  *   LLAMA_CPP_TAG=b9222 node scripts/download-llama-server.mjs
  */
 import { spawnSync } from "node:child_process";
@@ -43,7 +44,10 @@ async function loadManifest() {
       m.binaryInArchive.tar = m.binaryInArchive.tar.replace(/^llama-b\d+\//, `llama-${tag}/`);
     }
     if (m.binaryInArchive?.zip) {
-      m.binaryInArchive.zip = m.binaryInArchive.zip.replace(/^llama-b\d+\//, `llama-${tag}/`);
+      const zip = m.binaryInArchive.zip;
+      m.binaryInArchive.zip = zip.includes("/")
+        ? zip.replace(/^llama-b\d+\//, `llama-${tag}/`)
+        : zip;
     }
   }
   return m;
@@ -75,6 +79,31 @@ async function chmodExec(filePath) {
   if (process.platform === "win32") return;
   const st = await fsp.stat(filePath);
   await fsp.chmod(filePath, st.mode | 0o755);
+}
+
+/** @param {string} dir @param {string} exeName */
+async function findBinaryInExtract(dir, exeName) {
+  const entries = await fsp.readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const nested = await findBinaryInExtract(full, exeName);
+      if (nested) return nested;
+    } else if (entry.name === exeName) {
+      return full;
+    }
+  }
+  return null;
+}
+
+/** Windows zips ship flat with many DLLs — copy runtime deps beside llama-server.exe. */
+async function copyWindowsRuntimeDeps(extractDir, outDir) {
+  const entries = await fsp.readdir(extractDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    if (!entry.name.endsWith(".dll")) continue;
+    await fsp.copyFile(path.join(extractDir, entry.name), path.join(outDir, entry.name));
+  }
 }
 
 /**
@@ -119,13 +148,20 @@ async function fetchForPlatform(manifest, platform) {
   if (isZip) extractZip(archivePath, extractDir);
   else extractTar(archivePath, extractDir);
 
-  const extractedBinary = path.join(extractDir, innerPath);
+  const exeName = platform === "win32" ? "llama-server.exe" : "llama-server";
+  let extractedBinary = path.join(extractDir, innerPath);
   if (!fs.existsSync(extractedBinary)) {
-    throw new Error(`Expected binary missing: ${extractedBinary}`);
+    extractedBinary = await findBinaryInExtract(extractDir, exeName);
+  }
+  if (!extractedBinary || !fs.existsSync(extractedBinary)) {
+    throw new Error(`Expected binary missing: ${path.join(extractDir, innerPath)} (also searched for ${exeName})`);
   }
 
   await fsp.mkdir(path.dirname(outPath), { recursive: true });
   await fsp.copyFile(extractedBinary, outPath);
+  if (platform === "win32") {
+    await copyWindowsRuntimeDeps(extractDir, path.dirname(outPath));
+  }
   await chmodExec(outPath);
 
   const size = (await fsp.stat(outPath)).size;
@@ -134,6 +170,10 @@ async function fetchForPlatform(manifest, platform) {
 
 function targetPlatforms(argv) {
   if (argv.includes("--all")) return PLATFORMS;
+  const pIdx = argv.indexOf("--platform");
+  if (pIdx >= 0 && argv[pIdx + 1] && PLATFORMS.includes(argv[pIdx + 1])) {
+    return [argv[pIdx + 1]];
+  }
   const map = { linux: "linux", darwin: "darwin", win32: "win32" };
   return [map[process.platform] ?? "linux"];
 }

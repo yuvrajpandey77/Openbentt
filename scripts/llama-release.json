@@ -9,6 +9,6 @@
   },
   "binaryInArchive": {
     "tar": "llama-b9222/llama-server",
-    "zip": "llama-b9222/llama-server.exe"
+    "zip": "llama-server.exe"
   }
 }
