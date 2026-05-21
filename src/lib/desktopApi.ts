@@ -17,9 +17,23 @@ export interface DesktopUpdateStatus {
   releaseNotes?: string;
 }
 
+export type DesktopEditRole = "undo" | "redo" | "cut" | "copy" | "paste" | "selectAll";
+
 export interface OpenbenttDesktopApi {
   platform: NodeJS.Platform;
   isElectron: true;
+  framelessTitleBar?: boolean;
+  windowMinimize?(): Promise<void>;
+  windowToggleMaximize?(): Promise<boolean>;
+  windowClose?(): Promise<void>;
+  windowIsMaximized?(): Promise<boolean>;
+  editRole?(role: DesktopEditRole): Promise<void>;
+  reloadPage?(): Promise<void>;
+  toggleDevTools?(): Promise<void>;
+  quitApp?(): Promise<void>;
+  showAbout?(): Promise<void>;
+  openExternal?(url: string): Promise<{ ok: boolean }>;
+  onMenuNavigate?(cb: (path: string) => void): () => void;
   getAppVersion(): Promise<string>;
   checkForUpdates(): Promise<{ ok: boolean; updateInfo?: string | null; message?: string }>;
   downloadUpdate(): Promise<{ ok: boolean; message?: string }>;

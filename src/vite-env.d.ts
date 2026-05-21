@@ -20,6 +20,8 @@ interface ImportMeta {
 }
 
 /** Exposed from `electron/preload.cjs` in the desktop shell only. */
+type DesktopEditRole = "undo" | "redo" | "cut" | "copy" | "paste" | "selectAll";
+
 interface OpenbenttDesktopApi {
   readonly isElectron: boolean;
   readonly platform: string;
@@ -28,6 +30,13 @@ interface OpenbenttDesktopApi {
   windowToggleMaximize?: () => Promise<boolean>;
   windowClose?: () => Promise<void>;
   windowIsMaximized?: () => Promise<boolean>;
+  editRole?: (role: DesktopEditRole) => Promise<void>;
+  reloadPage?: () => Promise<void>;
+  toggleDevTools?: () => Promise<void>;
+  quitApp?: () => Promise<void>;
+  showAbout?: () => Promise<void>;
+  openExternal?: (url: string) => Promise<{ ok: boolean }>;
+  onMenuNavigate?: (cb: (path: string) => void) => () => void;
 }
 
 interface OpenbenttResearchApi {

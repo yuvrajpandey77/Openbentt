@@ -8,6 +8,17 @@ contextBridge.exposeInMainWorld("openbenttDesktop", {
   windowToggleMaximize: () => ipcRenderer.invoke("desktop:windowToggleMaximize"),
   windowClose: () => ipcRenderer.invoke("desktop:windowClose"),
   windowIsMaximized: () => ipcRenderer.invoke("desktop:windowIsMaximized"),
+  editRole: (role) => ipcRenderer.invoke("desktop:editRole", role),
+  reloadPage: () => ipcRenderer.invoke("desktop:reload"),
+  toggleDevTools: () => ipcRenderer.invoke("desktop:toggleDevTools"),
+  quitApp: () => ipcRenderer.invoke("desktop:quit"),
+  showAbout: () => ipcRenderer.invoke("desktop:showAbout"),
+  openExternal: (url) => ipcRenderer.invoke("desktop:openExternal", url),
+  onMenuNavigate: (cb) => {
+    const handler = (_event, path) => cb(path);
+    ipcRenderer.on("desktop:menuNavigate", handler);
+    return () => ipcRenderer.removeListener("desktop:menuNavigate", handler);
+  },
   getAppVersion: () => ipcRenderer.invoke("desktop:getAppVersion"),
   checkForUpdates: () => ipcRenderer.invoke("desktop:checkForUpdates"),
   downloadUpdate: () => ipcRenderer.invoke("desktop:downloadUpdate"),

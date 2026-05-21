@@ -16,6 +16,7 @@ import { registerHfSecretIpc } from "./hfSecretStore.mjs";
 import { registerSecretVaultIpc } from "./secretVault.mjs";
 import { registerDesktopUpdaterIpc, setUpdaterTargetWindow } from "./updater.mjs";
 import { registerDesktopWindowIpc } from "./desktopWindowIpc.mjs";
+import { setupApplicationMenu } from "./appMenu.mjs";
 import {
   registerResearchProjectIpc,
   shutdownResearchServices,
@@ -244,6 +245,7 @@ if (singleInstanceLock) {
 }
 
 app.whenReady().then(async () => {
+  setupApplicationMenu({ isDev: useViteDevServer });
   registerDesktopUpdaterIpc();
   registerDesktopWindowIpc(ipcMain);
   registerHfSecretIpc(ipcMain, app);
