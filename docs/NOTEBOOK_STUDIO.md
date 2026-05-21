@@ -119,16 +119,79 @@ Requires `npm run download:busytex` once before first compile.
 - [ ] New chat from rail
 - [ ] Ask for LaTeX fix → apply from toolbar
 
+## Compile pipeline (Phases 0–1)
+
+- **Multi-file bundle:** Compile sends `main.tex` + `references.bib` + `chapters/*.tex` + `assets/*` to BusyTeX or local TeX.
+- **Backends:** Settings ⚙️ → **All** tab → Auto (local TeX on desktop, else WASM) / Browser BusyTeX / Local TeX Live / Remote HTTP.
+- **IEEE / TikZ:** Use **Local TeX Live** backend (requires `pdflatex` on PATH). WASM remains limited.
+- **Assets:** Upload under **assets/** → reference `\includegraphics{assets/name.png}` → included in compile bundle.
+- **Export:** Download icon in file tree → ZIP (`main.tex`, bib, chapters, assets).
+
+## Pane settings (bottom-right ⚙️)
+
+Fixed gear left of the chat launcher. Tabs: **All** (compile backend, document class, font), **Editor** (font size, wrap), **Preview** (zoom, text layer), **Files**, **Chat** (citation style).
+
+## Manual test scenarios
+
+### 1. Multi-file + BibTeX compile
+
+1. Open a project → add `chapters/intro.tex` via file tree footer.
+2. In `main.tex` add `\input{chapters/intro}` and `\bibliography{references}`.
+3. Add entries to `references.bib`.
+4. Click **Compile** → check toast shows bundle summary (`main.tex + references.bib + chapters/...`).
+5. Preview PDF should include chapter content.
+
+### 2. Asset figures
+
+1. **Upload asset** → pick a PNG.
+2. Click asset in tree → image preview dialog → **Copy includegraphics path**.
+3. Paste into `main.tex`, compile → image appears (local TeX) or in WASM if bundled.
+
+### 3. Compile backends
+
+1. Open ⚙️ → set **Browser BusyTeX** → compile minimal article (should work).
+2. Set **Local TeX Live** → compile IEEE template (needs TeX Live installed).
+3. Set **Auto** → desktop tries local first, falls back to WASM on failure.
+
+### 4. Editor toolbar + formatting
+
+1. Select text in editor → click **B** / *I* → `\textbf{}` / `\textit{}` inserted.
+2. Use **Section**, **Equation**, **Table** buttons.
+3. ⚙️ → Editor → increase font size → editor text grows.
+
+### 5. Error line fix
+
+1. Add `\usepackage{algorithmic}` to preamble → Compile.
+2. Red line gutter + **Fix** button → comment out line → recompile.
+
+### 6. Floating chat + connections
+
+1. Chat bubble (bottom-right) → drag header to move, corner to resize.
+2. Drag sky dot → green tab dot → cable connects; chat gets file context.
+
+### 7. Export project
+
+1. File tree → **Download** icon → saves `{project}-export.zip`.
+2. Unzip → verify `main.tex`, `references.bib`, `assets/`.
+
+### 8. Per-file tabs
+
+1. Click `references.bib` in tree → new tab.
+2. Compile still uses **main.tex** bundle (toast warns if editing fragment).
+
 ## Known gaps (not blocking core flow)
 
-- Shared projects / import ZIP — not implemented
+- PDF text layer toggle in settings (UI present; full pdf.js text layer optional follow-up)
+- SyncTeX source↔PDF jump
+- Drag-to-connect only (click-to-connect works)
+- Shared projects / import ZIP — export only for now
 - Thumbnails capped at 24 pages
 - Web notebook intentionally disabled
 
 ## Dev run
 
 ```bash
+npm run download:busytex   # once, for WASM compile
+npm run latex-compile      # optional, terminal 2 — full TeX HTTP fallback
 npm run electron:dev
 ```
-
-Opens Vite + Electron; hot reload on save.

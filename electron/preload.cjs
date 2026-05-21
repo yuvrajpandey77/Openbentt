@@ -85,6 +85,9 @@ contextBridge.exposeInMainWorld("openbenttResearch", {
   listProjectAssets: (projectId) => ipcRenderer.invoke("research:listProjectAssets", projectId),
   storeProjectAsset: (projectId, fileName, base64) =>
     ipcRenderer.invoke("research:storeProjectAsset", projectId, fileName, base64),
+  loadProjectAsset: (projectId, fileName) =>
+    ipcRenderer.invoke("research:loadProjectAsset", projectId, fileName),
+  compileProjectLatex: (payload) => ipcRenderer.invoke("research:compileProjectLatex", payload),
   loadEmbeddings: (projectId, chunkIds) =>
     ipcRenderer.invoke("research:loadEmbeddings", projectId, chunkIds),
   upsertEmbeddings: (projectId, batch) =>

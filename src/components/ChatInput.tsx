@@ -380,7 +380,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   return (
-    <div className="border-t border-border/70 bg-gradient-to-t from-card/80 via-card/50 to-transparent px-3 pb-4 pt-3 backdrop-blur-md">
+    <div className={cn("border-t border-border/70 bg-gradient-to-t from-card/80 via-card/50 to-transparent backdrop-blur-md", isStudio ? "px-2 pb-2 pt-2" : "px-3 pb-4 pt-3")}>
       <input
         ref={fileRef}
         type="file"
@@ -389,11 +389,29 @@ const ChatInput: React.FC<ChatInputProps> = ({
         multiple
         onChange={onFilePick}
       />
-      <div className="mx-auto max-w-5xl space-y-3">
+      <div className={cn("mx-auto space-y-3", isStudio ? "max-w-none" : "max-w-5xl")}>
         {/* On-device model consent bar — only shown before user consents */}
-        <LocalOnDeviceModelBar />
+        {!isStudio && <LocalOnDeviceModelBar />}
 
-        {!isWebClient() &&
+        {isStudio && !canSendChat(apiConfig) && !isLoadingConfig && (
+          <Alert variant="default" className="border-amber-500/40 bg-amber-500/5 py-2">
+            <AlertTitle className="text-xs">Set up AI to send messages</AlertTitle>
+            <AlertDescription className="text-[11px]">
+              {apiConfig.aiProvider === "local_gguf"
+                ? "Download a GGUF in Labs, then pick it in Settings → AI & models."
+                : apiConfig.aiProvider === "webgpu_gemma"
+                  ? "Enable the on-device model in Settings, or switch to OpenRouter with an API key."
+                  : "Add an OpenRouter API key in Settings → AI & models (sidebar ⚙️)."}
+              {" "}
+              <Link to="/setup" className="font-medium text-primary hover:underline">
+                Open setup
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!isStudio &&
+          !isWebClient() &&
           apiConfig.aiProvider === "local_gguf" &&
           canSendChat(apiConfig) &&
           !parseGgufRegistryId(apiConfig.model) && (
@@ -479,7 +497,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 comparisonEnabled: apiConfig.comparisonEnabled,
               })
             }
-            disabled={isLoading || isLoadingConfig || !canSendMessage(apiConfig)}
+            disabled={isLoading || (!isStudio && (isLoadingConfig || !canSendMessage(apiConfig)))}
             className={cn(
               "resize-none border-0 bg-transparent px-3 text-[15px] leading-relaxed text-foreground shadow-none outline-none placeholder:text-muted-foreground/75 focus:border-0 focus:outline-none focus-visible:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:text-base",
               isStudio
@@ -702,17 +720,24 @@ const ChatInput: React.FC<ChatInputProps> = ({
                   <Button
                     onClick={isLoading ? () => stopStreaming() : () => void handleSendMessage()}
                     disabled={
-                      (!message.trim() && attachments.length === 0) ||
-                      !canSendMessage(apiConfig) ||
-                      isLoadingConfig ||
-                      (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())
+                      isLoading
+                        ? false
+                        : ((!message.trim() && attachments.length === 0) ||
+                            isLoadingConfig ||
+                            (isStudio
+                              ? !canSendChat(apiConfig) ||
+                                (apiConfig.aiProvider === "local_gguf" && !canSendMessage(apiConfig)) ||
+                                (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())
+                              : !canSendMessage(apiConfig) ||
+                                (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())))
                     }
                     size="sm"
-                    className={`h-9 w-9 p-0 ${
+                    className={cn(
+                      "h-9 w-9 p-0 relative z-20",
                       isLoading
                         ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                         : "bg-primary hover:bg-primary/90 text-primary-foreground"
-                    }`}
+                    )}
                   >
                     {isLoading ? <Square size={15} /> : <ArrowUp size={15} />}
                   </Button>

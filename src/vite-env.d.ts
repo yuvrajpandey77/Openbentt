@@ -44,6 +44,16 @@ interface OpenbenttResearchApi {
   ) => Promise<{ ok: boolean; base64?: string; message?: string }>;
   listProjectAssets: (projectId: string) => Promise<{ ok: boolean; files?: string[] }>;
   storeProjectAsset: (projectId: string, fileName: string, base64: string) => Promise<{ ok: boolean }>;
+  loadProjectAsset: (
+    projectId: string,
+    fileName: string
+  ) => Promise<{ ok: boolean; base64?: string; mime?: string; message?: string }>;
+  compileProjectLatex: (payload: {
+    mainTex: string;
+    mainPath?: string;
+    bibtex?: boolean;
+    files?: { path: string; content: string; encoding?: "utf8" | "base64" }[];
+  }) => Promise<{ ok: boolean; base64?: string; message?: string }>;
   loadEmbeddings: (projectId: string, chunkIds?: string[]) => Promise<Record<string, number[]>>;
   upsertEmbeddings: (
     projectId: string,

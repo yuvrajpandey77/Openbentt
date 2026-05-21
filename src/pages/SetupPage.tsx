@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useChat } from "@/context/ChatContext";
 import { defaultApiConfig, normalizeApiConfig, canSendChat } from "@/types/chat";
+import { ensureCloudInferenceForConfig } from "@/lib/privacy/privacyPreferences";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -116,14 +117,14 @@ const SetupPage: React.FC = () => {
       toast({ title: "API key required", description: "Paste your OpenRouter key to continue.", variant: "destructive" });
       return;
     }
-    setApiConfig(
-      normalizeApiConfig({
+    const next = normalizeApiConfig({
         ...apiConfig,
         aiProvider: "openrouter",
         apiKey: data.apiKey.trim(),
         model: apiConfig.model || defaultApiConfig().model,
-      })
-    );
+      });
+    ensureCloudInferenceForConfig(next);
+    setApiConfig(next);
     toast({ title: "Ready", description: "Your workspace is set up. Change models or keys any time in Settings." });
     navigate(appHomePath(), { replace: true });
   });

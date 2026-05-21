@@ -3,6 +3,8 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
+import { spawnSync } from "node:child_process";
 import {
   backupDatabase,
   closeDb,
@@ -40,6 +42,16 @@ import {
   shutdownAllJobs,
 } from "./researchJobQueue.mjs";
 import { assertBase64Pdf, assertPathUnderRoots, assertSafeId } from "./ipcValidate.mjs";
+
+function mimeForAsset(fileName) {
+  const lower = String(fileName).toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  return "application/octet-stream";
+}
 
 export async function initResearchStorage(app) {
   const { migrated } = await migrateLegacyProjects(app);
@@ -139,6 +151,86 @@ export function registerResearchProjectIpc(ipcMain, app) {
     const buf = Buffer.from(base64, "base64");
     await fs.writeFile(path.join(dir, fileName), buf);
     return { ok: true };
+  });
+
+  ipcMain.handle("research:loadProjectAsset", async (_e, projectId, fileName) => {
+    assertSafeId(projectId, "project id");
+    if (!fileName || /[/\\]/.test(fileName)) throw new Error("Invalid asset name");
+    const fp = path.join(projectDir(app, projectId), "assets", fileName);
+    try {
+      const buf = await fs.readFile(fp);
+      return { ok: true, base64: buf.toString("base64"), mime: mimeForAsset(fileName) };
+    } catch {
+      return { ok: false, message: "Asset not found" };
+    }
+  });
+
+  ipcMain.handle("research:compileProjectLatex", async (_e, payload) => {
+    const { mainTex, mainPath = "main.tex", files = [], bibtex = false } = payload ?? {};
+    if (!mainTex || typeof mainTex !== "string") throw new Error("Missing mainTex");
+    const pdflatexCheck = spawnSync("pdflatex", ["--version"], { encoding: "utf8" });
+    if (pdflatexCheck.status !== 0) {
+      return { ok: false, message: "pdflatex not found on PATH. Install TeX Live or MacTeX." };
+    }
+
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openbentt-proj-tex-"));
+    try {
+      await fs.writeFile(path.join(dir, mainPath), mainTex, "utf8");
+      for (const f of files) {
+        if (!f?.path || typeof f.path !== "string") continue;
+        const safe = f.path.replace(/\\/g, "/").replace(/^(\.\.\/)+/, "").trim();
+        if (
+          !safe ||
+          safe.length > 200 ||
+          safe.startsWith("/") ||
+          /[\0\n\r]/.test(safe) ||
+          /^documentclass|^\\documentclass|^usepackage|^\\usepackage/i.test(safe) ||
+          !/^[\w./-]+$/i.test(safe)
+        ) {
+          continue;
+        }
+        const fp = path.join(dir, safe);
+        await fs.mkdir(path.dirname(fp), { recursive: true });
+        if (f.encoding === "base64") {
+          await fs.writeFile(fp, Buffer.from(f.content, "base64"));
+        } else {
+          await fs.writeFile(fp, String(f.content ?? ""), "utf8");
+        }
+      }
+
+      const opts = { cwd: dir, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 };
+      const baseName = mainPath.replace(/\.tex$/i, "") || "main";
+      const args = ["-interaction=nonstopmode", "-halt-on-error", mainPath];
+      let log = "";
+      const runPdf = () => {
+        const r = spawnSync("pdflatex", args, opts);
+        log += (r.stdout || "") + (r.stderr || "");
+        return r.status ?? 1;
+      };
+
+      let status = runPdf();
+      if (bibtex) {
+        spawnSync("bibtex", [baseName], opts);
+        status = runPdf();
+        status = runPdf();
+      } else {
+        status = runPdf();
+      }
+
+      const pdfPath = path.join(dir, `${baseName}.pdf`);
+      try {
+        await fs.access(pdfPath);
+      } catch {
+        return { ok: false, message: log.slice(-24000) || "pdflatex failed" };
+      }
+      if (status !== 0) {
+        return { ok: false, message: log.slice(-24000) || "pdflatex failed" };
+      }
+      const pdfBuf = await fs.readFile(pdfPath);
+      return { ok: true, base64: pdfBuf.toString("base64") };
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
   });
 
   /** Main-process only (not exposed in preload). Paths must stay under userData. */

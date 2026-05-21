@@ -1,19 +1,13 @@
 /** Extract plaintext from PDF in the browser (pdf.js). */
+import * as pdfjs from "pdfjs-dist";
 import { sanitizeDocumentTextForPrompt } from "@/lib/security/documentPromptGuard";
 
-async function loadPdfJs() {
-  const isBrowser = typeof window !== "undefined";
-  const pdfjs = await import(
-    isBrowser ? "pdfjs-dist" : "pdfjs-dist/legacy/build/pdf.mjs"
-  );
-  const isVitest = import.meta.env.VITEST === true || import.meta.env.VITEST === "true";
-  if (!isVitest) {
-    const workerRel = isBrowser
-      ? "pdfjs-dist/build/pdf.worker.min.mjs"
-      : "pdfjs-dist/legacy/build/pdf.worker.mjs";
-    pdfjs.GlobalWorkerOptions.workerSrc = new URL(workerRel, import.meta.url).toString();
-  }
-  return pdfjs;
+const isVitest = import.meta.env.VITEST === true || import.meta.env.VITEST === "true";
+if (!isVitest) {
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/build/pdf.worker.min.mjs",
+    import.meta.url
+  ).toString();
 }
 
 /** Chat composer attachment: text merged into the user message (balance context vs payload). */
@@ -77,8 +71,6 @@ export async function extractTextFromPdfFile(
   maxChars: number = MAX_CHARS_CHAT_PDF,
   maxPages: number = MAX_PAGES_CHAT_PDF
 ): Promise<string> {
-  const pdfjs = await loadPdfJs();
-
   const buf = await file.arrayBuffer();
   const loading = pdfjs.getDocument({ data: new Uint8Array(buf) });
   let doc: Awaited<ReturnType<typeof loading.promise>> | null = null;
@@ -121,8 +113,6 @@ export async function extractNotebookSourceFromPdf(
   maxChars: number = MAX_CHARS_NOTEBOOK,
   maxPages: number = MAX_PAGES_NOTEBOOK
 ): Promise<string> {
-  const pdfjs = await loadPdfJs();
-
   const buf = await pdfBytesFromInput(file);
   const loading = pdfjs.getDocument({ data: buf });
   let doc: Awaited<ReturnType<typeof loading.promise>> | null = null;

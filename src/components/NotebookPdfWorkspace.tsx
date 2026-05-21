@@ -14,6 +14,8 @@ import { buildAssistantPlainText } from "@/lib/assistantPlainText";
 import { extractNotebookSourceFromPdf } from "@/lib/pdfText";
 import { renderPdfPages } from "@/lib/pdfCanvasRender";
 import { compileNotebookSourceToPdf } from "@/lib/compileNotebook";
+import { buildProjectCompileBundle } from "@/lib/research/notebookCompileHelpers";
+import { isFragmentSource } from "@/lib/research/compileBundle";
 import { formatCompileFailureToast, parseLaTeXCompileDiagnostics, type LatexCompileDiagnostic } from "@/lib/latexErrorUi";
 import { applyDiagnosticFix, applyNotebookLatexAutofix } from "@/lib/notebookLatexAutofix";
 import { isLatexDocumentSource } from "@/lib/notebookSourceKind";
@@ -56,7 +58,10 @@ import { useResearchWorkspaceOptional } from "@/context/ResearchWorkspaceContext
 import { useNotebookStudioOptional } from "@/context/NotebookStudioContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { NotebookStudioPreview } from "@/components/notebook/NotebookStudioPreview";
-import { NotebookLatexEditor } from "@/components/notebook/NotebookLatexEditor";
+import { NotebookLatexEditor, type NotebookEditorHandle } from "@/components/notebook/NotebookLatexEditor";
+import { resolveNotebookEditorLanguage } from "@/lib/codemirror/notebookLanguages";
+import { NotebookLatexToolbar } from "@/components/notebook/NotebookLatexToolbar";
+import { useNotebookStudioSettingsOptional } from "@/context/NotebookStudioSettingsContext";
 import { editorFileKey, editorFileLabel as getEditorFileLabel, texContentForFileKey } from "@/context/NotebookStudioContext";
 import { pushDraftHistoryDesktop } from "@/lib/research/researchDesktopApi";
 import { isDesktopApp } from "@/lib/isDesktopApp";
@@ -108,6 +113,8 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   const { toast } = useToast();
   const workspace = useResearchWorkspaceOptional();
   const { project: researchProject, updateProject: updateResearchProject } = useResearchProject();
+  const studioSettings = useNotebookStudioSettingsOptional();
+  const [compileSummary, setCompileSummary] = useState<string | null>(null);
   const {
     chats,
     currentChatId,
@@ -500,6 +507,34 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
 
   const doCompile = useCallback(
     async (text: string) => {
+      if (researchProject && isLatexDocumentSource(researchProject.draftTex)) {
+        const bundle = await buildProjectCompileBundle(researchProject, {
+          mainTexOverride: researchProject.draftTex,
+        });
+        setCompileSummary(bundle.summary);
+        if (isFragmentSource(text) && text !== researchProject.draftTex) {
+          toast({
+            title: "Compiling main.tex",
+            description: `Active file is a fragment — using project root (${bundle.summary}).`,
+          });
+        }
+        const blob = await compileNotebookSourceToPdf(text, fileName?.replace(/\.(pdf|tex)$/i, "") || "Notebook", {
+          bundle,
+        });
+        const buf = await blob.arrayBuffer();
+        setCompiledBytes(buf.slice(0));
+        setPreviewVariant("compiled");
+        setMainTab("preview");
+        setLatexRecovery(false);
+        setLastLatexFailure(null);
+        setCompileDiagnostics([]);
+        toast({
+          title: "Compiled",
+          description: `${bundle.summary} → PDF ready.`,
+        });
+        return;
+      }
+
       const blob = await compileNotebookSourceToPdf(text, fileName?.replace(/\.(pdf|tex)$/i, "") || "Notebook");
       const buf = await blob.arrayBuffer();
       setCompiledBytes(buf.slice(0));
@@ -517,7 +552,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
             : `${kind} ready — Preview shows the compiled output.`,
       });
     },
-    [fileName, toast, originalBytes]
+    [fileName, toast, originalBytes, researchProject]
   );
 
   const recordCompileFailure = useCallback((err: unknown) => {
@@ -702,21 +737,16 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     sourceText,
   ]);
 
+  const notebookEditorRef = useRef<NotebookEditorHandle>(null);
   const sourceTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const line = workspace?.focusSectionLine;
     if (line == null) return;
     setMainTab("source");
-    const el = sourceTextareaRef.current;
-    if (!el) return;
-    const lines = sourceText.split("\n");
-    let pos = 0;
-    for (let i = 0; i < line && i < lines.length; i++) pos += lines[i].length + 1;
-    el.focus();
-    el.setSelectionRange(pos, pos);
+    notebookEditorRef.current?.goToLine(line);
     workspace.clearFocusSection();
-  }, [workspace?.focusSectionLine, sourceText, workspace]);
+  }, [workspace?.focusSectionLine, workspace]);
 
   const applyLastReplyAndPreview = async () => {
     if (!lastAssistantPlain.trim()) {
@@ -1157,15 +1187,38 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
               </>
             )}
             {isStudio ? (
-              <NotebookLatexEditor
-                value={sourceText}
-                onChange={setSourceText}
-                diagnostics={compileDiagnostics}
-                onFixDiagnostic={(d) => void runDiagnosticFixAndRecompile(d)}
-                editorFileLabel={editorFileLabel}
-                textareaRef={sourceTextareaRef}
-                busy={busy}
-              />
+              <>
+                <NotebookLatexToolbar
+                  bibKeys={researchProject?.bibEntries?.map((b) => b.key).filter(Boolean) as string[]}
+                  onInsert={(snippet, cursorOffset = snippet.length) => {
+                    notebookEditorRef.current?.insertSnippet(snippet, cursorOffset);
+                  }}
+                />
+                {compileSummary && (
+                  <p className="shrink-0 px-1 text-[10px] text-muted-foreground">Compile bundle: {compileSummary}</p>
+                )}
+                <NotebookLatexEditor
+                  ref={notebookEditorRef}
+                  value={sourceText}
+                  onChange={setSourceText}
+                  diagnostics={compileDiagnostics}
+                  onFixDiagnostic={(d) => void runDiagnosticFixAndRecompile(d)}
+                  editorFileLabel={editorFileLabel}
+                  busy={busy}
+                  fontSize={studioSettings?.pane.editorFontSize}
+                  language={resolveNotebookEditorLanguage(
+                    studioCtx?.activeEditorFile.type ?? "draft",
+                    studioCtx?.activeEditorFile.type === "projectFile"
+                      ? researchProject?.projectFiles?.find(
+                          (f) => f.id === studioCtx.activeEditorFile.fileId
+                        )?.path
+                      : undefined
+                  )}
+                  useCodeMirror={studioSettings?.pane.editorUseCodeMirror ?? true}
+                  wordWrap={studioSettings?.pane.editorWordWrap ?? true}
+                  showLineNumbers={studioSettings?.pane.editorLineNumbers ?? true}
+                />
+              </>
             ) : (
               <Textarea
                 ref={sourceTextareaRef}

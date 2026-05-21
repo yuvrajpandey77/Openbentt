@@ -3,6 +3,7 @@
  * Assets: run `npm run download:busytex` (~175MB under public/core/busytex).
  */
 
+import type { CompileBundle } from "@/lib/research/compileBundle";
 import { wasmLatexFailureMessage } from "@/lib/latexErrorUi";
 
 let runnerInit: Promise<import("texlyre-busytex").BusyTexRunner> | null = null;
@@ -14,7 +15,7 @@ function busyTexBaseUrl(): string {
 }
 
 /** Compile full .tex source to PDF in the browser using WebAssembly (pdflatex). */
-export async function compileLatexWasmToPdf(tex: string): Promise<Blob> {
+export async function compileLatexWasmToPdf(tex: string, bundle?: CompileBundle): Promise<Blob> {
   const { BusyTexRunner, PdfLatex } = await import("texlyre-busytex");
   const busytexBasePath = busyTexBaseUrl();
 
@@ -31,8 +32,18 @@ export async function compileLatexWasmToPdf(tex: string): Promise<Blob> {
 
   const runner = await runnerInit;
   const pdfLatex = new PdfLatex(runner, false);
+
+  const mainTex = bundle?.mainTex ?? tex;
+  const additionalFiles = bundle?.additionalFiles ?? [];
+  const bibtex = bundle?.bibtex ?? false;
+
   const result = await pdfLatex.compile({
-    input: tex,
+    input: mainTex,
+    additionalFiles: additionalFiles.map((f) => ({
+      path: f.path,
+      content: f.content,
+    })),
+    bibtex,
     verbose: "silent",
   });
 

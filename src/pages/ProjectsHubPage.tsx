@@ -268,10 +268,17 @@ const ProjectsHubPage: React.FC = () => {
                 <ul>
                   {filtered.map((p) => (
                     <li key={p.id}>
-                      <button
-                        type="button"
-                        className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-4 border-b border-border/40 px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-muted/40"
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-4 border-b border-border/40 px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-muted/40 cursor-pointer"
                         onClick={() => void openProject(p.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            void openProject(p.id);
+                          }
+                        }}
                       >
                         <span className="truncate font-medium">{p.title}</span>
                         <span className="hidden text-sm tabular-nums text-muted-foreground sm:block">
@@ -306,7 +313,7 @@ const ProjectsHubPage: React.FC = () => {
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </span>
-                      </button>
+                      </div>
                     </li>
                   ))}
                 </ul>

@@ -306,7 +306,12 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
   };
 
   return (
-    <ScrollArea className="flex-1 p-4 overflow-y-auto">
+    <ScrollArea
+      className={cn(
+        "min-h-0",
+        emptyVariant === "studio" ? "h-full w-full p-2" : "flex-1 p-4"
+      )}
+    >
       <div ref={scrollRef} className="max-w-5xl mx-auto">
         {useVirtual && visibleMessages.length > 0 && (
           <p className="mb-4 text-center text-[11px] text-muted-foreground">

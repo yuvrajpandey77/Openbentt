@@ -65,8 +65,12 @@ export function NotebookStudioPreview({
   const destroyRef = useRef<(() => Promise<void>) | null>(null);
   const thumbsRef = useRef<HTMLDivElement>(null);
   const renderGenRef = useRef(0);
+  const resumePageRef = useRef<number | null>(null);
+  const thumbWrapsRef = useRef<HTMLButtonElement[]>([]);
   const [fitWidth, setFitWidth] = useState(true);
-  const [rendering, setRendering] = useState(false);
+  const [docLoading, setDocLoading] = useState(false);
+  const [pageRendering, setPageRendering] = useState(false);
+  const [docReady, setDocReady] = useState(false);
   const [pageNote, setPageNote] = useState("");
 
   const paper = project?.papers.find((p) => p.id === activePaperId);
@@ -80,16 +84,22 @@ export function NotebookStudioPreview({
   }, [paper?.id, paper?.pageNotes, pdfPage]);
 
   useEffect(() => {
+    resumePageRef.current = null;
+  }, [previewBuffer, paper?.id]);
+
+  useEffect(() => {
     if (!previewBuffer) {
       void destroyRef.current?.();
       docRef.current = null;
       destroyRef.current = null;
+      setDocReady(false);
       setPdfPageInfo(1, 0);
       return;
     }
     let cancelled = false;
+    setDocReady(false);
     void (async () => {
-      setRendering(true);
+      setDocLoading(true);
       await destroyRef.current?.();
       try {
         const { doc, handle } = await openPdfDocument(previewBuffer);
@@ -99,19 +109,25 @@ export function NotebookStudioPreview({
         }
         docRef.current = doc;
         destroyRef.current = handle.destroy;
-        const startPage =
-          paper?.lastReviewedPage && paper.lastReviewedPage <= handle.numPages
-            ? paper.lastReviewedPage
-            : 1;
+        let startPage = resumePageRef.current;
+        if (startPage == null) {
+          startPage =
+            paper?.lastReviewedPage && paper.lastReviewedPage <= handle.numPages
+              ? paper.lastReviewedPage
+              : 1;
+          resumePageRef.current = startPage;
+        }
         setPdfPageInfo(startPage, handle.numPages);
+        setDocReady(true);
       } finally {
-        if (!cancelled) setRendering(false);
+        if (!cancelled) setDocLoading(false);
       }
     })();
     return () => {
       cancelled = true;
+      setDocReady(false);
     };
-  }, [previewBuffer, paper?.id, paper?.lastReviewedPage, setPdfPageInfo]);
+  }, [previewBuffer, paper?.id, setPdfPageInfo]);
 
   useEffect(() => {
     if (!activePaperId || !pdfNumPages) return;
@@ -128,14 +144,21 @@ export function NotebookStudioPreview({
     if (!canvas || !doc || !pdfNumPages) return;
 
     const gen = ++renderGenRef.current;
-    setRendering(true);
+    setPageRendering(true);
     try {
       const page = await doc.getPage(Math.min(Math.max(1, pdfPage), pdfNumPages));
       if (gen !== renderGenRef.current) return;
       const baseVp = page.getViewport({ scale: 1 });
       let scale = pdfScale;
       if (fitWidth && scroll) {
-        scale = computeFitWidthScale(baseVp.width, scroll.clientWidth);
+        let width = scroll.clientWidth;
+        if (width === 0) {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          if (gen !== renderGenRef.current) return;
+          width = scroll.clientWidth;
+        }
+        if (width === 0) return;
+        scale = computeFitWidthScale(baseVp.width, width);
       }
       await renderPdfPage(doc, pdfPage, canvas, scale);
     } catch (err) {
@@ -143,25 +166,26 @@ export function NotebookStudioPreview({
         console.warn("[NotebookStudioPreview] page render failed", err);
       }
     } finally {
-      if (gen === renderGenRef.current) setRendering(false);
+      if (gen === renderGenRef.current) setPageRendering(false);
     }
   }, [pdfPage, pdfNumPages, pdfScale, fitWidth]);
 
   useEffect(() => {
-    if (!previewBuffer || !docRef.current) return;
+    if (!docReady || !docRef.current || !pdfNumPages) return;
     const canvas = canvasRef.current;
     void renderCurrentPage();
     return () => {
       renderGenRef.current += 1;
       if (canvas) cancelCanvasRender(canvas);
     };
-  }, [previewBuffer, pdfPage, pdfScale, fitWidth, pdfNumPages, renderCurrentPage]);
+  }, [docReady, pdfPage, pdfScale, fitWidth, pdfNumPages, renderCurrentPage]);
 
   useEffect(() => {
     const doc = docRef.current;
     const el = thumbsRef.current;
-    if (!doc || !el || !pdfNumPages) return;
+    if (!doc || !el || !pdfNumPages || !docReady) return;
     el.innerHTML = "";
+    thumbWrapsRef.current = [];
     let cancelled = false;
     const limit = Math.min(pdfNumPages, 24);
     void (async () => {
@@ -169,6 +193,7 @@ export function NotebookStudioPreview({
         if (cancelled) return;
         const wrap = document.createElement("button");
         wrap.type = "button";
+        wrap.dataset.page = String(p);
         wrap.className = cn(
           "shrink-0 overflow-hidden rounded border bg-white p-0.5 transition-colors",
           p === pdfPage ? "border-primary ring-1 ring-primary" : "border-border/60 opacity-80 hover:opacity-100"
@@ -178,6 +203,7 @@ export function NotebookStudioPreview({
         const c = document.createElement("canvas");
         wrap.appendChild(c);
         el.appendChild(wrap);
+        thumbWrapsRef.current.push(wrap);
         try {
           await renderPdfThumbnail(doc, p, c, 56);
         } catch {
@@ -187,8 +213,20 @@ export function NotebookStudioPreview({
     })();
     return () => {
       cancelled = true;
+      thumbWrapsRef.current = [];
     };
-  }, [pdfNumPages, pdfPage, setPdfPageInfo, previewBuffer]);
+  }, [pdfNumPages, setPdfPageInfo, previewBuffer, docReady]);
+
+  useEffect(() => {
+    for (const wrap of thumbWrapsRef.current) {
+      const p = Number(wrap.dataset.page);
+      const active = p === pdfPage;
+      wrap.className = cn(
+        "shrink-0 overflow-hidden rounded border bg-white p-0.5 transition-colors",
+        active ? "border-primary ring-1 ring-primary" : "border-border/60 opacity-80 hover:opacity-100"
+      );
+    }
+  }, [pdfPage]);
 
   const nudgeZoom = (delta: number) => {
     setFitWidth(false);
@@ -296,12 +334,23 @@ export function NotebookStudioPreview({
         )}
       </div>
       <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto p-4">
-        {rendering && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/40">
+        {docLoading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         )}
-        <canvas ref={canvasRef} className="mx-auto block max-w-full rounded-md border border-border/60 bg-white shadow-sm" />
+        {pageRendering && !docLoading && (
+          <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-full bg-background/80 p-1.5 shadow-sm">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        <canvas
+          ref={canvasRef}
+          className={cn(
+            "mx-auto block max-w-full rounded-md border border-border/60 bg-white shadow-sm transition-opacity",
+            pageRendering && !docLoading && "opacity-90"
+          )}
+        />
       </div>
       {activePaperId && (
         <div className="shrink-0 border-t border-border/50 bg-card/90 px-3 py-2">

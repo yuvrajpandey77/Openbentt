@@ -32,7 +32,10 @@ describe("privacyPreferences", () => {
     expect(isShareLinkAllowed(prefs)).toBe(false);
   });
 
-  it("analytics off by default", () => {
-    expect(isAnalyticsAllowed(defaultPrivacyPreferences())).toBe(false);
+  it("grantCloudInferenceAccess allows openrouter after desktop defaults", () => {
+    const blocked = { ...defaultPrivacyPreferences(), localOnlyMode: true, cloudInferenceOptIn: false };
+    expect(isCloudInferenceAllowed("openrouter", "", blocked)).toBe(false);
+    const granted = { ...blocked, localOnlyMode: false, cloudInferenceOptIn: true };
+    expect(isCloudInferenceAllowed("openrouter", "", granted)).toBe(true);
   });
 });

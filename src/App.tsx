@@ -10,6 +10,7 @@ import { ResearchProjectProvider } from "./context/ResearchProjectContext";
 import { LocalModelProvider } from "./context/LocalModelContext";
 import { ZoteroProvider } from "./context/ZoteroContext";
 import AppLayout from "./layouts/AppLayout";
+import { AppShell } from "@/components/AppShell";
 import HomeChatArea from "./components/HomeChatArea";
 import NotFound from "./pages/NotFound";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -87,20 +88,22 @@ const App = () => (
                   }
                 >
                   {/* Onboarding — no app chrome */}
-                  <Route path="setup" element={<SetupPage />} />
+                  <Route element={<AppShell />}>
+                    <Route path="setup" element={<SetupPage />} />
 
-                  {/* Full-screen research studio (no chat split) */}
-                  <Route path="projects" element={<ProjectsHubPage />} />
-                  <Route path="notebook" element={<NotebookStudioPage />} />
+                    {/* Full-screen research studio (no chat split) */}
+                    <Route path="projects" element={<ProjectsHubPage />} />
+                    <Route path="notebook" element={<NotebookStudioPage />} />
 
-                  {/* Main app shell */}
-                  <Route element={<AppLayout />}>
-                    <Route element={<WebWorkspaceRouteGuard />}>
-                      <Route path="chat" element={<HomeChatArea />} />
-                      <Route path="labs" element={<ResearchLabsPage />} />
-                      <Route path="write" element={<DesktopWriteRedirect />} />
-                      <Route path="benchmark" element={<BenchmarkPage />} />
-                      <Route path="webgpu" element={<WebGpuPage />} />
+                    {/* Main app shell */}
+                    <Route element={<AppLayout />}>
+                      <Route element={<WebWorkspaceRouteGuard />}>
+                        <Route path="chat" element={<HomeChatArea />} />
+                        <Route path="labs" element={<ResearchLabsPage />} />
+                        <Route path="write" element={<DesktopWriteRedirect />} />
+                        <Route path="benchmark" element={<BenchmarkPage />} />
+                        <Route path="webgpu" element={<WebGpuPage />} />
+                      </Route>
                     </Route>
                   </Route>
                 </Route>

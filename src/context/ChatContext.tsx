@@ -15,6 +15,7 @@ import {
   canSendChat,
   canSendMessage,
 } from "@/types/chat";
+import { ensureCloudInferenceForConfig } from "@/lib/privacy/privacyPreferences";
 import { useToast } from "@/components/ui/use-toast";
 import { buildChatCompletionMessages, isStreamHttpError, StreamHttpError } from "@/lib/openrouter";
 import { streamChatForConfig } from "@/lib/aiStream";
@@ -223,6 +224,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
           normalized = await loadDesktopSecretsIntoConfig(normalized);
+          ensureCloudInferenceForConfig(normalized);
           if (!cancelled) setApiConfigState(normalized);
         } catch (error) {
           console.error("Failed to parse saved API config:", error);
@@ -285,7 +287,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const setApiConfig = (config: ApiKeyConfig) => {
-    setApiConfigState(coerceApiConfigForPlatform(normalizeApiConfig(config)));
+    const normalized = coerceApiConfigForPlatform(normalizeApiConfig(config));
+    ensureCloudInferenceForConfig(normalized);
+    setApiConfigState(normalized);
     toast({
       title: "Configuration updated",
       description: "Your API settings have been saved locally.",

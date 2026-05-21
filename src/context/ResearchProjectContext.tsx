@@ -88,6 +88,8 @@ type ResearchProjectContextValue = {
     content: string,
     kind: import("@/types/researchProject").ProjectFileKind
   ) => Promise<void>;
+  deleteProjectFile: (fileId: string) => Promise<void>;
+  renameProjectFile: (fileId: string, newPath: string) => Promise<void>;
   updateProjectFileContent: (fileId: string, content: string) => void;
   linkThread: (threadId: string) => Promise<void>;
   recordModelAttribution: (model: string, section: string) => Promise<void>;
@@ -580,6 +582,29 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
     [flushProjectFile, project]
   );
 
+  const deleteProjectFile = useCallback(
+    async (fileId: string) => {
+      if (!project) return;
+      const projectFiles = (project.projectFiles ?? []).filter((f) => f.id !== fileId);
+      await updateProject({ projectFiles });
+      toast({ title: "File removed" });
+    },
+    [project, updateProject, toast]
+  );
+
+  const renameProjectFile = useCallback(
+    async (fileId: string, newPath: string) => {
+      if (!project) return;
+      const now = new Date().toISOString();
+      const projectFiles = (project.projectFiles ?? []).map((f) =>
+        f.id === fileId ? { ...f, path: newPath, updatedAt: now } : f
+      );
+      await updateProject({ projectFiles });
+      toast({ title: "File renamed", description: newPath });
+    },
+    [project, updateProject, toast]
+  );
+
   const value = useMemo<ResearchProjectContextValue>(
     () => ({
       projects,
@@ -635,6 +660,8 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       },
       updatePaperReview,
       addProjectFile,
+      deleteProjectFile,
+      renameProjectFile,
       updateProjectFileContent,
       linkThread: async (threadId) => {
         if (!project) return;
@@ -681,6 +708,8 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       saveDraftNow,
       updatePaperReview,
       addProjectFile,
+      deleteProjectFile,
+      renameProjectFile,
       updateProjectFileContent,
     ]
   );

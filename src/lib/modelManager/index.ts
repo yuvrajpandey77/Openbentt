@@ -63,7 +63,7 @@ export async function buildModelManagerSnapshot(
     loadGgufEntries(),
     loadLlamaBinaryReady(cfg),
     loadDiskFree(),
-    opts?.skipOllamaProbe
+    opts?.skipOllamaProbe || cfg.aiProvider !== "openai_compatible"
       ? Promise.resolve({ ok: false, baseUrl: "", modelIds: [] as string[], error: "skipped" })
       : probeOllamaModels(
           cfg.openAiCompatibleBaseUrl.trim() || undefined,

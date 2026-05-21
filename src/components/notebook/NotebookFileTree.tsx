@@ -13,8 +13,16 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useChat } from "@/context/ChatContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useNotebookViewer } from "@/context/NotebookViewerContext";
@@ -22,7 +30,8 @@ import {
   editorFileKey,
   useNotebookStudio,
 } from "@/context/NotebookStudioContext";
-import { loadPaperPdfDesktop, listProjectAssetsDesktop, storeProjectAssetDesktop } from "@/lib/research/researchDesktopApi";
+import { loadPaperPdfDesktop, listProjectAssetsDesktop, storeProjectAssetDesktop, loadProjectAssetDesktop } from "@/lib/research/researchDesktopApi";
+import { downloadBlob, exportProjectZip } from "@/lib/research/projectExport";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "@/lib/research/base64";
 import type { PaperReviewStatus, ProjectFile } from "@/types/researchProject";
 import { cn } from "@/lib/utils";
@@ -36,6 +45,7 @@ import {
   Folder,
   FolderOpen,
   MessageSquare,
+  Download,
   Plus,
 } from "lucide-react";
 
@@ -220,7 +230,7 @@ export function NotebookFileTree({
 }: {
   onUploadPdfs: () => void;
 }) {
-  const { project, updatePaperReview, addProjectFile } = useResearchProject();
+  const { project, updatePaperReview, addProjectFile, deleteProjectFile, renameProjectFile } = useResearchProject();
   const { createNewChat, selectChat, chats } = useChat();
   const { viewer } = useNotebookViewer();
   const {
@@ -241,7 +251,9 @@ export function NotebookFileTree({
   const activeId = editorFileKey(activeFile);
   const [assets, setAssets] = useState<string[]>([]);
   const [newFilePath, setNewFilePath] = useState("");
+  const [assetPreview, setAssetPreview] = useState<{ name: string; url: string; mime: string } | null>(null);
   const assetUploadRef = useRef<HTMLInputElement>(null);
+  const openPdfRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!project) return;
@@ -326,10 +338,37 @@ export function NotebookFileTree({
       } else if (node.kind === "projectFile" && node.fileId) {
         openEditorTab({ type: "projectFile", fileId: node.fileId });
         viewer?.focusSource();
+      } else if (node.kind === "asset" && node.assetName && project) {
+        void loadProjectAssetDesktop(project.id, node.assetName).then((r) => {
+          if (!r?.ok || !r.base64) return;
+          const mime = r.mime ?? "application/octet-stream";
+          if (mime === "application/pdf") {
+            viewer?.loadPdfBytes(base64ToArrayBuffer(r.base64), node.assetName!, { replaceSource: false });
+            viewer?.focusPreview();
+            return;
+          }
+          if (mime.startsWith("image/")) {
+            setAssetPreview({ name: node.assetName!, url: `data:${mime};base64,${r.base64}`, mime });
+          }
+        });
       }
     },
-    [openEditorTab, openPaper, viewer]
+    [openEditorTab, openPaper, viewer, project]
   );
+
+  const insertAssetRef = useCallback(
+    (assetName: string) => {
+      const snippet = `\\includegraphics[width=0.9\\linewidth]{assets/${assetName}}`;
+      navigator.clipboard?.writeText(snippet);
+    },
+    []
+  );
+
+  const exportZip = useCallback(async () => {
+    if (!project) return;
+    const blob = await exportProjectZip(project);
+    downloadBlob(blob, `${project.title.replace(/\s+/g, "-")}-export.zip`);
+  }, [project]);
 
   const goNext = useCallback(() => {
     if (!flatPapers.length) return;
@@ -385,6 +424,9 @@ export function NotebookFileTree({
             <SelectItem value="reviewed">Reviewed</SelectItem>
           </SelectContent>
         </Select>
+        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => void exportZip()} aria-label="Export project ZIP">
+          <Download className="h-4 w-4" />
+        </Button>
         <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={onUploadPdfs} aria-label="Upload PDFs">
           <Plus className="h-4 w-4" />
         </Button>
@@ -448,6 +490,30 @@ export function NotebookFileTree({
           <kbd className="rounded border px-1">J</kbd>/<kbd className="rounded border px-1">K</kbd> next/prev PDF
         </p>
       </div>
+      <Dialog open={!!assetPreview} onOpenChange={(o) => !o && setAssetPreview(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{assetPreview?.name}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Preview project asset and copy an includegraphics path for LaTeX.
+            </DialogDescription>
+          </DialogHeader>
+          {assetPreview?.mime.startsWith("image/") && (
+            <img src={assetPreview.url} alt={assetPreview.name} className="max-h-[60vh] w-full object-contain" />
+          )}
+          {assetPreview && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="text-xs"
+              onClick={() => insertAssetRef(assetPreview.name)}
+            >
+              Copy \\includegraphics path
+            </Button>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

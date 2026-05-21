@@ -337,10 +337,10 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <ChatMessages messages={messages} isLoading={isLoading} emptyVariant="studio" />
       </div>
-      <div className="shrink-0 border-t border-border/40 p-2">
+      <div className="relative shrink-0 border-t border-border/40 p-2 pb-3 pr-8">
         <ChatInput
           isLoading={isLoading}
           placeholderOverride="Ask about your draft, PDFs, or compile errors…"
@@ -350,9 +350,9 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
 
       <div
         className={cn(
-          "absolute bottom-0 right-0 z-10 flex h-7 w-7 cursor-se-resize items-end justify-end rounded-tl-md",
+          "absolute bottom-0 left-0 z-10 flex h-7 w-7 cursor-se-resize items-end justify-end rounded-tr-md",
           "bg-muted/40 hover:bg-muted/70",
-          "border-l border-t border-border/50"
+          "border-r border-t border-border/50"
         )}
         aria-label="Resize chat panel — drag corner"
         title="Drag to resize chat"

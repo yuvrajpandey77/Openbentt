@@ -9,13 +9,13 @@ import type { LatexCompileDiagnostic } from "@/lib/latexErrorUi";
  * Aggressive Notebook LaTeX cleanup for WASM pdflatex: unicode spaces, draft `graphicx`,
  * fonts, item `&`, and placeholder figures. Use after a failed compile or invalid PDF preview.
  */
-export function applyNotebookLatexAutofix(tex: string): string {
+export function applyNotebookLatexAutofix(tex: string, availableAssetNames: string[] = []): string {
   let s = stripContentReferenceMarkers(tex);
   s = sanitizeLatexUnicodeForPdflatex(s);
   s = ensureDraftGraphicxForNotebook(s);
   s = escapeAmpersandsOnItemLines(s);
   s = ensureLmodernForWasmLatex(s);
-  s = rewriteIncludegraphicsPlaceholders(s);
+  s = rewriteIncludegraphicsPlaceholders(s, availableAssetNames);
   return s;
 }
 

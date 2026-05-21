@@ -43,7 +43,7 @@ export function NotebookChatDock({ open: openProp, onOpenChange }: NotebookChatD
       {open && (
         <div
           className={cn(
-            "absolute bottom-full left-0 right-0 flex flex-col border-t border-border/50 bg-background shadow-[0_-12px_40px_-16px_rgba(0,0,0,0.45)]",
+            "absolute bottom-full left-0 right-0 flex min-h-0 flex-col border-t border-border/50 bg-background shadow-[0_-12px_40px_-16px_rgba(0,0,0,0.45)]",
             "max-h-[min(300px,36vh)]"
           )}
         >
@@ -61,7 +61,7 @@ export function NotebookChatDock({ open: openProp, onOpenChange }: NotebookChatD
               <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <div className="min-h-0 flex-1 overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <ChatMessages messages={messages} isLoading={isLoading} emptyVariant="studio" />
           </div>
         </div>

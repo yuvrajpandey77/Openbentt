@@ -85,6 +85,58 @@
     --sidebar-border: 222 16% 16%;
     --sidebar-ring: 252 58% 65%;
   }
+
+  /*
+   * App shell — Cursor default dark (projects, notebook, chat, setup).
+   * Scoped via .app-shell; marketing / landing keeps :root purple theme untouched.
+   */
+  .app-shell {
+    color-scheme: dark;
+    --background: 0 0% 12%;
+    --foreground: 0 0% 80%;
+
+    --card: 0 0% 14%;
+    --card-foreground: 0 0% 80%;
+
+    --popover: 0 0% 13%;
+    --popover-foreground: 0 0% 80%;
+
+    --primary: 204 100% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 18%;
+    --secondary-foreground: 0 0% 86%;
+
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 58%;
+
+    --accent: 0 0% 20%;
+    --accent-foreground: 0 0% 86%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 24%;
+    --input: 0 0% 22%;
+    --ring: 204 100% 40%;
+
+    --sidebar-background: 0 0% 10%;
+    --sidebar-foreground: 0 0% 80%;
+    --sidebar-primary: 204 100% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 16%;
+    --sidebar-accent-foreground: 0 0% 86%;
+    --sidebar-border: 0 0% 20%;
+    --sidebar-ring: 204 100% 40%;
+  }
+
+  .app-shell .composer-shell {
+    @apply border-border/60 bg-card/95 shadow-none;
+  }
+
+  .app-shell .openbentt-card {
+    @apply bg-card border-border/70;
+  }
 }
 
 @layer base {
