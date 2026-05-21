@@ -144,6 +144,76 @@ export function wasmLatexFailureMessage(log: string, exitCode: number): string {
 }
 
 /** Normalize any thrown compile error for toast + log the full text to the console. */
+export type LatexErrorFixKind =
+  | "comment_line"
+  | "strip_content_reference"
+  | "comment_includegraphics"
+  | "comment_usepackage"
+  | "generic_autofix";
+
+export type LatexCompileDiagnostic = {
+  /** 1-based line number in source */
+  line: number;
+  message: string;
+  snippet?: string;
+  fixKind: LatexErrorFixKind;
+  fixLabel: string;
+};
+
+function inferFixKind(message: string, lineSnippet: string): { fixKind: LatexErrorFixKind; fixLabel: string } {
+  const m = message.toLowerCase();
+  const ls = lineSnippet.toLowerCase();
+  if (/contentreference\[oaicite:/i.test(lineSnippet) || /:contentreference/i.test(message)) {
+    return { fixKind: "strip_content_reference", fixLabel: "Remove citation artifact" };
+  }
+  if (/includegraphics/.test(ls) || (/pdftex\.def error/i.test(m) && /\.(pdf|png|jpe?g|eps|svg)/i.test(m))) {
+    return { fixKind: "comment_includegraphics", fixLabel: "Comment out \\includegraphics" };
+  }
+  if (/\\usepackage/.test(ls) && (/\.sty/i.test(m) || /latex error.*not found/i.test(m))) {
+    return { fixKind: "comment_usepackage", fixLabel: "Comment out \\usepackage" };
+  }
+  if (/undefined control sequence/i.test(m)) {
+    return { fixKind: "comment_line", fixLabel: "Comment out line" };
+  }
+  return { fixKind: "generic_autofix", fixLabel: "Apply auto-fix" };
+}
+
+/** Parse compile log into actionable line diagnostics (1-based line numbers). */
+export function parseLaTeXCompileDiagnostics(log: string): LatexCompileDiagnostic[] {
+  const snippet = extractLaTeXErrorSnippet(log);
+  const bangLine = snippet.match(/^!\s*(.+)$/m)?.[1]?.trim() ?? snippet.split("\n")[0]?.replace(/^!\s*/, "").trim() ?? "LaTeX error";
+
+  const lineMatches = [...snippet.matchAll(/^l\.(\d+)\s*(.*)$/gm)];
+  const seen = new Set<number>();
+  const out: LatexCompileDiagnostic[] = [];
+
+  for (const m of lineMatches) {
+    const line = parseInt(m[1], 10);
+    if (!Number.isFinite(line) || seen.has(line)) continue;
+    seen.add(line);
+    const lineSnippet = (m[2] ?? "").trim();
+    const { fixKind, fixLabel } = inferFixKind(bangLine, lineSnippet);
+    out.push({
+      line,
+      message: bangLine,
+      snippet: lineSnippet || undefined,
+      fixKind,
+      fixLabel,
+    });
+  }
+
+  if (!out.length) {
+    const fallback = snippet.match(/l\.(\d+)/);
+    if (fallback) {
+      const line = parseInt(fallback[1], 10);
+      const { fixKind, fixLabel } = inferFixKind(bangLine, snippet);
+      out.push({ line, message: bangLine, fixKind, fixLabel });
+    }
+  }
+
+  return out.sort((a, b) => a.line - b.line);
+}
+
 export function formatCompileFailureToast(err: unknown, logContext = "Compile"): { title: string; description: string } {
   const raw = err instanceof Error ? err.message : String(err);
   console.error(`[${logContext}]`, err);

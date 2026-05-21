@@ -508,7 +508,7 @@ const SettingsPanel: React.FC = () => {
                 <SelectTrigger className="openbentt-input h-11">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="app-shell dark">
                   <SelectItem value="openrouter">OpenRouter (many models, one key)</SelectItem>
                   <SelectItem value="openai_compatible">OpenAI-compatible URL (Ollama, LM Studio, …)</SelectItem>
                   <SelectItem value="webgpu_gemma">On-device model (WebGPU / WASM)</SelectItem>

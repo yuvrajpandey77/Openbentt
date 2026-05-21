@@ -11,6 +11,7 @@ import {
 import { ProjectBar } from "@/components/research/ProjectBar";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
+import type { ResearchPanelId } from "@/lib/research/workspaceLayout";
 import { PANEL_LABELS, WORKSPACE_PRESETS, type WorkspacePresetId } from "@/lib/research/workspaceLayout";
 import { cn } from "@/lib/utils";
 import {
@@ -80,20 +81,26 @@ export function WorkspaceChrome() {
           layout.mode === "focus" && "py-1"
         )}
       >
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-          {layout.sidePanelOrder.map((id) => (
-            <Button
-              key={id}
-              type="button"
-              size="sm"
-              variant={layout.activeSidePanel === id ? "secondary" : "ghost"}
-              className="h-7 text-xs"
-              onClick={() => setActiveSidePanel(id)}
-              aria-pressed={layout.activeSidePanel === id}
-            >
-              {PANEL_LABELS[id]}
-            </Button>
-          ))}
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 text-xs">
+                <PanelLeft className="h-3 w-3" />
+                {PANEL_LABELS[layout.activeSidePanel]}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+              {layout.sidePanelOrder.map((id) => (
+                <DropdownMenuItem key={id} onClick={() => setActiveSidePanel(id as ResearchPanelId)}>
+                  {PANEL_LABELS[id]}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled className="text-[10px] text-muted-foreground">
+                More tools in the sidebar → Research
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="flex items-center gap-1">
           {saveLabel && (

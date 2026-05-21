@@ -15,6 +15,8 @@ import {
 import { registerHfSecretIpc } from "./hfSecretStore.mjs";
 import { registerSecretVaultIpc } from "./secretVault.mjs";
 import { registerDesktopUpdaterIpc, setUpdaterTargetWindow } from "./updater.mjs";
+import { registerDesktopWindowIpc } from "./desktopWindowIpc.mjs";
+import { setupApplicationMenu } from "./appMenu.mjs";
 import {
   registerResearchProjectIpc,
   shutdownResearchServices,
@@ -144,8 +146,50 @@ function registerAppProtocolHandler() {
   });
 }
 
-/** Near app light background (210 20% 99%) so the native title bar area matches the shell before paint. */
-const WINDOW_BG = "#fafbfc";
+/** App shell background — matches `.app-shell { --background: 0 0% 12% }` → #1f1f1f */
+const APP_SHELL_BG = "#1f1f1f";
+/** Compact caption strip (native overlay height on Windows; in-app bar elsewhere). */
+const TITLE_BAR_HEIGHT = 28;
+
+function buildBrowserWindowOptions(icon) {
+  const base = {
+    width: 1280,
+    height: 840,
+    minWidth: 900,
+    minHeight: 600,
+    show: false,
+    title: "Openbentt",
+    autoHideMenuBar: true,
+    backgroundColor: APP_SHELL_BG,
+    ...(icon ? { icon } : {}),
+  };
+
+  if (process.platform === "win32") {
+    return {
+      ...base,
+      titleBarStyle: "hidden",
+      titleBarOverlay: {
+        color: APP_SHELL_BG,
+        symbolColor: "#cccccc",
+        height: TITLE_BAR_HEIGHT,
+      },
+    };
+  }
+
+  if (process.platform === "darwin") {
+    return {
+      ...base,
+      titleBarStyle: "hiddenInset",
+      trafficLightPosition: { x: 12, y: 5 },
+    };
+  }
+
+  /** Linux: frameless window — renderer draws title bar + window controls. */
+  return {
+    ...base,
+    frame: false,
+  };
+}
 
 function windowIconPath() {
   const p = path.resolve(__dirname, "..", "build", "icon.png");
@@ -155,14 +199,7 @@ function windowIconPath() {
 function createWindow() {
   const icon = windowIconPath();
   const win = new BrowserWindow({
-    width: 1280,
-    height: 840,
-    minWidth: 900,
-    minHeight: 600,
-    show: false,
-    title: "Openbentt",
-    ...(icon ? { icon } : {}),
-    backgroundColor: WINDOW_BG,
+    ...buildBrowserWindowOptions(icon),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -170,6 +207,14 @@ function createWindow() {
       sandbox: true,
     },
   });
+
+  if (process.platform === "darwin") {
+    win.setTitleBarOverlay({
+      color: APP_SHELL_BG,
+      symbolColor: "#cccccc",
+      height: TITLE_BAR_HEIGHT,
+    });
+  }
 
   win.once("ready-to-show", () => win.show());
   setLocalGgufProgressTarget(win);
@@ -200,7 +245,9 @@ if (singleInstanceLock) {
 }
 
 app.whenReady().then(async () => {
+  setupApplicationMenu({ isDev: useViteDevServer });
   registerDesktopUpdaterIpc();
+  registerDesktopWindowIpc(ipcMain);
   registerHfSecretIpc(ipcMain, app);
   registerSecretVaultIpc(ipcMain, app);
   registerLocalGgufIpc(ipcMain, app);

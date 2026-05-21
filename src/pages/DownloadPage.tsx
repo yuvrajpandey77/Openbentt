@@ -7,14 +7,16 @@ import { MarketingSectionHeader } from "@/components/marketing/MarketingSectionH
 import { useSuggestedDownload } from "@/components/marketing/useSuggestedDownload";
 import { desktopHighlights } from "@/config/marketingContent";
 import {
-  releaseAssets,
   githubReleasesLatestUrl,
   githubBlobMain,
   DESKTOP_ASSET_VERSION,
 } from "@/config/releaseDownloads";
+import { useLatestReleaseAssets } from "@/hooks/useLatestReleaseAssets";
+import { pickAsset, type ReleaseAssetKind } from "@/lib/fetchLatestReleaseAssets";
 import { getClientPlatform, type ClientPlatform } from "@/lib/detectClientPlatform";
 import { cn } from "@/lib/utils";
 import {
+  AlertTriangle,
   Apple,
   ArrowRight,
   BookOpen,
@@ -50,12 +52,16 @@ function usePrimaryPlatform(): ClientPlatform {
 const DownloadPage: React.FC = () => {
   const platform = usePrimaryPlatform();
   const suggested = useSuggestedDownload();
-  const releasesUrl = githubReleasesLatestUrl();
-  const webHref = releaseAssets.webStaticZip();
+  const { release, loading } = useLatestReleaseAssets();
+  const releasesUrl = release?.releaseUrl ?? githubReleasesLatestUrl();
+  const displayVersion = release?.version || DESKTOP_ASSET_VERSION;
+  const webHref = pickAsset(release, "webStaticZip");
 
   useEffect(() => {
     document.title = "Download Openbentt";
   }, []);
+
+  const asset = (kind: ReleaseAssetKind) => pickAsset(release, kind);
 
   const windowsRows: DownloadRow[] = useMemo(
     () => [
@@ -63,7 +69,7 @@ const DownloadPage: React.FC = () => {
         id: "win-nsis",
         label: "Installer",
         hint: "Recommended · NSIS",
-        href: releaseAssets.windowsNsis(),
+        href: asset("windowsNsis"),
         icon: <Download className="h-4 w-4" />,
         primary: true,
       },
@@ -71,17 +77,17 @@ const DownloadPage: React.FC = () => {
         id: "win-portable",
         label: "Portable .exe",
         hint: "No installer",
-        href: releaseAssets.windowsPortable(),
+        href: asset("windowsPortable"),
         icon: <Monitor className="h-4 w-4" />,
       },
       {
         id: "win-zip",
         label: "Zip archive",
-        href: releaseAssets.windowsZip(),
+        href: asset("windowsZip"),
         icon: <FileArchive className="h-4 w-4" />,
       },
     ],
-    []
+    [release]
   );
 
   const linuxRows: DownloadRow[] = useMemo(
@@ -90,18 +96,18 @@ const DownloadPage: React.FC = () => {
         id: "linux-appimage",
         label: "AppImage",
         hint: "Recommended · amd64",
-        href: releaseAssets.linuxAppImage(),
+        href: asset("linuxAppImage"),
         icon: <Box className="h-4 w-4" />,
         primary: true,
       },
       {
         id: "linux-deb",
         label: "Debian package",
-        href: releaseAssets.linuxDeb(),
+        href: asset("linuxDeb"),
         icon: <Layers className="h-4 w-4" />,
       },
     ],
-    []
+    [release]
   );
 
   const macRows: DownloadRow[] = useMemo(
@@ -110,18 +116,18 @@ const DownloadPage: React.FC = () => {
         id: "mac-dmg",
         label: "Disk image (.dmg)",
         hint: "Apple Silicon",
-        href: releaseAssets.macDmgArm64(),
+        href: asset("macDmgArm64"),
         icon: <Apple className="h-4 w-4" />,
         primary: true,
       },
       {
         id: "mac-zip",
         label: "Zip archive",
-        href: releaseAssets.macZipArm64(),
+        href: asset("macZipArm64"),
         icon: <FileArchive className="h-4 w-4" />,
       },
     ],
-    []
+    [release]
   );
 
   const highlight = (family: ClientPlatform) => platform !== "unknown" && platform === family;
@@ -132,13 +138,40 @@ const DownloadPage: React.FC = () => {
         <section className="marketing-section pb-12 md:pb-16">
           <div className="marketing-container">
             <MarketingReveal className="max-w-3xl">
-              <p className="marketing-eyebrow">Release v{DESKTOP_ASSET_VERSION}</p>
+              <p className="marketing-eyebrow">
+                Release {loading ? "…" : `v${displayVersion}`}
+              </p>
               <h1 className="marketing-page-title mt-3">Download Openbentt</h1>
               <p className="marketing-page-lead mt-5">
-                Production builds for Windows, Linux, and macOS. Verify checksums on GitHub if you need supply-chain
-                assurance. Unsigned installers may show OS security prompts. That is expected for open-source releases.
+                Production builds for Windows, Linux, and macOS. Links resolve from the latest GitHub Release when
+                available. Verify checksums on GitHub if you need supply-chain assurance. Unsigned installers may show
+                OS security prompts — expected for open-source releases.
               </p>
             </MarketingReveal>
+
+            {!loading && release && !release.hasInstallers && (
+              <MarketingReveal delay={40} className="mt-8">
+                <div className="flex max-w-2xl gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-foreground">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div>
+                    <p className="font-medium">Installers not published yet</p>
+                    <p className="mt-1 text-muted-foreground">
+                      The latest GitHub Release ({release.tagName}) has source archives only. Push a version tag to
+                      trigger CI — see{" "}
+                      {releasesUrl ? (
+                        <a href={releasesUrl} target="_blank" rel="noreferrer" className="text-primary underline">
+                          GitHub Releases
+                        </a>
+                      ) : (
+                        "GitHub Releases"
+                      )}
+                      . Installed desktop apps auto-update once <code className="text-xs">latest*.yml</code> assets
+                      ship with the release.
+                    </p>
+                  </div>
+                </div>
+              </MarketingReveal>
+            )}
 
             {suggested?.href && (
               <MarketingReveal delay={80} className="mt-10 md:mt-12">
@@ -243,7 +276,7 @@ const DownloadPage: React.FC = () => {
                     <Button size="lg" variant="outline" className="h-12 rounded-xl gap-2" asChild>
                       <a href={webHref} target="_blank" rel="noreferrer">
                         <FileArchive className="h-4 w-4" />
-                        Static bundle (v{DESKTOP_ASSET_VERSION})
+                        Static bundle (v{displayVersion})
                       </a>
                     </Button>
                   )}

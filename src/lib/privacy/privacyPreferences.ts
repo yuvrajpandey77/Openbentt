@@ -2,7 +2,7 @@
  * Privacy preferences — non-secret toggles stored in localStorage.
  */
 import { PRIVACY_PREFS_KEY } from "@/lib/storageMigrate";
-import type { AiProvider } from "@/types/chat";
+import type { AiProvider, ApiKeyConfig } from "@/types/chat";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 
 export interface PrivacyPreferences {
@@ -94,6 +94,43 @@ export function isCloudInferenceAllowed(
   if (prefs.localOnlyMode) return false;
   if (!prefs.cloudInferenceOptIn) return false;
   return true;
+}
+
+/** User chose a remote/cloud provider — allow outbound inference (desktop defaults block this). */
+export function grantCloudInferenceAccess(): PrivacyPreferences {
+  const current = loadPrivacyPreferences();
+  const next: PrivacyPreferences = {
+    ...current,
+    localOnlyMode: false,
+    cloudInferenceOptIn: true,
+  };
+  savePrivacyPreferences(next);
+  return next;
+}
+
+function cloudProviderIsConfigured(cfg: ApiKeyConfig): boolean {
+  switch (cfg.aiProvider) {
+    case "openrouter":
+    case "openai_direct":
+    case "anthropic":
+    case "google":
+      return Boolean(cfg.apiKey?.trim());
+    case "openai_compatible":
+      return Boolean(cfg.openAiCompatibleBaseUrl?.trim());
+    default:
+      return false;
+  }
+}
+
+/** When AI config includes a cloud provider, sync privacy so setup/chat gates stop looping. */
+export function ensureCloudInferenceForConfig(cfg: ApiKeyConfig): void {
+  if (!isCloudAiProvider(cfg.aiProvider)) return;
+  if (!cloudProviderIsConfigured(cfg)) return;
+  if (cfg.aiProvider === "openai_compatible" && isLoopbackCompatibleBase(cfg.openAiCompatibleBaseUrl)) {
+    return;
+  }
+  if (isCloudInferenceAllowed(cfg.aiProvider, cfg.openAiCompatibleBaseUrl)) return;
+  grantCloudInferenceAccess();
 }
 
 export function isNetworkResearchAllowed(

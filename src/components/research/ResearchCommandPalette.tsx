@@ -22,7 +22,7 @@ export function ResearchCommandPalette() {
     commandPaletteOpen,
     setCommandPaletteOpen,
     notebookActions,
-    setActiveSidePanel,
+    openResearchToolPanel,
     applyWorkspacePreset,
     requestZoteroPanel,
   } = useResearchWorkspace();
@@ -50,7 +50,7 @@ export function ResearchCommandPalette() {
           <CommandItem
             onSelect={() =>
               run(() => {
-                setActiveSidePanel("papers");
+                openResearchToolPanel("papers");
                 notebookActions.openPaperPicker?.();
               })
             }
@@ -61,7 +61,7 @@ export function ResearchCommandPalette() {
           <CommandItem
             onSelect={() =>
               run(() => {
-                setActiveSidePanel("citations");
+                openResearchToolPanel("citations");
                 const key = project?.bibEntries[0]?.key;
                 notebookActions.insertCitation?.(key);
               })
@@ -99,7 +99,7 @@ export function ResearchCommandPalette() {
           <CommandItem
             onSelect={() =>
               run(() => {
-                setActiveSidePanel("revisions");
+                openResearchToolPanel("revisions");
                 notebookActions.compareDrafts?.();
               })
             }
@@ -130,7 +130,7 @@ export function ResearchCommandPalette() {
                   return;
                 }
                 const report = buildCrossPaperSynthesis(project.papers);
-                setActiveSidePanel("search");
+                openResearchToolPanel("search");
                 toast({ title: "Theme report ready", description: `${report.themes.length} themes (local heuristics).` });
               })
             }
@@ -143,8 +143,8 @@ export function ResearchCommandPalette() {
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="View">
-          <CommandItem onSelect={() => run(() => setActiveSidePanel("search"))}>Library search panel</CommandItem>
-          <CommandItem onSelect={() => run(() => setActiveSidePanel("revisions"))}>Revisions panel</CommandItem>
+          <CommandItem onSelect={() => run(() => openResearchToolPanel("search"))}>Library search panel</CommandItem>
+          <CommandItem onSelect={() => run(() => openResearchToolPanel("revisions"))}>Revisions panel</CommandItem>
           <CommandItem onSelect={() => run(() => navigate("/labs"))}>Open library workspace</CommandItem>
         </CommandGroup>
       </CommandList>

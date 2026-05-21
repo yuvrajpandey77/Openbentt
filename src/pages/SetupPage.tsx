@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useChat } from "@/context/ChatContext";
 import { defaultApiConfig, normalizeApiConfig, canSendChat } from "@/types/chat";
+import { ensureCloudInferenceForConfig } from "@/lib/privacy/privacyPreferences";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,7 @@ import { Cpu, Cloud, Server, ArrowRight, Check, HardDrive } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isWebClient } from "@/config/platformSurface";
 import { isDesktopApp } from "@/lib/isDesktopApp";
+import { appHomePath } from "@/lib/appHomePath";
 import { isLocalGgufDesktopAvailable } from "@/lib/localGguf/desktopApi";
 import { GGUF_MODEL_NONE } from "@/lib/localGguf/ids";
 
@@ -72,7 +74,7 @@ const SetupPage: React.FC = () => {
   });
 
   if (canSendChat(apiConfig)) {
-    navigate("/chat", { replace: true });
+    navigate(appHomePath(), { replace: true });
     return null;
   }
 
@@ -104,7 +106,7 @@ const SetupPage: React.FC = () => {
       }
       setApiConfig(normalizeApiConfig({ ...defaultApiConfig() }));
       toast({ title: "On-device model selected", description: "Weights download on your first message (~500 MB one-time)." });
-      navigate("/chat", { replace: true });
+      navigate(appHomePath(), { replace: true });
       return;
     }
     setStep(2);
@@ -115,16 +117,16 @@ const SetupPage: React.FC = () => {
       toast({ title: "API key required", description: "Paste your OpenRouter key to continue.", variant: "destructive" });
       return;
     }
-    setApiConfig(
-      normalizeApiConfig({
+    const next = normalizeApiConfig({
         ...apiConfig,
         aiProvider: "openrouter",
         apiKey: data.apiKey.trim(),
         model: apiConfig.model || defaultApiConfig().model,
-      })
-    );
+      });
+    ensureCloudInferenceForConfig(next);
+    setApiConfig(next);
     toast({ title: "Ready", description: "Your workspace is set up. Change models or keys any time in Settings." });
-    navigate("/chat", { replace: true });
+    navigate(appHomePath(), { replace: true });
   });
 
   const handleLocalSubmit = form.handleSubmit((data) => {
@@ -139,7 +141,7 @@ const SetupPage: React.FC = () => {
       })
     );
     toast({ title: "Local server connected", description: `Using ${url}. Make sure your server is running.` });
-    navigate("/chat", { replace: true });
+    navigate(appHomePath(), { replace: true });
   });
 
   return (

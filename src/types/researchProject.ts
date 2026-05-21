@@ -5,6 +5,21 @@ export type CitationStyle = "apa" | "ieee" | "mla" | "chicago" | "bibtex" | "acm
 
 export type TargetVenue = "generic" | "ieee" | "acm" | "nature" | "arxiv";
 
+export type PaperReviewStatus = "unread" | "reviewing" | "reviewed";
+
+export type ProjectFileKind = "tex" | "bib" | "sty" | "asset" | "other";
+
+/** Extra LaTeX/support files in the project tree (desktop). */
+export interface ProjectFile {
+  id: string;
+  /** Virtual path, e.g. `chapters/intro.tex` or `figures/README.md` */
+  path: string;
+  kind: ProjectFileKind;
+  content: string;
+  addedAt: string;
+  updatedAt: string;
+}
+
 export interface ResearchPaper {
   id: string;
   fileName: string;
@@ -19,6 +34,12 @@ export interface ResearchPaper {
   };
   /** PDF review annotations extracted at upload (local parse). */
   reviewNotes?: string[];
+  /** Proofreading queue state (desktop notebook). */
+  reviewStatus?: PaperReviewStatus;
+  lastReviewedPage?: number;
+  reviewedAt?: string;
+  /** Page number → note text */
+  pageNotes?: Record<number, string>;
 }
 
 export interface CaptionSuggestion {
@@ -111,11 +132,14 @@ export interface ResearchProjectData {
   abstractVariants: string[];
   keywordSuggestions: string[];
   captionSuggestions: CaptionSuggestion[];
+  /** Additional .tex / support files in project tree */
+  projectFiles?: ProjectFile[];
 }
 
 export interface ResearchProjectSummary {
   id: string;
   title: string;
+  createdAt: string;
   updatedAt: string;
   paperCount: number;
 }

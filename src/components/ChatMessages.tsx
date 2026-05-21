@@ -4,8 +4,9 @@ import { LIMITS } from "@/lib/research/projectLimits";
 import { Link } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Message } from "@/types/chat";
-import { Bot, Pencil, RotateCcw, FileText, ChevronDown, Sparkles } from "lucide-react";
+import { Bot, Pencil, RotateCcw, FileText, ChevronDown, Sparkles, BookOpen, MessageSquare } from "lucide-react";
 import { getWorkspaceNavItems } from "@/config/workspaceNav";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 import { cn } from "@/lib/utils";
 import { shortModelLabel } from "@/lib/openrouter";
 import { AssistantContent } from "@/components/AssistantContent";
@@ -33,6 +34,8 @@ interface ChatMessagesProps {
   isLoading: boolean;
   /** Filter which messages render (Home thread search). */
   searchQuery?: string;
+  /** Minimal empty state for notebook studio dock. */
+  emptyVariant?: "home" | "studio";
 }
 
 function MetricsBar({ metrics }: { metrics: NonNullable<Message["metrics"]> }) {
@@ -168,7 +171,12 @@ const AssistantRoleContent: React.FC<{
   );
 };
 
-const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading, searchQuery = "" }) => {
+const ChatMessages: React.FC<ChatMessagesProps> = ({
+  messages,
+  isLoading,
+  searchQuery = "",
+  emptyVariant = "home",
+}) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { beginEditUserMessage, regenerateLastResponse, apiConfig } = useChat();
@@ -298,7 +306,12 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading, search
   };
 
   return (
-    <ScrollArea className="flex-1 p-4 overflow-y-auto">
+    <ScrollArea
+      className={cn(
+        "min-h-0",
+        emptyVariant === "studio" ? "h-full w-full p-2" : "flex-1 p-4"
+      )}
+    >
       <div ref={scrollRef} className="max-w-5xl mx-auto">
         {useVirtual && visibleMessages.length > 0 && (
           <p className="mb-4 text-center text-[11px] text-muted-foreground">
@@ -313,6 +326,56 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading, search
         ) : null}
 
         {messages.length === 0 ? (
+          emptyVariant === "studio" ? (
+            <p className="px-4 py-5 text-center text-xs leading-relaxed text-muted-foreground">
+              No messages yet. Ask about your LaTeX draft, compile errors, citations, or uploaded PDFs.
+            </p>
+          ) : isDesktopApp() ? (
+            <div className="flex min-h-[min(50vh,420px)] items-center justify-center py-10">
+              <div className="w-full max-w-md px-4 text-center">
+                <h2 className="font-display text-xl font-semibold tracking-tight text-foreground">
+                  Chat
+                </h2>
+                <p className="mx-auto mt-2 text-sm leading-relaxed text-muted-foreground">
+                  General AI questions outside a project. For LaTeX, PDFs, and research tools, open a project.
+                </p>
+                <Link
+                  to="/projects"
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-5 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/15"
+                >
+                  <BookOpen className="h-4 w-4" strokeWidth={2} />
+                  Open projects
+                </Link>
+                <Collapsible className="group mt-8 text-left">
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="mx-auto flex gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+                      Tips
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3 space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4 text-left text-xs leading-relaxed text-muted-foreground">
+                    <p>
+                      <strong className="text-foreground/90">Sidebar</strong> — icons only; hover for labels. New chat,
+                      history, Projects, Library, Settings.
+                    </p>
+                    <p>
+                      <strong className="text-foreground/90">Projects</strong> — LaTeX editor, PDF proofreading, citations,
+                      Zotero, notes (Tools tab in notebook).
+                    </p>
+                    <p>
+                      <strong className="text-foreground/90">Retry / Edit</strong> on messages; attach images, audio, or PDFs
+                      with vision-capable models.
+                    </p>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+            </div>
+          ) : (
           <div className="flex min-h-[min(70vh,560px)] items-center justify-center py-12">
             <div className="w-full max-w-2xl px-4 text-center">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -322,25 +385,52 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading, search
                 Welcome to Openbentt
               </h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground md:text-base">
-                Connect OpenRouter or an on-device model, attach files, enable <strong>research</strong> in Settings, and
-                compare cloud models side by side. Your keys stay in this browser.
+                {isDesktopApp()
+                  ? "General AI chat for questions outside a project. Open a project for LaTeX writing, PDF proofreading, and research tools."
+                  : "Connect OpenRouter or an on-device model, attach files, enable research in Settings, and compare cloud models side by side. Your keys stay in this browser."}
               </p>
               <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-                {getWorkspaceNavItems().map((item) => (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/35 hover:bg-primary/5"
-                  >
-                    <item.Icon className="h-3.5 w-3.5 text-primary" strokeWidth={2} />
-                    {item.label}
-                  </Link>
-                ))}
+                {isDesktopApp() ? (
+                  <>
+                    <Link
+                      to="/projects"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/15"
+                    >
+                      <BookOpen className="h-4 w-4" strokeWidth={2} />
+                      Open projects
+                    </Link>
+                    <Link
+                      to="/labs"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/35 hover:bg-primary/5"
+                    >
+                      Library
+                    </Link>
+                  </>
+                ) : (
+                  getWorkspaceNavItems().map((item) => (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/35 hover:bg-primary/5"
+                    >
+                      <item.Icon className="h-3.5 w-3.5 text-primary" strokeWidth={2} />
+                      {item.label}
+                    </Link>
+                  ))
+                )}
               </div>
+              {!isDesktopApp() && (
               <p className="mt-4 text-[11px] text-muted-foreground/90 md:text-xs">
                 Use <strong className="text-foreground/90">Notebook</strong> in the sidebar for LaTeX and PDF work. More
                 workspaces (labs, benchmarks, local GGUF) ship in the desktop app.
               </p>
+              )}
+              {isDesktopApp() && (
+              <p className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground/90 md:text-xs">
+                <MessageSquare className="h-3 w-3" />
+                Projects are your home screen — chat is always available from the sidebar.
+              </p>
+              )}
               <div className="mt-10 grid grid-cols-1 gap-4 text-left sm:grid-cols-2">
                 <div className="openbentt-card rounded-xl border border-border/80 p-4">
                   <h3 className="mb-2 font-medium text-foreground">Chat tips</h3>
@@ -375,6 +465,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isLoading, search
               </div>
             </div>
           </div>
+          )
         ) : useVirtual ? (
           <div
             style={{

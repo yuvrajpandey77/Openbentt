@@ -69,18 +69,29 @@ import { ModelCapabilityBadges } from "@/components/ModelCapabilityBadges";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import LocalOnDeviceModelBar from "@/components/LocalOnDeviceModelBar";
 import type { WorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
+import { cn } from "@/lib/utils";
 import { isWebClient } from "@/config/platformSurface";
 
 interface ChatInputProps {
   isLoading: boolean;
   workspaceMeta?: WorkspaceRouteMeta;
+  placeholderOverride?: string;
+  /** Smaller composer for embedded notebook dock. */
+  variant?: "default" | "compact" | "studio";
 }
 
 const MAX_COMPARE = 4;
 
 type RouteDraft = { text: string; attachments: MessageAttachment[] };
 
-const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
+const ChatInput: React.FC<ChatInputProps> = ({
+  isLoading,
+  workspaceMeta,
+  placeholderOverride,
+  variant = "default",
+}) => {
+  const isStudio = variant === "studio";
+  const isCompact = variant === "compact" || isStudio;
   const location = useLocation();
   const pathKey = location.pathname;
 
@@ -369,7 +380,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
   };
 
   return (
-    <div className="border-t border-border/70 bg-gradient-to-t from-card/80 via-card/50 to-transparent px-3 pb-4 pt-3 backdrop-blur-md">
+    <div className={cn("border-t border-border/70 bg-gradient-to-t from-card/80 via-card/50 to-transparent backdrop-blur-md", isStudio ? "px-2 pb-2 pt-2" : "px-3 pb-4 pt-3")}>
       <input
         ref={fileRef}
         type="file"
@@ -378,11 +389,29 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
         multiple
         onChange={onFilePick}
       />
-      <div className="mx-auto max-w-5xl space-y-3">
+      <div className={cn("mx-auto space-y-3", isStudio ? "max-w-none" : "max-w-5xl")}>
         {/* On-device model consent bar — only shown before user consents */}
-        <LocalOnDeviceModelBar />
+        {!isStudio && <LocalOnDeviceModelBar />}
 
-        {!isWebClient() &&
+        {isStudio && !canSendChat(apiConfig) && !isLoadingConfig && (
+          <Alert variant="default" className="border-amber-500/40 bg-amber-500/5 py-2">
+            <AlertTitle className="text-xs">Set up AI to send messages</AlertTitle>
+            <AlertDescription className="text-[11px]">
+              {apiConfig.aiProvider === "local_gguf"
+                ? "Download a GGUF in Labs, then pick it in Settings → AI & models."
+                : apiConfig.aiProvider === "webgpu_gemma"
+                  ? "Enable the on-device model in Settings, or switch to OpenRouter with an API key."
+                  : "Add an OpenRouter API key in Settings → AI & models (sidebar ⚙️)."}
+              {" "}
+              <Link to="/setup" className="font-medium text-primary hover:underline">
+                Open setup
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!isStudio &&
+          !isWebClient() &&
           apiConfig.aiProvider === "local_gguf" &&
           canSendChat(apiConfig) &&
           !parseGgufRegistryId(apiConfig.model) && (
@@ -455,22 +484,32 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
           />
         )}
 
-        <div className="composer-shell relative p-1.5 sm:p-2">
+        <div className={cn("composer-shell relative", isStudio ? "p-1" : "p-1.5 sm:p-2")}>
           <Textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={getComposerPlaceholder(apiConfig, {
-              isLoadingConfig,
-              workspacePlaceholder: workspaceMeta?.composerPlaceholder,
-              comparisonEnabled: apiConfig.comparisonEnabled,
-            })}
-            disabled={isLoading || isLoadingConfig || !canSendMessage(apiConfig)}
-            className="min-h-[7.5rem] max-h-96 resize-none border-0 bg-transparent px-3 pb-14 pt-3 text-[15px] leading-relaxed text-foreground shadow-none outline-none placeholder:text-muted-foreground/75 focus:border-0 focus:outline-none focus-visible:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:text-base"
+            placeholder={
+              placeholderOverride ??
+              getComposerPlaceholder(apiConfig, {
+                isLoadingConfig,
+                workspacePlaceholder: workspaceMeta?.composerPlaceholder,
+                comparisonEnabled: apiConfig.comparisonEnabled,
+              })
+            }
+            disabled={isLoading || (!isStudio && (isLoadingConfig || !canSendMessage(apiConfig)))}
+            className={cn(
+              "resize-none border-0 bg-transparent px-3 text-[15px] leading-relaxed text-foreground shadow-none outline-none placeholder:text-muted-foreground/75 focus:border-0 focus:outline-none focus-visible:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:text-base",
+              isStudio
+                ? "min-h-[2.25rem] max-h-24 py-2 pb-9 text-sm"
+                : isCompact
+                  ? "min-h-[2.75rem] max-h-32 py-2.5 pb-10"
+                  : "min-h-[7.5rem] max-h-96 pb-14 pt-3"
+            )}
             style={{
               height: "auto",
-              minHeight: "7.5rem",
-              maxHeight: "24rem",
+              minHeight: isStudio ? "2.25rem" : isCompact ? "2.75rem" : "7.5rem",
+              maxHeight: isStudio ? "6rem" : "24rem",
               overflowY: message.length > 500 ? "auto" : "hidden",
             }}
             onInput={(e) => {
@@ -481,26 +520,33 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
           />
 
           {/* Bottom-left toolbar: model selector + attach + extras toggle */}
-          <div className="absolute bottom-2 left-2 flex max-w-[calc(100%-3.5rem)] items-center gap-1.5 flex-wrap">
+          <div className={cn("absolute bottom-2 left-2 flex max-w-[calc(100%-3.5rem)] items-center gap-1 flex-wrap", isStudio && "gap-1")}>
             {/* Model selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-auto min-h-9 max-w-[min(100%,22rem)] flex-col items-stretch gap-1 border border-border/50 bg-background/90 px-2 py-1.5 text-sm shadow-sm backdrop-blur hover:bg-muted/90 sm:flex-row sm:items-center"
+                  className={cn(
+                    "h-auto border border-border/50 bg-background/90 shadow-sm backdrop-blur hover:bg-muted/90",
+                    isStudio
+                      ? "min-h-8 max-w-[11rem] flex-row items-center gap-1 px-2 py-1 text-xs"
+                      : "min-h-9 max-w-[min(100%,22rem)] flex-col items-stretch gap-1 px-2 py-1.5 text-sm sm:flex-row sm:items-center"
+                  )}
                 >
                   <span className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto">
-                    <Bot size={15} className="shrink-0" />
+                    <Bot size={isStudio ? 14 : 15} className="shrink-0" />
                     <span className="truncate text-left font-medium">{shortModelLabel(apiConfig.model)}</span>
                     <ChevronDown size={13} className="ml-auto shrink-0 sm:ml-1" />
                   </span>
-                  <ModelCapabilityBadges
-                    modelId={apiConfig.model}
-                    meta={selectedModelMeta}
-                    compact
-                    className="justify-start pl-0 sm:pl-7"
-                  />
+                  {!isStudio && (
+                    <ModelCapabilityBadges
+                      modelId={apiConfig.model}
+                      meta={selectedModelMeta}
+                      compact
+                      className="justify-start pl-0 sm:pl-7"
+                    />
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="flex max-h-[min(70vh,420px)] w-[min(100vw-2rem,28rem)] flex-col overflow-hidden">
@@ -529,7 +575,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <ModelSpecDialog modelId={apiConfig.model} models={models} />
+            {!isStudio && <ModelSpecDialog modelId={apiConfig.model} models={models} />}
 
             {/* Single attach button */}
             <TooltipProvider>
@@ -551,6 +597,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
             </TooltipProvider>
 
             {/* Extras toggle ··· */}
+            {!isStudio && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -568,9 +615,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
                 <TooltipContent>Tools, snippets, compare models</TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            )}
 
             {/* Extras row — shown when ··· is active */}
-            {showExtras && (
+            {!isStudio && showExtras && (
               <>
                 <ToolsPopover message={message} setMessage={setMessage} />
 
@@ -672,17 +720,24 @@ const ChatInput: React.FC<ChatInputProps> = ({ isLoading, workspaceMeta }) => {
                   <Button
                     onClick={isLoading ? () => stopStreaming() : () => void handleSendMessage()}
                     disabled={
-                      (!message.trim() && attachments.length === 0) ||
-                      !canSendMessage(apiConfig) ||
-                      isLoadingConfig ||
-                      (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())
+                      isLoading
+                        ? false
+                        : ((!message.trim() && attachments.length === 0) ||
+                            isLoadingConfig ||
+                            (isStudio
+                              ? !canSendChat(apiConfig) ||
+                                (apiConfig.aiProvider === "local_gguf" && !canSendMessage(apiConfig)) ||
+                                (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())
+                              : !canSendMessage(apiConfig) ||
+                                (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())))
                     }
                     size="sm"
-                    className={`h-9 w-9 p-0 ${
+                    className={cn(
+                      "h-9 w-9 p-0 relative z-20",
                       isLoading
                         ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                         : "bg-primary hover:bg-primary/90 text-primary-foreground"
-                    }`}
+                    )}
                   >
                     {isLoading ? <Square size={15} /> : <ArrowUp size={15} />}
                   </Button>

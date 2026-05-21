@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import type { ResearchProjectData, ResearchProjectSummary } from "@/types/researchProject";
+import type { ResearchProjectData, ResearchProjectSummary, ProjectFile, ProjectFileKind, PaperReviewStatus } from "@/types/researchProject";
 import {
   addPaperToProject,
   createResearchProject,
@@ -72,12 +72,25 @@ type ResearchProjectContextValue = {
   refreshProjects: () => Promise<void>;
   selectProject: (id: string) => Promise<void>;
   createProject: (title: string) => Promise<void>;
+  importProjectFromFile: (file: File) => Promise<void>;
   removeProject: (id: string) => Promise<void>;
   updateProject: (patch: Partial<ResearchProjectData>) => Promise<void>;
   setDraftTex: (tex: string) => void;
   setBibliography: (bib: string) => void;
   setTargetVenue: (venue: ResearchProjectData["targetVenue"]) => Promise<void>;
   uploadPaperPdf: (file: File) => Promise<void>;
+  updatePaperReview: (
+    paperId: string,
+    patch: Partial<import("@/types/researchProject").ResearchPaper>
+  ) => Promise<void>;
+  addProjectFile: (
+    path: string,
+    content: string,
+    kind: import("@/types/researchProject").ProjectFileKind
+  ) => Promise<void>;
+  deleteProjectFile: (fileId: string) => Promise<void>;
+  renameProjectFile: (fileId: string, newPath: string) => Promise<void>;
+  updateProjectFileContent: (fileId: string, content: string) => void;
   linkThread: (threadId: string) => Promise<void>;
   recordModelAttribution: (model: string, section: string) => Promise<void>;
   rebuildSemanticIndex: () => void;
@@ -335,6 +348,22 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
     [refreshProjects, toast]
   );
 
+  const importProjectFromFile = useCallback(
+    async (file: File) => {
+      const text = await file.text();
+      const name = file.name.replace(/\.(tex|bib)$/i, "").trim() || "Imported project";
+      const isBib = /\.bib$/i.test(file.name);
+      const p = await createResearchProject(
+        name,
+        isBib ? { bibliography: text } : { draftTex: text }
+      );
+      setProject(p);
+      await refreshProjects();
+      toast({ title: "Project imported", description: p.title });
+    },
+    [refreshProjects, toast]
+  );
+
   const removeProject = useCallback(
     async (id: string) => {
       await deleteResearchProject(id);
@@ -446,6 +475,8 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   );
 
   const bibTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const projectFileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const projectFilePendingRef = useRef<{ fileId: string; content: string } | null>(null);
 
   const setBibliography = useCallback(
     (bib: string) => {
@@ -481,6 +512,99 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
     await flushDraft(project.id, pending, project.papers);
   }, [flushDraft, project]);
 
+  const updatePaperReview = useCallback(
+    async (
+      paperId: string,
+      patch: Partial<{
+        reviewStatus: PaperReviewStatus;
+        lastReviewedPage: number;
+        reviewedAt: string;
+        pageNotes: Record<number, string>;
+      }>
+    ) => {
+      if (!project) return;
+      const papers = project.papers.map((p) => (p.id === paperId ? { ...p, ...patch } : p));
+      setProject({ ...project, papers });
+      await saveResearchProject({ ...project, papers });
+    },
+    [project]
+  );
+
+  const addProjectFile = useCallback(
+    async (path: string, content: string, kind: ProjectFileKind) => {
+      if (!project) return;
+      const now = new Date().toISOString();
+      const file: ProjectFile = {
+        id: crypto.randomUUID(),
+        path,
+        kind,
+        content,
+        addedAt: now,
+        updatedAt: now,
+      };
+      const projectFiles = [...(project.projectFiles ?? []), file];
+      await updateProject({ projectFiles });
+      toast({ title: "File added", description: path });
+    },
+    [project, updateProject, toast]
+  );
+
+  const flushProjectFile = useCallback(
+    async (fileId: string, content: string) => {
+      if (!project) return;
+      const now = new Date().toISOString();
+      const projectFiles = (project.projectFiles ?? []).map((f) =>
+        f.id === fileId ? { ...f, content, updatedAt: now } : f
+      );
+      await updateProject({ projectFiles });
+    },
+    [project, updateProject]
+  );
+
+  const updateProjectFileContent = useCallback(
+    (fileId: string, content: string) => {
+      if (!project) return;
+      const now = new Date().toISOString();
+      setProject((p) => {
+        if (!p) return p;
+        const projectFiles = (p.projectFiles ?? []).map((f) =>
+          f.id === fileId ? { ...f, content, updatedAt: now } : f
+        );
+        return { ...p, projectFiles };
+      });
+      projectFilePendingRef.current = { fileId, content };
+      if (projectFileTimerRef.current) clearTimeout(projectFileTimerRef.current);
+      projectFileTimerRef.current = setTimeout(() => {
+        const pending = projectFilePendingRef.current;
+        if (pending) void flushProjectFile(pending.fileId, pending.content);
+      }, DRAFT_DEBOUNCE_MS);
+    },
+    [flushProjectFile, project]
+  );
+
+  const deleteProjectFile = useCallback(
+    async (fileId: string) => {
+      if (!project) return;
+      const projectFiles = (project.projectFiles ?? []).filter((f) => f.id !== fileId);
+      await updateProject({ projectFiles });
+      toast({ title: "File removed" });
+    },
+    [project, updateProject, toast]
+  );
+
+  const renameProjectFile = useCallback(
+    async (fileId: string, newPath: string) => {
+      if (!project) return;
+      const now = new Date().toISOString();
+      const projectFiles = (project.projectFiles ?? []).map((f) =>
+        f.id === fileId ? { ...f, path: newPath, updatedAt: now } : f
+      );
+      await updateProject({ projectFiles });
+      toast({ title: "File renamed", description: newPath });
+    },
+    [project, updateProject, toast]
+  );
+
   const value = useMemo<ResearchProjectContextValue>(
     () => ({
       projects,
@@ -494,6 +618,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       refreshProjects,
       selectProject,
       createProject,
+      importProjectFromFile,
       removeProject,
       updateProject,
       setDraftTex,
@@ -533,6 +658,11 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
         });
         runSemanticRebuild(next.chunks, next.id);
       },
+      updatePaperReview,
+      addProjectFile,
+      deleteProjectFile,
+      renameProjectFile,
+      updateProjectFileContent,
       linkThread: async (threadId) => {
         if (!project) return;
         const ids = [...new Set([...project.linkedThreadIds, threadId])];
@@ -565,6 +695,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       refreshProjects,
       selectProject,
       createProject,
+      importProjectFromFile,
       removeProject,
       updateProject,
       setDraftTex,
@@ -575,8 +706,11 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       dismissBackgroundJob,
       createSnapshot,
       saveDraftNow,
-      runSemanticRebuild,
-      toast,
+      updatePaperReview,
+      addProjectFile,
+      deleteProjectFile,
+      renameProjectFile,
+      updateProjectFileContent,
     ]
   );
 

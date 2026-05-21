@@ -1,13 +1,7 @@
 /**
- * Local pdflatex HTTP service for Notebook “Compile” when Source is full LaTeX.
- *
- * Requires TeX Live / MacTeX (`pdflatex` on PATH).
- *
- *   npm run latex-compile
- *   # default PORT=8788 — Vite dev proxies /api/latex-compile → here
- *
- * POST /compile  Content-Type: text/plain  body = .tex source
- * Response: application/pdf on success; text/plain log on error.
+ * Local pdflatex HTTP service for Notebook “Compile”.
+ * POST /compile — text/plain body = single .tex
+ * POST /compile — application/json = multi-file bundle
  */
 
 import http from "node:http";
@@ -37,18 +31,45 @@ function send(res, status, body, type) {
   res.end(body);
 }
 
-function runPdflatex(dir) {
+function runCompile(dir, mainPath, bibtex) {
   const opts = {
     cwd: dir,
     encoding: "utf8",
-    maxBuffer: 48 * 1024 * 1024,
+    maxBuffer: 64 * 1024 * 1024,
   };
-  const args = ["-interaction=nonstopmode", "-halt-on-error", "main.tex"];
-  const first = spawnSync("pdflatex", args, opts);
-  let log = (first.stdout || "") + (first.stderr || "");
-  const second = spawnSync("pdflatex", args, opts);
-  log += (second.stdout || "") + (second.stderr || "");
-  return { log, status: second.status ?? first.status };
+  const baseName = mainPath.replace(/\.tex$/i, "") || "main";
+  const args = ["-interaction=nonstopmode", "-halt-on-error", mainPath];
+  let log = "";
+  const runPdf = () => {
+    const r = spawnSync("pdflatex", args, opts);
+    log += (r.stdout || "") + (r.stderr || "");
+    return r.status ?? 1;
+  };
+  let status = runPdf();
+  if (bibtex) {
+    spawnSync("bibtex", [baseName], opts);
+    status = runPdf();
+    status = runPdf();
+  } else {
+    status = runPdf();
+  }
+  return { log, status, pdfPath: path.join(dir, `${baseName}.pdf`) };
+}
+
+function writeBundle(dir, payload) {
+  const mainPath = payload.mainPath || "main.tex";
+  fs.writeFileSync(path.join(dir, mainPath), payload.mainTex, "utf8");
+  for (const f of payload.files ?? []) {
+    const safe = String(f.path).replace(/\\/g, "/").replace(/^(\.\.\/)+/, "");
+    const fp = path.join(dir, safe);
+    fs.mkdirSync(path.dirname(fp), { recursive: true });
+    if (f.encoding === "base64") {
+      fs.writeFileSync(fp, Buffer.from(f.content, "base64"));
+    } else {
+      fs.writeFileSync(fp, String(f.content ?? ""), "utf8");
+    }
+  }
+  return mainPath;
 }
 
 const server = http.createServer((req, res) => {
@@ -73,7 +94,7 @@ const server = http.createServer((req, res) => {
     send(
       res,
       503,
-      "pdflatex not found on PATH. Install TeX Live or MacTeX and ensure `pdflatex` is available.\n",
+      "pdflatex not found on PATH. Install TeX Live or MacTeX.\n",
       "text/plain; charset=utf-8"
     );
     return;
@@ -84,16 +105,31 @@ const server = http.createServer((req, res) => {
   req.on("end", () => {
     let dir = null;
     try {
-      const tex = Buffer.concat(chunks).toString("utf8");
-      if (!tex.trim()) {
-        send(res, 400, "Empty body\n", "text/plain; charset=utf-8");
-        return;
-      }
+      const raw = Buffer.concat(chunks);
+      const contentType = String(req.headers["content-type"] ?? "");
+      let mainPath = "main.tex";
+      let bibtex = false;
+
       dir = fs.mkdtempSync(path.join(os.tmpdir(), "openbentt-tex-"));
-      const mainPath = path.join(dir, "main.tex");
-      fs.writeFileSync(mainPath, tex, "utf8");
-      const { log, status } = runPdflatex(dir);
-      const pdfPath = path.join(dir, "main.pdf");
+
+      if (contentType.includes("application/json")) {
+        const payload = JSON.parse(raw.toString("utf8"));
+        if (!payload?.mainTex?.trim()) {
+          send(res, 400, "Missing mainTex\n", "text/plain; charset=utf-8");
+          return;
+        }
+        mainPath = writeBundle(dir, payload);
+        bibtex = Boolean(payload.bibtex);
+      } else {
+        const tex = raw.toString("utf8");
+        if (!tex.trim()) {
+          send(res, 400, "Empty body\n", "text/plain; charset=utf-8");
+          return;
+        }
+        fs.writeFileSync(path.join(dir, "main.tex"), tex, "utf8");
+      }
+
+      const { log, status, pdfPath } = runCompile(dir, mainPath, bibtex);
       if (status !== 0 || !fs.existsSync(pdfPath)) {
         send(res, 500, log.slice(-24_000) || "pdflatex failed\n", "text/plain; charset=utf-8");
         return;

@@ -3,6 +3,22 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("openbenttDesktop", {
   platform: process.platform,
   isElectron: true,
+  framelessTitleBar: process.platform === "linux",
+  windowMinimize: () => ipcRenderer.invoke("desktop:windowMinimize"),
+  windowToggleMaximize: () => ipcRenderer.invoke("desktop:windowToggleMaximize"),
+  windowClose: () => ipcRenderer.invoke("desktop:windowClose"),
+  windowIsMaximized: () => ipcRenderer.invoke("desktop:windowIsMaximized"),
+  editRole: (role) => ipcRenderer.invoke("desktop:editRole", role),
+  reloadPage: () => ipcRenderer.invoke("desktop:reload"),
+  toggleDevTools: () => ipcRenderer.invoke("desktop:toggleDevTools"),
+  quitApp: () => ipcRenderer.invoke("desktop:quit"),
+  showAbout: () => ipcRenderer.invoke("desktop:showAbout"),
+  openExternal: (url) => ipcRenderer.invoke("desktop:openExternal", url),
+  onMenuNavigate: (cb) => {
+    const handler = (_event, path) => cb(path);
+    ipcRenderer.on("desktop:menuNavigate", handler);
+    return () => ipcRenderer.removeListener("desktop:menuNavigate", handler);
+  },
   getAppVersion: () => ipcRenderer.invoke("desktop:getAppVersion"),
   checkForUpdates: () => ipcRenderer.invoke("desktop:checkForUpdates"),
   downloadUpdate: () => ipcRenderer.invoke("desktop:downloadUpdate"),
@@ -80,6 +96,14 @@ contextBridge.exposeInMainWorld("openbenttResearch", {
   deleteProject: (id) => ipcRenderer.invoke("research:deleteProject", id),
   storePaperPdf: (projectId, paperId, base64) =>
     ipcRenderer.invoke("research:storePaperPdf", projectId, paperId, base64),
+  loadPaperPdf: (projectId, paperId) =>
+    ipcRenderer.invoke("research:loadPaperPdf", projectId, paperId),
+  listProjectAssets: (projectId) => ipcRenderer.invoke("research:listProjectAssets", projectId),
+  storeProjectAsset: (projectId, fileName, base64) =>
+    ipcRenderer.invoke("research:storeProjectAsset", projectId, fileName, base64),
+  loadProjectAsset: (projectId, fileName) =>
+    ipcRenderer.invoke("research:loadProjectAsset", projectId, fileName),
+  compileProjectLatex: (payload) => ipcRenderer.invoke("research:compileProjectLatex", payload),
   loadEmbeddings: (projectId, chunkIds) =>
     ipcRenderer.invoke("research:loadEmbeddings", projectId, chunkIds),
   upsertEmbeddings: (projectId, batch) =>

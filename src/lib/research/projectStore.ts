@@ -126,6 +126,7 @@ function defaultProject(title: string): ResearchProjectData {
     abstractVariants: [],
     keywordSuggestions: [],
     captionSuggestions: [],
+    projectFiles: [],
   });
 }
 
@@ -177,6 +178,7 @@ async function desktopSave(data: ResearchProjectData, opts?: { skipChunks?: bool
   const summary: ResearchProjectSummary = {
     id: hydrated.id,
     title: hydrated.title,
+    createdAt: hydrated.createdAt,
     updatedAt: hydrated.updatedAt,
     paperCount: hydrated.papers.length,
   };
@@ -220,8 +222,11 @@ export type SaveProjectWarning = {
 };
 
 export async function listResearchProjects(): Promise<ResearchProjectSummary[]> {
-  if (isDesktopApp()) return desktopList();
-  return readIndex().projects;
+  const raw = isDesktopApp() ? await desktopList() : readIndex().projects;
+  return raw.map((p) => ({
+    ...p,
+    createdAt: p.createdAt ?? p.updatedAt,
+  }));
 }
 
 export async function getActiveProjectId(): Promise<string | null> {
@@ -240,8 +245,13 @@ export async function setActiveProjectId(id: string | null): Promise<void> {
   writeIndex(id, idx.projects);
 }
 
-export async function createResearchProject(title: string): Promise<ResearchProjectData> {
+export async function createResearchProject(
+  title: string,
+  opts?: { draftTex?: string; bibliography?: string }
+): Promise<ResearchProjectData> {
   const p = defaultProject(title.trim() || "Untitled research");
+  if (opts?.draftTex) p.draftTex = opts.draftTex;
+  if (opts?.bibliography) p.bibliography = opts.bibliography;
   await desktopSave(p);
   await setActiveProjectId(p.id);
   return p;
@@ -332,6 +342,7 @@ export async function addPaperToProject(
     addedAt: new Date().toISOString(),
     extractedText,
     metadata,
+    reviewStatus: "unread" as const,
     ...(reviewNotes?.length ? { reviewNotes } : {}),
   };
   const papers = [...project.papers, paper];

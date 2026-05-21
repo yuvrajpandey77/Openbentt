@@ -38,6 +38,8 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
+**Do not** create GitHub Releases manually in the UI — that publishes source-only archives with no installers and breaks `/download` links. Always let `.github/workflows/release.yml` publish after a tag push. The publish job fails if no `.AppImage` / `.exe` / `.dmg` / `.deb` files are present.
+
 **Jobs (parallel):**
 
 | Job | Runner | Output |

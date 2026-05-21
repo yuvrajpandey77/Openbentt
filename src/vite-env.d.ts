@@ -20,15 +20,29 @@ interface ImportMeta {
 }
 
 /** Exposed from `electron/preload.cjs` in the desktop shell only. */
+type DesktopEditRole = "undo" | "redo" | "cut" | "copy" | "paste" | "selectAll";
+
 interface OpenbenttDesktopApi {
   readonly isElectron: boolean;
   readonly platform: string;
+  readonly framelessTitleBar?: boolean;
+  windowMinimize?: () => Promise<void>;
+  windowToggleMaximize?: () => Promise<boolean>;
+  windowClose?: () => Promise<void>;
+  windowIsMaximized?: () => Promise<boolean>;
+  editRole?: (role: DesktopEditRole) => Promise<void>;
+  reloadPage?: () => Promise<void>;
+  toggleDevTools?: () => Promise<void>;
+  quitApp?: () => Promise<void>;
+  showAbout?: () => Promise<void>;
+  openExternal?: (url: string) => Promise<{ ok: boolean }>;
+  onMenuNavigate?: (cb: (path: string) => void) => () => void;
 }
 
 interface OpenbenttResearchApi {
   init: () => Promise<{ migrated: number; schemaVersion: number }>;
   listProjects: () => Promise<
-    { id: string; title: string; updatedAt: string; paperCount: number }[]
+    { id: string; title: string; createdAt?: string; updatedAt: string; paperCount: number }[]
   >;
   getActiveProjectId: () => Promise<string>;
   setActiveProjectId: (id: string | null) => Promise<{ ok: boolean }>;
@@ -38,6 +52,22 @@ interface OpenbenttResearchApi {
   patchBibliography: (projectId: string, content: string) => Promise<{ ok: boolean; updatedAt: string }>;
   deleteProject: (id: string) => Promise<{ ok: boolean }>;
   storePaperPdf: (projectId: string, paperId: string, base64: string) => Promise<{ ok: boolean }>;
+  loadPaperPdf: (
+    projectId: string,
+    paperId: string
+  ) => Promise<{ ok: boolean; base64?: string; message?: string }>;
+  listProjectAssets: (projectId: string) => Promise<{ ok: boolean; files?: string[] }>;
+  storeProjectAsset: (projectId: string, fileName: string, base64: string) => Promise<{ ok: boolean }>;
+  loadProjectAsset: (
+    projectId: string,
+    fileName: string
+  ) => Promise<{ ok: boolean; base64?: string; mime?: string; message?: string }>;
+  compileProjectLatex: (payload: {
+    mainTex: string;
+    mainPath?: string;
+    bibtex?: boolean;
+    files?: { path: string; content: string; encoding?: "utf8" | "base64" }[];
+  }) => Promise<{ ok: boolean; base64?: string; message?: string }>;
   loadEmbeddings: (projectId: string, chunkIds?: string[]) => Promise<Record<string, number[]>>;
   upsertEmbeddings: (
     projectId: string,

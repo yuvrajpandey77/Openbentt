@@ -1,4 +1,5 @@
 import type { ResearchProjectData } from "@/types/researchProject";
+import type { CompileBundle } from "@/lib/research/compileBundle";
 
 export type ResearchJobRow = {
   id: string;
@@ -113,4 +114,58 @@ export function onResearchJobProgress(
 
 export function onBeforeQuitSnapshot(cb: () => void): () => void {
   return api()?.onBeforeQuit?.(cb) ?? (() => {});
+}
+
+export async function loadPaperPdfDesktop(
+  projectId: string,
+  paperId: string
+): Promise<{ ok: boolean; base64?: string; message?: string } | null> {
+  return (await api()?.loadPaperPdf?.(projectId, paperId)) ?? null;
+}
+
+export async function listProjectAssetsDesktop(projectId: string): Promise<string[]> {
+  const r = await api()?.listProjectAssets?.(projectId);
+  if (r?.ok && Array.isArray(r.files)) return r.files;
+  return [];
+}
+
+export async function storeProjectAssetDesktop(
+  projectId: string,
+  fileName: string,
+  base64: string
+): Promise<boolean> {
+  const r = await api()?.storeProjectAsset?.(projectId, fileName, base64);
+  return Boolean(r?.ok);
+}
+
+export async function loadProjectAssetDesktop(
+  projectId: string,
+  fileName: string
+): Promise<{ ok: boolean; base64?: string; mime?: string; message?: string } | null> {
+  return (await api()?.loadProjectAsset?.(projectId, fileName)) ?? null;
+}
+
+export async function compileProjectLatexDesktop(
+  bundle: CompileBundle
+): Promise<{ ok: boolean; base64?: string; message?: string } | null> {
+  const files = bundle.additionalFiles.map((f) => {
+    if (typeof f.content === "string") {
+      return { path: f.path, content: f.content, encoding: "utf8" as const };
+    }
+    let binary = "";
+    const bytes = f.content;
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    }
+    return { path: f.path, content: btoa(binary), encoding: "base64" as const };
+  });
+  return (
+    (await api()?.compileProjectLatex?.({
+      mainTex: bundle.mainTex,
+      mainPath: bundle.mainPath,
+      bibtex: bundle.bibtex,
+      files,
+    })) ?? null
+  );
 }
