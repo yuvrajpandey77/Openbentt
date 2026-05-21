@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useChat } from "@/context/ChatContext";
 import type { WorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 
 interface AppChromeHeaderProps {
   onOpenMobileSidebar: () => void;
@@ -71,10 +72,10 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
               </Badge>
               <span className="text-xs font-medium text-foreground md:text-sm">{workspaceMeta.title}</span>
               <Link
-                to="/chat"
+                to={isDesktopApp() ? "/projects" : "/chat"}
                 className="text-[10px] text-muted-foreground/70 hover:text-foreground hover:underline"
               >
-                ← Chat
+                {isDesktopApp() ? "← Projects" : "← Chat"}
               </Link>
             </div>
           ) : (

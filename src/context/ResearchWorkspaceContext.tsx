@@ -36,6 +36,10 @@ type ResearchWorkspaceContextValue = {
   cycleMode: () => void;
   applyWorkspacePreset: (preset: Exclude<WorkspacePresetId, "custom">) => void;
   setActiveSidePanel: (id: ResearchPanelId) => void;
+  /** Open the floating tool drawer (studio) — use instead of setActiveSidePanel alone. */
+  openResearchToolPanel: (id: Exclude<ResearchPanelId, "editor">) => void;
+  closeResearchToolPanel: () => void;
+  sidePanelDrawerOpen: boolean;
   toggleSidePanel: (id: ResearchPanelId) => void;
   moveSidePanel: (id: ResearchPanelId, direction: "up" | "down") => void;
   setSidePanelSize: (size: number) => void;
@@ -71,6 +75,7 @@ export function ResearchWorkspaceProvider({ children }: { children: React.ReactN
   const [notebookActions, setNotebookActions] = useState<NotebookWorkspaceActions>({});
   const [sectionHeadings, setSectionHeadings] = useState<{ label: string; line: number }[]>([]);
   const [focusSectionLine, setFocusSectionLine] = useState<number | null>(null);
+  const [sidePanelDrawerOpen, setSidePanelDrawerOpen] = useState(false);
   const undoStack = useRef<string[]>([]);
   const redoStack = useRef<string[]>([]);
   const [historyTick, setHistoryTick] = useState(0);
@@ -104,6 +109,20 @@ export function ResearchWorkspaceProvider({ children }: { children: React.ReactN
         ? prev.sidePanelOrder
         : [...prev.sidePanelOrder, id],
     }));
+  }, []);
+
+  const openResearchToolPanel = useCallback((id: Exclude<ResearchPanelId, "editor">) => {
+    setLayout((prev) => ({
+      ...prev,
+      activeSidePanel: id,
+      preset: "custom",
+      sidePanelOrder: prev.sidePanelOrder.includes(id) ? prev.sidePanelOrder : [...prev.sidePanelOrder, id],
+    }));
+    setSidePanelDrawerOpen(true);
+  }, []);
+
+  const closeResearchToolPanel = useCallback(() => {
+    setSidePanelDrawerOpen(false);
   }, []);
 
   const toggleSidePanel = useCallback((id: ResearchPanelId) => {
@@ -172,8 +191,8 @@ export function ResearchWorkspaceProvider({ children }: { children: React.ReactN
   const requestFocusSection = useCallback((line: number) => setFocusSectionLine(line), []);
   const clearFocusSection = useCallback(() => setFocusSectionLine(null), []);
   const requestZoteroPanel = useCallback(() => {
-    setActiveSidePanel("zotero");
-  }, [setActiveSidePanel]);
+    openResearchToolPanel("zotero");
+  }, [openResearchToolPanel]);
 
   const value = useMemo(
     () => ({
@@ -182,6 +201,9 @@ export function ResearchWorkspaceProvider({ children }: { children: React.ReactN
       cycleMode,
       applyWorkspacePreset,
       setActiveSidePanel,
+      openResearchToolPanel,
+      closeResearchToolPanel,
+      sidePanelDrawerOpen,
       toggleSidePanel,
       moveSidePanel,
       setSidePanelSize,
@@ -210,6 +232,9 @@ export function ResearchWorkspaceProvider({ children }: { children: React.ReactN
       cycleMode,
       applyWorkspacePreset,
       setActiveSidePanel,
+      openResearchToolPanel,
+      closeResearchToolPanel,
+      sidePanelDrawerOpen,
       toggleSidePanel,
       moveSidePanel,
       setSidePanelSize,

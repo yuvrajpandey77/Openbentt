@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { briefCompileMessage, extractLaTeXErrorSnippet, missingBundledFileHint } from "./latexErrorUi";
+import { briefCompileMessage, extractLaTeXErrorSnippet, missingBundledFileHint, parseLaTeXCompileDiagnostics } from "./latexErrorUi";
 
 describe("extractLaTeXErrorSnippet", () => {
   it("prefers trailing ! and l. lines over preamble noise", () => {
@@ -60,6 +60,24 @@ STDERR:
     expect(sn).toContain("! LaTeX Error");
     expect(sn).toContain("missing.sty");
     expect(sn).not.toMatch(/Fatal error occurred, no output PDF/i);
+  });
+});
+
+describe("parseLaTeXCompileDiagnostics", () => {
+  it("extracts line number and fix kind for missing sty", () => {
+    const log = `! LaTeX Error: File \`bad.sty' not found.
+l.29 \\usepackage{bad}`;
+    const diags = parseLaTeXCompileDiagnostics(log);
+    expect(diags.length).toBeGreaterThan(0);
+    expect(diags[0].line).toBe(29);
+    expect(diags[0].fixKind).toBe("comment_usepackage");
+  });
+
+  it("detects contentReference artifacts", () => {
+    const log = `! Undefined control sequence.
+l.12 some text :contentReference[oaicite:1] more`;
+    const diags = parseLaTeXCompileDiagnostics(log);
+    expect(diags[0]?.fixKind).toBe("strip_content_reference");
   });
 });
 

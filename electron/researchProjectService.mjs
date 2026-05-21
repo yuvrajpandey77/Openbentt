@@ -45,7 +45,7 @@ export async function initResearchStorage(app) {
   const { migrated } = await migrateLegacyProjects(app);
   backupDatabase(app);
   const { resumed } = resumeInterruptedJobs(app);
-  return { migrated, schemaVersion: 4, resumed };
+  return { migrated, schemaVersion: 5, resumed };
 }
 
 export function registerResearchProjectIpc(ipcMain, app) {
@@ -105,6 +105,39 @@ export function registerResearchProjectIpc(ipcMain, app) {
     await fs.mkdir(dir, { recursive: true });
     const buf = Buffer.from(cleanB64, "base64");
     await fs.writeFile(path.join(dir, `${paperId}.pdf`), buf);
+    return { ok: true };
+  });
+
+  ipcMain.handle("research:loadPaperPdf", async (_e, projectId, paperId) => {
+    assertSafeId(projectId, "project id");
+    assertSafeId(paperId, "paper id");
+    const fp = path.join(projectDir(app, projectId), "papers", `${paperId}.pdf`);
+    try {
+      const buf = await fs.readFile(fp);
+      return { ok: true, base64: buf.toString("base64") };
+    } catch {
+      return { ok: false, message: "PDF not found on disk" };
+    }
+  });
+
+  ipcMain.handle("research:listProjectAssets", async (_e, projectId) => {
+    assertSafeId(projectId, "project id");
+    const dir = path.join(projectDir(app, projectId), "assets");
+    try {
+      const entries = await fs.readdir(dir);
+      return { ok: true, files: entries.filter((f) => !f.startsWith(".")) };
+    } catch {
+      return { ok: true, files: [] };
+    }
+  });
+
+  ipcMain.handle("research:storeProjectAsset", async (_e, projectId, fileName, base64) => {
+    assertSafeId(projectId, "project id");
+    if (!fileName || /[/\\]/.test(fileName)) throw new Error("Invalid asset name");
+    const dir = path.join(projectDir(app, projectId), "assets");
+    await fs.mkdir(dir, { recursive: true });
+    const buf = Buffer.from(base64, "base64");
+    await fs.writeFile(path.join(dir, fileName), buf);
     return { ok: true };
   });
 

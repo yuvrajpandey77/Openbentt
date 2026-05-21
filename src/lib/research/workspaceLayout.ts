@@ -10,6 +10,20 @@ export type ResearchPanelId =
   | "papers"
   | "submit";
 
+/** Side-rail panels (everything except the main editor). */
+export type ResearchSidePanelId = Exclude<ResearchPanelId, "editor">;
+
+export const RESEARCH_SIDE_PANEL_IDS: ResearchSidePanelId[] = [
+  "citations",
+  "zotero",
+  "assistant",
+  "notes",
+  "search",
+  "revisions",
+  "papers",
+  "submit",
+];
+
 export type WorkspaceMode = "default" | "focus" | "distraction-free";
 
 export type WorkspacePresetId =
@@ -35,7 +49,7 @@ export const PANEL_LABELS: Record<ResearchPanelId, string> = {
   zotero: "Zotero",
   assistant: "AI assist",
   notes: "Notes",
-  search: "Semantic search",
+  search: "Similarity",
   revisions: "Revisions",
   papers: "Papers",
   submit: "Submit",

@@ -49,7 +49,7 @@ interface ChatContextProps {
   apiConfig: ApiKeyConfig;
   pendingComposer: { text: string; attachments: MessageAttachment[] } | null;
   clearPendingComposer: () => void;
-  createNewChat: () => string;
+  createNewChat: (title?: string) => string;
   selectChat: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
   clearChats: () => void;
@@ -292,11 +292,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const createNewChat = () => {
+  const createNewChat = (title = "New Chat") => {
     const now = new Date();
     const newChat: Chat = {
       id: uuidv4(),
-      title: "New Chat",
+      title,
       messages: [],
       createdAt: now,
       updatedAt: now,

@@ -26,7 +26,7 @@ export function NotebookContextualStrip() {
   const hasAbstracts = project.abstractVariants.length > 0;
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border/50 bg-muted/15 px-2 py-1.5">
+    <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border/40 px-2 py-1">
       <Button
         type="button"
         size="sm"

@@ -14,8 +14,8 @@ import { buildAssistantPlainText } from "@/lib/assistantPlainText";
 import { extractNotebookSourceFromPdf } from "@/lib/pdfText";
 import { renderPdfPages } from "@/lib/pdfCanvasRender";
 import { compileNotebookSourceToPdf } from "@/lib/compileNotebook";
-import { formatCompileFailureToast } from "@/lib/latexErrorUi";
-import { applyNotebookLatexAutofix } from "@/lib/notebookLatexAutofix";
+import { formatCompileFailureToast, parseLaTeXCompileDiagnostics, type LatexCompileDiagnostic } from "@/lib/latexErrorUi";
+import { applyDiagnosticFix, applyNotebookLatexAutofix } from "@/lib/notebookLatexAutofix";
 import { isLatexDocumentSource } from "@/lib/notebookSourceKind";
 import { NOTEBOOK_LATEX_BOOK_TEMPLATE } from "@/lib/notebookLatexTemplate";
 import { extractTexFromAssistantReply } from "@/lib/extractTexFromAssistantReply";
@@ -44,8 +44,20 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useNotebookViewerOptional } from "@/context/NotebookViewerContext";
 import { useResearchWorkspaceOptional } from "@/context/ResearchWorkspaceContext";
+import { useNotebookStudioOptional } from "@/context/NotebookStudioContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
+import { NotebookStudioPreview } from "@/components/notebook/NotebookStudioPreview";
+import { NotebookLatexEditor } from "@/components/notebook/NotebookLatexEditor";
+import { editorFileKey, editorFileLabel as getEditorFileLabel, texContentForFileKey } from "@/context/NotebookStudioContext";
 import { pushDraftHistoryDesktop } from "@/lib/research/researchDesktopApi";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 
@@ -61,8 +73,14 @@ const ZOOM_DEFAULT = 1.1;
 type NotebookPdfWorkspaceProps = {
   projectDraftTex?: string;
   onProjectDraftChange?: (tex: string) => void;
+  /** Label for the active editor file in studio layout. */
+  editorFileLabel?: string;
   /** Hide duplicate toolbar when embedded in unified research workspace. */
   compactChrome?: boolean;
+  /** Side-by-side source + preview (Prism-style studio). */
+  layoutMode?: "tabs" | "studio";
+  /** Grouped toolbar menus for studio layout. */
+  chromeMode?: "full" | "compact" | "studio" | "none";
 };
 
 function parseSectionHeadings(tex: string): { label: string; line: number }[] {
@@ -78,8 +96,15 @@ function parseSectionHeadings(tex: string): { label: string; line: number }[] {
 const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   projectDraftTex,
   onProjectDraftChange,
+  editorFileLabel = "main.tex",
   compactChrome = false,
+  layoutMode = "tabs",
+  chromeMode,
 }) => {
+  const effectiveChrome = chromeMode ?? (compactChrome ? "compact" : "full");
+  const isStudio = layoutMode === "studio";
+  const viewerCtx = useNotebookViewerOptional();
+  const studioCtx = useNotebookStudioOptional();
   const { toast } = useToast();
   const workspace = useResearchWorkspaceOptional();
   const { project: researchProject, updateProject: updateResearchProject } = useResearchProject();
@@ -108,6 +133,8 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     raw: string;
     source: NotebookLatexFailureSource;
   } | null>(null);
+  /** Parsed line diagnostics from last compile failure. */
+  const [compileDiagnostics, setCompileDiagnostics] = useState<LatexCompileDiagnostic[]>([]);
   const [pdfScale, setPdfScale] = useState(ZOOM_DEFAULT);
   const [previewVariant, setPreviewVariant] = useState<PreviewVariant>("original");
 
@@ -133,10 +160,9 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
 
   useEffect(() => {
     if (projectDraftTex == null) return;
-    if (projectDraftTex === sourceText) return;
     syncingFromProject.current = true;
     setSourceText(projectDraftTex);
-  }, [projectDraftTex, sourceText]);
+  }, [projectDraftTex]);
 
   useEffect(() => {
     if (syncingFromProject.current) {
@@ -190,6 +216,47 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
 
   const proposedLines = useMemo(() => (proposedText ?? "").split("\n"), [proposedText]);
 
+  const connectedAssistExtras = useMemo(() => {
+    if (!isStudio || !studioCtx || !researchProject) {
+      return {
+        connectedTexFiles: [] as { label: string; content: string }[],
+        connectedPdfContext: null as string | null,
+      };
+    }
+    const { chatConnections, pdfPage, editorTabs } = studioCtx;
+    const connectedTexFiles: { label: string; content: string }[] = [];
+    for (const fileKey of chatConnections.texFileKeys) {
+      const content = texContentForFileKey(researchProject, fileKey);
+      const tabMatch = editorTabs.find((t) => editorFileKey(t) === fileKey);
+      let label = fileKey;
+      if (tabMatch) {
+        try {
+          label = getEditorFileLabel(tabMatch, researchProject);
+        } catch {
+          label = fileKey === "draft" ? "main.tex" : fileKey;
+        }
+      } else if (fileKey === "draft") {
+        label = "main.tex";
+      } else if (fileKey === "bib") {
+        label = "references.bib";
+      }
+      connectedTexFiles.push({ label, content });
+    }
+    let connectedPdfContext: string | null = null;
+    if (chatConnections.pdfPaperId) {
+      if (chatConnections.pdfPaperId === "compiled") {
+        connectedPdfContext = `Compiled PDF preview (page ${pdfPage}).`;
+      } else {
+        const paper = researchProject.papers.find((p) => p.id === chatConnections.pdfPaperId);
+        if (paper) {
+          const note = paper.pageNotes?.[pdfPage];
+          connectedPdfContext = `Paper "${paper.metadata.title ?? paper.fileName}" — page ${pdfPage}${note ? ` — note: ${note.slice(0, 200)}` : ""}.`;
+        }
+      }
+    }
+    return { connectedTexFiles, connectedPdfContext };
+  }, [isStudio, studioCtx, researchProject]);
+
   const notebookAssistParams = useMemo(
     () => ({
       fileName,
@@ -201,6 +268,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       hasProposal: proposedText != null,
       proposedLineCount: proposedLines.length,
       isLatexSource,
+      ...connectedAssistExtras,
     }),
     [
       compiledBytes,
@@ -212,6 +280,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       previewVariant,
       proposedLines.length,
       proposedText,
+      connectedAssistExtras,
     ]
   );
 
@@ -230,6 +299,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       hasProposal: proposedText != null,
       proposedLineCount: proposedLines.length,
       isLatexSource,
+      ...connectedAssistExtras,
     }),
     [
       compiledBytes,
@@ -241,6 +311,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       proposedLines.length,
       proposedText,
       sourceText,
+      connectedAssistExtras,
     ]
   );
 
@@ -319,9 +390,9 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
 
   /** Re-render when buffer/scale changes, and when returning to Preview (tab unmount clears the canvas). */
   useEffect(() => {
-    if (mainTab !== "preview") return;
+    if (isStudio || mainTab !== "preview") return;
     void runPreviewRender();
-  }, [runPreviewRender, mainTab]);
+  }, [runPreviewRender, mainTab, isStudio]);
 
   /** Ctrl/Cmd + wheel: zoom toward cursor (requires non-passive listener). */
   useEffect(() => {
@@ -367,26 +438,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     setBusy(true);
     try {
       const buf = await f.arrayBuffer();
-      setOriginalBytes(buf.slice(0));
-      setCompiledBytes(null);
-      setPreviewVariant("original");
-      setFileName(f.name);
-      setProposedText(null);
-      const text = await extractNotebookSourceFromPdf(f);
-      setSourceText(text);
-      setLastLatexFailure(null);
-      setPdfScale(ZOOM_DEFAULT);
-      setMainTab("preview");
-      const extractionLimited =
-        text.includes("further page(s) not included") ||
-        text.includes("Source truncated at") ||
-        text.includes("truncated at");
-      toast({
-        title: "PDF loaded",
-        description: extractionLimited
-          ? "Text in Source may be capped for very large PDFs — see any [Note:] at the bottom of Source."
-          : undefined,
-      });
+      await loadPdfFromBuffer(buf.slice(0), f.name, { replaceSource: true });
     } catch (err) {
       toast({
         title: "Load failed",
@@ -398,6 +450,54 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     }
   };
 
+  const loadPdfFromBuffer = useCallback(
+    async (
+      buf: ArrayBuffer,
+      name: string,
+      options?: { replaceSource?: boolean; paperId?: string }
+    ) => {
+      setOriginalBytes(buf.slice(0));
+      setCompiledBytes(null);
+      setPreviewVariant("original");
+      setFileName(name);
+      setProposedText(null);
+      setLastLatexFailure(null);
+      setPdfScale(ZOOM_DEFAULT);
+      setMainTab("preview");
+      if (options?.paperId) studioCtx?.setActivePaperId(options.paperId);
+      else if (options?.replaceSource !== false) studioCtx?.setActivePaperId(null);
+      if (options?.replaceSource !== false) {
+        const text = await extractNotebookSourceFromPdf(buf);
+        setSourceText(text);
+        const extractionLimited =
+          text.includes("further page(s) not included") ||
+          text.includes("Source truncated at") ||
+          text.includes("truncated at");
+        toast({
+          title: "PDF loaded",
+          description: extractionLimited
+            ? "Text in Source may be capped for very large PDFs — see any [Note:] at the bottom of Source."
+            : undefined,
+        });
+      } else {
+        toast({ title: "PDF opened", description: name });
+      }
+    },
+    [toast, studioCtx]
+  );
+
+  useEffect(() => {
+    if (effectiveChrome !== "studio" || !viewerCtx) return;
+    viewerCtx.registerViewer({
+      loadPdfBytes: (bytes, fileName, opts) => void loadPdfFromBuffer(bytes, fileName, opts),
+      focusSource: () => setMainTab("source"),
+      focusPreview: () => setMainTab("preview"),
+      openPdfPicker: () => fileRef.current?.click(),
+      openTexPicker: () => texRef.current?.click(),
+    });
+    return () => viewerCtx.registerViewer(null);
+  }, [effectiveChrome, viewerCtx, loadPdfFromBuffer]);
+
   const doCompile = useCallback(
     async (text: string) => {
       const blob = await compileNotebookSourceToPdf(text, fileName?.replace(/\.(pdf|tex)$/i, "") || "Notebook");
@@ -407,6 +507,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       setMainTab("preview");
       setLatexRecovery(false);
       setLastLatexFailure(null);
+      setCompileDiagnostics([]);
       const kind = isLatexDocumentSource(text) ? "pdflatex PDF" : "text PDF";
       toast({
         title: "Compiled",
@@ -418,6 +519,12 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     },
     [fileName, toast, originalBytes]
   );
+
+  const recordCompileFailure = useCallback((err: unknown) => {
+    const raw = err instanceof Error ? err.message : String(err);
+    setCompileDiagnostics(parseLaTeXCompileDiagnostics(raw));
+    setLastLatexFailure({ raw, source: "compile" });
+  }, []);
 
   const runAutofixAndRecompile = useCallback(async () => {
     if (!isLatexDocumentSource(sourceText)) {
@@ -431,16 +538,33 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       await doCompile(next);
     } catch (err) {
       setLatexRecovery(true);
-      setLastLatexFailure({
-        raw: err instanceof Error ? err.message : String(err),
-        source: "compile",
-      });
+      recordCompileFailure(err);
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
       setBusy(false);
     }
-  }, [sourceText, doCompile, toast]);
+  }, [sourceText, doCompile, toast, recordCompileFailure]);
+
+  const runDiagnosticFixAndRecompile = useCallback(
+    async (diag: LatexCompileDiagnostic) => {
+      if (!isLatexDocumentSource(sourceText)) return;
+      const next = applyDiagnosticFix(sourceText, diag);
+      setSourceText(next);
+      setBusy(true);
+      try {
+        await doCompile(next);
+      } catch (err) {
+        setLatexRecovery(true);
+        recordCompileFailure(err);
+        const { title, description } = formatCompileFailureToast(err);
+        toast({ title, description, variant: "destructive" });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [sourceText, doCompile, toast, recordCompileFailure]
+  );
 
   const loadFixPromptInChat = useCallback(() => {
     if (!lastLatexFailure?.raw) {
@@ -478,17 +602,14 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
         await doCompile(req.latex);
       } catch (err) {
         if (isLatexDocumentSource(req.latex)) setLatexRecovery(true);
-        setLastLatexFailure({
-          raw: err instanceof Error ? err.message : String(err),
-          source: "compile",
-        });
+        recordCompileFailure(err);
         const { title, description } = formatCompileFailureToast(err);
         toast({ title, description, variant: "destructive" });
       } finally {
         setBusy(false);
       }
     })();
-  }, [notebookLatexInsertRequest?.id, clearNotebookLatexInsertRequest, doCompile, toast]);
+  }, [notebookLatexInsertRequest?.id, clearNotebookLatexInsertRequest, doCompile, toast, recordCompileFailure]);
 
   const compilePdf = async () => {
     setBusy(true);
@@ -496,10 +617,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       await doCompile(sourceText);
     } catch (err) {
       if (isLatexSource) setLatexRecovery(true);
-      setLastLatexFailure({
-        raw: err instanceof Error ? err.message : String(err),
-        source: "compile",
-      });
+      recordCompileFailure(err);
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
@@ -617,10 +735,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       await doCompile(next);
     } catch (err) {
       if (isLatexDocumentSource(next)) setLatexRecovery(true);
-      setLastLatexFailure({
-        raw: err instanceof Error ? err.message : String(err),
-        source: "compile",
-      });
+      recordCompileFailure(err);
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
@@ -638,10 +753,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       await doCompile(next);
     } catch (err) {
       if (isLatexDocumentSource(next)) setLatexRecovery(true);
-      setLastLatexFailure({
-        raw: err instanceof Error ? err.message : String(err),
-        source: "compile",
-      });
+      recordCompileFailure(err);
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
@@ -659,10 +771,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       await doCompile(merged);
     } catch (err) {
       if (isLatexDocumentSource(merged)) setLatexRecovery(true);
-      setLastLatexFailure({
-        raw: err instanceof Error ? err.message : String(err),
-        source: "compile",
-      });
+      recordCompileFailure(err);
       const { title, description } = formatCompileFailureToast(err);
       toast({ title, description, variant: "destructive" });
     } finally {
@@ -811,6 +920,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
         showReviewPanel && "lg:border-r"
       )}
     >
+      {!isStudio && (
       <div className="flex shrink-0 gap-1 border-b border-border/60 bg-muted/25 px-2 py-1.5">
         <Button
           type="button"
@@ -833,6 +943,18 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
           Source
         </Button>
       </div>
+      )}
+
+      {isStudio && (
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/50 bg-muted/20 px-3 py-1.5">
+          <span className="text-xs font-medium text-muted-foreground">{editorFileLabel}</span>
+          {fileName && (
+            <span className="truncate text-xs text-muted-foreground" title={fileName}>
+              Preview: {fileName}
+            </span>
+          )}
+        </div>
+      )}
 
       {latexRecovery && isLatexSource && (
         <div className="shrink-0 border-b border-amber-500/35 bg-amber-500/[0.08] px-3 py-2.5 dark:bg-amber-950/25">
@@ -841,13 +963,33 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
             <AlertTitle>Fix LaTeX and try again</AlertTitle>
             <AlertDescription className="flex flex-col gap-3">
               <span>
-                <strong>Apply fixes & recompile</strong> runs the same deterministic cleanup (unicode, draft graphics, fonts,
-                figure placeholders) on the <strong>current Source</strong>, then compiles.{" "}
-                <strong>Open fix prompt in chat</strong> loads the <strong>same Source buffer</strong> and the{" "}
-                <strong>same captured error</strong> into the main composer so the model can revise the .tex. Both use what
-                you see in Source right now; after Apply, that includes autofixed text.
+                {compileDiagnostics.length > 0 ? (
+                  <>
+                    Error on line{compileDiagnostics.length > 1 ? "s" : ""}{" "}
+                    <strong>{compileDiagnostics.map((d) => d.line).join(", ")}</strong> — marked in the editor.
+                    Use the red <strong>Fix</strong> button on the error line or below.
+                  </>
+                ) : (
+                  <>
+                    <strong>Apply fixes & recompile</strong> runs deterministic cleanup on the current Source, then compiles.{" "}
+                    <strong>Open fix prompt in chat</strong> loads Source and the captured error into chat.
+                  </>
+                )}
               </span>
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                {compileDiagnostics[0] && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    className="shrink-0 gap-1.5"
+                    onClick={() => void runDiagnosticFixAndRecompile(compileDiagnostics[0])}
+                    disabled={busy}
+                  >
+                    <Wand2 className="h-3.5 w-3.5" />
+                    {compileDiagnostics[0].fixLabel} (L{compileDiagnostics[0].line})
+                  </Button>
+                )}
                 <Button
                   type="button"
                   size="sm"
@@ -875,10 +1017,29 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {mainTab === "preview" && (
-          <div className="flex h-full min-h-0 flex-col">
-            {previewBuffer ? (
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-hidden",
+          isStudio && "grid grid-cols-1 lg:grid-cols-2"
+        )}
+      >
+        {(isStudio || mainTab === "preview") && (
+          <div
+            className={cn(
+              "flex h-full min-h-0 flex-col",
+              isStudio && "min-h-0 border-b border-border/40 lg:order-2 lg:border-b-0 lg:border-l"
+            )}
+          >
+            {isStudio ? (
+              <NotebookStudioPreview
+                previewBuffer={previewBuffer}
+                pdfScale={pdfScale}
+                setPdfScale={setPdfScale}
+                activePaperId={studioCtx?.activePaperId ?? null}
+                onChoosePdf={() => fileRef.current?.click()}
+                busy={busy}
+              />
+            ) : previewBuffer ? (
               <>
                 <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-2 py-1.5">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -971,30 +1132,51 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
           </div>
         )}
 
-        {mainTab === "source" && (
-          <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden px-3 py-3">
-            <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
-              <strong className="text-foreground">From chat:</strong> ask for <code className="font-mono text-[10px]">.tex</code> (e.g.{" "}
-              <code className="font-mono text-[10px]">```latex</code>), then <strong className="text-foreground">Apply reply</strong> on the toolbar.
-            </p>
-            {isLatexSource ? (
-              <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
-                <strong className="text-foreground">LaTeX:</strong> BusyTeX in-browser · <code className="rounded bg-muted px-1 font-mono text-[10px]">npm run download:busytex</code> once.
-              </p>
-            ) : (
-              <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
-                <strong className="text-foreground">Extract:</strong> keep <code className="font-mono text-[10px]">--- PDF PAGE i / n ---</code> markers, or paste full LaTeX.
-              </p>
+        {(isStudio || mainTab === "source") && (
+          <div
+            className={cn(
+              "flex h-full min-h-0 flex-col overflow-hidden",
+              isStudio ? "px-3 py-2 lg:order-1" : "gap-2 overflow-hidden px-3 py-3"
             )}
-            <Textarea
-              ref={sourceTextareaRef}
-              value={sourceText}
-              onChange={(e) => setSourceText(e.target.value)}
-              className="min-h-0 flex-1 resize-none border-border/60 font-mono text-xs leading-relaxed focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder={`Full LaTeX (\\documentclass …) or plain text with page markers.`}
-              spellCheck={false}
-              aria-label="LaTeX source editor"
-            />
+          >
+            {!isStudio && (
+              <>
+                <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
+                  <strong className="text-foreground">From chat:</strong> ask for <code className="font-mono text-[10px]">.tex</code> (e.g.{" "}
+                  <code className="font-mono text-[10px]">```latex</code>), then <strong className="text-foreground">Apply reply</strong> on the toolbar.
+                </p>
+                {isLatexSource ? (
+                  <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
+                    <strong className="text-foreground">LaTeX:</strong> BusyTeX in-browser · <code className="rounded bg-muted px-1 font-mono text-[10px]">npm run download:busytex</code> once.
+                  </p>
+                ) : (
+                  <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
+                    <strong className="text-foreground">Extract:</strong> keep <code className="font-mono text-[10px]">--- PDF PAGE i / n ---</code> markers, or paste full LaTeX.
+                  </p>
+                )}
+              </>
+            )}
+            {isStudio ? (
+              <NotebookLatexEditor
+                value={sourceText}
+                onChange={setSourceText}
+                diagnostics={compileDiagnostics}
+                onFixDiagnostic={(d) => void runDiagnosticFixAndRecompile(d)}
+                editorFileLabel={editorFileLabel}
+                textareaRef={sourceTextareaRef}
+                busy={busy}
+              />
+            ) : (
+              <Textarea
+                ref={sourceTextareaRef}
+                value={sourceText}
+                onChange={(e) => setSourceText(e.target.value)}
+                className="min-h-0 flex-1 resize-none border-border/60 font-mono text-xs leading-relaxed focus-visible:ring-2 focus-visible:ring-ring"
+                placeholder={`Full LaTeX (\\documentclass …) or plain text with page markers.`}
+                spellCheck={false}
+                aria-label={`${editorFileLabel} editor`}
+              />
+            )}
           </div>
         )}
       </div>
@@ -1003,8 +1185,96 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
 
   return (
     <TooltipProvider delayDuration={400}>
-      <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/80 shadow-sm">
-        {!compactChrome && (
+      <Card
+        className={cn(
+          "flex h-full min-h-0 flex-col overflow-hidden border-border/80 shadow-sm",
+          isStudio && "rounded-none border-0 shadow-none"
+        )}
+      >
+        {effectiveChrome === "studio" && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/60 bg-muted/15 px-3 py-2">
+            <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => void onPickPdf(e)} />
+            <input ref={texRef} type="file" accept=".tex,text/plain" className="hidden" onChange={(e) => void onPickTex(e)} />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="sm" variant="ghost" className="h-8 text-xs">
+                  File
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem disabled={busy} onClick={() => fileRef.current?.click()}>
+                  Open PDF…
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={busy} onClick={() => texRef.current?.click()}>
+                  Open .tex…
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={insertLatexTemplate}>Insert book template</DropdownMenuItem>
+                {originalBytes && (
+                  <DropdownMenuItem onClick={() => downloadBlob(originalBytes, fileName || "original.pdf")}>
+                    Download original PDF
+                  </DropdownMenuItem>
+                )}
+                {compiledBytes && (
+                  <DropdownMenuItem onClick={() => downloadBlob(compiledBytes, "openbentt-compiled.pdf")}>
+                    Download compiled PDF
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="sm" variant="ghost" className="h-8 text-xs">
+                  AI & review
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={pullLastAssistant} disabled={!lastAssistantPlain.trim()}>
+                  Load last reply into Review
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={busy || !canUseReplyPreview} onClick={() => void applyLastReplyAndPreview()}>
+                  Apply reply to Source & compile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => loadFixPromptInChat()} disabled={busy || !lastLatexFailure}>
+                  Open fix prompt in chat
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void runAutofixAndRecompile()} disabled={busy}>
+                  Apply fixes & recompile
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {compiledBytes && originalBytes && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" size="sm" variant="ghost" className="h-8 text-xs">
+                    View
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => setPreviewVariant("original")}>Original PDF</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setPreviewVariant("compiled")}>Compiled PDF</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              {fileName && (
+                <span className="hidden max-w-[140px] truncate text-[11px] text-muted-foreground md:inline" title={fileName}>
+                  {fileName}
+                </span>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 gap-1.5 rounded-lg px-4 text-xs font-semibold"
+                disabled={busy || !sourceText.trim()}
+                onClick={() => void compilePdf()}
+              >
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                Compile
+              </Button>
+            </div>
+          </div>
+        )}
+        {effectiveChrome === "full" && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 bg-card/95 px-2 py-2 sm:px-3">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -1117,7 +1387,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
           </div>
         </div>
         )}
-        {compactChrome && (
+        {effectiveChrome === "compact" && (
           <div className="flex shrink-0 items-center justify-end gap-0.5 border-b border-border/50 bg-muted/20 px-2 py-1">
             <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => void onPickPdf(e)} />
             <input ref={texRef} type="file" accept=".tex,text/plain" className="hidden" onChange={(e) => void onPickTex(e)} />

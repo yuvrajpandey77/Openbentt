@@ -80,6 +80,11 @@ contextBridge.exposeInMainWorld("openbenttResearch", {
   deleteProject: (id) => ipcRenderer.invoke("research:deleteProject", id),
   storePaperPdf: (projectId, paperId, base64) =>
     ipcRenderer.invoke("research:storePaperPdf", projectId, paperId, base64),
+  loadPaperPdf: (projectId, paperId) =>
+    ipcRenderer.invoke("research:loadPaperPdf", projectId, paperId),
+  listProjectAssets: (projectId) => ipcRenderer.invoke("research:listProjectAssets", projectId),
+  storeProjectAsset: (projectId, fileName, base64) =>
+    ipcRenderer.invoke("research:storeProjectAsset", projectId, fileName, base64),
   loadEmbeddings: (projectId, chunkIds) =>
     ipcRenderer.invoke("research:loadEmbeddings", projectId, chunkIds),
   upsertEmbeddings: (projectId, batch) =>

@@ -2,14 +2,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { WorkspaceChrome } from "@/components/research/WorkspaceChrome";
 import { ResearchCommandPalette } from "@/components/research/ResearchCommandPalette";
 import { NotebookContextualStrip } from "@/components/research/NotebookContextualStrip";
-import { NotebookCitationsPanel } from "@/components/research/NotebookCitationsPanel";
-import { NotebookSimilarityPanel } from "@/components/research/NotebookSimilarityPanel";
-import { NotebookReviewPanel } from "@/components/research/NotebookReviewPanel";
-import { NotebookSubmitPanel } from "@/components/research/NotebookSubmitPanel";
-import { NotebookZoteroPanel } from "@/components/research/NotebookZoteroPanel";
-import { NotebookNotesPanel } from "@/components/research/NotebookNotesPanel";
-import { NotebookAssistantPanel } from "@/components/research/NotebookAssistantPanel";
-import { LibraryPapersPanel } from "@/components/research/LibraryPapersPanel";
+import { ResearchSidePanel } from "@/components/research/ResearchSidePanel";
 import { ResearchWritingSync } from "@/components/research/ResearchWritingSync";
 import { ResearchTaskStatus } from "@/components/research/ResearchTaskStatus";
 import NotebookPdfWorkspace from "@/components/NotebookPdfWorkspace";
@@ -17,31 +10,13 @@ import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
 import { useResearchKeyboard } from "@/hooks/useResearchKeyboard";
 import type { ResearchPanelId } from "@/lib/research/workspaceLayout";
+import { PANEL_LABELS } from "@/lib/research/workspaceLayout";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 function SidePanelContent({ id }: { id: ResearchPanelId }) {
-  switch (id) {
-    case "citations":
-      return <NotebookCitationsPanel />;
-    case "zotero":
-      return <NotebookZoteroPanel />;
-    case "assistant":
-      return <NotebookAssistantPanel />;
-    case "notes":
-      return <NotebookNotesPanel />;
-    case "search":
-      return <NotebookSimilarityPanel />;
-    case "revisions":
-      return <NotebookReviewPanel />;
-    case "papers":
-      return <LibraryPapersPanel />;
-    case "submit":
-      return <NotebookSubmitPanel />;
-    default:
-      return null;
-  }
+  return <ResearchSidePanel id={id} />;
 }
 
 function SidePanelRail() {
@@ -51,7 +26,7 @@ function SidePanelRail() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex shrink-0 items-center justify-between border-b border-border/50 px-2 py-1.5">
-        <span className="text-xs font-medium capitalize">{active.replace("-", " ")}</span>
+        <span className="text-xs font-medium">{PANEL_LABELS[active]}</span>
         <div className="flex gap-0.5">
           <Button
             type="button"

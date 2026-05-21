@@ -5,12 +5,15 @@ import { X, PanelRightOpen } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import ChatInput from "@/components/ChatInput";
 import { PrivacyAnalytics } from "@/components/PrivacyAnalytics";
+import { DesktopUpdateNotifier } from "@/components/DesktopUpdateNotifier";
 import { useChat } from "@/context/ChatContext";
 import { canSendChat } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { AppChromeHeader } from "@/components/AppChromeHeader";
 import { getWorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
 import { SIDEBAR_COLLAPSED_KEY } from "@/lib/storageMigrate";
+import { sidebarMainMarginClass } from "@/lib/sidebarLayout";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 import ChatMessages from "@/components/ChatMessages";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,9 +37,11 @@ const AppLayout: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
-      return typeof localStorage !== "undefined" && localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
+      const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+      if (stored !== null) return stored === "1";
+      return isDesktopApp();
     } catch {
-      return false;
+      return isDesktopApp();
     }
   });
   const [workspacePanelOpen, setWorkspacePanelOpen] = useState(() => {
@@ -74,6 +79,12 @@ const AppLayout: React.FC = () => {
     setWorkspaceRouteAssist(workspaceMeta.systemAssist);
   }, [workspaceMeta, location.pathname, setWorkspaceRouteAssist]);
 
+  useEffect(() => {
+    if (location.pathname === "/notebook" && new URLSearchParams(location.search).has("panel")) {
+      setWorkspacePanelOpen(true);
+    }
+  }, [location.pathname, location.search]);
+
   const currentChat = chats.find((c) => c.id === currentChatId);
   const messages = currentChat?.messages ?? [];
 
@@ -103,6 +114,7 @@ const AppLayout: React.FC = () => {
         onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
       />
       <PrivacyAnalytics />
+      <DesktopUpdateNotifier />
 
       {isMobileSidebarOpen && (
         <>
@@ -124,7 +136,7 @@ const AppLayout: React.FC = () => {
       <main
         className={cn(
           "flex min-h-0 flex-1 flex-col transition-[margin] duration-300 ease-out",
-          sidebarCollapsed ? "md:ml-16" : "md:ml-72"
+          sidebarMainMarginClass(sidebarCollapsed)
         )}
       >
         <AppChromeHeader

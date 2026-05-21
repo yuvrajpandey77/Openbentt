@@ -114,3 +114,25 @@ export function onResearchJobProgress(
 export function onBeforeQuitSnapshot(cb: () => void): () => void {
   return api()?.onBeforeQuit?.(cb) ?? (() => {});
 }
+
+export async function loadPaperPdfDesktop(
+  projectId: string,
+  paperId: string
+): Promise<{ ok: boolean; base64?: string; message?: string } | null> {
+  return (await api()?.loadPaperPdf?.(projectId, paperId)) ?? null;
+}
+
+export async function listProjectAssetsDesktop(projectId: string): Promise<string[]> {
+  const r = await api()?.listProjectAssets?.(projectId);
+  if (r?.ok && Array.isArray(r.files)) return r.files;
+  return [];
+}
+
+export async function storeProjectAssetDesktop(
+  projectId: string,
+  fileName: string,
+  base64: string
+): Promise<boolean> {
+  const r = await api()?.storeProjectAsset?.(projectId, fileName, base64);
+  return Boolean(r?.ok);
+}

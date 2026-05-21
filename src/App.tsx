@@ -16,7 +16,8 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { WebWorkspaceRouteGuard } from "@/components/WebWorkspaceRouteGuard";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 
-const NotebookPage = lazy(() => import("./pages/NotebookPage"));
+const NotebookStudioPage = lazy(() => import("./pages/NotebookStudioPage"));
+const ProjectsHubPage = lazy(() => import("./pages/ProjectsHubPage"));
 const ResearchLabsPage = lazy(() => import("./pages/ResearchLabsPage"));
 const LatexWorkspacePage = lazy(() => import("./pages/LatexWorkspacePage"));
 const BenchmarkPage = lazy(() => import("./pages/BenchmarkPage"));
@@ -32,10 +33,10 @@ const RouteFallback = () => (
   <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground text-sm">Loading…</div>
 );
 
-/** Web: marketing landing. Electron: skip straight to chat. */
+/** Web: marketing landing. Electron: projects hub (Prism-style home). */
 function RootMarketingOrElectronRedirect() {
   if (isDesktopApp()) {
-    return <Navigate to="/chat" replace />;
+    return <Navigate to="/projects" replace />;
   }
   return <HomeLandingPage />;
 }
@@ -43,9 +44,17 @@ function RootMarketingOrElectronRedirect() {
 /** Installers page is for the website only — desktop users already have the app. */
 function DownloadPageOrDesktopRedirect() {
   if (isDesktopApp()) {
-    return <Navigate to="/chat" replace />;
+    return <Navigate to="/projects" replace />;
   }
   return <DownloadPage />;
+}
+
+/** Standalone LaTeX page merged into notebook studio on desktop. */
+function DesktopWriteRedirect() {
+  if (isDesktopApp()) {
+    return <Navigate to="/projects" replace />;
+  }
+  return <LatexWorkspacePage />;
 }
 
 const App = () => (
@@ -80,13 +89,16 @@ const App = () => (
                   {/* Onboarding — no app chrome */}
                   <Route path="setup" element={<SetupPage />} />
 
+                  {/* Full-screen research studio (no chat split) */}
+                  <Route path="projects" element={<ProjectsHubPage />} />
+                  <Route path="notebook" element={<NotebookStudioPage />} />
+
                   {/* Main app shell */}
                   <Route element={<AppLayout />}>
                     <Route element={<WebWorkspaceRouteGuard />}>
                       <Route path="chat" element={<HomeChatArea />} />
-                      <Route path="notebook" element={<NotebookPage />} />
                       <Route path="labs" element={<ResearchLabsPage />} />
-                      <Route path="write" element={<LatexWorkspacePage />} />
+                      <Route path="write" element={<DesktopWriteRedirect />} />
                       <Route path="benchmark" element={<BenchmarkPage />} />
                       <Route path="webgpu" element={<WebGpuPage />} />
                     </Route>

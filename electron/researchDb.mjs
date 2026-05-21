@@ -7,7 +7,7 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const ROOT_DIR = "research-projects";
 
 export function projectsRoot(app) {
@@ -80,6 +80,7 @@ function runMigrations(db) {
   if (v < 2) migrateV2(db);
   if (v < 3) migrateV3(db);
   if (v < 4) migrateV4(db);
+  if (v < 5) migrateV5(db);
 
   if (v < SCHEMA_VERSION) {
     db.prepare("DELETE FROM schema_version").run();
@@ -231,6 +232,26 @@ function migrateV4(db) {
   db.exec("CREATE INDEX IF NOT EXISTS idx_chunks_project ON corpus_chunks(project_id)");
 }
 
+function migrateV5(db) {
+  const paperCols = db.prepare("PRAGMA table_info(papers)").all();
+  if (!paperCols.some((c) => c.name === "review_json")) {
+    db.exec(`ALTER TABLE papers ADD COLUMN review_json TEXT NOT NULL DEFAULT '{}'`);
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_files (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      path TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'tex',
+      content TEXT NOT NULL DEFAULT '',
+      added_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(project_id, path)
+    );
+    CREATE INDEX IF NOT EXISTS idx_project_files_project ON project_files(project_id);
+  `);
+}
+
 export function hasActiveRechunkJob(app, projectId) {
   const db = openDb(app);
   const row = db
@@ -297,7 +318,7 @@ export function listProjectSummaries(app) {
   const db = openDb(app);
   const rows = db
     .prepare(
-      `SELECT p.id, p.title, p.updated_at AS updatedAt,
+      `SELECT p.id, p.title, p.created_at AS createdAt, p.updated_at AS updatedAt,
         (SELECT COUNT(*) FROM papers WHERE project_id = p.id) AS paperCount
        FROM projects p ORDER BY p.updated_at DESC`
     )
@@ -305,6 +326,7 @@ export function listProjectSummaries(app) {
   return rows.map((r) => ({
     id: r.id,
     title: r.title,
+    createdAt: r.createdAt ?? r.updatedAt,
     updatedAt: r.updatedAt,
     paperCount: r.paperCount ?? 0,
   }));
@@ -328,13 +350,33 @@ export function loadProject(app, id) {
   const papers = db
     .prepare("SELECT * FROM papers WHERE project_id = ? ORDER BY added_at ASC")
     .all(id)
+    .map((row) => {
+      const review = parseJson(row.review_json, {});
+      return {
+        id: row.id,
+        fileName: row.file_name,
+        addedAt: row.added_at,
+        extractedText: row.extracted_text,
+        pageCount: row.page_count ?? undefined,
+        metadata: parseJson(row.metadata_json, {}),
+        reviewStatus: review.reviewStatus,
+        lastReviewedPage: review.lastReviewedPage,
+        reviewedAt: review.reviewedAt,
+        pageNotes: review.pageNotes,
+        reviewNotes: review.reviewNotes,
+      };
+    });
+
+  const projectFiles = db
+    .prepare("SELECT * FROM project_files WHERE project_id = ? ORDER BY path ASC")
+    .all(id)
     .map((row) => ({
       id: row.id,
-      fileName: row.file_name,
+      path: row.path,
+      kind: row.kind,
+      content: row.content,
       addedAt: row.added_at,
-      extractedText: row.extracted_text,
-      pageCount: row.page_count ?? undefined,
-      metadata: parseJson(row.metadata_json, {}),
+      updatedAt: row.updated_at,
     }));
 
   const chunks = db
@@ -363,6 +405,7 @@ export function loadProject(app, id) {
     modelAttributions,
     abstractVariants,
     keywordSuggestions,
+    projectFiles,
   };
 }
 
@@ -407,6 +450,7 @@ export function saveProjectMeta(app, data, opts = {}) {
   ).run(data.id, data.bibliography ?? "", now);
 
   savePapers(app, data.id, data.papers ?? []);
+  saveProjectFiles(app, data.id, data.projectFiles ?? []);
   const skipChunks = opts.skipChunks === true || hasActiveRechunkJob(app, data.id);
   if (!skipChunks) {
     saveChunks(app, data.id, data.chunks ?? []);
@@ -448,15 +492,23 @@ export function savePapers(app, projectId, papers) {
     }
   }
   const stmt = db.prepare(
-    `INSERT INTO papers (id, project_id, file_name, added_at, metadata_json, extracted_text, page_count)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO papers (id, project_id, file_name, added_at, metadata_json, extracted_text, page_count, review_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        file_name = excluded.file_name,
        metadata_json = excluded.metadata_json,
        extracted_text = excluded.extracted_text,
-       page_count = excluded.page_count`
+       page_count = excluded.page_count,
+       review_json = excluded.review_json`
   );
   for (const p of papers) {
+    const reviewJson = JSON.stringify({
+      reviewStatus: p.reviewStatus,
+      lastReviewedPage: p.lastReviewedPage,
+      reviewedAt: p.reviewedAt,
+      pageNotes: p.pageNotes,
+      reviewNotes: p.reviewNotes,
+    });
     stmt.run(
       p.id,
       projectId,
@@ -464,8 +516,34 @@ export function savePapers(app, projectId, papers) {
       p.addedAt,
       JSON.stringify(p.metadata ?? {}),
       p.extractedText ?? "",
-      p.pageCount ?? null
+      p.pageCount ?? null,
+      reviewJson
     );
+  }
+}
+
+export function saveProjectFiles(app, projectId, files) {
+  const db = openDb(app);
+  const existing = new Set(
+    db.prepare("SELECT id FROM project_files WHERE project_id = ?").all(projectId).map((r) => r.id)
+  );
+  const incoming = new Set(files.map((f) => f.id));
+  for (const id of existing) {
+    if (!incoming.has(id)) {
+      db.prepare("DELETE FROM project_files WHERE id = ? AND project_id = ?").run(id, projectId);
+    }
+  }
+  const stmt = db.prepare(
+    `INSERT INTO project_files (id, project_id, path, kind, content, added_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       path = excluded.path,
+       kind = excluded.kind,
+       content = excluded.content,
+       updated_at = excluded.updated_at`
+  );
+  for (const f of files) {
+    stmt.run(f.id, projectId, f.path, f.kind, f.content ?? "", f.addedAt, f.updatedAt);
   }
 }
 
