@@ -7,15 +7,16 @@
     "email": "openbentt-contributors@users.noreply.github.com"
   },
   "private": true,
-  "version": "2.0.11",
+  "version": "2.0.12",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "lint": "eslint . && npm run lint:electron-security",
+    "lint": "eslint . && npm run lint:electron-security && npm run lint:electron-pack",
     "lint:electron-security": "node scripts/check-electron-security.mjs",
+    "lint:electron-pack": "node scripts/check-electron-pack-files.mjs",
     "preview": "vite preview",
     "test": "vitest run && npm run test:electron",
     "test:unit": "vitest run",
@@ -165,10 +166,31 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "src/lib/zotero/**/*.mjs",
+      "src/lib/research/corpusChunksCore.mjs",
+      "src/lib/research/embedCore.mjs",
       "build/icon.png",
       "package.json",
-      "!node_modules",
-      "!node_modules/**/*"
+      "node_modules/@xenova/**/*",
+      "node_modules/onnxruntime-node/**/*",
+      "node_modules/onnxruntime-common/**/*",
+      "node_modules/electron-updater/**/*",
+      "node_modules/builder-util-runtime/**/*",
+      "node_modules/fs-extra/**/*",
+      "node_modules/graceful-fs/**/*",
+      "node_modules/jsonfile/**/*",
+      "node_modules/universalify/**/*",
+      "node_modules/lazy-val/**/*",
+      "node_modules/lodash.escaperegexp/**/*",
+      "node_modules/lodash.isequal/**/*",
+      "node_modules/semver/**/*",
+      "node_modules/tiny-typed-emitter/**/*",
+      "node_modules/js-yaml/**/*",
+      "node_modules/argparse/**/*",
+      "node_modules/sax/**/*"
+    ],
+    "asarUnpack": [
+      "**/node_modules/onnxruntime-node/**"
     ],
     "publish": [
       {

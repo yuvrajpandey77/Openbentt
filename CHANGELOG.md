@@ -72,6 +72,15 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [2.0.12] — 2026-05-21
+
+### Fixed
+
+- **Desktop startup crash:** Packaged builds now include `src/lib/zotero/zoteroMapper.mjs` and other Electron main-process shared modules omitted from `app.asar`.
+- **Research workers in production:** Bundle `corpusChunksCore` / `embedCore` plus `@xenova/transformers` runtime deps for packaged desktop.
+
+---
+
 ## [2.0.11] — 2026-05-21
 
 ### Fixed
