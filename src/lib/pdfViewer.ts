@@ -17,6 +17,7 @@ type PdfJsPage = {
     canvasContext: CanvasRenderingContext2D;
     viewport: { width: number; height: number };
   }) => PdfRenderTask;
+  getTextContent?: () => Promise<{ items: Array<{ str?: string }> }>;
 };
 
 type PdfRenderTask = {
@@ -125,4 +126,39 @@ export async function renderPdfThumbnail(
 export function computeFitWidthScale(pageWidth: number, containerWidth: number, padding = 24): number {
   const w = Math.max(120, containerWidth - padding);
   return w / Math.max(1, pageWidth);
+}
+
+export type PdfSearchHit = {
+  page: number;
+  snippet: string;
+  index: number;
+};
+
+/** Search PDF text layer (case-insensitive substring match per page). */
+export async function searchPdfDocument(
+  doc: PdfJsDoc,
+  query: string,
+  opts?: { maxHits?: number }
+): Promise<PdfSearchHit[]> {
+  const q = query.trim().toLowerCase();
+  if (!q || q.length < 2) return [];
+  const maxHits = opts?.maxHits ?? 40;
+  const hits: PdfSearchHit[] = [];
+  for (let page = 1; page <= doc.numPages && hits.length < maxHits; page++) {
+    const p = await doc.getPage(page);
+    const content = await p.getTextContent?.();
+    if (!content?.items?.length) continue;
+    const text = content.items.map((it) => it.str ?? "").join(" ");
+    const lower = text.toLowerCase();
+    let idx = 0;
+    while (hits.length < maxHits) {
+      const found = lower.indexOf(q, idx);
+      if (found < 0) break;
+      const start = Math.max(0, found - 30);
+      const end = Math.min(text.length, found + q.length + 30);
+      hits.push({ page, snippet: text.slice(start, end).trim(), index: hits.length });
+      idx = found + q.length;
+    }
+  }
+  return hits;
 }

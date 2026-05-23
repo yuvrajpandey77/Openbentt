@@ -11,6 +11,8 @@ import {
   openPdfDocument,
   renderPdfPage,
   renderPdfThumbnail,
+  searchPdfDocument,
+  type PdfSearchHit,
 } from "@/lib/pdfViewer";
 import { cn } from "@/lib/utils";
 import {
@@ -21,6 +23,7 @@ import {
   Highlighter,
   Loader2,
   Maximize2,
+  Search,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -30,6 +33,8 @@ import {
   DEFAULT_HIGHLIGHT_COLOR,
 } from "@/lib/research/pdfAnnotations";
 import type { PdfAnnotation } from "@/types/researchProject";
+import { PdfSearchPanel } from "@/components/notebook/PdfSearchPanel";
+import { PdfAnnotationList } from "@/components/notebook/PdfAnnotationList";
 
 type PdfJsDoc = Awaited<ReturnType<typeof openPdfDocument>>["doc"];
 
@@ -86,6 +91,10 @@ export function NotebookStudioPreview({
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchHits, setSearchHits] = useState<PdfSearchHit[]>([]);
+  const [searching, setSearching] = useState(false);
 
   const paper = project?.papers.find((p) => p.id === activePaperId);
   const pdfConnected =
@@ -326,6 +335,28 @@ export function NotebookStudioPreview({
     return () => ro.disconnect();
   }, [firstPagePainted, pdfPage]);
 
+  useEffect(() => {
+    const doc = docRef.current;
+    if (!searchOpen || !doc || searchQuery.trim().length < 2) {
+      setSearchHits([]);
+      setSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    void (async () => {
+      try {
+        const hits = await searchPdfDocument(doc, searchQuery);
+        if (!cancelled) setSearchHits(hits);
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchOpen, searchQuery, previewBuffer, docReady]);
+
   const showFullPageLoader = docLoading || !docReady || !firstPagePainted;
 
   if (!previewBuffer) {
@@ -343,6 +374,7 @@ export function NotebookStudioPreview({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-muted/20" data-notebook-preview>
+      <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-card/80 px-3 py-2">
         <div className="flex items-center gap-1.5">
           <ConnectionHandle
@@ -394,6 +426,16 @@ export function NotebookStudioPreview({
           />
         </div>
         <div className="flex items-center gap-0.5">
+          <Button
+            type="button"
+            size="icon"
+            variant={searchOpen ? "secondary" : "ghost"}
+            className="h-8 w-8"
+            onClick={() => setSearchOpen((v) => !v)}
+            aria-label="Search in PDF"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
           <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => setFitWidth(true)} aria-label="Fit width">
             <Maximize2 className="h-4 w-4" />
           </Button>
@@ -425,6 +467,7 @@ export function NotebookStudioPreview({
           </Button>
         )}
       </div>
+      <div className="flex min-h-0 flex-1">
       <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto p-4">
         {showFullPageLoader && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/85 backdrop-blur-[1px]">
@@ -491,6 +534,23 @@ export function NotebookStudioPreview({
           )}
         </div>
       </div>
+      <PdfSearchPanel
+        open={searchOpen}
+        query={searchQuery}
+        onQueryChange={setSearchQuery}
+        hits={searchHits}
+        searching={searching}
+        onSelectHit={(hit) => setPdfPageInfo(hit.page, pdfNumPages)}
+        onClose={() => setSearchOpen(false)}
+      />
+      </div>
+      {activePaperId && (
+        <PdfAnnotationList
+          annotations={paper?.annotations ?? []}
+          currentPage={pdfPage}
+          onSelectPage={(p) => setPdfPageInfo(p, pdfNumPages)}
+        />
+      )}
       {activePaperId && (
         <div className="shrink-0 border-t border-border/50 bg-card/90 px-3 py-2">
           <Textarea
@@ -503,6 +563,7 @@ export function NotebookStudioPreview({
         </div>
       )}
       <div ref={thumbsRef} className="flex shrink-0 gap-1.5 overflow-x-auto border-t border-border/50 bg-muted/30 px-2 py-2" />
+      </div>
     </div>
   );
 }

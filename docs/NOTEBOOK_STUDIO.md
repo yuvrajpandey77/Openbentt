@@ -83,6 +83,11 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR07 — PDF search + annotation list
+
+- [ ] **Search** toggle opens in-pane search; results jump to page
+- [ ] Annotation list stub shows saved highlights below preview
+
 ### PR06 — Forensic PDF annotations
 
 - [ ] Drag **Highlight** on PDF preview creates persisted yellow overlay
