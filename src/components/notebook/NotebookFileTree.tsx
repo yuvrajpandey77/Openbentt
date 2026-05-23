@@ -41,6 +41,10 @@ import {
   sortedFolders,
   SYSTEM_FOLDER_IDS,
 } from "@/lib/research/folderMigration";
+import { TemplateGallery } from "@/components/notebook/TemplateGallery";
+import { applyTemplatePack } from "@/lib/research/applyTemplate";
+import { loadTemplatePack, type TemplateCatalogEntry } from "@/lib/research/templateCatalog";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   BookMarked,
@@ -51,6 +55,7 @@ import {
   FileText,
   Folder,
   FolderOpen,
+  LayoutTemplate,
   MessageSquare,
   Download,
   Plus,
@@ -246,7 +251,8 @@ export function NotebookFileTree({
 }: {
   onUploadPdfs: () => void;
 }) {
-  const { project, updatePaperReview, addProjectFile, deleteProjectFile, renameProjectFile } = useResearchProject();
+  const { project, updatePaperReview, addProjectFile, deleteProjectFile, renameProjectFile, updateProject, setDraftTex, setBibliography } = useResearchProject();
+  const { toast } = useToast();
   const { createNewChat, selectChat, chats } = useChat();
   const { viewer } = useNotebookViewer();
   const {
@@ -270,6 +276,8 @@ export function NotebookFileTree({
   const [assetPreview, setAssetPreview] = useState<{ name: string; url: string; mime: string } | null>(null);
   const assetUploadRef = useRef<HTMLInputElement>(null);
   const openPdfRef = useRef<HTMLInputElement>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
 
   useEffect(() => {
     if (!project) return;
@@ -420,6 +428,33 @@ export function NotebookFileTree({
     setNewFilePath("");
   };
 
+  const handleApplyTemplate = async (entry: TemplateCatalogEntry) => {
+    if (!project) return;
+    setApplyingTemplate(true);
+    try {
+      const pack = await loadTemplatePack(entry.pack);
+      const next = applyTemplatePack(project, pack);
+      setDraftTex(next.draftTex);
+      if (pack.bibliography != null) setBibliography(next.bibliography);
+      await updateProject({
+        draftTex: next.draftTex,
+        bibliography: next.bibliography,
+        targetVenue: next.targetVenue,
+        projectFiles: next.projectFiles,
+      });
+      setGalleryOpen(false);
+      toast({ title: "Template applied", description: entry.label });
+    } catch (err) {
+      toast({
+        title: "Template failed",
+        description: err instanceof Error ? err.message : "Could not load pack",
+        variant: "destructive",
+      });
+    } finally {
+      setApplyingTemplate(false);
+    }
+  };
+
   const onAssetUpload = async (files: FileList | null) => {
     if (!project || !files?.length) return;
     for (const file of Array.from(files)) {
@@ -446,6 +481,9 @@ export function NotebookFileTree({
             <SelectItem value="reviewed">Reviewed</SelectItem>
           </SelectContent>
         </Select>
+        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => setGalleryOpen(true)} aria-label="Template gallery">
+          <LayoutTemplate className="h-4 w-4" />
+        </Button>
         <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => void exportZip()} aria-label="Export project ZIP">
           <Download className="h-4 w-4" />
         </Button>
@@ -536,6 +574,12 @@ export function NotebookFileTree({
           )}
         </DialogContent>
       </Dialog>
+      <TemplateGallery
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        onApply={(entry) => void handleApplyTemplate(entry)}
+        applying={applyingTemplate}
+      />
     </div>
   );
 }

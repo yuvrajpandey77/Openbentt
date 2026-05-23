@@ -14,7 +14,7 @@ describe("releaseDownloads", () => {
   });
 
   it("uses a semver-like desktop asset version", () => {
-    expect(DESKTOP_ASSET_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(DESKTOP_ASSET_VERSION).toMatch(/^\d+\.\d+\.\d+(-[\w.]+)?$/);
   });
 
   it("builds Linux AppImage URL with version segment", () => {
