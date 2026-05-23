@@ -11,7 +11,9 @@ import {
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
 import {
+  editorFileKey,
   editorFileLabel,
+  fileRefEquals,
   NOTEBOOK_EXPLORER_INSET_PX,
   NOTEBOOK_EXPLORER_LEFT_PX,
   NOTEBOOK_EXPLORER_TABS_PADDING_OPEN_PX,
@@ -67,8 +69,26 @@ export function NotebookStudioShell() {
     return project.draftTex;
   }, [activeEditorFile, project]);
 
+  const editorBufferRef = useRef(editorContent);
+  const prevEditorFileRef = useRef(activeEditorFile);
+
+  useEffect(() => {
+    editorBufferRef.current = editorContent;
+  }, [editorContent]);
+
+  useEffect(() => {
+    const prev = prevEditorFileRef.current;
+    if (fileRefEquals(prev, activeEditorFile)) return;
+    const buf = editorBufferRef.current;
+    if (prev.type === "bib") setBibliography(buf);
+    else if (prev.type === "projectFile") updateProjectFileContent(prev.fileId, buf);
+    else setDraftTex(buf);
+    prevEditorFileRef.current = activeEditorFile;
+  }, [activeEditorFile, setBibliography, setDraftTex, updateProjectFileContent]);
+
   const onProjectDraftChange = useCallback(
     (tex: string) => {
+      editorBufferRef.current = tex;
       if (activeEditorFile.type === "bib") setBibliography(tex);
       else if (activeEditorFile.type === "projectFile") updateProjectFileContent(activeEditorFile.fileId, tex);
       else setDraftTex(tex);

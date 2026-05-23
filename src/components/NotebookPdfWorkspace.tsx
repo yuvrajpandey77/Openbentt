@@ -66,6 +66,7 @@ import { useNotebookStudioSettingsOptional } from "@/context/NotebookStudioSetti
 import { editorFileKey, editorFileLabel as getEditorFileLabel, texContentForFileKey } from "@/context/NotebookStudioContext";
 import { pushDraftHistoryDesktop } from "@/lib/research/researchDesktopApi";
 import { isDesktopApp } from "@/lib/isDesktopApp";
+import { shouldReplaceEditorSourceOnPdfLoad } from "@/lib/notebookPdfLoad";
 
 type MainTab = "preview" | "source";
 /** Which PDF bytes drive the canvas — original upload vs text-compiled (images/layout only on Original). */
@@ -121,7 +122,8 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   const studioCtx = useNotebookStudioOptional();
   const { toast } = useToast();
   const workspace = useResearchWorkspaceOptional();
-  const { project: researchProject, updateProject: updateResearchProject } = useResearchProject();
+  const { project: researchProject, updateProject: updateResearchProject, uploadPaperPdf } =
+    useResearchProject();
   const studioSettings = useNotebookStudioSettingsOptional();
   const [compileSummary, setCompileSummary] = useState<string | null>(null);
   const {
@@ -172,6 +174,10 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   }, [pdfScale]);
 
   const syncingFromProject = useRef(false);
+  /** Skip one autosave cycle after programmatic buffer changes (e.g. legacy PDF → Source). */
+  const suppressProjectSync = useRef(false);
+  const onProjectDraftChangeRef = useRef(onProjectDraftChange);
+  onProjectDraftChangeRef.current = onProjectDraftChange;
 
   useEffect(() => {
     if (projectDraftTex == null) return;
@@ -184,8 +190,12 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       syncingFromProject.current = false;
       return;
     }
-    onProjectDraftChange?.(sourceText);
-  }, [sourceText, onProjectDraftChange]);
+    if (suppressProjectSync.current) {
+      suppressProjectSync.current = false;
+      return;
+    }
+    onProjectDraftChangeRef.current?.(sourceText);
+  }, [sourceText]);
 
   useEffect(() => {
     workspace?.setSectionHeadings(parseSectionHeadings(sourceText));
@@ -494,6 +504,15 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     setBusy(true);
     try {
       const buf = await f.arrayBuffer();
+      if (isStudio && uploadPaperPdf) {
+        await uploadPaperPdf(f);
+        await loadPdfFromBuffer(buf.slice(0), f.name, { replaceSource: false });
+        toast({
+          title: "Paper added",
+          description: `${f.name} is in papers/ — preview updated; LaTeX files unchanged.`,
+        });
+        return;
+      }
       await loadPdfFromBuffer(buf.slice(0), f.name, { replaceSource: true });
     } catch (err) {
       toast({
@@ -512,6 +531,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       name: string,
       options?: { replaceSource?: boolean; paperId?: string }
     ) => {
+      const replaceEditorSource = shouldReplaceEditorSourceOnPdfLoad(layoutMode, options?.replaceSource);
       setOriginalBytes(buf.slice(0));
       setCompiledBytes(null);
       setPreviewVariant("original");
@@ -521,9 +541,10 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       setPdfScale(ZOOM_DEFAULT);
       setMainTab("preview");
       if (options?.paperId) studioCtx?.setActivePaperId(options.paperId);
-      else if (options?.replaceSource !== false) studioCtx?.setActivePaperId(null);
-      if (options?.replaceSource !== false) {
+      else if (replaceEditorSource) studioCtx?.setActivePaperId(null);
+      if (replaceEditorSource) {
         const text = await extractNotebookSourceFromPdf(buf);
+        suppressProjectSync.current = true;
         setSourceText(text);
         const extractionLimited =
           text.includes("further page(s) not included") ||
@@ -539,7 +560,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
         toast({ title: "PDF opened", description: name });
       }
     },
-    [toast, studioCtx]
+    [toast, studioCtx, layoutMode]
   );
 
   useEffect(() => {

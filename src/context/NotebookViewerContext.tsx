@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 export type NotebookViewerHandle = {
+  /** Preview PDF bytes. Default `replaceSource: false` — never overwrites LaTeX files in studio. */
   loadPdfBytes: (
     bytes: ArrayBuffer,
     fileName: string,

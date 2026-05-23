@@ -81,6 +81,16 @@ Requires `npm run download:busytex` once before first compile.
 | Bibliography | 500k chars | — |
 | Semantic index chunks | 120 indexed | 100 |
 
+## Beta launch — M0 data integrity (v2.1)
+
+### PR01 — PDF / editor separation
+
+- [ ] Open paper from **papers/** tree → preview updates; **main.tex unchanged** in editor and on disk
+- [ ] Switch between 5+ papers (J/K) → editor content stays the active LaTeX/bib/chapter file
+- [ ] **Choose PDF** in studio → adds to **papers/** + preview only (no Source overwrite)
+- [ ] Switch main.tex ↔ references.bib ↔ chapter tab → each file keeps its own content
+- [ ] Legacy tabs notebook (non-studio): PDF can still replace Source when explicitly loaded via file picker
+
 ## Manual test checklist
 
 ### Projects hub (`/projects`)
