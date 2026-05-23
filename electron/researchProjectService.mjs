@@ -6,7 +6,9 @@ import path from "node:path";
 import os from "node:os";
 import { spawnSync } from "node:child_process";
 import {
-  backupDatabase,
+  getCompileArtifactDesktop,
+  putCompileArtifactDesktop,
+} from "./compileArtifactStore.mjs";
   closeDb,
   createSnapshot,
   deleteProject,
@@ -325,6 +327,18 @@ export function registerResearchProjectIpc(ipcMain, app) {
     const outPath = path.join(outDir, "finetune-corpus.jsonl");
     await fs.writeFile(outPath, lines.join("\n"), "utf8");
     return { path: outPath, count: lines.length };
+  });
+
+  ipcMain.handle("research:getCompileArtifact", async (_e, projectId, hash) => {
+    const buf = await getCompileArtifactDesktop(app, projectId, hash);
+    if (!buf) return { ok: false };
+    return { ok: true, base64: Buffer.from(buf).toString("base64") };
+  });
+
+  ipcMain.handle("research:putCompileArtifact", async (_e, projectId, hash, base64, meta) => {
+    const buf = Buffer.from(base64, "base64");
+    await putCompileArtifactDesktop(app, projectId, hash, buf, meta ?? {});
+    return { ok: true };
   });
 }
 

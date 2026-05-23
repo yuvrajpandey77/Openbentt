@@ -20,7 +20,7 @@
     "preview": "vite preview",
     "test": "vitest run && npm run test:electron",
     "test:unit": "vitest run",
-    "test:electron": "node --test electron/gpuSafeMode.test.mjs electron/llamaBinary.test.mjs electron/researchDb.test.mjs electron/researchVectorStore.test.mjs electron/researchJobQueue.test.mjs electron/researchProjectService.test.mjs electron/researchWorkers/chunkWorker.test.mjs src/lib/research/embedCore.test.mjs",
+    "test:electron": "node --test electron/gpuSafeMode.test.mjs electron/llamaBinary.test.mjs electron/researchDb.test.mjs electron/researchVectorStore.test.mjs electron/researchJobQueue.test.mjs electron/researchProjectService.test.mjs electron/researchWorkers/chunkWorker.test.mjs electron/compileArtifactStore.test.mjs src/lib/research/embedCore.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
     "verify:release": "npm run lint && npm run test && npm run build && npm run test:e2e",

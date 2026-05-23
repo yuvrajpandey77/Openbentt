@@ -83,6 +83,11 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR14 — Compile cache storage (IndexedDB + desktop)
+
+- [ ] Desktop stores compiled PDFs under userData compile-cache by hash
+- [ ] Web uses IndexedDB `openbentt-compile-cache`
+
 ### PR13 — Compile bundle hash
 
 - [ ] Identical compile inputs produce stable SHA-256 cache key
