@@ -1,6 +1,6 @@
 # Openbentt Notebook Studio — Beta 2.1
 
-**Tags:** `v2.1.0-beta.1` (templates milestone) · `v2.1.0-beta.2` (QA milestone)  
+**Tags:** `v2.1.0-beta.1` (templates milestone) · `v2.1.0-beta.2` (QA milestone) · `v2.1.0-beta.3` (studio UX + release)  
 **Companion:** [NOTEBOOK_STUDIO.md](./NOTEBOOK_STUDIO.md)
 
 ---
@@ -17,6 +17,9 @@
 | Bibliography | `references.bib` in hero packs; compile hints; cite dropdown in toolbar |
 | Retrieval | Hybrid v2 defaults, incremental embed pruning |
 | Chat context | Multi-PDF connections (cap 10), sources popover |
+| Streaming chat | Plain-text stream, pinned scroll, thinking indicator |
+| Studio layout | Resizable editor/preview split; sidebar Settings/Panes footer |
+| UI theme | Unified primary-purple accents across app chrome |
 | M0 (PR01–05) | PDF/editor separation, corruption recovery, context meter |
 | Keyboard | J/K PDF nav ignores CodeMirror editor focus |
 
@@ -48,3 +51,4 @@
 |-----|-------|
 | v2.1.0-beta.1 | After PR12 — template catalog + apply |
 | v2.1.0-beta.2 | After PR22 — e2e + context/retrieval/cache complete |
+| v2.1.0-beta.3 | Studio UX polish — streaming chat, purple theme, layout, templates launch |
