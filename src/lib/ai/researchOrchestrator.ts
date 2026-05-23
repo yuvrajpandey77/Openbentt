@@ -4,7 +4,8 @@
 import type { CorpusChunk, ResearchProjectData } from "@/types/researchProject";
 import { buildTfidfIndex } from "@/lib/research/corpusIndex";
 import { resolveLibraryEmbeddings } from "@/lib/research/embeddingLoader";
-import { hybridRetrieve, type RetrievalHit } from "@/lib/research/hybridRetrieval";
+import { hybridRetrieveV2 } from "@/lib/research/retrievalV2";
+import type { RetrievalHit } from "@/lib/research/hybridRetrieval";
 import { profileForTask } from "@/lib/modelManager/profiles";
 import { MODEL_TASK_LABELS, type ModelTask } from "@/lib/modelRouting/tasks";
 
@@ -59,7 +60,7 @@ export async function assembleResearchContext(
     project.chunks,
     project.chunkEmbeddings
   );
-  const hits = await hybridRetrieve(
+  const hits = await hybridRetrieveV2(
     queryText,
     project.chunks,
     names,

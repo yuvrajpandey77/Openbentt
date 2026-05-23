@@ -8,6 +8,7 @@ import {
   saveIndexCheckpoint,
 } from "@/lib/research/indexCheckpoint";
 import { enqueueDesktopEmbedJob } from "@/lib/research/desktopEmbedJob";
+import { pruneStaleEmbeddings } from "@/lib/research/incrementalIndex";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import type { CorpusChunk } from "@/types/researchProject";
 
@@ -59,6 +60,7 @@ export function startSemanticIndexRebuild(
     const checkpoint = loadIndexCheckpoint(projectId);
     let resume =
       checkpoint?.projectId === projectId ? checkpoint.vectors : undefined;
+    resume = pruneStaleEmbeddings(chunks, resume);
 
     let lastError: unknown;
     for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {

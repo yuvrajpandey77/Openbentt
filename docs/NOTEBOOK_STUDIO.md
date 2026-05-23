@@ -83,6 +83,10 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR18 — Wire retrieval v2 + incremental index
+
+- [ ] Research orchestrator uses v2 retrieval; semantic rebuild skips fully indexed corpus
+
 ### PR17 — Incremental semantic indexing
 
 - [ ] Re-index skips chunks that already have embeddings; prunes stale vectors
