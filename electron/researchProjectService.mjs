@@ -9,6 +9,8 @@ import {
   getCompileArtifactDesktop,
   putCompileArtifactDesktop,
 } from "./compileArtifactStore.mjs";
+import {
+  backupDatabase,
   closeDb,
   createSnapshot,
   deleteProject,

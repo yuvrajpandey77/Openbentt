@@ -599,6 +599,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
         }
         const blob = await compileNotebookSourceToPdf(text, fileName?.replace(/\.(pdf|tex)$/i, "") || "Notebook", {
           bundle,
+          projectId: researchProject.id,
         });
         const buf = await blob.arrayBuffer();
         setCompiledBytes(buf.slice(0));

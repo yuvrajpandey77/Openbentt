@@ -6,11 +6,15 @@ import { availableAssetNamesFromBundle } from "@/lib/latexNotebookImageFixup";
 import { applyDocumentStyleToLatex, loadDocumentStyle } from "@/lib/notebookDocumentStyle";
 import { loadNotebookCompileSettings } from "@/lib/notebookCompileSettings";
 import { isLatexDocumentSource } from "@/lib/notebookSourceKind";
+import { getCachedCompilePdf, storeCachedCompilePdf } from "@/lib/research/compileArtifactCache";
 
 export type CompileNotebookOptions = {
   plainTitle?: string;
   bundle?: CompileBundle;
   applyStyle?: boolean;
+  /** When set with bundle, enables compile artifact cache lookup/store. */
+  projectId?: string;
+  useCompileCache?: boolean;
 };
 
 function prepareBundle(bundle: CompileBundle, applyStyle: boolean): CompileBundle {
@@ -41,7 +45,16 @@ export async function compileNotebookSourceToPdf(
 
   if (opts.bundle && isLatexDocumentSource(opts.bundle.mainTex)) {
     const prepared = prepareBundle(opts.bundle, applyStyle);
-    return compileLatexToPdfBlob(prepared.mainTex, prepared);
+    const useCache = opts.useCompileCache !== false && Boolean(opts.projectId);
+    if (useCache) {
+      const cached = await getCachedCompilePdf(prepared, opts.projectId);
+      if (cached.hit) return cached.blob;
+    }
+    const blob = await compileLatexToPdfBlob(prepared.mainTex, prepared);
+    if (useCache) {
+      void storeCachedCompilePdf(prepared, blob, opts.projectId);
+    }
+    return blob;
   }
 
   if (isLatexDocumentSource(source)) {
