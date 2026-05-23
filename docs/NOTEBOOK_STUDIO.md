@@ -83,6 +83,11 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR11 — Template gallery UI
+
+- [ ] Explorer → **Templates** opens searchable gallery dialog
+- [ ] Catalog count shown in gallery header
+
 ### PR10 — Template catalog + packs
 
 - [ ] `public/templates/catalog.json` lists 100+ starters
