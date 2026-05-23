@@ -83,6 +83,10 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR08 — Folder taxonomy migration
+
+- [ ] Legacy projects gain default `folders` on load (chapters, figures, includes, papers, assets)
+
 ### PR07 — PDF search + annotation list
 
 - [ ] **Search** toggle opens in-pane search; results jump to page

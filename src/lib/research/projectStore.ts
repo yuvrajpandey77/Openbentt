@@ -10,6 +10,7 @@ import {
   stripEmbeddingsForWebPersist,
 } from "@/lib/research/projectRecovery";
 import { migrateProjectIntegrity } from "@/lib/research/contentIntegrity";
+import { migrateProjectFolders } from "@/lib/research/folderMigration";
 import {
   clearEmbeddingsDesktop,
   loadEmbeddingsDesktop,
@@ -55,7 +56,7 @@ function hydrate(data: ResearchProjectData): ResearchProjectData {
             data.draftTex,
             data.id
           );
-  return {
+  return migrateProjectFolders({
     ...data,
     bibEntries,
     chunks,
@@ -68,7 +69,7 @@ function hydrate(data: ResearchProjectData): ResearchProjectData {
       revisionSuggestions: data.revisionSuggestions,
       previous: data.researchMemory ?? emptyResearchMemory(),
     }),
-  };
+  });
 }
 
 function loadEmbeddingsLocal(projectId: string): Record<string, number[]> | undefined {
