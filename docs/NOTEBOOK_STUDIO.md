@@ -83,6 +83,10 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR13 — Compile bundle hash
+
+- [ ] Identical compile inputs produce stable SHA-256 cache key
+
 ### PR12 — Apply template from gallery
 
 - [ ] **Apply template** replaces main.tex (+ bib/chapters when pack includes them)
