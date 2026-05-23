@@ -83,6 +83,11 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR04 — Smooth PDF preview loading
+
+- [ ] Switching papers shows **Loading PDF…** until first page renders (no stale canvas flash)
+- [ ] Page changes after load use subtle spinner (canvas stays visible)
+
 ### PR03 — Corruption recovery
 
 - [ ] Project with bad paper titles auto-repairs on load

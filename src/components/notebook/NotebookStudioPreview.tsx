@@ -71,6 +71,8 @@ export function NotebookStudioPreview({
   const [docLoading, setDocLoading] = useState(false);
   const [pageRendering, setPageRendering] = useState(false);
   const [docReady, setDocReady] = useState(false);
+  /** First page has been painted for the current document — avoids flashing stale canvas. */
+  const [firstPagePainted, setFirstPagePainted] = useState(false);
   const [pageNote, setPageNote] = useState("");
 
   const paper = project?.papers.find((p) => p.id === activePaperId);
@@ -85,6 +87,7 @@ export function NotebookStudioPreview({
 
   useEffect(() => {
     resumePageRef.current = null;
+    setFirstPagePainted(false);
   }, [previewBuffer, paper?.id]);
 
   useEffect(() => {
@@ -98,6 +101,7 @@ export function NotebookStudioPreview({
     }
     let cancelled = false;
     setDocReady(false);
+    setFirstPagePainted(false);
     void (async () => {
       setDocLoading(true);
       await destroyRef.current?.();
@@ -166,7 +170,10 @@ export function NotebookStudioPreview({
         console.warn("[NotebookStudioPreview] page render failed", err);
       }
     } finally {
-      if (gen === renderGenRef.current) setPageRendering(false);
+      if (gen === renderGenRef.current) {
+        setPageRendering(false);
+        setFirstPagePainted(true);
+      }
     }
   }, [pdfPage, pdfNumPages, pdfScale, fitWidth]);
 
@@ -334,12 +341,13 @@ export function NotebookStudioPreview({
         )}
       </div>
       <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto p-4">
-        {docLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        {showFullPageLoader && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/85 backdrop-blur-[1px]">
+            <Loader2 className="h-7 w-7 animate-spin text-primary" aria-hidden />
+            <p className="text-xs text-muted-foreground">Loading PDF…</p>
           </div>
         )}
-        {pageRendering && !docLoading && (
+        {pageRendering && firstPagePainted && !docLoading && (
           <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-full bg-background/80 p-1.5 shadow-sm">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
@@ -347,8 +355,9 @@ export function NotebookStudioPreview({
         <canvas
           ref={canvasRef}
           className={cn(
-            "mx-auto block max-w-full rounded-md border border-border/60 bg-white shadow-sm transition-opacity",
-            pageRendering && !docLoading && "opacity-90"
+            "mx-auto block max-w-full rounded-md border border-border/60 bg-white shadow-sm transition-opacity duration-150",
+            !firstPagePainted && "invisible opacity-0",
+            pageRendering && firstPagePainted && "opacity-75"
           )}
         />
       </div>
