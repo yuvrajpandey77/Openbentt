@@ -18,11 +18,18 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  Highlighter,
   Loader2,
   Maximize2,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import {
+  annotationsForPage,
+  createPdfAnnotation,
+  DEFAULT_HIGHLIGHT_COLOR,
+} from "@/lib/research/pdfAnnotations";
+import type { PdfAnnotation } from "@/types/researchProject";
 
 type PdfJsDoc = Awaited<ReturnType<typeof openPdfDocument>>["doc"];
 
@@ -74,6 +81,11 @@ export function NotebookStudioPreview({
   /** First page has been painted for the current document — avoids flashing stale canvas. */
   const [firstPagePainted, setFirstPagePainted] = useState(false);
   const [pageNote, setPageNote] = useState("");
+  const [highlightMode, setHighlightMode] = useState(false);
+  const [dragRect, setDragRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const canvasWrapRef = useRef<HTMLDivElement>(null);
+  const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
 
   const paper = project?.papers.find((p) => p.id === activePaperId);
   const pdfConnected =
@@ -256,6 +268,64 @@ export function NotebookStudioPreview({
     });
   };
 
+  const pageAnnotations = annotationsForPage(paper?.annotations, pdfPage);
+
+  const persistAnnotation = (ann: PdfAnnotation) => {
+    if (!activePaperId || !paper) return;
+    const annotations = [...(paper.annotations ?? []), ann];
+    void updatePaperReview(activePaperId, { annotations });
+  };
+
+  const onHighlightPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!highlightMode || !canvasWrapRef.current) return;
+    const r = canvasWrapRef.current.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+    dragStartRef.current = { x, y };
+    setDragRect({ x, y, w: 0, h: 0 });
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onHighlightPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragStartRef.current || !canvasWrapRef.current) return;
+    const r = canvasWrapRef.current.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+    const sx = dragStartRef.current.x;
+    const sy = dragStartRef.current.y;
+    setDragRect({
+      x: Math.min(sx, x),
+      y: Math.min(sy, y),
+      w: Math.abs(x - sx),
+      h: Math.abs(y - sy),
+    });
+  };
+
+  const onHighlightPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragStartRef.current || !dragRect) {
+      dragStartRef.current = null;
+      setDragRect(null);
+      return;
+    }
+    if (dragRect.w > 0.01 && dragRect.h > 0.005) {
+      persistAnnotation(createPdfAnnotation(pdfPage, dragRect));
+    }
+    dragStartRef.current = null;
+    setDragRect(null);
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ro = new ResizeObserver(() => {
+      setCanvasSize({ w: canvas.width, h: canvas.height });
+    });
+    ro.observe(canvas);
+    setCanvasSize({ w: canvas.width, h: canvas.height });
+    return () => ro.disconnect();
+  }, [firstPagePainted, pdfPage]);
+
   const showFullPageLoader = docLoading || !docReady || !firstPagePainted;
 
   if (!previewBuffer) {
@@ -336,6 +406,19 @@ export function NotebookStudioPreview({
           </Button>
         </div>
         {activePaperId && (
+          <Button
+            type="button"
+            size="sm"
+            variant={highlightMode ? "secondary" : "outline"}
+            className="h-8 gap-1 text-xs"
+            onClick={() => setHighlightMode((v) => !v)}
+            aria-pressed={highlightMode}
+          >
+            <Highlighter className="h-3.5 w-3.5" />
+            Highlight
+          </Button>
+        )}
+        {activePaperId && (
           <Button type="button" size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={markReviewed}>
             <Check className="h-3.5 w-3.5" />
             Mark reviewed
@@ -354,14 +437,59 @@ export function NotebookStudioPreview({
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         )}
-        <canvas
-          ref={canvasRef}
-          className={cn(
-            "mx-auto block max-w-full rounded-md border border-border/60 bg-white shadow-sm transition-opacity duration-150",
-            !firstPagePainted && "invisible opacity-0",
-            pageRendering && firstPagePainted && "opacity-75"
+        <div
+          ref={canvasWrapRef}
+          className="relative mx-auto w-fit"
+          style={canvasSize.w ? { width: canvasSize.w, height: canvasSize.h } : undefined}
+        >
+          <canvas
+            ref={canvasRef}
+            className={cn(
+              "mx-auto block max-w-full rounded-md border border-border/60 bg-white shadow-sm transition-opacity duration-150",
+              !firstPagePainted && "invisible opacity-0",
+              pageRendering && firstPagePainted && "opacity-75"
+            )}
+          />
+          {firstPagePainted && canvasSize.w > 0 && (
+            <div
+              className={cn(
+                "absolute inset-0 rounded-md",
+                highlightMode && "cursor-crosshair"
+              )}
+              aria-hidden={!highlightMode && pageAnnotations.length === 0}
+              onPointerDown={highlightMode ? onHighlightPointerDown : undefined}
+              onPointerMove={highlightMode ? onHighlightPointerMove : undefined}
+              onPointerUp={highlightMode ? onHighlightPointerUp : undefined}
+            >
+              {pageAnnotations.map((ann) => (
+                <div
+                  key={ann.id}
+                  className="pointer-events-none absolute rounded-sm border border-amber-500/30"
+                  style={{
+                    left: `${ann.rect.x * 100}%`,
+                    top: `${ann.rect.y * 100}%`,
+                    width: `${ann.rect.w * 100}%`,
+                    height: `${ann.rect.h * 100}%`,
+                    backgroundColor: ann.color ?? DEFAULT_HIGHLIGHT_COLOR,
+                  }}
+                  title={ann.text}
+                />
+              ))}
+              {dragRect && highlightMode && (
+                <div
+                  className="pointer-events-none absolute rounded-sm border border-amber-600/50"
+                  style={{
+                    left: `${dragRect.x * 100}%`,
+                    top: `${dragRect.y * 100}%`,
+                    width: `${dragRect.w * 100}%`,
+                    height: `${dragRect.h * 100}%`,
+                    backgroundColor: DEFAULT_HIGHLIGHT_COLOR,
+                  }}
+                />
+              )}
+            </div>
           )}
-        />
+        </div>
       </div>
       {activePaperId && (
         <div className="shrink-0 border-t border-border/50 bg-card/90 px-3 py-2">

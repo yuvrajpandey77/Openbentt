@@ -570,15 +570,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   }, [flushDraft, project]);
 
   const updatePaperReview = useCallback(
-    async (
-      paperId: string,
-      patch: Partial<{
-        reviewStatus: PaperReviewStatus;
-        lastReviewedPage: number;
-        reviewedAt: string;
-        pageNotes: Record<number, string>;
-      }>
-    ) => {
+    async (paperId: string, patch: Partial<import("@/types/researchProject").ResearchPaper>) => {
       if (!project) return;
       const papers = project.papers.map((p) => (p.id === paperId ? { ...p, ...patch } : p));
       setProject({ ...project, papers });

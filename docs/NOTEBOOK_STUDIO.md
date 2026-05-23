@@ -83,6 +83,11 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR06 — Forensic PDF annotations
+
+- [ ] Drag **Highlight** on PDF preview creates persisted yellow overlay
+- [ ] Re-open paper → highlights still visible on correct pages
+
 ### PR05 — Context meter in studio
 
 - [ ] Circular context ring visible beside Commands in notebook header

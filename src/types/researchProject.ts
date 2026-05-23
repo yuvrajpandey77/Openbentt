@@ -7,7 +7,36 @@ export type TargetVenue = "generic" | "ieee" | "acm" | "nature" | "arxiv";
 
 export type PaperReviewStatus = "unread" | "reviewing" | "reviewed";
 
+/** Forensic PDF markup stored per paper (normalized page coords 0–1). */
+export type PdfAnnotationKind = "highlight" | "note" | "redaction";
+
+export interface PdfAnnotation {
+  id: string;
+  page: number;
+  /** Normalized rect relative to page viewport at creation time. */
+  rect: { x: number; y: number; w: number; h: number };
+  kind: PdfAnnotationKind;
+  color?: string;
+  text?: string;
+  createdAt: string;
+}
+
 export type ProjectFileKind = "tex" | "bib" | "sty" | "asset" | "other";
+
+/** Custom folder taxonomy for the project file tree (desktop). */
+export type ProjectFolderKind = "system" | "custom";
+
+export interface ProjectFolder {
+  id: string;
+  label: string;
+  /** Parent folder id; omit for root-level folders. */
+  parentId?: string;
+  kind: ProjectFolderKind;
+  /** Sort order among siblings. */
+  order: number;
+  /** When set, folder holds papers with matching tag or path prefix. */
+  pathPrefix?: string;
+}
 
 /** Extra LaTeX/support files in the project tree (desktop). */
 export interface ProjectFile {
@@ -40,6 +69,8 @@ export interface ResearchPaper {
   reviewedAt?: string;
   /** Page number → note text */
   pageNotes?: Record<number, string>;
+  /** Forensic highlights / notes on PDF pages */
+  annotations?: PdfAnnotation[];
 }
 
 export interface CaptionSuggestion {
@@ -134,6 +165,8 @@ export interface ResearchProjectData {
   captionSuggestions: CaptionSuggestion[];
   /** Additional .tex / support files in project tree */
   projectFiles?: ProjectFile[];
+  /** Custom folder taxonomy; migrated from defaults when absent. */
+  folders?: ProjectFolder[];
 }
 
 export interface ResearchProjectSummary {
