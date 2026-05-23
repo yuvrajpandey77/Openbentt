@@ -1,7 +1,7 @@
 /** Caps for notebook chat context cable connections. */
 export const CONNECTION_CAPS = {
-  maxTexFileKeys: 4,
-  maxPdfPaperIds: 3,
+  maxTexFileKeys: 50,
+  maxPdfPaperIds: 10,
 } as const;
 
 export function canAddTexConnection(currentCount: number): boolean {

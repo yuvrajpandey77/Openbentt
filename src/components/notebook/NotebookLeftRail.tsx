@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -6,7 +6,6 @@ import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
 import { useChat } from "@/context/ChatContext";
 import {
-  NOTEBOOK_EXPLORER_FLYOUT_WIDTH,
   NOTEBOOK_EXPLORER_LEFT_PX,
   NOTEBOOK_EXPLORER_TOP_OFFSET_PX,
   NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX,
@@ -186,10 +185,11 @@ export function NotebookLeftRail() {
     sidePanelDrawerOpen,
   } = useResearchWorkspace();
   const { chats, currentChatId, selectChat, createNewChat } = useChat();
-  const { openChatPanel, explorerOpen, setExplorerOpen } = useNotebookStudio();
+  const { openChatPanel, explorerOpen, setExplorerOpen, explorerWidth, setExplorerWidth } = useNotebookStudio();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<RailTab>("files");
   const uploadRef = useRef<HTMLInputElement>(null);
+  const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   useEffect(() => {
     const panel = parseResearchPanelFromSearch(searchParams.toString());
@@ -249,6 +249,28 @@ export function NotebookLeftRail() {
     if (id === "tools" && activeTool) openResearchToolPanel(activeTool);
   };
 
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizeRef.current) return;
+      const delta = e.clientX - resizeRef.current.startX;
+      setExplorerWidth(resizeRef.current.startWidth + delta);
+    };
+    const onUp = () => {
+      resizeRef.current = null;
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [setExplorerWidth]);
+
+  const startResize = (e: ReactMouseEvent) => {
+    e.preventDefault();
+    resizeRef.current = { startX: e.clientX, startWidth: explorerWidth };
+  };
+
   return (
     <>
       <aside
@@ -260,7 +282,7 @@ export function NotebookLeftRail() {
         style={{
           left: NOTEBOOK_EXPLORER_LEFT_PX,
           top: NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX + NOTEBOOK_EXPLORER_TOP_OFFSET_PX,
-          width: NOTEBOOK_EXPLORER_FLYOUT_WIDTH,
+          width: explorerWidth,
         }}
       >
         <nav className="flex shrink-0 flex-row items-center justify-evenly border-b border-border/40 px-1 py-1.5">
@@ -371,6 +393,14 @@ export function NotebookLeftRail() {
             </ScrollArea>
           )}
         </div>
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize explorer"
+          title="Drag to resize"
+          className="absolute bottom-0 right-0 top-0 w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/40"
+          onMouseDown={startResize}
+        />
       </aside>
 
       <Sheet open={sidePanelDrawerOpen} onOpenChange={onToolDrawerOpenChange}>

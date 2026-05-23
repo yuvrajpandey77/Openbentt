@@ -592,9 +592,9 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
 
   const doCompile = useCallback(
     async (text: string) => {
-      if (researchProject && isLatexDocumentSource(researchProject.draftTex)) {
+      if (researchProject && isLatexDocumentSource(text)) {
         const bundle = await buildProjectCompileBundle(researchProject, {
-          mainTexOverride: researchProject.draftTex,
+          mainTexOverride: text,
         });
         setCompileSummary(bundle.summary);
         if (isFragmentSource(text) && text !== researchProject.draftTex) {
@@ -1193,6 +1193,10 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
             )}
             {isStudio ? (
               <>
+                <div className="flex shrink-0 items-center gap-2 border-b border-border/40 px-1 pb-1 pt-0.5">
+                  <FileCode2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate text-xs font-medium text-foreground">{editorFileLabel}</span>
+                </div>
                 <NotebookLatexToolbar
                   bibKeys={researchProject?.bibEntries?.map((b) => b.key).filter(Boolean) as string[]}
                   onInsert={(snippet, cursorOffset = snippet.length) => {

@@ -8,6 +8,9 @@ type NotebookLatexToolbarProps = {
   bibKeys?: string[];
 };
 
+/** Keep CodeMirror selection when toolbar buttons are clicked. */
+const keepEditorFocus = (e: React.MouseEvent) => e.preventDefault();
+
 export function NotebookLatexToolbar({ onInsert, onInsertAsset, bibKeys = [] }: NotebookLatexToolbarProps) {
   const wrap = (before: string, after: string, placeholder = "") => {
     onInsert(`${before}${placeholder}${after}`, before.length);
@@ -17,7 +20,7 @@ export function NotebookLatexToolbar({ onInsert, onInsertAsset, bibKeys = [] }: 
     <div className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-border/50 bg-muted/20 px-1 py-0.5">
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => wrap("\\textbf{", "}", "text")}>
+          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onMouseDown={keepEditorFocus} onClick={() => wrap("\\textbf{", "}", "text")}>
             <Bold className="h-3.5 w-3.5" />
           </Button>
         </TooltipTrigger>
@@ -25,7 +28,7 @@ export function NotebookLatexToolbar({ onInsert, onInsertAsset, bibKeys = [] }: 
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => wrap("\\textit{", "}", "text")}>
+          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onMouseDown={keepEditorFocus} onClick={() => wrap("\\textit{", "}", "text")}>
             <Italic className="h-3.5 w-3.5" />
           </Button>
         </TooltipTrigger>
@@ -38,6 +41,7 @@ export function NotebookLatexToolbar({ onInsert, onInsertAsset, bibKeys = [] }: 
             size="icon"
             variant="ghost"
             className="h-7 w-7"
+            onMouseDown={keepEditorFocus}
             onClick={() => onInsert("\\section{Title}\n")}
           >
             <Heading2 className="h-3.5 w-3.5" />
@@ -52,6 +56,7 @@ export function NotebookLatexToolbar({ onInsert, onInsertAsset, bibKeys = [] }: 
             size="icon"
             variant="ghost"
             className="h-7 w-7"
+            onMouseDown={keepEditorFocus}
             onClick={() => onInsert("\\[\n  \n\\]\n", 3)}
           >
             <Sigma className="h-3.5 w-3.5" />
@@ -66,6 +71,7 @@ export function NotebookLatexToolbar({ onInsert, onInsertAsset, bibKeys = [] }: 
             size="icon"
             variant="ghost"
             className="h-7 w-7"
+            onMouseDown={keepEditorFocus}
             onClick={() => onInsert("\\begin{itemize}\n  \\item \n\\end{itemize}\n", 22)}
           >
             <List className="h-3.5 w-3.5" />
@@ -80,6 +86,7 @@ export function NotebookLatexToolbar({ onInsert, onInsertAsset, bibKeys = [] }: 
             size="icon"
             variant="ghost"
             className="h-7 w-7"
+            onMouseDown={keepEditorFocus}
             onClick={() =>
               onInsert(
                 "\\begin{table}[htbp]\n\\centering\n\\begin{tabular}{lcc}\n\\toprule\n &  &  \\\\\n\\midrule\n &  &  \\\\\n\\bottomrule\n\\end{tabular}\n\\caption{Caption}\n\\end{table}\n",
@@ -95,7 +102,7 @@ export function NotebookLatexToolbar({ onInsert, onInsertAsset, bibKeys = [] }: 
       {onInsertAsset && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={onInsertAsset}>
+            <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onMouseDown={keepEditorFocus} onClick={onInsertAsset}>
               <ImageIcon className="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>
@@ -110,6 +117,7 @@ export function NotebookLatexToolbar({ onInsert, onInsertAsset, bibKeys = [] }: 
               size="icon"
               variant="ghost"
               className="h-7 w-7"
+              onMouseDown={keepEditorFocus}
               onClick={() => onInsert(`\\cite{${bibKeys[0]}}`)}
             >
               <Quote className="h-3.5 w-3.5" />

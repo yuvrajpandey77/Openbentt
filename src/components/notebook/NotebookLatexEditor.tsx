@@ -134,13 +134,21 @@ export const NotebookLatexEditor = forwardRef<NotebookEditorHandle, NotebookLate
       () => ({
         insertSnippet(snippet: string, cursorOffset = snippet.length) {
           const view = cmRef.current?.view;
-          if (view) {
+          if (view && useCodeMirror) {
             const { from, to } = view.state.selection.main;
-            view.dispatch({
-              changes: { from, to, insert: snippet },
-              selection: { anchor: from + cursorOffset },
+            const next =
+              view.state.doc.sliceString(0, from) + snippet + view.state.doc.sliceString(to);
+            const cursorPos = from + cursorOffset;
+            onChange(next);
+            requestAnimationFrame(() => {
+              const v = cmRef.current?.view;
+              if (!v) return;
+              v.dispatch({
+                selection: { anchor: cursorPos },
+                effects: EditorView.scrollIntoView(cursorPos, { y: "nearest" }),
+              });
+              v.focus();
             });
-            view.focus();
             return;
           }
           const ta = textareaRef.current;
@@ -185,7 +193,7 @@ export const NotebookLatexEditor = forwardRef<NotebookEditorHandle, NotebookLate
           textareaRef.current?.focus();
         },
       }),
-      [lines, onChange, syncCmGutterScroll, syncTextareaScroll, textareaRef, value]
+      [lines, onChange, syncCmGutterScroll, syncTextareaScroll, textareaRef, useCodeMirror, value]
     );
 
     useEffect(() => {

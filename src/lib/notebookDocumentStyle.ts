@@ -71,6 +71,14 @@ function documentClassLine(preset: DocumentClassPreset, fontSize: FontSizePreset
  */
 export function applyDocumentStyleToLatex(tex: string, style: NotebookDocumentStyle): string {
   if (/\\documentclass\s*\[?[^\]]*\]?\{IEEEtran\}/.test(tex)) return tex;
+  /** User-authored templates (resume, thesis) — do not patch class/font/spacing. */
+  if (
+    /\\usepackage(\[[^\]]*\])?\{fullpage\}/.test(tex) ||
+    /\\usepackage\{titlesec\}/.test(tex) ||
+    /\\titleformat\{/.test(tex)
+  ) {
+    return tex;
+  }
 
   let out = tex;
   const dcLine = documentClassLine(style.documentClass, style.fontSize);

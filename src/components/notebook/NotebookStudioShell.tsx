@@ -14,9 +14,9 @@ import {
   editorFileKey,
   editorFileLabel,
   fileRefEquals,
-  NOTEBOOK_EXPLORER_INSET_PX,
+  notebookExplorerInsetPx,
+  notebookExplorerTabsPaddingOpenPx,
   NOTEBOOK_EXPLORER_LEFT_PX,
-  NOTEBOOK_EXPLORER_TABS_PADDING_OPEN_PX,
   NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX,
   useNotebookStudio,
 } from "@/context/NotebookStudioContext";
@@ -37,13 +37,15 @@ export function NotebookStudioShell() {
   const { project, draftSaveStatus, setDraftTex, setBibliography, updateProjectFileContent } =
     useResearchProject();
   const { openCommandPalette } = useResearchWorkspace();
-  const { fileNav, activeEditorFile, explorerOpen, bumpConnectionLayout } = useNotebookStudio();
+  const { fileNav, activeEditorFile, explorerOpen, explorerWidth, bumpConnectionLayout } = useNotebookStudio();
   const studioMainRef = useRef<HTMLDivElement>(null);
+  const explorerInset = explorerOpen ? notebookExplorerInsetPx(explorerWidth) : 0;
+  const explorerTabsPadding = explorerOpen ? notebookExplorerTabsPaddingOpenPx(explorerWidth) : undefined;
 
   useEffect(() => {
     const id = requestAnimationFrame(() => bumpConnectionLayout());
     return () => cancelAnimationFrame(id);
-  }, [explorerOpen, bumpConnectionLayout]);
+  }, [explorerOpen, explorerWidth, bumpConnectionLayout]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -170,14 +172,14 @@ export function NotebookStudioShell() {
         <div ref={studioMainRef} className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <NotebookLeftRail />
           <div
-            className="flex shrink-0 items-center border-b border-border/50 bg-muted/15 pr-2"
-            style={{ minHeight: NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX }}
+            className="flex shrink-0 items-center border-b border-border/60 bg-muted/25 pr-2 shadow-sm"
+            style={{ minHeight: NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX + 4 }}
           >
             <NotebookExplorerDock className="shrink-0" style={{ marginLeft: NOTEBOOK_EXPLORER_LEFT_PX }} />
             <div
-              className="min-w-0 flex-1 overflow-hidden py-1 pl-3 transition-[padding-left] duration-200 ease-out"
+              className="min-w-0 flex-1 overflow-hidden py-1.5 pl-3 transition-[padding-left] duration-200 ease-out"
               style={{
-                paddingLeft: explorerOpen ? NOTEBOOK_EXPLORER_TABS_PADDING_OPEN_PX : undefined,
+                paddingLeft: explorerTabsPadding,
               }}
             >
               <NotebookEditorTabs embedded />
@@ -185,7 +187,7 @@ export function NotebookStudioShell() {
           </div>
           <div
             className="flex min-h-0 min-w-0 flex-1 flex-col transition-[padding-left] duration-200 ease-out"
-            style={{ paddingLeft: explorerOpen ? NOTEBOOK_EXPLORER_INSET_PX : 0 }}
+            style={{ paddingLeft: explorerInset }}
           >
             <div className="min-h-0 flex-1 overflow-hidden">
               <NotebookPdfWorkspace

@@ -26,9 +26,13 @@ export function migrateProjectFolders(project: ResearchProjectData): ResearchPro
 
 export function folderForProjectPath(folders: ProjectFolder[], path: string): ProjectFolder | undefined {
   const norm = path.replace(/\\/g, "/");
-  if (norm.startsWith("chapters/")) return folders.find((f) => f.id === SYSTEM_FOLDER_IDS.chapters);
-  if (norm.startsWith("figures/")) return folders.find((f) => f.id === SYSTEM_FOLDER_IDS.figures);
-  if (norm.startsWith("assets/")) return folders.find((f) => f.id === SYSTEM_FOLDER_IDS.assets);
+  const candidates = sortedFolders(folders).filter(
+    (f) => f.pathPrefix && f.id !== SYSTEM_FOLDER_IDS.papers && f.id !== SYSTEM_FOLDER_IDS.assets
+  );
+  const match = [...candidates]
+    .sort((a, b) => b.pathPrefix!.length - a.pathPrefix!.length)
+    .find((f) => norm.startsWith(f.pathPrefix!));
+  if (match) return match;
   return folders.find((f) => f.id === SYSTEM_FOLDER_IDS.includes);
 }
 

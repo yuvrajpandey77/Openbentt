@@ -20,9 +20,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useChat } from "@/context/ChatContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useNotebookViewer } from "@/context/NotebookViewerContext";
@@ -58,7 +60,10 @@ import {
   LayoutTemplate,
   MessageSquare,
   Download,
+  FolderPlus,
+  Pencil,
   Plus,
+  Trash2,
 } from "lucide-react";
 
 type TreeNode = {
@@ -109,7 +114,7 @@ function buildTree(
   for (const f of sortedFolders(folders)) {
     if (f.id === SYSTEM_FOLDER_IDS.papers || f.id === SYSTEM_FOLDER_IDS.assets) continue;
     const node = folderNodes.get(f.id);
-    if (node?.children?.length) root.push(node);
+    if (node && (node.children?.length || f.kind === "custom")) root.push(node);
   }
 
   const papersFolder: TreeNode = {
@@ -151,6 +156,8 @@ function TreeRow({
   activeId,
   onSelect,
   onOpenChat,
+  onRename,
+  onDelete,
 }: {
   node: TreeNode;
   depth: number;
@@ -159,6 +166,8 @@ function TreeRow({
   activeId: string;
   onSelect: (node: TreeNode) => void;
   onOpenChat?: (node: TreeNode) => void;
+  onRename?: (node: TreeNode) => void;
+  onDelete?: (node: TreeNode) => void;
 }) {
   const isFolder = node.kind === "folder";
   const isOpen = expanded.has(node.id);
@@ -174,6 +183,9 @@ function TreeRow({
           : FileText;
 
   const canChat = node.kind === "draft" || node.kind === "bib" || node.kind === "projectFile";
+  const canRename = node.kind === "projectFile";
+  const canDelete = node.kind === "projectFile";
+  const hasContextMenu = canChat || canRename || canDelete;
 
   const row = (
     <button
@@ -215,15 +227,32 @@ function TreeRow({
 
   return (
     <>
-      {canChat && onOpenChat ? (
+      {hasContextMenu ? (
         <ContextMenu>
           <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
           <ContextMenuContent className="w-48">
             <ContextMenuItem onClick={() => onSelect(node)}>Open file</ContextMenuItem>
-            <ContextMenuItem onClick={() => onOpenChat(node)}>
-              <MessageSquare className="mr-2 h-3.5 w-3.5" />
-              Open chat for {node.label}
-            </ContextMenuItem>
+            {canChat && onOpenChat && (
+              <ContextMenuItem onClick={() => onOpenChat(node)}>
+                <MessageSquare className="mr-2 h-3.5 w-3.5" />
+                Open chat for {node.label}
+              </ContextMenuItem>
+            )}
+            {canRename && onRename && (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem onClick={() => onRename(node)}>
+                  <Pencil className="mr-2 h-3.5 w-3.5" />
+                  Rename…
+                </ContextMenuItem>
+              </>
+            )}
+            {canDelete && onDelete && (
+              <ContextMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(node)}>
+                <Trash2 className="mr-2 h-3.5 w-3.5" />
+                Delete
+              </ContextMenuItem>
+            )}
           </ContextMenuContent>
         </ContextMenu>
       ) : (
@@ -240,6 +269,8 @@ function TreeRow({
             activeId={activeId}
             onSelect={onSelect}
             onOpenChat={onOpenChat}
+            onRename={onRename}
+            onDelete={onDelete}
           />
         ))}
     </>
@@ -259,20 +290,30 @@ export function NotebookFileTree({
     reviewFilter,
     setReviewFilter,
     openEditorTab,
+    closeEditorTab,
     setActiveFile,
     registerFileNav,
     setActivePaperId,
     activeFile,
+    activeEditorFile,
     setChatConnection,
     chatConnections,
     openChatPanel,
   } = useNotebookStudio();
   const [expanded, setExpanded] = useState(
-    () => new Set(["folder-papers", "folder-chapters", "folder-assets"])
+    () => new Set(["folder-papers", "folder-chapters", "folder-assets", "folder-includes"])
   );
-  const activeId = editorFileKey(activeFile);
+  const activeId =
+    activeFile.type === "paper" ? editorFileKey(activeFile) : editorFileKey(activeEditorFile);
   const [assets, setAssets] = useState<string[]>([]);
-  const [newFilePath, setNewFilePath] = useState("");
+  const [addFileOpen, setAddFileOpen] = useState(false);
+  const [newFileName, setNewFileName] = useState("");
+  const [newFileFolder, setNewFileFolder] = useState("chapters/");
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [newFolderLabel, setNewFolderLabel] = useState("");
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<{ fileId: string; path: string } | null>(null);
+  const [renamePath, setRenamePath] = useState("");
   const [assetPreview, setAssetPreview] = useState<{ name: string; url: string; mime: string } | null>(null);
   const assetUploadRef = useRef<HTMLInputElement>(null);
   const openPdfRef = useRef<HTMLInputElement>(null);
@@ -354,6 +395,16 @@ export function NotebookFileTree({
     ]
   );
 
+  const folderOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [];
+    for (const f of sortedFolders(projectFolders)) {
+      if (f.id === SYSTEM_FOLDER_IDS.papers || f.id === SYSTEM_FOLDER_IDS.assets) continue;
+      if (f.pathPrefix) opts.push({ value: f.pathPrefix, label: f.label });
+    }
+    opts.push({ value: "__includes__", label: "includes (root)" });
+    return opts;
+  }, [projectFolders]);
+
   const selectNode = useCallback(
     (node: TreeNode) => {
       if (node.kind === "draft") {
@@ -369,6 +420,7 @@ export function NotebookFileTree({
         openEditorTab({ type: "projectFile", fileId: node.fileId });
         viewer?.focusSource();
       } else if (node.kind === "asset" && node.assetName && project) {
+        setActiveFile({ type: "draft" });
         void loadProjectAssetDesktop(project.id, node.assetName).then((r) => {
           if (!r?.ok || !r.base64) return;
           const mime = r.mime ?? "application/octet-stream";
@@ -383,8 +435,71 @@ export function NotebookFileTree({
         });
       }
     },
-    [openEditorTab, openPaper, viewer, project]
+    [openEditorTab, openPaper, viewer, project, setActiveFile]
   );
+
+  const startRename = useCallback((node: TreeNode) => {
+    if (node.kind !== "projectFile" || !node.fileId) return;
+    const pf = project?.projectFiles?.find((f) => f.id === node.fileId);
+    if (!pf) return;
+    setRenameTarget({ fileId: node.fileId, path: pf.path });
+    setRenamePath(pf.path);
+    setRenameOpen(true);
+  }, [project?.projectFiles]);
+
+  const confirmRename = useCallback(() => {
+    if (!renameTarget) return;
+    const path = renamePath.trim();
+    if (!path) return;
+    void renameProjectFile(renameTarget.fileId, path);
+    setRenameOpen(false);
+    setRenameTarget(null);
+  }, [renamePath, renameProjectFile, renameTarget]);
+
+  const deleteNode = useCallback(
+    (node: TreeNode) => {
+      if (node.kind !== "projectFile" || !node.fileId) return;
+      void deleteProjectFile(node.fileId);
+      closeEditorTab({ type: "projectFile", fileId: node.fileId });
+    },
+    [closeEditorTab, deleteProjectFile]
+  );
+
+  const addFile = useCallback(async () => {
+    const name = newFileName.trim();
+    if (!name) return;
+    const path =
+      newFileFolder && newFileFolder !== "__includes__"
+        ? `${newFileFolder.replace(/\/?$/, "/")}${name}`
+        : name;
+    const fileId = await addProjectFile(path, "", path.endsWith(".bib") ? "bib" : "tex");
+    if (fileId) openEditorTab({ type: "projectFile", fileId });
+    setAddFileOpen(false);
+    setNewFileName("");
+  }, [addProjectFile, newFileFolder, newFileName, openEditorTab]);
+
+  const handleAddFolder = useCallback(async () => {
+    const label = newFolderLabel.trim();
+    if (!label || !project) return;
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "folder";
+    const pathPrefix = `${slug}/`;
+    const folders = [
+      ...projectFolders,
+      {
+        id: `folder-${crypto.randomUUID().slice(0, 8)}`,
+        label,
+        kind: "custom" as const,
+        order: projectFolders.length,
+        pathPrefix,
+      },
+    ];
+    await updateProject({ folders });
+    setNewFileFolder(pathPrefix);
+    setNewFolderLabel("");
+    setNewFolderOpen(false);
+    setExpanded((prev) => new Set(prev).add(folders[folders.length - 1]!.id));
+    toast({ title: "Folder created", description: pathPrefix });
+  }, [newFolderLabel, project, projectFolders, toast, updateProject]);
 
   const insertAssetRef = useCallback(
     (assetName: string) => {
@@ -421,11 +536,10 @@ export function NotebookFileTree({
     return () => registerFileNav(null);
   }, [goNext, goPrev, registerFileNav]);
 
-  const addFile = () => {
-    const path = newFilePath.trim();
-    if (!path) return;
-    void addProjectFile(path, "", path.endsWith(".bib") ? "bib" : "tex");
-    setNewFilePath("");
+  const openAddFileDialog = () => {
+    setNewFileName("");
+    setNewFileFolder(folderOptions[0]?.value ?? "chapters/");
+    setAddFileOpen(true);
   };
 
   const handleApplyTemplate = async (entry: TemplateCatalogEntry) => {
@@ -509,6 +623,8 @@ export function NotebookFileTree({
             activeId={activeId}
             onSelect={selectNode}
             onOpenChat={openChatForNode}
+            onRename={startRename}
+            onDelete={deleteNode}
           />
         ))}
       </ScrollArea>
@@ -534,22 +650,119 @@ export function NotebookFileTree({
           <FileImage className="h-3.5 w-3.5" />
           Upload asset
         </Button>
-        <div className="flex gap-1">
-          <Input
-            className="h-8 text-xs"
-            placeholder="chapters/intro.tex"
-            value={newFilePath}
-            onChange={(e) => setNewFilePath(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addFile()}
-          />
-          <Button type="button" size="sm" className="h-8 shrink-0 text-xs" onClick={addFile}>
-            Add
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 w-full gap-1.5 text-xs"
+          onClick={openAddFileDialog}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          New file…
+        </Button>
         <p className="text-[10px] text-muted-foreground">
           <kbd className="rounded border px-1">J</kbd>/<kbd className="rounded border px-1">K</kbd> next/prev PDF
         </p>
       </div>
+      <Dialog open={addFileOpen} onOpenChange={setAddFileOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>New project file</DialogTitle>
+            <DialogDescription>Add a .tex or .bib file to your project tree.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-file-folder" className="text-xs">
+                Folder
+              </Label>
+              <Select value={newFileFolder} onValueChange={setNewFileFolder}>
+                <SelectTrigger id="new-file-folder" className="h-9 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="app-shell dark">
+                  {folderOptions.map((opt) => (
+                    <SelectItem key={opt.value || "includes"} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-file-name" className="text-xs">
+                File name
+              </Label>
+              <Input
+                id="new-file-name"
+                className="h-9 text-xs"
+                placeholder="intro.tex"
+                value={newFileName}
+                onChange={(e) => setNewFileName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addFile()}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs" onClick={() => setNewFolderOpen(true)}>
+              <FolderPlus className="h-3.5 w-3.5" />
+              New folder
+            </Button>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant="ghost" onClick={() => setAddFileOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="button" size="sm" onClick={() => void addFile()} disabled={!newFileName.trim()}>
+                Create
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={newFolderOpen} onOpenChange={setNewFolderOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>New folder</DialogTitle>
+            <DialogDescription>Creates a custom folder for project files.</DialogDescription>
+          </DialogHeader>
+          <Input
+            className="h-9 text-xs"
+            placeholder="appendix"
+            value={newFolderLabel}
+            onChange={(e) => setNewFolderLabel(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void handleAddFolder()}
+          />
+          <DialogFooter>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setNewFolderOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" size="sm" onClick={() => void handleAddFolder()} disabled={!newFolderLabel.trim()}>
+              Create folder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename file</DialogTitle>
+            <DialogDescription>Update the virtual path for this project file.</DialogDescription>
+          </DialogHeader>
+          <Input
+            className="h-9 font-mono text-xs"
+            value={renamePath}
+            onChange={(e) => setRenamePath(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && confirmRename()}
+          />
+          <DialogFooter>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setRenameOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" size="sm" onClick={confirmRename} disabled={!renamePath.trim()}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!assetPreview} onOpenChange={(o) => !o && setAssetPreview(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>

@@ -40,8 +40,15 @@ const FULL_TEX_SIGNALS: RegExp[] = [
   /\\usepackage\{caption\}/i,
   /\\usepackage\{subcaption\}/i,
   /\\usepackage\{cleveref\}/i,
-  /\\usepackage\{babel\}/i,
+  /\\usepackage(\[[^\]]*\])?\{babel\}/i,
   /\\usepackage\{polyglossia\}/i,
+  /\\usepackage(\[[^\]]*\])?\{fullpage\}/i,
+  /\\usepackage\{titlesec\}/i,
+  /\\usepackage\{enumitem\}/i,
+  /\\usepackage\{fancyhdr\}/i,
+  /\\usepackage\{marvosym\}/i,
+  /\\input\{glyphtounicode\}/i,
+  /\\titleformat\{/i,
 ];
 
 /** True when the document needs a full TeX installation (not BusyTeX WASM). */

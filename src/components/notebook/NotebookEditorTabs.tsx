@@ -58,7 +58,9 @@ export function NotebookEditorTabs({ embedded = false }: { embedded?: boolean })
     <div
       className={cn(
         "flex items-center gap-1 overflow-x-auto",
-        !embedded && "shrink-0 gap-0.5 border-b border-border/50 bg-muted/15 px-2 py-1"
+        embedded
+          ? "gap-1"
+          : "shrink-0 gap-0.5 border-b border-border/50 bg-muted/15 px-2 py-1"
       )}
     >
       {editorTabs.map((tab) => {
@@ -73,16 +75,20 @@ export function NotebookEditorTabs({ embedded = false }: { embedded?: boolean })
           <div
             key={editorFileKey(tab)}
             className={cn(
-              "group flex max-w-[220px] shrink-0 items-center rounded-md border text-xs transition-colors",
+              "group flex max-w-[240px] shrink-0 items-center rounded-md border text-xs transition-colors",
+              embedded ? "min-h-8" : "",
               active
-                ? "border-border/70 bg-background text-foreground shadow-sm"
-                : "border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                ? "border-primary/40 bg-background text-foreground shadow-sm ring-1 ring-primary/15"
+                : "border-transparent bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
               pendingConnection?.from === "chat-tex" && "ring-1 ring-sky-500/50"
             )}
           >
             <button
               type="button"
-              className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1 text-left"
+              className={cn(
+                "flex min-w-0 flex-1 items-center gap-1.5 px-2.5 text-left",
+                embedded ? "py-1.5 font-medium" : "py-1"
+              )}
               onClick={() => {
                 setActiveEditorFile(tab);
                 setActiveFile(tab);

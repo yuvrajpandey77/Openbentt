@@ -95,7 +95,7 @@ type ResearchProjectContextValue = {
     path: string,
     content: string,
     kind: import("@/types/researchProject").ProjectFileKind
-  ) => Promise<void>;
+  ) => Promise<string | void>;
   deleteProjectFile: (fileId: string) => Promise<void>;
   renameProjectFile: (fileId: string, newPath: string) => Promise<void>;
   updateProjectFileContent: (fileId: string, content: string) => void;
@@ -594,6 +594,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       const projectFiles = [...(project.projectFiles ?? []), file];
       await updateProject({ projectFiles });
       toast({ title: "File added", description: path });
+      return file.id;
     },
     [project, updateProject, toast]
   );

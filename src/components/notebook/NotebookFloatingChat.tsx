@@ -5,6 +5,10 @@ import ChatMessages from "@/components/ChatMessages";
 import ChatInput from "@/components/ChatInput";
 import { ConnectionHandle } from "@/components/notebook/ConnectionHandle";
 import { useChat } from "@/context/ChatContext";
+import {
+  CHAT_PANEL_EXPANDED,
+  useNotebookStudio,
+} from "@/context/NotebookStudioContext";
 import { ContextSourcesPopover } from "@/components/notebook/ContextSourcesPopover";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { cn } from "@/lib/utils";

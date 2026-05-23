@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { PaperReviewStatus, ResearchProjectData } from "@/types/researchProject";
 import { canAddPdfConnection, canAddTexConnection } from "@/lib/research/connectionCaps";
+import { displayPaperTitle } from "@/lib/research/displayPaperLabel";
 
 export type ChatConnections = {
   texFileKeys: string[];
@@ -31,19 +32,30 @@ export type ConnectionDrag = {
 
 const CHAT_PANEL_RECT_KEY = "openbentt-notebook-chat-panel-rect";
 const EXPLORER_OPEN_KEY = "openbentt-notebook-explorer-open";
+const EXPLORER_WIDTH_KEY = "openbentt-notebook-explorer-width";
 const DEFAULT_CHAT_RECT: ChatPanelRect = { x: -1, y: -1, width: 420, height: 520 };
 
 export const NOTEBOOK_EXPLORER_FLYOUT_WIDTH = 240;
+export const NOTEBOOK_EXPLORER_WIDTH_MIN = 180;
+export const NOTEBOOK_EXPLORER_WIDTH_MAX = 480;
 export const NOTEBOOK_EXPLORER_LEFT_PX = 4;
 /** Gap between toolbar row and flyout top edge. */
 export const NOTEBOOK_EXPLORER_TOP_OFFSET_PX = 6;
 /** Search + toggle cluster width in the studio toolbar row (two tab-sized icon pills + gap). */
 export const NOTEBOOK_EXPLORER_DOCK_WIDTH = 60;
-/** Left offset + flyout width — main column padding when explorer is open. */
-export const NOTEBOOK_EXPLORER_INSET_PX = NOTEBOOK_EXPLORER_LEFT_PX + NOTEBOOK_EXPLORER_FLYOUT_WIDTH;
-/** Extra tabs-row padding when explorer flyout is open (clears flyout beside dock). */
-export const NOTEBOOK_EXPLORER_TABS_PADDING_OPEN_PX =
-  NOTEBOOK_EXPLORER_INSET_PX - NOTEBOOK_EXPLORER_LEFT_PX - NOTEBOOK_EXPLORER_DOCK_WIDTH + 12;
+
+export function notebookExplorerInsetPx(width = NOTEBOOK_EXPLORER_FLYOUT_WIDTH): number {
+  return NOTEBOOK_EXPLORER_LEFT_PX + width;
+}
+
+export function notebookExplorerTabsPaddingOpenPx(width = NOTEBOOK_EXPLORER_FLYOUT_WIDTH): number {
+  return notebookExplorerInsetPx(width) - NOTEBOOK_EXPLORER_LEFT_PX - NOTEBOOK_EXPLORER_DOCK_WIDTH + 12;
+}
+
+/** @deprecated Use notebookExplorerInsetPx(explorerWidth) from context. */
+export const NOTEBOOK_EXPLORER_INSET_PX = notebookExplorerInsetPx();
+/** @deprecated Use notebookExplorerTabsPaddingOpenPx(explorerWidth) from context. */
+export const NOTEBOOK_EXPLORER_TABS_PADDING_OPEN_PX = notebookExplorerTabsPaddingOpenPx();
 /** Studio toolbar row height — flyout anchors below this. */
 export const NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX = 40;
 
@@ -52,6 +64,18 @@ function loadExplorerOpen(): boolean {
     return localStorage.getItem(EXPLORER_OPEN_KEY) === "1";
   } catch {
     return false;
+  }
+}
+
+function loadExplorerWidth(): number {
+  try {
+    const raw = localStorage.getItem(EXPLORER_WIDTH_KEY);
+    if (!raw) return NOTEBOOK_EXPLORER_FLYOUT_WIDTH;
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n)) return NOTEBOOK_EXPLORER_FLYOUT_WIDTH;
+    return Math.min(NOTEBOOK_EXPLORER_WIDTH_MAX, Math.max(NOTEBOOK_EXPLORER_WIDTH_MIN, n));
+  } catch {
+    return NOTEBOOK_EXPLORER_FLYOUT_WIDTH;
   }
 }
 
@@ -151,6 +175,8 @@ type NotebookStudioContextValue = {
   explorerOpen: boolean;
   setExplorerOpen: (open: boolean) => void;
   toggleExplorer: () => void;
+  explorerWidth: number;
+  setExplorerWidth: (width: number) => void;
 };
 
 const NotebookStudioContext = createContext<NotebookStudioContextValue | null>(null);
@@ -173,7 +199,18 @@ export function NotebookStudioProvider({ children }: { children: React.ReactNode
   const [connectionDrag, setConnectionDrag] = useState<ConnectionDrag>(null);
   const [connectionLayoutTick, setConnectionLayoutTick] = useState(0);
   const [explorerOpen, setExplorerOpenState] = useState(loadExplorerOpen);
+  const [explorerWidth, setExplorerWidthState] = useState(loadExplorerWidth);
   const anchorMapRef = useRef<Map<string, HTMLElement>>(new Map());
+
+  const setExplorerWidth = useCallback((width: number) => {
+    const next = Math.min(NOTEBOOK_EXPLORER_WIDTH_MAX, Math.max(NOTEBOOK_EXPLORER_WIDTH_MIN, width));
+    setExplorerWidthState(next);
+    try {
+      localStorage.setItem(EXPLORER_WIDTH_KEY, String(next));
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const setExplorerOpen = useCallback((open: boolean) => {
     setExplorerOpenState(open);
@@ -328,6 +365,8 @@ export function NotebookStudioProvider({ children }: { children: React.ReactNode
       explorerOpen,
       setExplorerOpen,
       toggleExplorer,
+      explorerWidth,
+      setExplorerWidth,
     }),
     [
       activeFile,
@@ -358,6 +397,8 @@ export function NotebookStudioProvider({ children }: { children: React.ReactNode
       explorerOpen,
       setExplorerOpen,
       toggleExplorer,
+      explorerWidth,
+      setExplorerWidth,
     ]
   );
 
