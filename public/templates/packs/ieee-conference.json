@@ -1,0 +1,6 @@
+{
+  "draftTex": "\\documentclass[conference]{IEEEtran}\n\\usepackage{cite,amsmath,amssymb,amsfonts,graphicx}\n\\title{Conference Paper}\n\\author{\\IEEEauthorblockN{Your Name}}\n\\begin{document}\n\\maketitle\n\\begin{abstract}Abstract.\\end{abstract}\n\\section{Introduction}\n\\section{Conclusion}\n\\bibliographystyle{IEEEtran}\n\\bibliography{references}\n\\end{document}\n",
+  "bibliography": "@article{smith2024, title={Example}, author={Smith}, year={2024}}",
+  "targetVenue": "ieee",
+  "projectFiles": []
+}

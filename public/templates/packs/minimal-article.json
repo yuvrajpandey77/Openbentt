@@ -1,0 +1,6 @@
+{
+  "draftTex": "\\documentclass[11pt,a4paper]{article}\n\\usepackage{lmodern}\n\\usepackage[utf8]{inputenc}\n\\usepackage[T1]{fontenc}\n\\usepackage{geometry}\n\\geometry{margin=1in}\n\\usepackage{amsmath,amssymb}\n\\usepackage{graphicx}\n\\usepackage{booktabs}\n\\usepackage{hyperref}\n\\usepackage{setspace}\n\\setstretch{1.15}\n\n\\title{Research Paper Title}\n\\author{Your Name}\n\\date{\\today}\n\n\\begin{document}\n\\maketitle\n\n\\begin{abstract}\nWrite your abstract here.\n\\end{abstract}\n\n\\section{Introduction}\nYour introduction.\n\n\\section{Conclusion}\nSummary and future work.\n\n\\begin{thebibliography}{99}\n\\bibitem{ref1} Author, \\textit{Title}, Venue, Year.\n\\end{thebibliography}\n\n\\end{document}\n",
+  "bibliography": "",
+  "targetVenue": "generic",
+  "projectFiles": []
+}

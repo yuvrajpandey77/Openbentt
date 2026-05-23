@@ -1,0 +1,6 @@
+{
+  "draftTex": "\\documentclass[11pt,a4paper]{article}\n\\usepackage{lmodern}\n\\usepackage{amsmath,amssymb,graphicx,booktabs,hyperref,setspace}\n\\setstretch{1.2}\n\\title{Research Paper}\n\\author{Your Name}\n\\date{\\today}\n\\begin{document}\n\\maketitle\n\\begin{abstract}Abstract.\\end{abstract}\n\\textbf{Keywords:} AI, Machine Learning\n\\section{Introduction}\n\\section{Related Work}\n\\section{Methodology}\n\\section{Results}\n\\section{Conclusion}\n\\begin{thebibliography}{99}\n\\bibitem{v} Vaswani et al., \\textit{Attention Is All You Need}, NeurIPS 2017.\n\\end{thebibliography}\n\\end{document}\n",
+  "bibliography": "",
+  "targetVenue": "generic",
+  "projectFiles": []
+}

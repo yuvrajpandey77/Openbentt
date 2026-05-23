@@ -1,0 +1,6 @@
+{
+  "draftTex": "\\documentclass{beamer}\n\\usetheme{Madrid}\n\\title{Talk Title}\n\\author{Your Name}\n\\begin{document}\n\\frame{\\titlepage}\n\\begin{frame}{Outline}\n\\tableofcontents\n\\end{frame}\n\\section{Intro}\n\\begin{frame}{Motivation}\n\\end{frame}\n\\end{document}\n",
+  "bibliography": "",
+  "targetVenue": "generic",
+  "projectFiles": []
+}

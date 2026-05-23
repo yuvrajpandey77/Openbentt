@@ -1,0 +1,12 @@
+{
+  "draftTex": "\\documentclass[12pt,oneside]{book}\n\\usepackage[margin=1in]{geometry}\n\\usepackage{lmodern,setspace}\n\\setstretch{1.15}\n\\title{Your Thesis}\n\\author{Your Name}\n\\date{\\today}\n\\begin{document}\n\\frontmatter\n\\maketitle\n\\tableofcontents\n\\mainmatter\n\\chapter{Introduction}\n\\input{chapters/intro}\n\\backmatter\n\\end{document}\n",
+  "bibliography": "",
+  "targetVenue": "generic",
+  "projectFiles": [
+    {
+      "path": "chapters/intro.tex",
+      "kind": "tex",
+      "content": "\\section{Background}\nChapter content here.\n"
+    }
+  ]
+}

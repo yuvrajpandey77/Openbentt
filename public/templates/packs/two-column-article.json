@@ -1,0 +1,6 @@
+{
+  "draftTex": "\\documentclass[twocolumn,11pt]{article}\n\\usepackage{lmodern,amsmath,graphicx}\n\\title{Two Column Paper}\n\\author{Author}\n\\begin{document}\n\\twocolumn[\\maketitle\\begin{abstract}Abstract.\\end{abstract}]\n\\section{Introduction}\n\\end{document}\n",
+  "bibliography": "",
+  "targetVenue": "generic",
+  "projectFiles": []
+}

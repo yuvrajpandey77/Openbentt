@@ -1,0 +1,6 @@
+{
+  "draftTex": "\\documentclass[sigconf]{acmart}\n\\title{ACM Paper}\n\\author{Your Name}\n\\begin{document}\n\\begin{abstract}Abstract.\\end{abstract}\n\\section{Introduction}\n\\end{document}\n",
+  "bibliography": "",
+  "targetVenue": "acm",
+  "projectFiles": []
+}

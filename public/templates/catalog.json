@@ -1,0 +1,1436 @@
+{
+  "version": "1.0",
+  "targetRelease": "v2.1.0-beta.1",
+  "templates": [
+    {
+      "id": "minimal-article",
+      "label": "Minimal article",
+      "description": "WASM-safe article scaffold",
+      "pack": "minimal-article.json",
+      "tags": [
+        "article",
+        "wasm"
+      ],
+      "venue": "generic"
+    },
+    {
+      "id": "research-article",
+      "label": "Research article",
+      "description": "Extended sections for empirical papers",
+      "pack": "research-article.json",
+      "tags": [
+        "article",
+        "wasm"
+      ],
+      "venue": "generic"
+    },
+    {
+      "id": "ieee-conference",
+      "label": "IEEE conference",
+      "description": "IEEEtran two-column (local TeX)",
+      "pack": "ieee-conference.json",
+      "tags": [
+        "ieee",
+        "conference"
+      ],
+      "venue": "ieee",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "book-thesis",
+      "label": "Book / thesis",
+      "description": "Multi-chapter book structure",
+      "pack": "book-thesis.json",
+      "tags": [
+        "book",
+        "thesis"
+      ],
+      "venue": "generic"
+    },
+    {
+      "id": "arxiv-preprint",
+      "label": "arXiv preprint",
+      "description": "Single-file preprint with ORCID hook",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "arxiv",
+        "preprint"
+      ],
+      "venue": "arxiv"
+    },
+    {
+      "id": "nature-letter",
+      "label": "Nature letter",
+      "description": "Short letter format stub",
+      "pack": "nature-letter.json",
+      "tags": [
+        "nature",
+        "letter"
+      ],
+      "venue": "nature"
+    },
+    {
+      "id": "acm-sigconf",
+      "label": "ACM SIGCONF",
+      "description": "ACM conference stub",
+      "pack": "acm-sigconf.json",
+      "tags": [
+        "acm",
+        "conference"
+      ],
+      "venue": "acm"
+    },
+    {
+      "id": "review-response",
+      "label": "Reviewer response",
+      "description": "Point-by-point rebuttal letter",
+      "pack": "review-response.json",
+      "tags": [
+        "review",
+        "letter"
+      ],
+      "venue": "generic"
+    },
+    {
+      "id": "lit-review-outline",
+      "label": "Literature review outline",
+      "description": "Thematic synthesis skeleton",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "review",
+        "outline"
+      ],
+      "venue": "generic"
+    },
+    {
+      "id": "grant-proposal",
+      "label": "Grant proposal",
+      "description": "NSF-style project description",
+      "pack": "grant-proposal.json",
+      "tags": [
+        "grant"
+      ],
+      "venue": "generic"
+    },
+    {
+      "id": "beamer-slides",
+      "label": "Beamer slides",
+      "description": "Presentation deck scaffold",
+      "pack": "beamer-slides.json",
+      "tags": [
+        "slides",
+        "beamer"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "two-column-article",
+      "label": "Two-column article",
+      "description": "Generic two-column layout",
+      "pack": "two-column-article.json",
+      "tags": [
+        "article",
+        "two-column"
+      ],
+      "venue": "generic"
+    },
+    {
+      "id": "starter-001",
+      "label": "Minimal article (ml #1)",
+      "description": "Variant scaffold for ml papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "ml",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-002",
+      "label": "Research article (nlp #2)",
+      "description": "Variant scaffold for nlp papers",
+      "pack": "research-article.json",
+      "tags": [
+        "nlp",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-003",
+      "label": "IEEE conference (vision #3)",
+      "description": "Variant scaffold for vision papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "vision",
+        "ieee",
+        "conference"
+      ],
+      "venue": "ieee",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-004",
+      "label": "Book / thesis (systems #4)",
+      "description": "Variant scaffold for systems papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "systems",
+        "book",
+        "thesis"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-005",
+      "label": "arXiv preprint (security #5)",
+      "description": "Variant scaffold for security papers",
+      "pack": "review-response.json",
+      "tags": [
+        "security",
+        "arxiv",
+        "preprint"
+      ],
+      "venue": "arxiv",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-006",
+      "label": "Nature letter (hci #6)",
+      "description": "Variant scaffold for hci papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "hci",
+        "nature",
+        "letter"
+      ],
+      "venue": "nature",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-007",
+      "label": "ACM SIGCONF (theory #7)",
+      "description": "Variant scaffold for theory papers",
+      "pack": "research-article.json",
+      "tags": [
+        "theory",
+        "acm",
+        "conference"
+      ],
+      "venue": "acm",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-008",
+      "label": "Reviewer response (bio #8)",
+      "description": "Variant scaffold for bio papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "bio",
+        "review",
+        "letter"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-009",
+      "label": "Literature review outline (physics #9)",
+      "description": "Variant scaffold for physics papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "physics",
+        "review",
+        "outline"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-010",
+      "label": "Grant proposal (math #10)",
+      "description": "Variant scaffold for math papers",
+      "pack": "review-response.json",
+      "tags": [
+        "math",
+        "grant"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-011",
+      "label": "Beamer slides (ml #11)",
+      "description": "Variant scaffold for ml papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "ml",
+        "slides",
+        "beamer"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-012",
+      "label": "Two-column article (nlp #12)",
+      "description": "Variant scaffold for nlp papers",
+      "pack": "research-article.json",
+      "tags": [
+        "nlp",
+        "article",
+        "two-column"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-013",
+      "label": "Minimal article (vision #13)",
+      "description": "Variant scaffold for vision papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "vision",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-014",
+      "label": "Research article (systems #14)",
+      "description": "Variant scaffold for systems papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "systems",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-015",
+      "label": "IEEE conference (security #15)",
+      "description": "Variant scaffold for security papers",
+      "pack": "review-response.json",
+      "tags": [
+        "security",
+        "ieee",
+        "conference"
+      ],
+      "venue": "ieee",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-016",
+      "label": "Book / thesis (hci #16)",
+      "description": "Variant scaffold for hci papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "hci",
+        "book",
+        "thesis"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-017",
+      "label": "arXiv preprint (theory #17)",
+      "description": "Variant scaffold for theory papers",
+      "pack": "research-article.json",
+      "tags": [
+        "theory",
+        "arxiv",
+        "preprint"
+      ],
+      "venue": "arxiv",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-018",
+      "label": "Nature letter (bio #18)",
+      "description": "Variant scaffold for bio papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "bio",
+        "nature",
+        "letter"
+      ],
+      "venue": "nature",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-019",
+      "label": "ACM SIGCONF (physics #19)",
+      "description": "Variant scaffold for physics papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "physics",
+        "acm",
+        "conference"
+      ],
+      "venue": "acm",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-020",
+      "label": "Reviewer response (math #20)",
+      "description": "Variant scaffold for math papers",
+      "pack": "review-response.json",
+      "tags": [
+        "math",
+        "review",
+        "letter"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-021",
+      "label": "Literature review outline (ml #21)",
+      "description": "Variant scaffold for ml papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "ml",
+        "review",
+        "outline"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-022",
+      "label": "Grant proposal (nlp #22)",
+      "description": "Variant scaffold for nlp papers",
+      "pack": "research-article.json",
+      "tags": [
+        "nlp",
+        "grant"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-023",
+      "label": "Beamer slides (vision #23)",
+      "description": "Variant scaffold for vision papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "vision",
+        "slides",
+        "beamer"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-024",
+      "label": "Two-column article (systems #24)",
+      "description": "Variant scaffold for systems papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "systems",
+        "article",
+        "two-column"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-025",
+      "label": "Minimal article (security #25)",
+      "description": "Variant scaffold for security papers",
+      "pack": "review-response.json",
+      "tags": [
+        "security",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-026",
+      "label": "Research article (hci #26)",
+      "description": "Variant scaffold for hci papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "hci",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-027",
+      "label": "IEEE conference (theory #27)",
+      "description": "Variant scaffold for theory papers",
+      "pack": "research-article.json",
+      "tags": [
+        "theory",
+        "ieee",
+        "conference"
+      ],
+      "venue": "ieee",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-028",
+      "label": "Book / thesis (bio #28)",
+      "description": "Variant scaffold for bio papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "bio",
+        "book",
+        "thesis"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-029",
+      "label": "arXiv preprint (physics #29)",
+      "description": "Variant scaffold for physics papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "physics",
+        "arxiv",
+        "preprint"
+      ],
+      "venue": "arxiv",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-030",
+      "label": "Nature letter (math #30)",
+      "description": "Variant scaffold for math papers",
+      "pack": "review-response.json",
+      "tags": [
+        "math",
+        "nature",
+        "letter"
+      ],
+      "venue": "nature",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-031",
+      "label": "ACM SIGCONF (ml #31)",
+      "description": "Variant scaffold for ml papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "ml",
+        "acm",
+        "conference"
+      ],
+      "venue": "acm",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-032",
+      "label": "Reviewer response (nlp #32)",
+      "description": "Variant scaffold for nlp papers",
+      "pack": "research-article.json",
+      "tags": [
+        "nlp",
+        "review",
+        "letter"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-033",
+      "label": "Literature review outline (vision #33)",
+      "description": "Variant scaffold for vision papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "vision",
+        "review",
+        "outline"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-034",
+      "label": "Grant proposal (systems #34)",
+      "description": "Variant scaffold for systems papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "systems",
+        "grant"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-035",
+      "label": "Beamer slides (security #35)",
+      "description": "Variant scaffold for security papers",
+      "pack": "review-response.json",
+      "tags": [
+        "security",
+        "slides",
+        "beamer"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-036",
+      "label": "Two-column article (hci #36)",
+      "description": "Variant scaffold for hci papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "hci",
+        "article",
+        "two-column"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-037",
+      "label": "Minimal article (theory #37)",
+      "description": "Variant scaffold for theory papers",
+      "pack": "research-article.json",
+      "tags": [
+        "theory",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-038",
+      "label": "Research article (bio #38)",
+      "description": "Variant scaffold for bio papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "bio",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-039",
+      "label": "IEEE conference (physics #39)",
+      "description": "Variant scaffold for physics papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "physics",
+        "ieee",
+        "conference"
+      ],
+      "venue": "ieee",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-040",
+      "label": "Book / thesis (math #40)",
+      "description": "Variant scaffold for math papers",
+      "pack": "review-response.json",
+      "tags": [
+        "math",
+        "book",
+        "thesis"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-041",
+      "label": "arXiv preprint (ml #41)",
+      "description": "Variant scaffold for ml papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "ml",
+        "arxiv",
+        "preprint"
+      ],
+      "venue": "arxiv",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-042",
+      "label": "Nature letter (nlp #42)",
+      "description": "Variant scaffold for nlp papers",
+      "pack": "research-article.json",
+      "tags": [
+        "nlp",
+        "nature",
+        "letter"
+      ],
+      "venue": "nature",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-043",
+      "label": "ACM SIGCONF (vision #43)",
+      "description": "Variant scaffold for vision papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "vision",
+        "acm",
+        "conference"
+      ],
+      "venue": "acm",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-044",
+      "label": "Reviewer response (systems #44)",
+      "description": "Variant scaffold for systems papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "systems",
+        "review",
+        "letter"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-045",
+      "label": "Literature review outline (security #45)",
+      "description": "Variant scaffold for security papers",
+      "pack": "review-response.json",
+      "tags": [
+        "security",
+        "review",
+        "outline"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-046",
+      "label": "Grant proposal (hci #46)",
+      "description": "Variant scaffold for hci papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "hci",
+        "grant"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-047",
+      "label": "Beamer slides (theory #47)",
+      "description": "Variant scaffold for theory papers",
+      "pack": "research-article.json",
+      "tags": [
+        "theory",
+        "slides",
+        "beamer"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-048",
+      "label": "Two-column article (bio #48)",
+      "description": "Variant scaffold for bio papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "bio",
+        "article",
+        "two-column"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-049",
+      "label": "Minimal article (physics #49)",
+      "description": "Variant scaffold for physics papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "physics",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-050",
+      "label": "Research article (math #50)",
+      "description": "Variant scaffold for math papers",
+      "pack": "review-response.json",
+      "tags": [
+        "math",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-051",
+      "label": "IEEE conference (ml #51)",
+      "description": "Variant scaffold for ml papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "ml",
+        "ieee",
+        "conference"
+      ],
+      "venue": "ieee",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-052",
+      "label": "Book / thesis (nlp #52)",
+      "description": "Variant scaffold for nlp papers",
+      "pack": "research-article.json",
+      "tags": [
+        "nlp",
+        "book",
+        "thesis"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-053",
+      "label": "arXiv preprint (vision #53)",
+      "description": "Variant scaffold for vision papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "vision",
+        "arxiv",
+        "preprint"
+      ],
+      "venue": "arxiv",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-054",
+      "label": "Nature letter (systems #54)",
+      "description": "Variant scaffold for systems papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "systems",
+        "nature",
+        "letter"
+      ],
+      "venue": "nature",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-055",
+      "label": "ACM SIGCONF (security #55)",
+      "description": "Variant scaffold for security papers",
+      "pack": "review-response.json",
+      "tags": [
+        "security",
+        "acm",
+        "conference"
+      ],
+      "venue": "acm",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-056",
+      "label": "Reviewer response (hci #56)",
+      "description": "Variant scaffold for hci papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "hci",
+        "review",
+        "letter"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-057",
+      "label": "Literature review outline (theory #57)",
+      "description": "Variant scaffold for theory papers",
+      "pack": "research-article.json",
+      "tags": [
+        "theory",
+        "review",
+        "outline"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-058",
+      "label": "Grant proposal (bio #58)",
+      "description": "Variant scaffold for bio papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "bio",
+        "grant"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-059",
+      "label": "Beamer slides (physics #59)",
+      "description": "Variant scaffold for physics papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "physics",
+        "slides",
+        "beamer"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-060",
+      "label": "Two-column article (math #60)",
+      "description": "Variant scaffold for math papers",
+      "pack": "review-response.json",
+      "tags": [
+        "math",
+        "article",
+        "two-column"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-061",
+      "label": "Minimal article (ml #61)",
+      "description": "Variant scaffold for ml papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "ml",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-062",
+      "label": "Research article (nlp #62)",
+      "description": "Variant scaffold for nlp papers",
+      "pack": "research-article.json",
+      "tags": [
+        "nlp",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-063",
+      "label": "IEEE conference (vision #63)",
+      "description": "Variant scaffold for vision papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "vision",
+        "ieee",
+        "conference"
+      ],
+      "venue": "ieee",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-064",
+      "label": "Book / thesis (systems #64)",
+      "description": "Variant scaffold for systems papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "systems",
+        "book",
+        "thesis"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-065",
+      "label": "arXiv preprint (security #65)",
+      "description": "Variant scaffold for security papers",
+      "pack": "review-response.json",
+      "tags": [
+        "security",
+        "arxiv",
+        "preprint"
+      ],
+      "venue": "arxiv",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-066",
+      "label": "Nature letter (hci #66)",
+      "description": "Variant scaffold for hci papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "hci",
+        "nature",
+        "letter"
+      ],
+      "venue": "nature",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-067",
+      "label": "ACM SIGCONF (theory #67)",
+      "description": "Variant scaffold for theory papers",
+      "pack": "research-article.json",
+      "tags": [
+        "theory",
+        "acm",
+        "conference"
+      ],
+      "venue": "acm",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-068",
+      "label": "Reviewer response (bio #68)",
+      "description": "Variant scaffold for bio papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "bio",
+        "review",
+        "letter"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-069",
+      "label": "Literature review outline (physics #69)",
+      "description": "Variant scaffold for physics papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "physics",
+        "review",
+        "outline"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-070",
+      "label": "Grant proposal (math #70)",
+      "description": "Variant scaffold for math papers",
+      "pack": "review-response.json",
+      "tags": [
+        "math",
+        "grant"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-071",
+      "label": "Beamer slides (ml #71)",
+      "description": "Variant scaffold for ml papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "ml",
+        "slides",
+        "beamer"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-072",
+      "label": "Two-column article (nlp #72)",
+      "description": "Variant scaffold for nlp papers",
+      "pack": "research-article.json",
+      "tags": [
+        "nlp",
+        "article",
+        "two-column"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-073",
+      "label": "Minimal article (vision #73)",
+      "description": "Variant scaffold for vision papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "vision",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-074",
+      "label": "Research article (systems #74)",
+      "description": "Variant scaffold for systems papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "systems",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-075",
+      "label": "IEEE conference (security #75)",
+      "description": "Variant scaffold for security papers",
+      "pack": "review-response.json",
+      "tags": [
+        "security",
+        "ieee",
+        "conference"
+      ],
+      "venue": "ieee",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-076",
+      "label": "Book / thesis (hci #76)",
+      "description": "Variant scaffold for hci papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "hci",
+        "book",
+        "thesis"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-077",
+      "label": "arXiv preprint (theory #77)",
+      "description": "Variant scaffold for theory papers",
+      "pack": "research-article.json",
+      "tags": [
+        "theory",
+        "arxiv",
+        "preprint"
+      ],
+      "venue": "arxiv",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-078",
+      "label": "Nature letter (bio #78)",
+      "description": "Variant scaffold for bio papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "bio",
+        "nature",
+        "letter"
+      ],
+      "venue": "nature",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-079",
+      "label": "ACM SIGCONF (physics #79)",
+      "description": "Variant scaffold for physics papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "physics",
+        "acm",
+        "conference"
+      ],
+      "venue": "acm",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-080",
+      "label": "Reviewer response (math #80)",
+      "description": "Variant scaffold for math papers",
+      "pack": "review-response.json",
+      "tags": [
+        "math",
+        "review",
+        "letter"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-081",
+      "label": "Literature review outline (ml #81)",
+      "description": "Variant scaffold for ml papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "ml",
+        "review",
+        "outline"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-082",
+      "label": "Grant proposal (nlp #82)",
+      "description": "Variant scaffold for nlp papers",
+      "pack": "research-article.json",
+      "tags": [
+        "nlp",
+        "grant"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-083",
+      "label": "Beamer slides (vision #83)",
+      "description": "Variant scaffold for vision papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "vision",
+        "slides",
+        "beamer"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-084",
+      "label": "Two-column article (systems #84)",
+      "description": "Variant scaffold for systems papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "systems",
+        "article",
+        "two-column"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-085",
+      "label": "Minimal article (security #85)",
+      "description": "Variant scaffold for security papers",
+      "pack": "review-response.json",
+      "tags": [
+        "security",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-086",
+      "label": "Research article (hci #86)",
+      "description": "Variant scaffold for hci papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "hci",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-087",
+      "label": "IEEE conference (theory #87)",
+      "description": "Variant scaffold for theory papers",
+      "pack": "research-article.json",
+      "tags": [
+        "theory",
+        "ieee",
+        "conference"
+      ],
+      "venue": "ieee",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-088",
+      "label": "Book / thesis (bio #88)",
+      "description": "Variant scaffold for bio papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "bio",
+        "book",
+        "thesis"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-089",
+      "label": "arXiv preprint (physics #89)",
+      "description": "Variant scaffold for physics papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "physics",
+        "arxiv",
+        "preprint"
+      ],
+      "venue": "arxiv",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-090",
+      "label": "Nature letter (math #90)",
+      "description": "Variant scaffold for math papers",
+      "pack": "review-response.json",
+      "tags": [
+        "math",
+        "nature",
+        "letter"
+      ],
+      "venue": "nature",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-091",
+      "label": "ACM SIGCONF (ml #91)",
+      "description": "Variant scaffold for ml papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "ml",
+        "acm",
+        "conference"
+      ],
+      "venue": "acm",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-092",
+      "label": "Reviewer response (nlp #92)",
+      "description": "Variant scaffold for nlp papers",
+      "pack": "research-article.json",
+      "tags": [
+        "nlp",
+        "review",
+        "letter"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-093",
+      "label": "Literature review outline (vision #93)",
+      "description": "Variant scaffold for vision papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "vision",
+        "review",
+        "outline"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-094",
+      "label": "Grant proposal (systems #94)",
+      "description": "Variant scaffold for systems papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "systems",
+        "grant"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-095",
+      "label": "Beamer slides (security #95)",
+      "description": "Variant scaffold for security papers",
+      "pack": "review-response.json",
+      "tags": [
+        "security",
+        "slides",
+        "beamer"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-096",
+      "label": "Two-column article (hci #96)",
+      "description": "Variant scaffold for hci papers",
+      "pack": "minimal-article.json",
+      "tags": [
+        "hci",
+        "article",
+        "two-column"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-097",
+      "label": "Minimal article (theory #97)",
+      "description": "Variant scaffold for theory papers",
+      "pack": "research-article.json",
+      "tags": [
+        "theory",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-098",
+      "label": "Research article (bio #98)",
+      "description": "Variant scaffold for bio papers",
+      "pack": "arxiv-preprint.json",
+      "tags": [
+        "bio",
+        "article",
+        "wasm"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    },
+    {
+      "id": "starter-099",
+      "label": "IEEE conference (physics #99)",
+      "description": "Variant scaffold for physics papers",
+      "pack": "lit-review-outline.json",
+      "tags": [
+        "physics",
+        "ieee",
+        "conference"
+      ],
+      "venue": "ieee",
+      "requiresLocalTex": true
+    },
+    {
+      "id": "starter-100",
+      "label": "Book / thesis (math #100)",
+      "description": "Variant scaffold for math papers",
+      "pack": "review-response.json",
+      "tags": [
+        "math",
+        "book",
+        "thesis"
+      ],
+      "venue": "generic",
+      "requiresLocalTex": false
+    }
+  ],
+  "packAliases": {
+    "article-v2": "minimal-article.json",
+    "article-v3": "research-article.json",
+    "ieee-v2": "ieee-conference.json"
+  }
+}

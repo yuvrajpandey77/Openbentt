@@ -1,0 +1,6 @@
+{
+  "draftTex": "\\documentclass[11pt]{article}\n\\usepackage{amsmath,hyperref}\n\\title{arXiv Preprint}\n\\author{Your Name \\thanks{ORCID: 0000-0000-0000-0000}}\n\\date{\\today}\n\\begin{document}\n\\maketitle\n\\begin{abstract}Preprint abstract.\\end{abstract}\n\\section{Introduction}\n\\end{document}\n",
+  "bibliography": "",
+  "targetVenue": "arxiv",
+  "projectFiles": []
+}

@@ -1,0 +1,6 @@
+{
+  "draftTex": "\\documentclass[11pt]{article}\n\\title{Response to Reviewers}\n\\author{Authors}\n\\date{\\today}\n\\begin{document}\n\\maketitle\n\\section*{Reviewer 1}\n\\textbf{Comment:} ...\\\\\n\\textbf{Response:} ...\n\\section*{Reviewer 2}\n\\textbf{Comment:} ...\\\\\n\\textbf{Response:} ...\n\\end{document}\n",
+  "bibliography": "",
+  "targetVenue": "generic",
+  "projectFiles": []
+}

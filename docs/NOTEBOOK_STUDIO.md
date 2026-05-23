@@ -83,6 +83,11 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR10 — Template catalog + packs
+
+- [ ] `public/templates/catalog.json` lists 100+ starters
+- [ ] Pack JSON under `public/templates/packs/` loads via fetch
+
 ### PR09 — File tree uses folder taxonomy
 
 - [ ] Tree folders match project `folders` labels (chapters, figures, includes, papers, assets)

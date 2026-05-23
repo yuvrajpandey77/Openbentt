@@ -1,0 +1,6 @@
+{
+  "draftTex": "\\documentclass{article}\n\\usepackage{times}\n\\title{Short Letter}\n\\author{Author}\n\\begin{document}\n\\maketitle\n\\begin{abstract}Letter abstract (150 words max).\\end{abstract}\n\\section{Main finding}\n\\end{document}\n",
+  "bibliography": "",
+  "targetVenue": "nature",
+  "projectFiles": []
+}

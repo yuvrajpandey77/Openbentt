@@ -1,0 +1,6 @@
+{
+  "draftTex": "\\documentclass[11pt]{article}\n\\title{Literature Review Outline}\n\\author{Your Name}\n\\begin{document}\n\\maketitle\n\\section{Theme A}\n\\subsection{Key papers}\n\\section{Theme B}\n\\section{Synthesis gap}\n\\end{document}\n",
+  "bibliography": "",
+  "targetVenue": "generic",
+  "projectFiles": []
+}
