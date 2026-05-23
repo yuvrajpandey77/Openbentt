@@ -83,6 +83,11 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR05 — Context meter in studio
+
+- [ ] Circular context ring visible beside Commands in notebook header
+- [ ] Meter increases when connected LaTeX / workspace assist is large
+
 ### PR04 — Smooth PDF preview loading
 
 - [ ] Switching papers shows **Loading PDF…** until first page renders (no stale canvas flash)

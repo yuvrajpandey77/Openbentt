@@ -76,6 +76,9 @@ interface ChatContextProps {
   setWorkspaceRouteAssist: (block: string | undefined) => void;
   /** Notebook: register a function that returns full workspace assist with current Source (for send/regenerate). */
   registerNotebookAssistSync: (fn: (() => string) | null) => void;
+  /** Estimated tokens from notebook workspace assist (connected files + source snapshot). */
+  workspaceAssistTokenEstimate: number;
+  setWorkspaceAssistTokenEstimate: (n: number) => void;
   /** From chat code blocks: queue text for Notebook Source (see NotebookPdfWorkspace). */
   notebookLatexInsertRequest: NotebookLatexInsertRequest | null;
   requestNotebookLatexInsert: (latex: string, options?: { autoCompile?: boolean }) => void;
@@ -126,6 +129,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [providerQuotaSnapshot, setProviderQuotaSnapshot] = useState<ProviderQuotaSnapshot | null>(null);
   const [notebookLatexInsertRequest, setNotebookLatexInsertRequest] = useState<NotebookLatexInsertRequest | null>(null);
   const [webgpuModelDownloadProgress, setWebgpuModelDownloadProgress] = useState<number | null>(null);
+  const [workspaceAssistTokenEstimate, setWorkspaceAssistTokenEstimate] = useState(0);
   const { toast } = useToast();
 
   const abortControllersRef = useRef<AbortController[]>([]);
@@ -999,6 +1003,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     providerQuotaSnapshot,
     setWorkspaceRouteAssist,
     registerNotebookAssistSync,
+    workspaceAssistTokenEstimate,
+    setWorkspaceAssistTokenEstimate,
     notebookLatexInsertRequest,
     requestNotebookLatexInsert,
     clearNotebookLatexInsertRequest,

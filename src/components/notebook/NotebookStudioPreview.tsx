@@ -256,6 +256,8 @@ export function NotebookStudioPreview({
     });
   };
 
+  const showFullPageLoader = docLoading || !docReady || !firstPagePainted;
+
   if (!previewBuffer) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">

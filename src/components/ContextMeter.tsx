@@ -13,7 +13,8 @@ import { AlertTriangle } from "lucide-react";
 
 /** Circular ring showing prompt tokens vs model context window (API usage when available, else estimate). */
 export const ContextMeter: React.FC = () => {
-  const { apiConfig, currentChatId, chats, isLoading, streamingPromptTokens } = useChat();
+  const { apiConfig, currentChatId, chats, isLoading, streamingPromptTokens, workspaceAssistTokenEstimate } =
+    useChat();
   const { data: models } = useOpenRouterModels(
     apiConfig.apiKey,
     apiConfig.openAiCompatibleBaseUrl,
@@ -70,11 +71,13 @@ export const ContextMeter: React.FC = () => {
 
   const estimated = useMemo(() => estimateTokensFromMessagesRough(messages), [messages]);
 
-  const used = useMemo(() => {
+  const messageTokens = useMemo(() => {
     if (isLoading && streamingPromptTokens != null) return streamingPromptTokens;
     if (lastAssistantUsage != null) return lastAssistantUsage;
     return estimated;
   }, [isLoading, streamingPromptTokens, lastAssistantUsage, estimated]);
+
+  const used = messageTokens + workspaceAssistTokenEstimate;
 
   const ratio = contextFillRatio(used, limit);
   const pct = Math.round(ratio * 100);
@@ -90,7 +93,11 @@ export const ContextMeter: React.FC = () => {
   const c = 2 * Math.PI * r;
   const offset = c * (1 - Math.min(1, ratio));
 
-  const title = `Context window: ${used.toLocaleString()} / ${limit.toLocaleString()} tokens (${source}). ${
+  const title = `Context window: ${used.toLocaleString()} / ${limit.toLocaleString()} tokens (${source}).${
+    workspaceAssistTokenEstimate > 0
+      ? ` Includes ~${workspaceAssistTokenEstimate.toLocaleString()} tok notebook workspace assist.`
+      : ""
+  } ${
     source === "estimate" ? "~4 chars/token heuristic; enable usage by using OpenRouter/OpenAI streaming with usage." : ""
   }${warn ? " — Near window limit; answers may truncate or drift." : ""}`;
 

@@ -68,6 +68,7 @@ import { displayPaperTitle } from "@/lib/research/displayPaperLabel";
 import { pushDraftHistoryDesktop } from "@/lib/research/researchDesktopApi";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { shouldReplaceEditorSourceOnPdfLoad } from "@/lib/notebookPdfLoad";
+import { estimateTokensFromText } from "@/lib/contextMeter";
 
 type MainTab = "preview" | "source";
 /** Which PDF bytes drive the canvas — original upload vs text-compiled (images/layout only on Original). */
@@ -132,6 +133,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     currentChatId,
     setWorkspaceRouteAssist,
     registerNotebookAssistSync,
+    setWorkspaceAssistTokenEstimate,
     notebookLatexInsertRequest,
     clearNotebookLatexInsertRequest,
     queuePromptInComposer,
@@ -311,8 +313,14 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   );
 
   useEffect(() => {
-    setWorkspaceRouteAssist(buildNotebookFullWorkspaceAssist(notebookAssistParams));
-  }, [notebookAssistParams, setWorkspaceRouteAssist]);
+    const block = buildNotebookFullWorkspaceAssist(notebookAssistParams);
+    setWorkspaceRouteAssist(block);
+    setWorkspaceAssistTokenEstimate(estimateTokensFromText(block));
+  }, [notebookAssistParams, setWorkspaceRouteAssist, setWorkspaceAssistTokenEstimate]);
+
+  useEffect(() => {
+    return () => setWorkspaceAssistTokenEstimate(0);
+  }, [setWorkspaceAssistTokenEstimate]);
 
   const notebookAssistParamsLive = useMemo(
     () => ({

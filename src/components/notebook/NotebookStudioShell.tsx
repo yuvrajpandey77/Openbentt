@@ -29,6 +29,7 @@ import { NotebookConnectionCables } from "@/components/notebook/NotebookConnecti
 import { NotebookEditorTabs } from "@/components/notebook/NotebookEditorTabs";
 import NotebookPdfWorkspace from "@/components/NotebookPdfWorkspace";
 import { NotebookViewerProvider } from "@/context/NotebookViewerContext";
+import { ContextMeter } from "@/components/ContextMeter";
 import { cn } from "@/lib/utils";
 import { ChevronDown, Command, FolderOpen, LayoutGrid } from "lucide-react";
 
@@ -154,6 +155,7 @@ export function NotebookStudioShell() {
             </span>
           )}
           <div className="ml-auto flex items-center gap-1">
+            <ContextMeter />
             <ResearchTaskStatus />
             <Button type="button" size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={openCommandPalette}>
               <Command className="h-3 w-3" />
