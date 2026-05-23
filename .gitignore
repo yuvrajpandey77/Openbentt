@@ -34,4 +34,5 @@ public/core/busytex/
 resources/llama/linux/llama-server
 resources/llama/darwin/llama-server
 resources/llama/win32/llama-server.exe
+resources/llama/win32/*.dll
 

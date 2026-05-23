@@ -99,6 +99,26 @@ export async function pushDraftHistoryDesktop(
   return (await api()?.pushDraftHistory?.(projectId, content, label)) ?? null;
 }
 
+export type DraftHistoryEntry = {
+  id: string;
+  content: string;
+  label?: string | null;
+  createdAt?: string;
+};
+
+export async function listDraftHistoryDesktop(projectId: string): Promise<DraftHistoryEntry[]> {
+  const rows = await api()?.listDraftHistory?.(projectId);
+  if (!Array.isArray(rows)) return [];
+  return rows as DraftHistoryEntry[];
+}
+
+export async function restoreDraftHistoryDesktop(
+  entryId: string
+): Promise<{ projectId: string; content: string } | null> {
+  const r = await api()?.restoreDraftHistory?.(entryId);
+  return r ?? null;
+}
+
 export function onResearchJobProgress(
   cb: (payload: {
     projectId: string;

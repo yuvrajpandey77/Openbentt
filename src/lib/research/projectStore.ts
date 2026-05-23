@@ -9,6 +9,7 @@ import {
   parseProjectJsonSafe,
   stripEmbeddingsForWebPersist,
 } from "@/lib/research/projectRecovery";
+import { migrateProjectIntegrity } from "@/lib/research/contentIntegrity";
 import {
   clearEmbeddingsDesktop,
   loadEmbeddingsDesktop,
@@ -258,8 +259,13 @@ export async function createResearchProject(
 }
 
 export async function loadResearchProject(id: string): Promise<ResearchProjectData | null> {
-  if (isDesktopApp()) return desktopLoad(id);
-  return loadProjectLocal(id);
+  const raw = isDesktopApp() ? await desktopLoad(id) : loadProjectLocal(id);
+  if (!raw) return null;
+  const report = migrateProjectIntegrity(raw);
+  if (report.changed) {
+    await saveResearchProject(report.project);
+  }
+  return report.project;
 }
 
 /** Patch draft only — avoids full project JSON rewrite on each keystroke (desktop SQLite). */

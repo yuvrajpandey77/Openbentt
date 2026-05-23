@@ -83,6 +83,12 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR03 — Corruption recovery
+
+- [ ] Project with bad paper titles auto-repairs on load
+- [ ] Corrupted main.tex shows toast with **Restore main.tex** (desktop draft history)
+- [ ] Restore picks a history entry that is real LaTeX, not PDF extract
+
 ### PR02 — Raw PDF extract + clean paper titles
 
 - [ ] Upload PDF → tree label is filename or inferred title (**no** `[UNTRUSTED_DOCUMENT…]`)

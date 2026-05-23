@@ -45,10 +45,17 @@ import {
 import {
   createProjectSnapshot,
   initResearchDesktop,
+  listDraftHistoryDesktop,
   onBeforeQuitSnapshot,
   onResearchJobProgress,
+  restoreDraftHistoryDesktop,
 } from "@/lib/research/researchDesktopApi";
+import {
+  migrateProjectIntegrity,
+  pickCleanDraftHistoryEntry,
+} from "@/lib/research/contentIntegrity";
 import { useToast } from "@/components/ui/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 
 type BackgroundJobStatus = {
@@ -120,6 +127,55 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   const rebuildRef = useRef<ReturnType<typeof requestSemanticIndexRebuild> | null>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftPendingRef = useRef<string | null>(null);
+  const integrityWarnedRef = useRef<string | null>(null);
+
+  const restoreCleanDraftFromHistory = useCallback(async () => {
+    if (!project?.id || !isDesktopApp()) {
+      toast({
+        title: "Restore unavailable",
+        description: "Draft history restore requires the desktop app.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const entries = await listDraftHistoryDesktop(project.id);
+    const pick = pickCleanDraftHistoryEntry(entries);
+    if (!pick) {
+      toast({
+        title: "No clean draft snapshot",
+        description: "History entries also look like PDF extract. Edit main.tex manually or import a .tex file.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const restored = await restoreDraftHistoryDesktop(pick.id);
+    if (!restored?.content) {
+      toast({ title: "Restore failed", variant: "destructive" });
+      return;
+    }
+    await patchProjectDraft(project.id, restored.content);
+    setProject((p) => (p ? { ...p, draftTex: restored.content } : p));
+    toast({ title: "Draft restored", description: "Recovered main.tex from draft history." });
+  }, [project?.id, toast]);
+
+  useEffect(() => {
+    if (!project) return;
+    const report = migrateProjectIntegrity(project);
+    if (!report.draftWasCorrupted && !report.bibliographyWasCorrupted) return;
+    if (integrityWarnedRef.current === project.id) return;
+    integrityWarnedRef.current = project.id;
+    const target = report.bibliographyWasCorrupted ? "references.bib" : "main.tex";
+    toast({
+      title: `${target} may contain PDF text`,
+      description:
+        "This looks like extracted PDF saved by an older bug. Restore main.tex from history or edit manually.",
+      action: report.draftWasCorrupted ? (
+        <ToastAction altText="Restore main.tex" onClick={() => void restoreCleanDraftFromHistory()}>
+          Restore main.tex
+        </ToastAction>
+      ) : undefined,
+    });
+  }, [project, toast, restoreCleanDraftFromHistory]);
 
   const projectPressure = useMemo(
     () => (project ? assessProjectPressure(project) : null),
