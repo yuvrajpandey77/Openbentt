@@ -1,10 +1,11 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { PaperReviewStatus, ResearchProjectData } from "@/types/researchProject";
-import { displayPaperTitle } from "@/lib/research/displayPaperLabel";
+import { canAddPdfConnection, canAddTexConnection } from "@/lib/research/connectionCaps";
 
 export type ChatConnections = {
   texFileKeys: string[];
-  pdfPaperId?: string;
+  /** Connected PDF preview sources (paper id or "compiled"). */
+  pdfPaperIds: string[];
 };
 
 export type ChatPanelRect = {
@@ -167,7 +168,7 @@ export function NotebookStudioProvider({ children }: { children: React.ReactNode
   const [activePaperId, setActivePaperId] = useState<string | null>(null);
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [chatPanelRect, setChatPanelRectState] = useState<ChatPanelRect>(loadChatPanelRect);
-  const [chatConnections, setChatConnections] = useState<ChatConnections>({ texFileKeys: [] });
+  const [chatConnections, setChatConnections] = useState<ChatConnections>({ texFileKeys: [], pdfPaperIds: [] });
   const [pendingConnection, setPendingConnection] = useState<PendingConnection>(null);
   const [connectionDrag, setConnectionDrag] = useState<ConnectionDrag>(null);
   const [connectionLayoutTick, setConnectionLayoutTick] = useState(0);
@@ -214,9 +215,13 @@ export function NotebookStudioProvider({ children }: { children: React.ReactNode
       if (kind === "tex") {
         if (!value) return { ...c, texFileKeys: [] };
         if (c.texFileKeys.includes(value)) return c;
+        if (!canAddTexConnection(c.texFileKeys.length)) return c;
         return { ...c, texFileKeys: [...c.texFileKeys, value] };
       }
-      return { ...c, pdfPaperId: value };
+      if (!value) return { ...c, pdfPaperIds: [] };
+      if (c.pdfPaperIds.includes(value)) return c;
+      if (!canAddPdfConnection(c.pdfPaperIds.length)) return c;
+      return { ...c, pdfPaperIds: [...c.pdfPaperIds, value] };
     });
     setPendingConnection(null);
   }, []);
@@ -225,17 +230,17 @@ export function NotebookStudioProvider({ children }: { children: React.ReactNode
     setChatConnections((c) => {
       if (kind === "tex") {
         const has = c.texFileKeys.includes(value);
-        return {
-          ...c,
-          texFileKeys: has ? c.texFileKeys.filter((k) => k !== value) : [...c.texFileKeys, value],
-        };
+        if (has) {
+          return { ...c, texFileKeys: c.texFileKeys.filter((k) => k !== value) };
+        }
+        if (!canAddTexConnection(c.texFileKeys.length)) return c;
+        return { ...c, texFileKeys: [...c.texFileKeys, value] };
       }
-      if (c.pdfPaperId === value) {
-        const next = { ...c };
-        delete next.pdfPaperId;
-        return next;
+      if (c.pdfPaperIds.includes(value)) {
+        return { ...c, pdfPaperIds: c.pdfPaperIds.filter((id) => id !== value) };
       }
-      return { ...c, pdfPaperId: value };
+      if (!canAddPdfConnection(c.pdfPaperIds.length)) return c;
+      return { ...c, pdfPaperIds: [...c.pdfPaperIds, value] };
     });
     setPendingConnection(null);
   }, []);

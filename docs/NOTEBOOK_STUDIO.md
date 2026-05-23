@@ -83,6 +83,10 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR19 — Multi-PDF chat connections model
+
+- [ ] `ChatConnections.pdfPaperIds` supports up to 3 PDF sources
+
 ### PR18 — Wire retrieval v2 + incremental index
 
 - [ ] Research orchestrator uses v2 retrieval; semantic rebuild skips fully indexed corpus
