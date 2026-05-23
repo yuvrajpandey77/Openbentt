@@ -168,13 +168,23 @@ export function inferPdfMetadata(extractedText: string): {
   year?: string;
   doi?: string;
 } {
-  const head = extractedText.slice(0, 4000);
+  const stripped = extractedText
+    .replace(/\[UNTRUSTED_DOCUMENT_START\]\n?/g, "")
+    .replace(/\n?\[UNTRUSTED_DOCUMENT_END\]/g, "");
+  const head = stripped.slice(0, 4000);
   const doi = head.match(/10\.\d{4,9}\/[^\s"<>]+/)?.[0];
   const year = head.match(/\b(19|20)\d{2}\b/)?.[0];
   const lines = head
     .split(/\n+/)
     .map((l) => l.trim())
-    .filter((l) => l.length > 8 && l.length < 200);
+    .filter(
+      (l) =>
+        l.length > 8 &&
+        l.length < 200 &&
+        !l.startsWith("--- PDF PAGE") &&
+        !l.startsWith("[Note:") &&
+        !l.includes("[UNTRUSTED_DOCUMENT")
+    );
   const title = lines[0];
   const authors = lines[1]?.includes(",") || lines[1]?.includes(" and ") ? lines[1] : undefined;
   return { title, authors, year, doi: doi ? normalizeDoi(doi) : undefined };

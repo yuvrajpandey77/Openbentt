@@ -1,5 +1,10 @@
 import { WORKSPACE_ROUTE_META } from "@/config/workspaceRouteMeta";
-import { MAX_CHARS_ASSIST_SNAPSHOT } from "@/lib/pdfText";
+import { MAX_CHARS_ASSIST_SNAPSHOT, wrapDocumentTextForPrompt } from "@/lib/pdfText";
+
+function assistBodyFromSource(text: string, isLatexSource: boolean): string {
+  if (isLatexSource || !text.includes("--- PDF PAGE")) return text;
+  return wrapDocumentTextForPrompt(text);
+}
 
 /** Base Notebook route system assist (static workflow + LaTeX rules). */
 export function getNotebookBaseWorkspaceAssist(): string {
@@ -50,7 +55,7 @@ export function buildNotebookLiveSnapshot(params: {
 
   const primarySource = texFiles.length > 0 ? texFiles.map((f) => f.content).join("\n\n") : sourceText;
   const src = primarySource ?? "";
-  let body = src;
+  let body = assistBodyFromSource(src, isLatexSource && texFiles.length === 0);
   let truncated = false;
   if (body.length > MAX_CHARS_ASSIST_SNAPSHOT) {
     body = body.slice(0, MAX_CHARS_ASSIST_SNAPSHOT);

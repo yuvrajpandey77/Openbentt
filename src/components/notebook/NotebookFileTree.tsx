@@ -31,6 +31,7 @@ import {
   useNotebookStudio,
 } from "@/context/NotebookStudioContext";
 import { loadPaperPdfDesktop, listProjectAssetsDesktop, storeProjectAssetDesktop, loadProjectAssetDesktop } from "@/lib/research/researchDesktopApi";
+import { displayPaperTitle } from "@/lib/research/displayPaperLabel";
 import { downloadBlob, exportProjectZip } from "@/lib/research/projectExport";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "@/lib/research/base64";
 import type { PaperReviewStatus, ProjectFile } from "@/types/researchProject";
@@ -97,7 +98,7 @@ function buildTree(
     kind: "folder",
     children: papers.map((p) => ({
       id: `paper-${p.id}`,
-      label: p.metadata.title ?? p.fileName,
+      label: displayPaperTitle(p),
       kind: "paper" as const,
       paperId: p.id,
       reviewStatus: p.reviewStatus,

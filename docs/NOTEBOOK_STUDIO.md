@@ -83,6 +83,12 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR02 — Raw PDF extract + clean paper titles
+
+- [ ] Upload PDF → tree label is filename or inferred title (**no** `[UNTRUSTED_DOCUMENT…]`)
+- [ ] Re-open project → paper titles still clean
+- [ ] Legacy tabs mode: PDF in Source is raw text; model assist still gets trust wrappers at prompt time
+
 ### PR01 — PDF / editor separation
 
 - [ ] Open paper from **papers/** tree → preview updates; **main.tex unchanged** in editor and on disk

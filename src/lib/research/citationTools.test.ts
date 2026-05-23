@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   extractCiteKeysFromTex,
+  inferPdfMetadata,
   lintCitations,
   formatCitation,
   lintBibliographyHealth,
@@ -50,6 +51,15 @@ describe("citationTools", () => {
     );
     expect(report.entryCount).toBe(1);
     expect(report.completenessScore).toBeGreaterThan(0.5);
+  });
+});
+
+describe("inferPdfMetadata", () => {
+  it("ignores UNTRUSTED markers when inferring title", () => {
+    const meta = inferPdfMetadata(
+      `[UNTRUSTED_DOCUMENT_START]\nNeural Citation Parsing in PDFs\nSmith, Jane and Doe, John\n2024\n[UNTRUSTED_DOCUMENT_END]`
+    );
+    expect(meta.title).toBe("Neural Citation Parsing in PDFs");
   });
 });
 

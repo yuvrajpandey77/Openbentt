@@ -64,6 +64,7 @@ import { NotebookLatexToolbar } from "@/components/notebook/NotebookLatexToolbar
 import { NotebookWritingAssistMenu } from "@/components/research/NotebookContextualStrip";
 import { useNotebookStudioSettingsOptional } from "@/context/NotebookStudioSettingsContext";
 import { editorFileKey, editorFileLabel as getEditorFileLabel, texContentForFileKey } from "@/context/NotebookStudioContext";
+import { displayPaperTitle } from "@/lib/research/displayPaperLabel";
 import { pushDraftHistoryDesktop } from "@/lib/research/researchDesktopApi";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { shouldReplaceEditorSourceOnPdfLoad } from "@/lib/notebookPdfLoad";
@@ -275,7 +276,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
         const paper = researchProject.papers.find((p) => p.id === chatConnections.pdfPaperId);
         if (paper) {
           const note = paper.pageNotes?.[pdfPage];
-          connectedPdfContext = `Paper "${paper.metadata.title ?? paper.fileName}" — page ${pdfPage}${note ? ` — note: ${note.slice(0, 200)}` : ""}.`;
+          connectedPdfContext = `Paper "${displayPaperTitle(paper)}" — page ${pdfPage}${note ? ` — note: ${note.slice(0, 200)}` : ""}.`;
         }
       }
     }

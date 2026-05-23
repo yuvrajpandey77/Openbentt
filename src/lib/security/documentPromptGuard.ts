@@ -39,9 +39,17 @@ export function detectDocumentInjectionWarnings(text: string): string[] {
   return warnings;
 }
 
+/** Strip prompt-injection boundary markers from stored or displayed document text. */
+export function stripDocumentPromptMarkers(text: string): string {
+  return text
+    .replace(/\[UNTRUSTED_DOCUMENT_START\]\n?/g, "")
+    .replace(/\n?\[UNTRUSTED_DOCUMENT_END\]/g, "")
+    .trim();
+}
+
 /** Strip control chars and wrap extracted PDF text in explicit document boundaries. */
 export function sanitizeDocumentTextForPrompt(text: string): DocumentSanitizeResult {
-  const cleaned = stripControlChars(text);
+  const cleaned = stripControlChars(stripDocumentPromptMarkers(text));
   const warnings = detectDocumentInjectionWarnings(cleaned);
   const bounded =
     cleaned.length > 0

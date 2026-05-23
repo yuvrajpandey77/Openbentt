@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { PaperReviewStatus, ResearchProjectData } from "@/types/researchProject";
+import { displayPaperTitle } from "@/lib/research/displayPaperLabel";
 
 export type ChatConnections = {
   texFileKeys: string[];
@@ -101,7 +102,7 @@ export function editorFileLabel(f: NotebookStudioFileRef, project: ResearchProje
   }
   if (f.type === "paper") {
     const p = project.papers.find((x) => x.id === f.paperId);
-    return p?.metadata.title ?? p?.fileName ?? "PDF";
+    return p ? displayPaperTitle(p) : "PDF";
   }
   return "file";
 }

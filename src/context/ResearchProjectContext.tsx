@@ -25,6 +25,7 @@ import { rebuildProjectCorpus } from "@/lib/research/corpusPipeline";
 import { arrayBufferToBase64 } from "@/lib/research/base64";
 import { extractNotebookSourceFromPdf } from "@/lib/pdfText";
 import { inferPdfMetadata } from "@/lib/research/citationTools";
+import { displayPaperTitle } from "@/lib/research/displayPaperLabel";
 import { extractPdfReviewAnnotations } from "@/lib/pdfAnnotations";
 import { requestSemanticIndexRebuild } from "@/lib/research/embeddingPipeline";
 import type { EmbeddingIndexProgress } from "@/lib/research/embeddingIndex";
@@ -653,7 +654,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
         toast({
           title: "Paper added",
           description:
-            (meta.title ?? file.name) +
+            displayPaperTitle({ fileName: file.name, metadata: meta }) +
             (annCount > 0 ? ` · ${annCount} PDF review note(s) captured` : ""),
         });
         runSemanticRebuild(next.chunks, next.id);

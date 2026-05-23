@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { beforeAll, describe, expect, it } from "vitest";
-import { extractNotebookSourceFromPdf, extractTextFromPdfFile } from "@/lib/pdfText";
+import { extractNotebookSourceFromPdf, extractTextFromPdfFile, wrapDocumentTextForPrompt } from "@/lib/pdfText";
 import { CORRUPTED_PDF_BYTES, MINIMAL_VALID_PDF, pdfFileFromBytes } from "../../test/fixtures/pdf";
 
 beforeAll(async () => {
@@ -22,6 +22,7 @@ describe("pdfText extraction", () => {
     const file = pdfFileFromBytes(MINIMAL_VALID_PDF, "notebook.pdf");
     const source = await extractNotebookSourceFromPdf(file, 50_000, 5);
     expect(source).toMatch(/--- PDF PAGE 1/);
+    expect(source).not.toContain("[UNTRUSTED_DOCUMENT_START]");
   }, 20_000);
 
   it("rejects corrupted PDF bytes with an error", async () => {
@@ -29,9 +30,10 @@ describe("pdfText extraction", () => {
     await expect(extractTextFromPdfFile(file)).rejects.toThrow();
   }, 15_000);
 
-  it("wraps extracted text with document trust markers", async () => {
+  it("wraps extracted text with document trust markers for prompts", async () => {
     const file = pdfFileFromBytes(MINIMAL_VALID_PDF);
-    const text = await extractTextFromPdfFile(file, 10_000, 5);
+    const raw = await extractNotebookSourceFromPdf(file, 10_000, 5);
+    const text = wrapDocumentTextForPrompt(raw);
     expect(text).toContain("[UNTRUSTED_DOCUMENT_START]");
     expect(text.toLowerCase()).toContain("hello");
   }, 20_000);

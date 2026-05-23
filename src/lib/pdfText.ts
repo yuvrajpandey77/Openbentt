@@ -144,8 +144,13 @@ export async function extractNotebookSourceFromPdf(
     if (lenBeforeSlice > maxChars) {
       out += `\n\n[Note: Source truncated at ${maxChars.toLocaleString()} characters — open Source to edit or paste more.]`;
     }
-    return sanitizeDocumentTextForPrompt(out).text;
+    return out;
   } finally {
     await destroyPdfDocument(doc);
   }
+}
+
+/** Wrap stored PDF/corpus text before it enters model prompts. */
+export function wrapDocumentTextForPrompt(text: string): string {
+  return sanitizeDocumentTextForPrompt(text).text;
 }

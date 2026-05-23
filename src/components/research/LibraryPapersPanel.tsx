@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { useResearchProject } from "@/context/ResearchProjectContext";
+import { displayPaperTitle } from "@/lib/research/displayPaperLabel";
 import { VirtualList } from "@/components/VirtualList";
 import { LIMITS } from "@/lib/research/projectLimits";
 import { FileUp, Trash2 } from "lucide-react";
@@ -54,7 +55,7 @@ export function LibraryPapersPanel() {
           renderItem={(p) => (
             <div className="flex items-start justify-between gap-3 rounded-lg border border-border/60 p-3 mb-2">
               <div className="min-w-0">
-                <p className="font-medium text-foreground truncate">{p.metadata.title ?? p.fileName}</p>
+                <p className="font-medium text-foreground truncate">{displayPaperTitle(p)}</p>
                 <p className="text-xs text-muted-foreground">
                   {[p.metadata.authors, p.metadata.year, p.metadata.doi].filter(Boolean).join(" · ")}
                 </p>
