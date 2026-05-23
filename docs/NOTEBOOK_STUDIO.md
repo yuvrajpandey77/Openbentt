@@ -83,6 +83,10 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR17 — Incremental semantic indexing
+
+- [ ] Re-index skips chunks that already have embeddings; prunes stale vectors
+
 ### PR16 — Retrieval v2 hybrid search
 
 - [ ] Chat/research context uses `hybridRetrieveV2` (RRF k=48, deduped hits)
