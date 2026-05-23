@@ -199,6 +199,23 @@ export function NotebookLeftRail() {
     }
   }, [searchParams, setExplorerOpen]);
 
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizeRef.current) return;
+      const delta = e.clientX - resizeRef.current.startX;
+      setExplorerWidth(resizeRef.current.startWidth + delta);
+    };
+    const onUp = () => {
+      resizeRef.current = null;
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [setExplorerWidth]);
+
   if (!project) return null;
 
   const outline = parseOutline(project.draftTex);
@@ -248,23 +265,6 @@ export function NotebookLeftRail() {
     setTab(id);
     if (id === "tools" && activeTool) openResearchToolPanel(activeTool);
   };
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!resizeRef.current) return;
-      const delta = e.clientX - resizeRef.current.startX;
-      setExplorerWidth(resizeRef.current.startWidth + delta);
-    };
-    const onUp = () => {
-      resizeRef.current = null;
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [setExplorerWidth]);
 
   const startResize = (e: ReactMouseEvent) => {
     e.preventDefault();
