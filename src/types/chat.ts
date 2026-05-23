@@ -3,6 +3,7 @@ import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
 import { isCloudInferenceAllowed } from "@/lib/privacy/privacyPreferences";
 import { GGUF_MODEL_NONE, parseGgufRegistryId } from "@/lib/localGguf/ids";
 import { normalizeGgufMaxParamB } from "@/lib/localGguf/guardrails";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 
 export type Role = "assistant" | "user" | "system";
 
@@ -179,13 +180,14 @@ export interface ApiKeyConfig {
 }
 
 export function defaultApiConfig(): ApiKeyConfig {
+  const desktop = typeof window !== "undefined" && isDesktopApp();
   return {
-    aiProvider: "webgpu_gemma",
+    aiProvider: desktop ? "openrouter" : "webgpu_gemma",
     apiKey: "",
-    model: LOCAL_TINY_MODEL_ID,
+    model: desktop ? DEFAULT_MODEL_ID : LOCAL_TINY_MODEL_ID,
     customModelIds: [],
     comparisonEnabled: false,
-    comparisonModelIds: [LOCAL_TINY_MODEL_ID],
+    comparisonModelIds: desktop ? [DEFAULT_MODEL_ID] : [LOCAL_TINY_MODEL_ID],
     researchEnabled: false,
     researchDepth: "standard",
     reasoningPreference: "default",

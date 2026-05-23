@@ -28,8 +28,20 @@ import {
 } from "./zoteroService.mjs";
 import { registerZoteroSecretIpc } from "./zoteroSecretStore.mjs";
 import { resolveUnderDistRoot } from "./ipcValidate.mjs";
+import { getGpuSafeMode } from "./gpuSafeMode.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const gpuSafeMode = getGpuSafeMode();
+if (gpuSafeMode.enabled) {
+  process.env.OPENBENTT_SOFTWARE_RENDERING = "1";
+  console.info(
+    `[electron] Software rendering enabled (${gpuSafeMode.reason ?? "safe-mode"}). WebGPU UI flags skipped.`
+  );
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch("disable-gpu");
+  app.commandLine.appendSwitch("disable-gpu-compositing");
+}
 
 /** One app instance — second launch focuses the existing window. */
 const singleInstanceLock = app.requestSingleInstanceLock();
@@ -61,12 +73,10 @@ if (process.platform === "linux") {
 }
 
 /**
- * WebGPU for on-device Gemma (@huggingface/transformers): on many Linux / Mesa / hybrid setups
- * Chromium refuses `navigator.gpu.requestAdapter()` unless this switch is set. Must run before
- * app.ready (see Chromium "Failed to get GPU adapter" / "enable-unsafe-webgpu").
+ * WebGPU for on-device Gemma — only when hardware rendering is available.
  * Set OPENBENTT_DISABLE_WEBGPU_FLAGS=1 to opt out for debugging.
  */
-if (!process.env.OPENBENTT_DISABLE_WEBGPU_FLAGS) {
+if (!gpuSafeMode.enabled && !process.env.OPENBENTT_DISABLE_WEBGPU_FLAGS) {
   app.commandLine.appendSwitch("enable-unsafe-webgpu");
   if (process.platform === "linux") {
     /** Many integrated / Mesa drivers are blocklisted for WebGPU until this is set. */
@@ -90,11 +100,8 @@ if (!process.env.OPENBENTT_DISABLE_WEBGPU_FLAGS) {
   }
 }
 
-/**
- * Last-resort escape hatch for broken Linux GPU stacks: `OPENBENTT_DISABLE_GPU=1` runs Chromium
- * fully software-rendered. WebGPU will not work in this mode, but the app window will at least open.
- */
-if (process.env.OPENBENTT_DISABLE_GPU === "1") {
+/** Manual override after auto-detection (must still run before app.ready). */
+if (!gpuSafeMode.enabled && process.env.OPENBENTT_DISABLE_GPU === "1") {
   app.disableHardwareAcceleration();
 }
 
@@ -102,8 +109,8 @@ const VITE_DEV_URL = process.env.VITE_DEV_SERVER_URL || "http://localhost:8080";
 /** When true, load the Vite dev server (use `npm run electron:dev`). Otherwise load built `dist/` via app:// */
 const useViteDevServer = process.env.OPENBENTT_ELECTRON_DEV === "1";
 
-/** Open the workspace shell, not `/` (marketing landing). Same routes as the web app; desktop is product-first. */
-const START_PATH = "/chat";
+/** Desktop home: projects hub (Notebook Studio entry). */
+const START_PATH = "/projects";
 
 /** Must run before app.ready (Electron requirement). */
 protocol.registerSchemesAsPrivileged([
@@ -229,7 +236,7 @@ function createWindow() {
     });
     win.webContents.openDevTools({ mode: "detach" });
   } else {
-    // Path must match React Router (e.g. `/chat` → workspace); `app://` has no pathname → would show `/` landing.
+    // Path must match React Router; `app://` with no pathname would show marketing `/`.
     win.loadURL(`app://openbentt${START_PATH}`);
   }
 }

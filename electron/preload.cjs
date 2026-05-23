@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("openbenttDesktop", {
   platform: process.platform,
   isElectron: true,
+  softwareRenderingMode: process.env.OPENBENTT_SOFTWARE_RENDERING === "1",
   framelessTitleBar: process.platform === "linux",
   windowMinimize: () => ipcRenderer.invoke("desktop:windowMinimize"),
   windowToggleMaximize: () => ipcRenderer.invoke("desktop:windowToggleMaximize"),

@@ -58,6 +58,14 @@ describe("DEFAULT_MODEL_ID", () => {
   });
 });
 
+describe("defaultApiConfig", () => {
+  it("defaults to webgpu in non-desktop environments", () => {
+    const d = defaultApiConfig();
+    expect(d.aiProvider).toBe("webgpu_gemma");
+    expect(d.model).toBe(LOCAL_TINY_MODEL_ID);
+  });
+});
+
 describe("normalizeApiConfig migrations", () => {
   it("rewrites deprecated default model ids to current default", () => {
     for (const stale of DEPRECATED_DEFAULT_MODEL_IDS) {

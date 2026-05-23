@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useChat } from "@/context/ChatContext";
-import { defaultApiConfig, normalizeApiConfig, canSendChat } from "@/types/chat";
+import { defaultApiConfig, normalizeApiConfig, canSendChat, DEFAULT_MODEL_ID } from "@/types/chat";
 import { ensureCloudInferenceForConfig } from "@/lib/privacy/privacyPreferences";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,9 +48,16 @@ const BASE_PROVIDERS: { id: Provider; icon: React.ReactNode; title: string; subt
 const DESKTOP_GGUF_PROVIDER = {
   id: "local_gguf" as const,
   icon: <HardDrive size={22} />,
-  title: "Local GGUF files (recommended)",
+  title: "Local GGUF files",
   subtitle:
-    "Download quantized models from Hugging Face and run with llama-server. Best for offline use on this desktop app.",
+    "Download quantized models from Hugging Face and run with llama-server. Advanced / offline use.",
+};
+
+const OPENROUTER_PROVIDER = {
+  id: "openrouter" as const,
+  icon: <Cloud size={22} />,
+  title: "OpenRouter (cloud) — recommended",
+  subtitle: "Free models available. Paste your OpenRouter API key — stored on this device only.",
 };
 
 const SetupPage: React.FC = () => {
@@ -60,14 +67,16 @@ const SetupPage: React.FC = () => {
   const [step, setStep] = useState<1 | 2>(1);
   const showGguf = isDesktopApp() && isLocalGgufDesktopAvailable();
   const providers = useMemo(() => {
+    const cloudFirst = [
+      OPENROUTER_PROVIDER,
+      ...BASE_PROVIDERS.filter((p) => p.id !== "openrouter"),
+    ];
     const base = isWebClient()
-      ? BASE_PROVIDERS.filter((p) => p.id === "openrouter" || p.id === "ondevice")
-      : BASE_PROVIDERS;
-    return showGguf ? [DESKTOP_GGUF_PROVIDER, ...base] : base;
+      ? cloudFirst.filter((p) => p.id === "openrouter" || p.id === "ondevice")
+      : cloudFirst;
+    return showGguf ? [...base, DESKTOP_GGUF_PROVIDER] : base;
   }, [showGguf]);
-  const [provider, setProvider] = useState<Provider>(() =>
-    showGguf ? "local_gguf" : "openrouter"
-  );
+  const [provider, setProvider] = useState<Provider>("openrouter");
 
   const form = useForm<FormValues>({
     defaultValues: { apiKey: "", localUrl: "http://127.0.0.1:11434/v1" },
@@ -121,7 +130,7 @@ const SetupPage: React.FC = () => {
         ...apiConfig,
         aiProvider: "openrouter",
         apiKey: data.apiKey.trim(),
-        model: apiConfig.model || defaultApiConfig().model,
+        model: DEFAULT_MODEL_ID,
       });
     ensureCloudInferenceForConfig(next);
     setApiConfig(next);

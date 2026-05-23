@@ -72,6 +72,24 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [2.0.13] — 2026-05-21
+
+### Added
+
+- **Linux GPU safe mode:** Auto software rendering when `/dev/dri` is missing or `OPENBENTT_DISABLE_GPU=1`, preventing blank windows on GPU-disabled systems.
+- **Desktop onboarding:** Default provider is OpenRouter with the free Llama 3.3 70B model; setup pre-selects cloud; Projects hub prompts for API key.
+
+### Changed
+
+- Desktop app starts on **`/projects`** (not `/chat`).
+- Setup lists OpenRouter first; local GGUF/WebGPU are advanced options.
+
+### Fixed
+
+- Blank Electron window on GNOME/Linux with disabled or broken GPU drivers.
+
+---
+
 ## [2.0.12] — 2026-05-21
 
 ### Fixed

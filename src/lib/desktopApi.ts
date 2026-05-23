@@ -22,6 +22,8 @@ export type DesktopEditRole = "undo" | "redo" | "cut" | "copy" | "paste" | "sele
 export interface OpenbenttDesktopApi {
   platform: NodeJS.Platform;
   isElectron: true;
+  /** True when Electron disabled GPU (software rendering / safe mode). */
+  softwareRenderingMode?: boolean;
   framelessTitleBar?: boolean;
   windowMinimize?(): Promise<void>;
   windowToggleMaximize?(): Promise<boolean>;

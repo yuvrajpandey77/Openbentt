@@ -25,6 +25,7 @@ type DesktopEditRole = "undo" | "redo" | "cut" | "copy" | "paste" | "selectAll";
 interface OpenbenttDesktopApi {
   readonly isElectron: boolean;
   readonly platform: string;
+  readonly softwareRenderingMode?: boolean;
   readonly framelessTitleBar?: boolean;
   windowMinimize?: () => Promise<void>;
   windowToggleMaximize?: () => Promise<boolean>;

@@ -3,6 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { DesktopOnlyGate } from "@/components/notebook/DesktopOnlyGate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useChat } from "@/context/ChatContext";
+import { canSendChat } from "@/types/chat";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +43,8 @@ function formatRelative(iso: string): string {
 
 const ProjectsHubPage: React.FC = () => {
   const navigate = useNavigate();
+  const { apiConfig } = useChat();
+  const chatReady = canSendChat(apiConfig);
   const { projects, loading, selectProject, createProject, removeProject, importProjectFromFile } =
     useResearchProject();
   const [query, setQuery] = useState("");
@@ -140,6 +145,18 @@ const ProjectsHubPage: React.FC = () => {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
+          {!chatReady && (
+            <Alert className="mx-6 mt-4 rounded-md border-primary/30 bg-primary/5 py-2 md:mx-10">
+              <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span>
+                  Add your OpenRouter API key to enable AI chat and writing assist (free models available).
+                </span>
+                <Button asChild size="sm" variant="default" className="h-7 text-xs">
+                  <Link to="/setup">Set up OpenRouter</Link>
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
           <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/60 px-6 py-4 md:px-10">
             <h1 className="font-display text-xl font-semibold tracking-tight md:text-2xl">All projects</h1>
             <div className="flex flex-wrap items-center justify-end gap-2">
