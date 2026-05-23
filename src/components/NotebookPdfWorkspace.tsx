@@ -271,16 +271,22 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       connectedTexFiles.push({ label, content });
     }
     let connectedPdfContext: string | null = null;
-    if (chatConnections.pdfPaperId) {
-      if (chatConnections.pdfPaperId === "compiled") {
-        connectedPdfContext = `Compiled PDF preview (page ${pdfPage}).`;
-      } else {
-        const paper = researchProject.papers.find((p) => p.id === chatConnections.pdfPaperId);
-        if (paper) {
-          const note = paper.pageNotes?.[pdfPage];
-          connectedPdfContext = `Paper "${displayPaperTitle(paper)}" — page ${pdfPage}${note ? ` — note: ${note.slice(0, 200)}` : ""}.`;
+    if (chatConnections.pdfPaperIds.length) {
+      const parts: string[] = [];
+      for (const pdfId of chatConnections.pdfPaperIds) {
+        if (pdfId === "compiled") {
+          parts.push(`Compiled PDF preview (page ${pdfPage}).`);
+        } else {
+          const paper = researchProject.papers.find((p) => p.id === pdfId);
+          if (paper) {
+            const note = paper.pageNotes?.[pdfPage];
+            parts.push(
+              `Paper "${displayPaperTitle(paper)}" — page ${pdfPage}${note ? ` — note: ${note.slice(0, 200)}` : ""}.`
+            );
+          }
         }
       }
+      connectedPdfContext = parts.join("\n");
     }
     return { connectedTexFiles, connectedPdfContext };
   }, [isStudio, studioCtx, researchProject]);

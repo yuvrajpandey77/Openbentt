@@ -5,10 +5,8 @@ import ChatMessages from "@/components/ChatMessages";
 import ChatInput from "@/components/ChatInput";
 import { ConnectionHandle } from "@/components/notebook/ConnectionHandle";
 import { useChat } from "@/context/ChatContext";
-import {
-  CHAT_PANEL_EXPANDED,
-  useNotebookStudio,
-} from "@/context/NotebookStudioContext";
+import { ContextSourcesPopover } from "@/components/notebook/ContextSourcesPopover";
+import { useResearchProject } from "@/context/ResearchProjectContext";
 import { cn } from "@/lib/utils";
 
 const MIN_W = 300;
@@ -36,6 +34,7 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
     registerConnectionAnchor,
     bumpConnectionLayout,
   } = useNotebookStudio();
+  const { project } = useResearchProject();
 
   const { chats, currentChatId, isLoading } = useChat();
   const currentChat = chats.find((c) => c.id === currentChatId);
@@ -246,7 +245,7 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
                 kind="chat-pdf"
                 label="Connect chat to PDF preview"
                 tooltip="PDF: drag to the amber preview dot, or click both ends"
-                connected={!!chatConnections.pdfPaperId}
+                connected={chatConnections.pdfPaperIds.length > 0}
                 active={pendingConnection?.from === "chat-pdf"}
                 registerAnchor={registerConnectionAnchor}
                 onPointerDown={(e) => startConnectionDrag("chat-pdf", e)}
@@ -309,8 +308,25 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
         </div>
       )}
 
-      {(chatConnections.texFileKeys.length > 0 || chatConnections.pdfPaperId) && (
-        <div className="shrink-0 border-b border-border/40 bg-primary/5 px-2 py-1 text-[10px] text-muted-foreground">
+      {(chatConnections.texFileKeys.length > 0 || chatConnections.pdfPaperIds.length > 0) && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-border/40 bg-primary/5 px-2 py-1 text-[10px] text-muted-foreground">
+          <ContextSourcesPopover
+            texFileKeys={chatConnections.texFileKeys}
+            pdfPaperIds={chatConnections.pdfPaperIds}
+            texLabel={(key) => {
+              if (key === "draft") return "main.tex";
+              if (key === "bib") return "references.bib";
+              return key;
+            }}
+            pdfLabel={(id) =>
+              id === "compiled"
+                ? "Compiled preview"
+                : project?.papers.find((p) => p.id === id)?.fileName ?? id
+            }
+            onDisconnectTex={(key) => toggleChatConnection("tex", key)}
+            onDisconnectPdf={(id) => toggleChatConnection("pdf", id)}
+          />
+          <span className="min-w-0 truncate">
           Connected:
           {chatConnections.texFileKeys.map((key, i) => (
             <span key={key}>
@@ -324,16 +340,20 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
               </button>
             </span>
           ))}
-          {chatConnections.texFileKeys.length > 0 && chatConnections.pdfPaperId && " · "}
-          {chatConnections.pdfPaperId && (
-            <button
-              type="button"
-              className="text-violet-600 hover:underline dark:text-violet-400"
-              onClick={() => toggleChatConnection("pdf", chatConnections.pdfPaperId!)}
-            >
-              PDF preview
-            </button>
-          )}
+          {chatConnections.texFileKeys.length > 0 && chatConnections.pdfPaperIds.length > 0 && " · "}
+          {chatConnections.pdfPaperIds.map((id, i) => (
+            <span key={id}>
+              {(i > 0 || chatConnections.texFileKeys.length > 0) && i === 0 && chatConnections.texFileKeys.length === 0 ? "" : i > 0 ? " · " : ""}
+              <button
+                type="button"
+                className="text-violet-600 hover:underline dark:text-violet-400"
+                onClick={() => toggleChatConnection("pdf", id)}
+              >
+                PDF{id === "compiled" ? " (compiled)" : ""}
+              </button>
+            </span>
+          ))}
+          </span>
         </div>
       )}
 

@@ -83,6 +83,10 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR21 — Multi-PDF context in assist pipeline
+
+- [ ] Notebook assist merges context from all connected PDF paper ids
+
 ### PR20 — Context sources popover
 
 - [ ] Floating chat **Sources** popover lists connected LaTeX + PDF with disconnect

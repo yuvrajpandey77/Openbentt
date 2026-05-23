@@ -98,8 +98,8 @@ export function NotebookStudioPreview({
 
   const paper = project?.papers.find((p) => p.id === activePaperId);
   const pdfConnected =
-    chatConnections.pdfPaperId === (activePaperId ?? "compiled") ||
-    (!!activePaperId && chatConnections.pdfPaperId === activePaperId);
+    chatConnections.pdfPaperIds.includes(activePaperId ?? "compiled") ||
+    (!!activePaperId && chatConnections.pdfPaperIds.includes(activePaperId));
   const pdfSnapHighlight = connectionDrag?.snapTargetId === "pdf-preview";
 
   useEffect(() => {

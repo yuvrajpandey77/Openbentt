@@ -152,7 +152,7 @@ export function NotebookConnectionCables({ containerRef }: NotebookConnectionCab
       }
     }
 
-    if (chatConnections.pdfPaperId) {
+    if (chatConnections.pdfPaperIds.length) {
       const from = getConnectionAnchorCenter("chat-pdf");
       const to = getConnectionAnchorCenter("pdf-preview");
       if (from && to) {
@@ -188,7 +188,7 @@ export function NotebookConnectionCables({ containerRef }: NotebookConnectionCab
     return out;
   }, [
     chatConnections.texFileKeys,
-    chatConnections.pdfPaperId,
+    chatConnections.pdfPaperIds,
     connectionLayoutTick,
     chatPanelOpen,
     connectionDrag,
