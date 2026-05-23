@@ -55,7 +55,7 @@ export function NotebookSubmitPanel() {
             className="flex gap-3 rounded-lg border border-border/60 px-3 py-2.5 text-sm"
           >
             {c.passed ? (
-              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
             ) : (
               <XCircle className="h-5 w-5 shrink-0 text-destructive" />
             )}

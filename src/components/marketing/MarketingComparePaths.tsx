@@ -8,7 +8,7 @@ import { Globe, Monitor } from "lucide-react";
 
 const pathMeta = {
   desktop: { icon: Monitor, iconClassName: "bg-primary/10 text-primary" },
-  web: { icon: Globe, iconClassName: "bg-sky-500/10 text-sky-600 dark:text-sky-400" },
+  web: { icon: Globe, iconClassName: "bg-primary/10 text-primary dark:text-primary" },
 } as const;
 
 export function MarketingComparePaths() {

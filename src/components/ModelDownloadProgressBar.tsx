@@ -32,13 +32,13 @@ export const ModelDownloadProgressBar: React.FC<ModelDownloadProgressBarProps> =
   return (
     <div
       className={cn(
-        "rounded-xl border border-teal-500/25 bg-teal-500/[0.06] px-3 py-2.5 space-y-2",
+        "rounded-xl border border-primary/25 bg-primary/[0.06] px-3 py-2.5 space-y-2",
         className
       )}
     >
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="flex items-center gap-1.5 font-medium text-foreground">
-          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-teal-600 dark:text-teal-400" />
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
           {title}
         </span>
         <span className="shrink-0 font-mono tabular-nums text-muted-foreground">{pct}%</span>

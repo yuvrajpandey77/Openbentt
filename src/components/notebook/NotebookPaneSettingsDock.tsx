@@ -32,9 +32,12 @@ const PANE_TABS: { id: NotebookPaneId; label: string }[] = [
 type NotebookPaneSettingsDockProps = {
   /** When true, omit fixed positioning (parent dock handles placement). */
   embedded?: boolean;
+  /** Sidebar footer: full-width block button beside Settings. */
+  layout?: "dock" | "sidebar";
+  className?: string;
 };
 
-export function NotebookPaneSettingsDock({ embedded = false }: NotebookPaneSettingsDockProps) {
+export function NotebookPaneSettingsDock({ embedded = false, layout = "dock", className }: NotebookPaneSettingsDockProps) {
   const [open, setOpen] = useState(false);
   const {
     pane,
@@ -52,16 +55,20 @@ export function NotebookPaneSettingsDock({ embedded = false }: NotebookPaneSetti
       <PopoverTrigger asChild>
         <Button
           type="button"
-          size="icon"
-          variant="secondary"
+          size={layout === "sidebar" ? "sm" : "icon"}
+          variant={layout === "sidebar" ? "outline" : "secondary"}
           className={cn(
-            "h-10 w-10 rounded-full shadow-lg",
+            layout === "sidebar"
+              ? "h-8 w-full min-w-0 gap-1 text-xs"
+              : "h-10 w-10 rounded-full shadow-lg",
             "border border-border/80 bg-card/95 backdrop-blur-sm",
-            !embedded && "fixed bottom-4 left-4 z-[60]"
+            !embedded && layout === "dock" && "fixed bottom-4 left-4 z-[60]",
+            className
           )}
           aria-label="Notebook pane settings"
         >
-          <Settings2 className="h-4 w-4" />
+          <Settings2 className={cn("h-4 w-4", layout === "sidebar" && "shrink-0")} />
+          {layout === "sidebar" ? <span className="truncate">Panes</span> : null}
         </Button>
       </PopoverTrigger>
       <PopoverContent

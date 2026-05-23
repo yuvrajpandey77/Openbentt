@@ -11,7 +11,9 @@
         "article",
         "wasm"
       ],
-      "venue": "generic"
+      "venue": "generic",
+      "verified": true,
+      "featured": true
     },
     {
       "id": "research-article",
@@ -22,7 +24,9 @@
         "article",
         "wasm"
       ],
-      "venue": "generic"
+      "venue": "generic",
+      "verified": true,
+      "featured": true
     },
     {
       "id": "ieee-conference",
@@ -34,7 +38,9 @@
         "conference"
       ],
       "venue": "ieee",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": true
     },
     {
       "id": "book-thesis",
@@ -45,7 +51,9 @@
         "book",
         "thesis"
       ],
-      "venue": "generic"
+      "venue": "generic",
+      "verified": true,
+      "featured": true
     },
     {
       "id": "arxiv-preprint",
@@ -56,7 +64,9 @@
         "arxiv",
         "preprint"
       ],
-      "venue": "arxiv"
+      "venue": "arxiv",
+      "verified": true,
+      "featured": true
     },
     {
       "id": "nature-letter",
@@ -67,7 +77,9 @@
         "nature",
         "letter"
       ],
-      "venue": "nature"
+      "venue": "nature",
+      "verified": true,
+      "featured": true
     },
     {
       "id": "acm-sigconf",
@@ -78,7 +90,9 @@
         "acm",
         "conference"
       ],
-      "venue": "acm"
+      "venue": "acm",
+      "verified": true,
+      "featured": true
     },
     {
       "id": "review-response",
@@ -89,7 +103,9 @@
         "review",
         "letter"
       ],
-      "venue": "generic"
+      "venue": "generic",
+      "verified": true,
+      "featured": true
     },
     {
       "id": "lit-review-outline",
@@ -100,7 +116,9 @@
         "review",
         "outline"
       ],
-      "venue": "generic"
+      "venue": "generic",
+      "verified": true,
+      "featured": true
     },
     {
       "id": "grant-proposal",
@@ -110,7 +128,9 @@
       "tags": [
         "grant"
       ],
-      "venue": "generic"
+      "venue": "generic",
+      "verified": true,
+      "featured": true
     },
     {
       "id": "beamer-slides",
@@ -122,7 +142,9 @@
         "beamer"
       ],
       "venue": "generic",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": true
     },
     {
       "id": "two-column-article",
@@ -133,7 +155,9 @@
         "article",
         "two-column"
       ],
-      "venue": "generic"
+      "venue": "generic",
+      "verified": true,
+      "featured": true
     },
     {
       "id": "starter-001",
@@ -146,7 +170,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-002",
@@ -159,7 +185,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-003",
@@ -172,7 +200,9 @@
         "conference"
       ],
       "venue": "ieee",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-004",
@@ -185,7 +215,9 @@
         "thesis"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-005",
@@ -198,7 +230,9 @@
         "preprint"
       ],
       "venue": "arxiv",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-006",
@@ -211,7 +245,9 @@
         "letter"
       ],
       "venue": "nature",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-007",
@@ -224,7 +260,9 @@
         "conference"
       ],
       "venue": "acm",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-008",
@@ -237,7 +275,9 @@
         "letter"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-009",
@@ -250,7 +290,9 @@
         "outline"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-010",
@@ -262,7 +304,9 @@
         "grant"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-011",
@@ -275,7 +319,9 @@
         "beamer"
       ],
       "venue": "generic",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-012",
@@ -288,7 +334,9 @@
         "two-column"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-013",
@@ -301,7 +349,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-014",
@@ -314,7 +364,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-015",
@@ -327,7 +379,9 @@
         "conference"
       ],
       "venue": "ieee",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-016",
@@ -340,7 +394,9 @@
         "thesis"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-017",
@@ -353,7 +409,9 @@
         "preprint"
       ],
       "venue": "arxiv",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-018",
@@ -366,7 +424,9 @@
         "letter"
       ],
       "venue": "nature",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-019",
@@ -379,7 +439,9 @@
         "conference"
       ],
       "venue": "acm",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-020",
@@ -392,7 +454,9 @@
         "letter"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-021",
@@ -405,7 +469,9 @@
         "outline"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-022",
@@ -417,7 +483,9 @@
         "grant"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-023",
@@ -430,7 +498,9 @@
         "beamer"
       ],
       "venue": "generic",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-024",
@@ -443,7 +513,9 @@
         "two-column"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-025",
@@ -456,7 +528,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-026",
@@ -469,7 +543,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-027",
@@ -482,7 +558,9 @@
         "conference"
       ],
       "venue": "ieee",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-028",
@@ -495,7 +573,9 @@
         "thesis"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-029",
@@ -508,7 +588,9 @@
         "preprint"
       ],
       "venue": "arxiv",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-030",
@@ -521,7 +603,9 @@
         "letter"
       ],
       "venue": "nature",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-031",
@@ -534,7 +618,9 @@
         "conference"
       ],
       "venue": "acm",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-032",
@@ -547,7 +633,9 @@
         "letter"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-033",
@@ -560,7 +648,9 @@
         "outline"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-034",
@@ -572,7 +662,9 @@
         "grant"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-035",
@@ -585,7 +677,9 @@
         "beamer"
       ],
       "venue": "generic",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-036",
@@ -598,7 +692,9 @@
         "two-column"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-037",
@@ -611,7 +707,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-038",
@@ -624,7 +722,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-039",
@@ -637,7 +737,9 @@
         "conference"
       ],
       "venue": "ieee",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-040",
@@ -650,7 +752,9 @@
         "thesis"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-041",
@@ -663,7 +767,9 @@
         "preprint"
       ],
       "venue": "arxiv",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-042",
@@ -676,7 +782,9 @@
         "letter"
       ],
       "venue": "nature",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-043",
@@ -689,7 +797,9 @@
         "conference"
       ],
       "venue": "acm",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-044",
@@ -702,7 +812,9 @@
         "letter"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-045",
@@ -715,7 +827,9 @@
         "outline"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-046",
@@ -727,7 +841,9 @@
         "grant"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-047",
@@ -740,7 +856,9 @@
         "beamer"
       ],
       "venue": "generic",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-048",
@@ -753,7 +871,9 @@
         "two-column"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-049",
@@ -766,7 +886,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-050",
@@ -779,7 +901,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-051",
@@ -792,7 +916,9 @@
         "conference"
       ],
       "venue": "ieee",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-052",
@@ -805,7 +931,9 @@
         "thesis"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-053",
@@ -818,7 +946,9 @@
         "preprint"
       ],
       "venue": "arxiv",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-054",
@@ -831,7 +961,9 @@
         "letter"
       ],
       "venue": "nature",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-055",
@@ -844,7 +976,9 @@
         "conference"
       ],
       "venue": "acm",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-056",
@@ -857,7 +991,9 @@
         "letter"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-057",
@@ -870,7 +1006,9 @@
         "outline"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-058",
@@ -882,7 +1020,9 @@
         "grant"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-059",
@@ -895,7 +1035,9 @@
         "beamer"
       ],
       "venue": "generic",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-060",
@@ -908,7 +1050,9 @@
         "two-column"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-061",
@@ -921,7 +1065,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-062",
@@ -934,7 +1080,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-063",
@@ -947,7 +1095,9 @@
         "conference"
       ],
       "venue": "ieee",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-064",
@@ -960,7 +1110,9 @@
         "thesis"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-065",
@@ -973,7 +1125,9 @@
         "preprint"
       ],
       "venue": "arxiv",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-066",
@@ -986,7 +1140,9 @@
         "letter"
       ],
       "venue": "nature",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-067",
@@ -999,7 +1155,9 @@
         "conference"
       ],
       "venue": "acm",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-068",
@@ -1012,7 +1170,9 @@
         "letter"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-069",
@@ -1025,7 +1185,9 @@
         "outline"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-070",
@@ -1037,7 +1199,9 @@
         "grant"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-071",
@@ -1050,7 +1214,9 @@
         "beamer"
       ],
       "venue": "generic",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-072",
@@ -1063,7 +1229,9 @@
         "two-column"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-073",
@@ -1076,7 +1244,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-074",
@@ -1089,7 +1259,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-075",
@@ -1102,7 +1274,9 @@
         "conference"
       ],
       "venue": "ieee",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-076",
@@ -1115,7 +1289,9 @@
         "thesis"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-077",
@@ -1128,7 +1304,9 @@
         "preprint"
       ],
       "venue": "arxiv",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-078",
@@ -1141,7 +1319,9 @@
         "letter"
       ],
       "venue": "nature",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-079",
@@ -1154,7 +1334,9 @@
         "conference"
       ],
       "venue": "acm",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-080",
@@ -1167,7 +1349,9 @@
         "letter"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-081",
@@ -1180,7 +1364,9 @@
         "outline"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-082",
@@ -1192,7 +1378,9 @@
         "grant"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-083",
@@ -1205,7 +1393,9 @@
         "beamer"
       ],
       "venue": "generic",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-084",
@@ -1218,7 +1408,9 @@
         "two-column"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-085",
@@ -1231,7 +1423,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-086",
@@ -1244,7 +1438,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-087",
@@ -1257,7 +1453,9 @@
         "conference"
       ],
       "venue": "ieee",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-088",
@@ -1270,7 +1468,9 @@
         "thesis"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-089",
@@ -1283,7 +1483,9 @@
         "preprint"
       ],
       "venue": "arxiv",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-090",
@@ -1296,7 +1498,9 @@
         "letter"
       ],
       "venue": "nature",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-091",
@@ -1309,7 +1513,9 @@
         "conference"
       ],
       "venue": "acm",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-092",
@@ -1322,7 +1528,9 @@
         "letter"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-093",
@@ -1335,7 +1543,9 @@
         "outline"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-094",
@@ -1347,7 +1557,9 @@
         "grant"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-095",
@@ -1360,7 +1572,9 @@
         "beamer"
       ],
       "venue": "generic",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-096",
@@ -1373,7 +1587,9 @@
         "two-column"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-097",
@@ -1386,7 +1602,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-098",
@@ -1399,7 +1617,9 @@
         "wasm"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-099",
@@ -1412,7 +1632,9 @@
         "conference"
       ],
       "venue": "ieee",
-      "requiresLocalTex": true
+      "requiresLocalTex": true,
+      "verified": true,
+      "featured": false
     },
     {
       "id": "starter-100",
@@ -1425,7 +1647,9 @@
         "thesis"
       ],
       "venue": "generic",
-      "requiresLocalTex": false
+      "requiresLocalTex": false,
+      "verified": true,
+      "featured": false
     }
   ],
   "packAliases": {

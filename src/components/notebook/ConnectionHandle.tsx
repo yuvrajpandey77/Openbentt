@@ -20,10 +20,10 @@ type ConnectionHandleProps = {
 };
 
 const KIND_COLORS: Record<ConnectionHandleKind, string> = {
-  "chat-tex": "bg-sky-500 border-sky-300 shadow-sky-500/40",
-  "chat-pdf": "bg-violet-500 border-violet-300 shadow-violet-500/40",
-  "tex-tab": "bg-emerald-500 border-emerald-300 shadow-emerald-500/40",
-  "pdf-preview": "bg-amber-500 border-amber-300 shadow-amber-500/40",
+  "chat-tex": "bg-primary border-primary/60 shadow-primary/40",
+  "chat-pdf": "bg-primary border-primary/60 shadow-primary/40",
+  "tex-tab": "bg-primary border-primary/60 shadow-primary/40",
+  "pdf-preview": "bg-primary border-primary/60 shadow-primary/40",
 };
 
 const DEFAULT_TOOLTIPS: Record<ConnectionHandleKind, string> = {
@@ -69,7 +69,7 @@ export function ConnectionHandle({
         KIND_COLORS[kind],
         connected && "ring-2 ring-primary/70 ring-offset-2 ring-offset-background",
         (active || highlight) && "scale-110 ring-2 ring-white/70 animate-pulse",
-        snapHighlight && "scale-125 ring-2 ring-emerald-300/90 shadow-lg shadow-emerald-500/50",
+        snapHighlight && "scale-125 ring-2 ring-primary/90 shadow-lg shadow-primary/50",
         className
       )}
       onPointerDown={onPointerDown}

@@ -1,5 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Bold, Italic, Heading2, Sigma, List, Table2, ImageIcon, Quote } from "lucide-react";
 
 type NotebookLatexToolbarProps = {
@@ -36,14 +42,7 @@ export function NotebookLatexToolbar({ onInsert, onInsertAsset, bibKeys = [] }: 
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onMouseDown={keepEditorFocus}
-            onClick={() => onInsert("\\section{Title}\n")}
-          >
+          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onMouseDown={keepEditorFocus} onClick={() => onInsert("\\section{Title}\n")}>
             <Heading2 className="h-3.5 w-3.5" />
           </Button>
         </TooltipTrigger>
@@ -51,14 +50,7 @@ export function NotebookLatexToolbar({ onInsert, onInsertAsset, bibKeys = [] }: 
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onMouseDown={keepEditorFocus}
-            onClick={() => onInsert("\\[\n  \n\\]\n", 3)}
-          >
+          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onMouseDown={keepEditorFocus} onClick={() => onInsert("\\[\n  \n\\]\n", 3)}>
             <Sigma className="h-3.5 w-3.5" />
           </Button>
         </TooltipTrigger>
@@ -66,14 +58,7 @@ export function NotebookLatexToolbar({ onInsert, onInsertAsset, bibKeys = [] }: 
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onMouseDown={keepEditorFocus}
-            onClick={() => onInsert("\\begin{itemize}\n  \\item \n\\end{itemize}\n", 22)}
-          >
+          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onMouseDown={keepEditorFocus} onClick={() => onInsert("\\begin{itemize}\n  \\item \n\\end{itemize}\n", 22)}>
             <List className="h-3.5 w-3.5" />
           </Button>
         </TooltipTrigger>
@@ -109,23 +94,31 @@ export function NotebookLatexToolbar({ onInsert, onInsertAsset, bibKeys = [] }: 
           <TooltipContent>Insert figure from assets</TooltipContent>
         </Tooltip>
       )}
-      {bibKeys[0] && (
+      {bibKeys.length > 1 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onMouseDown={keepEditorFocus} title="Insert cite from references.bib">
+              <Quote className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="max-h-48 overflow-y-auto">
+            {bibKeys.map((key) => (
+              <DropdownMenuItem key={key} onClick={() => onInsert(`\\cite{${key}}`)}>
+                \\cite&#123;{key}&#125;
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : bibKeys[0] ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7"
-              onMouseDown={keepEditorFocus}
-              onClick={() => onInsert(`\\cite{${bibKeys[0]}}`)}
-            >
+            <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onMouseDown={keepEditorFocus} onClick={() => onInsert(`\\cite{${bibKeys[0]}}`)}>
               <Quote className="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Cite ({bibKeys[0]})</TooltipContent>
+          <TooltipContent>Insert \\cite&#123;{bibKeys[0]}&#125;</TooltipContent>
         </Tooltip>
-      )}
+      ) : null}
     </div>
   );
 }

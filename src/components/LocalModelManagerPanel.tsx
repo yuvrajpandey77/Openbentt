@@ -173,7 +173,7 @@ export function LocalModelManagerPanel() {
                       {formatBytes(m.storage.bytesOnDisk)} · {m.quantization ?? "GGUF"} ·{" "}
                       {m.performance.speedLabel}
                     </p>
-                    {warn && <p className="text-amber-600 dark:text-amber-400">{warn}</p>}
+                    {warn && <p className="text-primary">{warn}</p>}
                   </div>
                   <Badge variant={avail?.state === "ready" ? "secondary" : "outline"}>
                     {avail?.state ?? "unknown"}

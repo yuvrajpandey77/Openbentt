@@ -151,8 +151,8 @@ const DownloadPage: React.FC = () => {
 
             {!loading && release && !release.hasInstallers && (
               <MarketingReveal delay={40} className="mt-8">
-                <div className="flex max-w-2xl gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-foreground">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <div className="flex max-w-2xl gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm text-foreground">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <div>
                     <p className="font-medium">Installers not published yet</p>
                     <p className="mt-1 text-muted-foreground">

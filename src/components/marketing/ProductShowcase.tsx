@@ -11,9 +11,9 @@ export function ProductShowcase({ className }: { className?: string }) {
       aria-hidden
     >
       <div className="flex items-center gap-2 border-b border-border/60 bg-muted/40 px-3 py-2.5">
-        <span className="h-2.5 w-2.5 rounded-full bg-red-400/80" />
-        <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
-        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+        <span className="h-2.5 w-2.5 rounded-full bg-primary/50" />
+        <span className="h-2.5 w-2.5 rounded-full bg-primary/70" />
+        <span className="h-2.5 w-2.5 rounded-full bg-primary/90" />
         <span className="ml-2 flex-1 rounded-md bg-background/80 px-3 py-1 text-center font-mono text-[10px] text-muted-foreground">
           openbentt workspace
         </span>

@@ -280,7 +280,7 @@ const LocalGgufHub: React.FC = () => {
 
   if (!api) {
     return (
-      <Card className="border-dashed border-amber-500/40 p-6 text-sm text-muted-foreground">
+      <Card className="border-dashed border-primary/40 p-6 text-sm text-muted-foreground">
         Local GGUF runs in the <strong className="text-foreground">Openbentt desktop</strong> app only. Launch via{" "}
         <code className="rounded bg-muted px-1 py-0.5 text-[11px]">npm run electron:dev:safe</code> or the installed app.
       </Card>
@@ -314,9 +314,9 @@ const LocalGgufHub: React.FC = () => {
             <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
               <li className="flex items-center gap-2">
                 {llamaOk ? (
-                  <CheckCircle2 className="h-4 w-4 text-teal-600" />
+                  <CheckCircle2 className="h-4 w-4 text-primary" />
                 ) : (
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertTriangle className="h-4 w-4 text-primary" />
                 )}
                 <span>
                   llama-server
@@ -329,12 +329,12 @@ const LocalGgufHub: React.FC = () => {
                 </span>
               </li>
               <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-teal-600" />
+                <CheckCircle2 className="h-4 w-4 text-primary" />
                 <span>Policy: max {apiConfig.localGgufMaxParamB}B parameters</span>
               </li>
               <li className="flex items-center gap-2">
                 {diskQuery.data?.bytes != null ? (
-                  <CheckCircle2 className="h-4 w-4 text-teal-600" />
+                  <CheckCircle2 className="h-4 w-4 text-primary" />
                 ) : (
                   <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                 )}
@@ -342,7 +342,7 @@ const LocalGgufHub: React.FC = () => {
               </li>
               <li className="flex items-center gap-2">
                 {entries.length > 0 ? (
-                  <CheckCircle2 className="h-4 w-4 text-teal-600" />
+                  <CheckCircle2 className="h-4 w-4 text-primary" />
                 ) : (
                   <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                 )}
@@ -350,7 +350,7 @@ const LocalGgufHub: React.FC = () => {
               </li>
             </ul>
             {!llamaOk ? (
-              <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] p-3 text-xs text-amber-900 dark:text-amber-200">
+              <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/[0.06] p-3 text-xs text-foreground">
                 <p className="font-medium text-foreground">llama-server not found</p>
                 <ol className="list-decimal space-y-1 pl-4 text-muted-foreground">
                   <li>
@@ -472,7 +472,7 @@ const LocalGgufHub: React.FC = () => {
                 {filesQuery.isFetching ? (
                   <p className="text-xs text-muted-foreground">Listing files…</p>
                 ) : filteredFiles.allowed.length === 0 ? (
-                  <p className="text-xs text-amber-600">
+                  <p className="text-xs text-primary">
                     No files pass the safety filter for this repo. Try another model or raise the limit in Settings (max
                     16B).
                   </p>
@@ -505,7 +505,7 @@ const LocalGgufHub: React.FC = () => {
                   <p className="text-xs text-destructive">{downloadVerdict.reason}</p>
                 ) : null}
                 {gated ? (
-                  <p className="text-xs text-amber-600">Gated repo — HF token required in Settings.</p>
+                  <p className="text-xs text-primary">Gated repo — HF token required in Settings.</p>
                 ) : null}
                 <Button
                   type="button"

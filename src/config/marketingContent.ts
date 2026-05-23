@@ -62,25 +62,25 @@ export const heroPrinciples: HeroPrinciple[] = [
     title: "Local by default",
     description: "Inference and chat history stay on your machine.",
     icon: Shield,
-    iconClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    iconClassName: "bg-primary/10 text-primary",
   },
   {
     title: "No cloud layer",
     description: "No accounts required. No prompt retention on our servers.",
     icon: CloudOff,
-    iconClassName: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+    iconClassName: "bg-primary/10 text-primary dark:text-primary",
   },
   {
     title: "Runs on your hardware",
     description: "GGUF, WebGPU, CPU, and GPU. You choose the runtime.",
     icon: Cpu,
-    iconClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    iconClassName: "bg-primary/10 text-primary",
   },
   {
     title: "Compare models",
     description: "Side-by-side replies with latency and token metrics.",
     icon: GitCompare,
-    iconClassName: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    iconClassName: "bg-primary/10 text-primary dark:text-primary",
   },
   {
     title: "Your local models",
@@ -125,7 +125,7 @@ export const exploreItems: ExploreItem[] = [
     summary: "LaTeX writing prompts and apply-to-source in Notebook.",
     href: "#meridian",
     icon: FileText,
-    iconClassName: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+    iconClassName: "bg-primary/10 text-primary dark:text-primary",
   },
   {
     id: "notebook",
@@ -133,7 +133,7 @@ export const exploreItems: ExploreItem[] = [
     summary: "LaTeX source, live PDF preview, and document uploads.",
     href: "#notebook",
     icon: BookOpen,
-    iconClassName: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    iconClassName: "bg-primary/10 text-primary dark:text-primary",
   },
   {
     id: "model-arena",
@@ -141,7 +141,7 @@ export const exploreItems: ExploreItem[] = [
     summary: "Compare models on one prompt with latency and tokens/s.",
     href: "#model-arena",
     icon: GitCompare,
-    iconClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    iconClassName: "bg-primary/10 text-primary",
   },
   {
     id: "desktop-gguf",
@@ -149,7 +149,7 @@ export const exploreItems: ExploreItem[] = [
     summary: "Offline weights and bundled llama-server on desktop.",
     href: "#desktop-gguf",
     icon: HardDrive,
-    iconClassName: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    iconClassName: "bg-primary/10 text-primary",
   },
   {
     id: "research",

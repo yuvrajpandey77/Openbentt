@@ -394,7 +394,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         {!isStudio && <LocalOnDeviceModelBar />}
 
         {isStudio && !canSendChat(apiConfig) && !isLoadingConfig && (
-          <Alert variant="default" className="border-amber-500/40 bg-amber-500/5 py-2">
+          <Alert variant="default" className="border-primary/40 bg-primary/5 py-2">
             <AlertTitle className="text-xs">Set up AI to send messages</AlertTitle>
             <AlertDescription className="text-[11px]">
               {apiConfig.aiProvider === "local_gguf"
@@ -415,7 +415,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
           apiConfig.aiProvider === "local_gguf" &&
           canSendChat(apiConfig) &&
           !parseGgufRegistryId(apiConfig.model) && (
-            <Alert variant="default" className="border-amber-500/40 bg-amber-500/5">
+            <Alert variant="default" className="border-primary/40 bg-primary/5">
               <AlertTitle className="text-sm">Local model not selected</AlertTitle>
               <AlertDescription className="text-xs">
                 Download a GGUF in{" "}
@@ -428,7 +428,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
           )}
 
         {(apiConfig.braveSearchApiKey || apiConfig.researchProxyUrl) && (
-          <Alert variant="default" className="border-amber-500/40 bg-amber-500/5">
+          <Alert variant="default" className="border-primary/40 bg-primary/5">
             <AlertTitle className="text-sm">API keys in browser</AlertTitle>
             <AlertDescription className="text-xs text-muted-foreground">
               Keys are in localStorage. Brave Search only works through a server proxy (browser CORS).

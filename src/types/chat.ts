@@ -78,6 +78,8 @@ export interface Message {
   researchSources?: ResearchSourceRef[];
   /** Pipeline steps (research, tools) for advanced users */
   agentTrace?: AgentTraceStep[];
+  /** True while tokens are still streaming for this assistant message */
+  streaming?: boolean;
 }
 
 export interface Chat {

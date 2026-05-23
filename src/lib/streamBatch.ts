@@ -1,16 +1,25 @@
-/** Batch streaming character deltas — flush every animation frame, or sooner if buffer grows large (snappier UI). */
+/** Batch streaming character deltas — flush on size threshold or time throttle (reduces React re-renders). */
 
-const DEFAULT_FLUSH_CHARS = 96;
+const DEFAULT_FLUSH_CHARS = 192;
+const DEFAULT_FLUSH_MS = 80;
 
-export function createRafBatcher(onFlush: (chunk: string) => void, flushChars: number = DEFAULT_FLUSH_CHARS) {
+export function createRafBatcher(
+  onFlush: (chunk: string) => void,
+  flushChars: number = DEFAULT_FLUSH_CHARS,
+  flushMs: number = DEFAULT_FLUSH_MS
+) {
   let buf = "";
-  let raf: number | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const clearScheduled = () => {
+    if (timer != null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
 
   const flush = () => {
-    if (raf != null) {
-      cancelAnimationFrame(raf);
-      raf = null;
-    }
+    clearScheduled();
     if (buf.length === 0) return;
     const s = buf;
     buf = "";
@@ -18,14 +27,14 @@ export function createRafBatcher(onFlush: (chunk: string) => void, flushChars: n
   };
 
   const schedule = () => {
-    if (raf != null) return;
-    raf = requestAnimationFrame(() => {
-      raf = null;
+    if (timer != null) return;
+    timer = setTimeout(() => {
+      timer = null;
       if (buf.length === 0) return;
       const s = buf;
       buf = "";
       onFlush(s);
-    });
+    }, flushMs);
   };
 
   return {

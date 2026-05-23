@@ -8,9 +8,9 @@ type FeatureShowcaseVisualProps = {
 function WindowChrome({ title }: { title: string }) {
   return (
     <div className="flex items-center gap-2 border-b border-border/60 bg-muted/40 px-3 py-2.5">
-      <span className="h-2.5 w-2.5 rounded-full bg-red-400/80" />
-      <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
-      <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+      <span className="h-2.5 w-2.5 rounded-full bg-primary/50" />
+      <span className="h-2.5 w-2.5 rounded-full bg-primary/70" />
+      <span className="h-2.5 w-2.5 rounded-full bg-primary/90" />
       <span className="ml-2 flex-1 truncate rounded-md bg-background/80 px-3 py-1 text-center font-mono text-[10px] text-muted-foreground">
         {title}
       </span>
@@ -58,7 +58,7 @@ function MeridianVisual() {
           <ShimmerBar className="w-5/6" delay={160} />
           <ShimmerBar className="w-2/3" delay={240} />
         </div>
-        <span className="marketing-compile-dot absolute bottom-4 right-4 rounded-full bg-emerald-500/80 px-2 py-0.5 text-[9px] font-medium text-white">
+        <span className="marketing-compile-dot absolute bottom-4 right-4 rounded-full bg-primary px-2 py-0.5 text-[9px] font-medium text-white">
           Compiled
         </span>
       </div>
@@ -135,7 +135,7 @@ function DesktopGgufVisual() {
     <div className="min-h-[300px] p-4 md:min-h-[340px]">
       <div className="mb-3 flex items-center justify-between">
         <p className="font-mono text-[10px] text-muted-foreground">Local GGUF hub</p>
-        <span className="marketing-offline-glow rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-medium text-emerald-600 dark:text-emerald-400">
+        <span className="marketing-offline-glow rounded-full bg-primary/15 px-2 py-0.5 text-[9px] font-medium text-primary">
           Offline ready
         </span>
       </div>

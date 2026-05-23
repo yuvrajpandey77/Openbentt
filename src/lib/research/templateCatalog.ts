@@ -8,6 +8,10 @@ export type TemplateCatalogEntry = {
   tags?: string[];
   venue?: TargetVenue;
   requiresLocalTex?: boolean;
+  /** Compile-verified hero template (Local TeX or WASM). */
+  verified?: boolean;
+  /** Show on projects home featured row. */
+  featured?: boolean;
 };
 
 export type TemplateCatalog = {
@@ -47,14 +51,34 @@ export async function loadTemplatePack(packFile: string): Promise<TemplatePack> 
 
 export function filterCatalogEntries(
   catalog: TemplateCatalog,
-  query: string
+  query: string,
+  opts?: { featuredOnly?: boolean; verifiedOnly?: boolean }
 ): TemplateCatalogEntry[] {
+  let list = catalog.templates;
+  if (opts?.featuredOnly) list = list.filter((t) => t.featured);
+  if (opts?.verifiedOnly) list = list.filter((t) => t.verified || !t.requiresLocalTex);
   const q = query.trim().toLowerCase();
-  if (!q) return catalog.templates;
-  return catalog.templates.filter(
+  if (!q) return list;
+  return list.filter(
     (t) =>
       t.label.toLowerCase().includes(q) ||
       t.description.toLowerCase().includes(q) ||
       t.tags?.some((tag) => tag.toLowerCase().includes(q))
   );
+}
+
+/** One representative entry per pack (prefer featured + verified). */
+export function featuredTemplateEntries(catalog: TemplateCatalog): TemplateCatalogEntry[] {
+  const byPack = new Map<string, TemplateCatalogEntry>();
+  for (const t of catalog.templates) {
+    if (!t.featured && !t.verified) continue;
+    const cur = byPack.get(t.pack);
+    if (!cur || (t.featured && !cur.featured)) byPack.set(t.pack, t);
+  }
+  if (byPack.size > 0) return [...byPack.values()];
+  const fallback = new Map<string, TemplateCatalogEntry>();
+  for (const t of catalog.templates) {
+    if (!fallback.has(t.pack)) fallback.set(t.pack, t);
+  }
+  return [...fallback.values()];
 }

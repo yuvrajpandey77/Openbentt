@@ -7,12 +7,14 @@ import type { Components } from "react-markdown";
 import { MarkdownCodeBlock } from "@/components/MarkdownCodeBlock";
 import { highlightInReactChildren } from "@/lib/highlightSearch";
 import type { ReactNode } from "react";
+import { ChatStreamingCursor, ChatThinkingIndicator } from "@/components/ChatThinkingIndicator";
 
 interface AssistantContentProps {
   content: string;
   streaming?: boolean;
   /** When set (e.g. thread search), matching text is highlighted; fenced code blocks are skipped. */
   highlightQuery?: string;
+  compact?: boolean;
 }
 
 function makeMarkdownComponents(highlightQuery: string | undefined): Components {
@@ -120,16 +122,37 @@ function makeMarkdownComponents(highlightQuery: string | undefined): Components 
 }
 
 /** Renders markdown (GFM tables, lists) with optional ```openbentt-chart``` JSON blocks as live charts. */
-export const AssistantContent: React.FC<AssistantContentProps> = ({ content, streaming, highlightQuery }) => {
+export const AssistantContent: React.FC<AssistantContentProps> = ({
+  content,
+  streaming,
+  highlightQuery,
+  compact,
+}) => {
   const { displayText, charts } = extractChartBlocks(content);
   const markdownComponents = useMemo(() => makeMarkdownComponents(highlightQuery), [highlightQuery]);
+  const waitingForTokens = streaming && !displayText.trim();
+
+  if (waitingForTokens) {
+    return <ChatThinkingIndicator compact={compact} />;
+  }
+
+  if (streaming) {
+    return (
+      <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
+        <p className="m-0 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+          {displayText || "\u00a0"}
+          {displayText.trim() ? <ChatStreamingCursor /> : null}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-2">
       <div className="prose prose-sm max-w-none text-foreground dark:prose-invert prose-p:leading-relaxed prose-headings:scroll-mt-20 prose-p:text-foreground prose-headings:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-td:text-foreground">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-          {displayText || (streaming ? "" : "\u00a0")}
+          {displayText || "\u00a0"}
         </ReactMarkdown>
-        {streaming && !displayText && <span className="inline-block w-0.5 h-4 bg-primary typing-cursor ml-1" />}
       </div>
       {charts.length > 0 && <OpenbenttChartViews charts={charts} />}
     </div>

@@ -150,7 +150,7 @@ const WebGpuPage: React.FC = () => {
 
         <Card className="p-4 space-y-2">
           <h2 className="font-semibold">Adapter</h2>
-          {noWebGpu && <p className="text-sm text-amber-600">{noWebGpu}</p>}
+          {noWebGpu && <p className="text-sm text-primary">{noWebGpu}</p>}
           {gpu && (
             <div className="text-sm space-y-1 font-mono">
               <div>Vendor: {gpu.vendor ?? "—"}</div>

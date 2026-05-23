@@ -4,7 +4,7 @@ import { MarkdownCodeBlock } from "@/components/MarkdownCodeBlock";
 
 /** Visible search hit (yellow/amber) — works in light and dark. */
 export const SEARCH_HIGHLIGHT_MARK_CLASS =
-  "rounded-sm bg-amber-200 px-0.5 text-inherit ring-1 ring-amber-300/70 dark:bg-yellow-500/40 dark:ring-yellow-400/30";
+  "rounded-sm bg-primary/20 px-0.5 text-inherit ring-1 ring-primary/30 dark:bg-primary/40 dark:ring-primary/30";
 
 /** Wrap all case-insensitive occurrences of `query` in `<mark>`. */
 export function highlightSearchInText(text: string, query: string): ReactNode {

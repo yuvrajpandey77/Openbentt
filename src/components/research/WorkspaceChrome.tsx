@@ -107,7 +107,7 @@ export function WorkspaceChrome() {
             <span
               className={cn(
                 "hidden text-[10px] tabular-nums sm:inline",
-                draftSaveStatus === "dirty" && "text-amber-600 dark:text-amber-400",
+                draftSaveStatus === "dirty" && "text-primary",
                 draftSaveStatus === "saving" && "text-muted-foreground",
                 draftSaveStatus === "saved" && "text-muted-foreground",
                 draftSaveStatus === "error" && "text-destructive"

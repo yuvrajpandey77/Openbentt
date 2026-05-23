@@ -21,8 +21,8 @@ function DiffRow({ row }: { row: LineDiffRow }) {
     <div
       className={cn(
         "flex items-start gap-2 rounded px-1 py-0.5 font-mono text-[11px] leading-snug",
-        row.kind === "add" && "bg-emerald-500/15 text-emerald-900 dark:text-emerald-100",
-        row.kind === "remove" && "bg-rose-500/15 text-rose-900 line-through dark:text-rose-100",
+        row.kind === "add" && "bg-primary/15 text-foreground",
+        row.kind === "remove" && "bg-muted/40 text-muted-foreground line-through",
         row.kind === "equal" && "text-muted-foreground"
       )}
     >

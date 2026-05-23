@@ -123,7 +123,7 @@ export const ProviderQuotaMeter: React.FC = () => {
                 "rounded border px-2 py-1.5 text-[11px] leading-snug",
                 limitStatus === 429
                   ? "border-destructive/50 bg-destructive/10 text-destructive"
-                  : "border-amber-600/40 bg-amber-500/10 text-amber-900 dark:text-amber-100"
+                  : "border-primary/40 bg-primary/10 text-foreground"
               )}
             >
               <span className="font-semibold">{limitStatus === 429 ? "Limit reached" : "Request failed"}:</span>{" "}
@@ -142,7 +142,7 @@ export const ProviderQuotaMeter: React.FC = () => {
                 <p className="opacity-90">Usage today: {keyInfo.usage_daily.toFixed(4)} credits</p>
               )}
               {keyInfo?.is_free_tier === true && (
-                <p className="text-amber-700 dark:text-amber-400">Account: free tier (OpenRouter)</p>
+                <p className="text-primary">Account: free tier (OpenRouter)</p>
               )}
             </div>
           )}

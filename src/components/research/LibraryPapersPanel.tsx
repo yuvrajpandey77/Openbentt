@@ -41,7 +41,7 @@ export function LibraryPapersPanel() {
           {project.papers.length} / {LIMITS.maxPapers} papers
         </span>
         {projectPressure?.level !== "ok" && (
-          <span className="text-xs text-amber-600 dark:text-amber-400">Large library — indexing may take longer</span>
+          <span className="text-xs text-primary">Large library — indexing may take longer</span>
         )}
       </div>
       {project.papers.length === 0 ? (

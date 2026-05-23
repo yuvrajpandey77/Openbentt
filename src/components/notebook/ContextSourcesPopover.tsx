@@ -39,16 +39,16 @@ export function ContextSourcesPopover({
         <p className="mb-2 font-medium text-foreground">Chat context sources</p>
         <ul className="space-y-1">
           {texFileKeys.map((key) => (
-            <li key={key} className="flex items-center justify-between gap-2 rounded bg-sky-500/10 px-2 py-1">
-              <span className="truncate text-sky-700 dark:text-sky-300">LaTeX · {texLabel(key)}</span>
+            <li key={key} className="flex items-center justify-between gap-2 rounded bg-primary/10 px-2 py-1">
+              <span className="truncate text-primary">LaTeX · {texLabel(key)}</span>
               <button type="button" className="shrink-0 text-muted-foreground hover:text-foreground" onClick={() => onDisconnectTex(key)}>
                 ×
               </button>
             </li>
           ))}
           {pdfPaperIds.map((id) => (
-            <li key={id} className="flex items-center justify-between gap-2 rounded bg-violet-500/10 px-2 py-1">
-              <span className="truncate text-violet-700 dark:text-violet-300">PDF · {pdfLabel(id)}</span>
+            <li key={id} className="flex items-center justify-between gap-2 rounded bg-primary/10 px-2 py-1">
+              <span className="truncate text-primary">PDF · {pdfLabel(id)}</span>
               <button type="button" className="shrink-0 text-muted-foreground hover:text-foreground" onClick={() => onDisconnectPdf(id)}>
                 ×
               </button>

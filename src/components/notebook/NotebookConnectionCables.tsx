@@ -15,7 +15,7 @@ function bezierPath(a: Point, b: Point): string {
 }
 
 const CABLE_COLORS = {
-  tex: "#0ea5e9",
+  tex: "#8b5cf6",
   pdf: "#8b5cf6",
 } as const;
 

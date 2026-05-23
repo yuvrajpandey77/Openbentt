@@ -31,7 +31,7 @@ export function DraftSaveStatus() {
     >
       <Icon
         className={`h-3.5 w-3.5 shrink-0 ${draftSaveStatus === "saving" ? "animate-spin" : ""} ${
-          draftSaveStatus === "saved" ? "text-emerald-600 dark:text-emerald-400" : ""
+          draftSaveStatus === "saved" ? "text-primary" : ""
         }`}
         aria-hidden
       />

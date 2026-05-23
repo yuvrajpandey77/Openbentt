@@ -44,6 +44,8 @@ import {
   SYSTEM_FOLDER_IDS,
 } from "@/lib/research/folderMigration";
 import { TemplateGallery } from "@/components/notebook/TemplateGallery";
+import { NotebookPaneSettingsDock } from "@/components/notebook/NotebookPaneSettingsDock";
+import { AppSettingsDialog } from "@/components/AppSettingsDialog";
 import { applyTemplatePack } from "@/lib/research/applyTemplate";
 import { loadTemplatePack, type TemplateCatalogEntry } from "@/lib/research/templateCatalog";
 import { useToast } from "@/hooks/use-toast";
@@ -63,6 +65,7 @@ import {
   FolderPlus,
   Pencil,
   Plus,
+  Settings,
   Trash2,
 } from "lucide-react";
 
@@ -217,10 +220,10 @@ function TreeRow({
         )}
         <span className="min-w-0 flex-1 truncate">{node.label}</span>
         {node.reviewStatus === "reviewed" && (
-          <span className="rounded bg-emerald-500/15 px-1 text-[9px] text-emerald-700 dark:text-emerald-300">✓</span>
+          <span className="rounded bg-primary/15 px-1 text-[9px] text-primary">✓</span>
         )}
         {node.reviewStatus === "reviewing" && (
-          <span className="rounded bg-amber-500/15 px-1 text-[9px] text-amber-700 dark:text-amber-300">…</span>
+          <span className="rounded bg-primary/15 px-1 text-[9px] text-primary">…</span>
         )}
       </button>
   );
@@ -660,6 +663,17 @@ export function NotebookFileTree({
           <Plus className="h-3.5 w-3.5" />
           New file…
         </Button>
+        <div className="flex gap-1.5">
+          <AppSettingsDialog
+            trigger={
+              <Button type="button" variant="outline" size="sm" className="h-8 min-w-0 flex-1 gap-1 text-xs">
+                <Settings className="h-3.5 w-3.5 shrink-0" />
+                Settings
+              </Button>
+            }
+          />
+          <NotebookPaneSettingsDock embedded layout="sidebar" className="min-w-0 flex-1" />
+        </div>
         <p className="text-[10px] text-muted-foreground">
           <kbd className="rounded border px-1">J</kbd>/<kbd className="rounded border px-1">K</kbd> next/prev PDF
         </p>

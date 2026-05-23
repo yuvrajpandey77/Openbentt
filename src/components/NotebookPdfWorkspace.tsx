@@ -16,6 +16,7 @@ import { renderPdfPages } from "@/lib/pdfCanvasRender";
 import { compileNotebookSourceToPdf } from "@/lib/compileNotebook";
 import { buildProjectCompileBundle } from "@/lib/research/notebookCompileHelpers";
 import { isFragmentSource } from "@/lib/research/compileBundle";
+import { bibliographyCompileHint } from "@/lib/research/bibliographyCompile";
 import { formatCompileFailureToast, parseLaTeXCompileDiagnostics, type LatexCompileDiagnostic } from "@/lib/latexErrorUi";
 import { applyDiagnosticFix, applyNotebookLatexAutofix } from "@/lib/notebookLatexAutofix";
 import { isLatexDocumentSource } from "@/lib/notebookSourceKind";
@@ -228,6 +229,16 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   }, []);
 
   const isLatexSource = useMemo(() => isLatexDocumentSource(sourceText), [sourceText]);
+
+  const bibCompileHintText = useMemo(() => {
+    if (!researchProject) return null;
+    const mainTex =
+      studioCtx?.activeEditorFile.type === "draft"
+        ? sourceText
+        : researchProject.draftTex;
+    const hint = bibliographyCompileHint(mainTex, researchProject.bibliography);
+    return hint.kind === "ok" ? null : hint.message;
+  }, [researchProject, sourceText, studioCtx?.activeEditorFile.type]);
 
   /** Debounce Source in system context so typing does not rewrite a huge string every keystroke. */
   const debouncedSourceForAssist = useDebouncedValue(sourceText, 400);
@@ -613,6 +624,10 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
         setMainTab("preview");
         setLastLatexFailure(null);
         setCompileDiagnostics([]);
+        const bibHint = bibliographyCompileHint(text, researchProject.bibliography);
+        if (bibHint.kind !== "ok") {
+          toast({ title: "Bibliography note", description: bibHint.message });
+        }
         toast({
           title: "Compiled",
           description: `${bundle.summary} → PDF ready.`,
@@ -977,8 +992,8 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
                         key={`d-${i}`}
                         className={cn(
                           "flex items-start gap-2 rounded px-1 py-0.5",
-                          row.kind === "add" && "bg-emerald-500/15 text-emerald-900 dark:text-emerald-100",
-                          row.kind === "remove" && "bg-rose-500/15 text-rose-900 line-through dark:text-rose-100"
+                          row.kind === "add" && "bg-primary/15 text-foreground",
+                          row.kind === "remove" && "bg-muted/40 text-muted-foreground line-through"
                         )}
                       >
                         <span className="w-12 shrink-0 text-[10px] uppercase text-muted-foreground">{row.kind}</span>
@@ -1052,151 +1067,24 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       </div>
       )}
 
-      <div
-        className={cn(
-          "min-h-0 flex-1 overflow-hidden",
-          isStudio && "grid grid-cols-1 lg:grid-cols-2"
-        )}
-      >
-        {(isStudio || mainTab === "preview") && (
-          <div
-            className={cn(
-              "flex h-full min-h-0 flex-col",
-              isStudio && "min-h-0 border-b border-border/40 lg:order-2 lg:border-b-0 lg:border-l"
-            )}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {isStudio ? (
+          <ResizablePanelGroup
+            direction={splitDirection}
+            autoSaveId={`openbentt-studio-editor-preview-${splitDirection}`}
+            className="h-full min-h-0"
           >
-            {isStudio ? (
-              <NotebookStudioPreview
-                previewBuffer={previewBuffer}
-                pdfScale={pdfScale}
-                setPdfScale={setPdfScale}
-                activePaperId={studioCtx?.activePaperId ?? null}
-                onChoosePdf={() => fileRef.current?.click()}
-                busy={busy}
-              />
-            ) : previewBuffer ? (
-              <>
-                <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-2 py-1.5">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Viewer</span>
-                    {compiledBytes && originalBytes ? (
-                      <div className="flex rounded-md border border-border/60 bg-background/80 p-0.5 text-[10px]">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={previewVariant === "original" ? "secondary" : "ghost"}
-                          className="h-7 px-2 text-[10px]"
-                          onClick={() => setPreviewVariant("original")}
-                        >
-                          Original
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={previewVariant === "compiled" ? "secondary" : "ghost"}
-                          className="h-7 px-2 text-[10px]"
-                          onClick={() => setPreviewVariant("compiled")}
-                        >
-                          Compiled
-                        </Button>
-                      </div>
-                    ) : compiledBytes && !originalBytes ? (
-                      <span className="text-[10px] text-muted-foreground">Compiled PDF (no original upload)</span>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap items-center justify-end gap-1">
-                    <span className="hidden text-[10px] text-muted-foreground sm:inline" title="Hold Ctrl (or ⌘) and scroll to zoom toward the cursor">
-                      Ctrl+scroll
-                    </span>
-                    <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-background/90 p-0.5 shadow-sm">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8"
-                        aria-label="Zoom out"
-                        onClick={() => nudgeZoom(-ZOOM_STEP)}
-                        disabled={pdfScale <= ZOOM_MIN + 0.01}
-                      >
-                        <ZoomOut className="h-4 w-4" />
-                      </Button>
-                      <button
-                        type="button"
-                        className="min-w-[3.25rem] rounded px-1.5 py-1 text-center text-xs font-medium tabular-nums text-foreground hover:bg-muted/80"
-                        onClick={() => setPdfScale(ZOOM_DEFAULT)}
-                        title="Reset zoom (Ctrl/Cmd + scroll on the page)"
-                      >
-                        {Math.round(pdfScale * 100)}%
-                      </button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8"
-                        aria-label="Zoom in"
-                        onClick={() => nudgeZoom(ZOOM_STEP)}
-                        disabled={pdfScale >= ZOOM_MAX - 0.01}
-                      >
-                        <ZoomIn className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-                <div ref={pdfScrollRef} className="min-h-0 flex-1 overflow-auto">
-                  <div className="bg-muted/40 p-3 md:p-4">
-                    <div ref={previewRef} className="mx-auto flex max-w-full flex-col items-center gap-0 pb-2" />
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="flex min-h-[200px] flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
-                <div className="rounded-2xl border border-dashed border-border/80 bg-muted/20 p-8">
-                  <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                  <p className="mt-3 text-sm font-medium text-foreground">No PDF yet</p>
-                  <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-                    Open a PDF for Original vs Compiled, or load <strong className="font-medium">.tex</strong> and Compile (run{" "}
-                    <code className="rounded bg-muted px-1 py-0.5 text-[10px]">npm run latex-compile</code> for HTTP fallback in dev).
-                  </p>
-                  <Button type="button" size="sm" className="mt-4" variant="secondary" onClick={() => fileRef.current?.click()}>
-                    <FileUp className="mr-2 h-4 w-4" />
-                    Choose PDF
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {(isStudio || mainTab === "source") && (
-          <div
-            className={cn(
-              "flex h-full min-h-0 flex-col overflow-hidden",
-              isStudio ? "px-3 py-2 lg:order-1" : "gap-2 overflow-hidden px-3 py-3"
-            )}
-          >
-            {!isStudio && (
-              <>
-                <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
-                  <strong className="text-foreground">From chat:</strong> ask for <code className="font-mono text-[10px]">.tex</code> (e.g.{" "}
-                  <code className="font-mono text-[10px]">```latex</code>), then <strong className="text-foreground">Apply reply</strong> on the toolbar.
-                </p>
-                {isLatexSource ? (
-                  <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
-                    <strong className="text-foreground">LaTeX:</strong> BusyTeX in-browser · <code className="rounded bg-muted px-1 font-mono text-[10px]">npm run download:busytex</code> once.
-                  </p>
-                ) : (
-                  <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
-                    <strong className="text-foreground">Extract:</strong> keep <code className="font-mono text-[10px]">--- PDF PAGE i / n ---</code> markers, or paste full LaTeX.
-                  </p>
-                )}
-              </>
-            )}
-            {isStudio ? (
-              <>
+            <ResizablePanel defaultSize={50} minSize={24} className="min-h-0 min-w-0">
+              <div className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-2">
                 <div className="flex shrink-0 items-center gap-2 border-b border-border/40 px-1 pb-1 pt-0.5">
                   <FileCode2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="truncate text-xs font-medium text-foreground">{editorFileLabel}</span>
                 </div>
+                {bibCompileHintText && (
+                  <p className="shrink-0 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] leading-snug text-foreground">
+                    {bibCompileHintText}
+                  </p>
+                )}
                 <NotebookLatexToolbar
                   bibKeys={researchProject?.bibEntries?.map((b) => b.key).filter(Boolean) as string[]}
                   onInsert={(snippet, cursorOffset = snippet.length) => {
@@ -1227,19 +1115,154 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
                   wordWrap={studioSettings?.pane.editorWordWrap ?? true}
                   showLineNumbers={studioSettings?.pane.editorLineNumbers ?? true}
                 />
-              </>
-            ) : (
-              <Textarea
-                ref={sourceTextareaRef}
-                value={sourceText}
-                onChange={(e) => setSourceText(e.target.value)}
-                className="min-h-0 flex-1 resize-none border-border/60 font-mono text-xs leading-relaxed focus-visible:ring-2 focus-visible:ring-ring"
-                placeholder={`Full LaTeX (\\documentclass …) or plain text with page markers.`}
-                spellCheck={false}
-                aria-label={`${editorFileLabel} editor`}
-              />
+              </div>
+            </ResizablePanel>
+            <ResizableHandle
+              withHandle
+              className="w-2 bg-border/70 data-[panel-group-direction=vertical]:h-2 data-[panel-group-direction=vertical]:w-full"
+            />
+            <ResizablePanel defaultSize={50} minSize={24} className="min-h-0 min-w-0">
+              <div
+                className={cn(
+                  "flex h-full min-h-0 flex-col",
+                  splitDirection === "horizontal" ? "border-l border-border/40" : "border-t border-border/40"
+                )}
+              >
+                <NotebookStudioPreview
+                  previewBuffer={previewBuffer}
+                  pdfScale={pdfScale}
+                  setPdfScale={setPdfScale}
+                  activePaperId={studioCtx?.activePaperId ?? null}
+                  onChoosePdf={() => fileRef.current?.click()}
+                  busy={busy}
+                />
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        ) : (
+          <>
+            {mainTab === "preview" && (
+              <div className="flex h-full min-h-0 flex-col">
+                {previewBuffer ? (
+                  <>
+                    <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-2 py-1.5">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Viewer</span>
+                        {compiledBytes && originalBytes ? (
+                          <div className="flex rounded-md border border-border/60 bg-background/80 p-0.5 text-[10px]">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={previewVariant === "original" ? "secondary" : "ghost"}
+                              className="h-7 px-2 text-[10px]"
+                              onClick={() => setPreviewVariant("original")}
+                            >
+                              Original
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={previewVariant === "compiled" ? "secondary" : "ghost"}
+                              className="h-7 px-2 text-[10px]"
+                              onClick={() => setPreviewVariant("compiled")}
+                            >
+                              Compiled
+                            </Button>
+                          </div>
+                        ) : compiledBytes && !originalBytes ? (
+                          <span className="text-[10px] text-muted-foreground">Compiled PDF (no original upload)</span>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-1">
+                        <span className="hidden text-[10px] text-muted-foreground sm:inline" title="Hold Ctrl (or ⌘) and scroll to zoom toward the cursor">
+                          Ctrl+scroll
+                        </span>
+                        <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-background/90 p-0.5 shadow-sm">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            aria-label="Zoom out"
+                            onClick={() => nudgeZoom(-ZOOM_STEP)}
+                            disabled={pdfScale <= ZOOM_MIN + 0.01}
+                          >
+                            <ZoomOut className="h-4 w-4" />
+                          </Button>
+                          <button
+                            type="button"
+                            className="min-w-[3.25rem] rounded px-1.5 py-1 text-center text-xs font-medium tabular-nums text-foreground hover:bg-muted/80"
+                            onClick={() => setPdfScale(ZOOM_DEFAULT)}
+                            title="Reset zoom (Ctrl/Cmd + scroll on the page)"
+                          >
+                            {Math.round(pdfScale * 100)}%
+                          </button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            aria-label="Zoom in"
+                            onClick={() => nudgeZoom(ZOOM_STEP)}
+                            disabled={pdfScale >= ZOOM_MAX - 0.01}
+                          >
+                            <ZoomIn className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                    <div ref={pdfScrollRef} className="min-h-0 flex-1 overflow-auto">
+                      <div className="bg-muted/40 p-3 md:p-4">
+                        <div ref={previewRef} className="mx-auto flex max-w-full flex-col items-center gap-0 pb-2" />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex min-h-[200px] flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
+                    <div className="rounded-2xl border border-dashed border-border/80 bg-muted/20 p-8">
+                      <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
+                      <p className="mt-3 text-sm font-medium text-foreground">No PDF yet</p>
+                      <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                        Open a PDF for Original vs Compiled, or load <strong className="font-medium">.tex</strong> and Compile (run{" "}
+                        <code className="rounded bg-muted px-1 py-0.5 text-[10px]">npm run latex-compile</code> for HTTP fallback in dev).
+                      </p>
+                      <Button type="button" size="sm" className="mt-4" variant="secondary" onClick={() => fileRef.current?.click()}>
+                        <FileUp className="mr-2 h-4 w-4" />
+                        Choose PDF
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
-          </div>
+
+            {mainTab === "source" && (
+              <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden px-3 py-3">
+                <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
+                  <strong className="text-foreground">From chat:</strong> ask for <code className="font-mono text-[10px]">.tex</code> (e.g.{" "}
+                  <code className="font-mono text-[10px]">```latex</code>), then <strong className="text-foreground">Apply reply</strong> on the toolbar.
+                </p>
+                {isLatexSource ? (
+                  <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
+                    <strong className="text-foreground">LaTeX:</strong> BusyTeX in-browser · <code className="rounded bg-muted px-1 font-mono text-[10px]">npm run download:busytex</code> once.
+                  </p>
+                ) : (
+                  <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
+                    <strong className="text-foreground">Extract:</strong> keep <code className="font-mono text-[10px]">--- PDF PAGE i / n ---</code> markers, or paste full LaTeX.
+                  </p>
+                )}
+                <Textarea
+                  ref={sourceTextareaRef}
+                  value={sourceText}
+                  onChange={(e) => setSourceText(e.target.value)}
+                  className="min-h-0 flex-1 resize-none border-border/60 font-mono text-xs leading-relaxed focus-visible:ring-2 focus-visible:ring-ring"
+                  placeholder={`Full LaTeX (\\documentclass …) or plain text with page markers.`}
+                  spellCheck={false}
+                  aria-label={`${editorFileLabel} editor`}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

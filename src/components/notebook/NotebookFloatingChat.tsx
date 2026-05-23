@@ -241,7 +241,7 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
                 registerAnchor={registerConnectionAnchor}
                 onPointerDown={(e) => startConnectionDrag("chat-tex", e)}
               />
-              <span className="text-[8px] font-medium uppercase tracking-wide text-sky-500/90">LaTeX</span>
+              <span className="text-[8px] font-medium uppercase tracking-wide text-primary/90">LaTeX</span>
             </div>
             <div className="flex flex-col items-center gap-0.5">
               <ConnectionHandle
@@ -254,7 +254,7 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
                 registerAnchor={registerConnectionAnchor}
                 onPointerDown={(e) => startConnectionDrag("chat-pdf", e)}
               />
-              <span className="text-[8px] font-medium uppercase tracking-wide text-violet-400/90">PDF</span>
+              <span className="text-[8px] font-medium uppercase tracking-wide text-primary/90">PDF</span>
             </div>
           </div>
         </div>
@@ -292,13 +292,12 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
       </div>
 
       {showConnectionHint && (
-        <div className="flex shrink-0 items-start gap-2 border-b border-sky-500/30 bg-sky-500/10 px-2 py-1.5 text-[11px] text-foreground/90">
+        <div className="flex shrink-0 items-start gap-2 border-b border-primary/30 bg-primary/10 px-2 py-1.5 text-[11px] text-foreground/90">
           <span className="min-w-0 flex-1">
             <strong className="font-medium">Two connection types:</strong>{" "}
-            <span className="text-sky-500">LaTeX</span> (sky) sends source text from editor tabs;{" "}
-            <span className="text-violet-400">PDF</span> (violet) sends the open preview page. Drag a dot
-            to its matching target (green tab / amber preview), or click both ends. Release near a target
-            to snap.
+            <span className="text-primary">LaTeX</span> sends source text from editor tabs;{" "}
+            <span className="text-primary">PDF</span> sends the open preview page. Drag a dot to its matching
+            target, or click both ends. Release near a target to snap.
           </span>
           <Button
             type="button"
@@ -337,7 +336,7 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
               {i > 0 && " · "}
               <button
                 type="button"
-                className="text-sky-600 hover:underline dark:text-sky-400"
+                className="text-primary hover:underline"
                 onClick={() => toggleChatConnection("tex", key)}
               >
                 LaTeX{chatConnections.texFileKeys.length > 1 ? ` (${key === "draft" ? "main.tex" : key})` : ""}
@@ -350,7 +349,7 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
               {(i > 0 || chatConnections.texFileKeys.length > 0) && i === 0 && chatConnections.texFileKeys.length === 0 ? "" : i > 0 ? " · " : ""}
               <button
                 type="button"
-                className="text-violet-600 hover:underline dark:text-violet-400"
+                className="text-primary hover:underline"
                 onClick={() => toggleChatConnection("pdf", id)}
               >
                 PDF{id === "compiled" ? " (compiled)" : ""}

@@ -109,13 +109,13 @@ export function ZoteroConnectionPanel() {
       )}
 
       {lastSyncResult?.partial && lastSyncResult.warnings.length > 0 && (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
+        <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
           Partial sync: {lastSyncResult.warnings.join("; ")}
         </div>
       )}
 
       {lastSyncResult?.conflicts && lastSyncResult.conflicts.length > 0 && (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground space-y-1">
+        <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground space-y-1">
           <p className="font-medium text-foreground">Citekey conflicts ({lastSyncResult.conflicts.length})</p>
           {lastSyncResult.conflicts.slice(0, 5).map((c) => (
             <p key={c.citekey}>

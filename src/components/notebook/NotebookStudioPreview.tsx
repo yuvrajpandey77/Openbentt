@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { ConnectionHandle } from "@/components/notebook/ConnectionHandle";
 import { useNotebookStudio } from "@/context/NotebookStudioContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
@@ -17,13 +16,16 @@ import {
 import { cn } from "@/lib/utils";
 import {
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileText,
   Highlighter,
   Loader2,
   Maximize2,
+  PanelBottom,
   Search,
+  StickyNote,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -95,6 +97,9 @@ export function NotebookStudioPreview({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchHits, setSearchHits] = useState<PdfSearchHit[]>([]);
   const [searching, setSearching] = useState(false);
+  /** Reading mode: hide annotation/note/thumbnail chrome for maximum PDF area. */
+  const [readingMode, setReadingMode] = useState(true);
+  const [showThumbnails, setShowThumbnails] = useState(false);
 
   const paper = project?.papers.find((p) => p.id === activePaperId);
   const pdfConnected =
@@ -211,7 +216,7 @@ export function NotebookStudioPreview({
   useEffect(() => {
     const doc = docRef.current;
     const el = thumbsRef.current;
-    if (!doc || !el || !pdfNumPages || !docReady) return;
+    if (!doc || !el || !pdfNumPages || !docReady || readingMode || !showThumbnails) return;
     el.innerHTML = "";
     thumbWrapsRef.current = [];
     let cancelled = false;
@@ -243,7 +248,7 @@ export function NotebookStudioPreview({
       cancelled = true;
       thumbWrapsRef.current = [];
     };
-  }, [pdfNumPages, setPdfPageInfo, previewBuffer, docReady]);
+  }, [pdfNumPages, setPdfPageInfo, previewBuffer, docReady, showThumbnails, readingMode]);
 
   useEffect(() => {
     for (const wrap of thumbWrapsRef.current) {
@@ -460,6 +465,30 @@ export function NotebookStudioPreview({
             Highlight
           </Button>
         )}
+        <Button
+          type="button"
+          size="sm"
+          variant={readingMode ? "secondary" : "outline"}
+          className="h-8 gap-1 text-xs"
+          onClick={() => setReadingMode((v) => !v)}
+          aria-pressed={readingMode}
+          title={readingMode ? "Reading mode — PDF maximized" : "Show notes and annotations"}
+        >
+          <Maximize2 className="h-3.5 w-3.5" />
+          {readingMode ? "Reading" : "Panels"}
+        </Button>
+        {!readingMode && (
+          <Button
+            type="button"
+            size="sm"
+            variant={showThumbnails ? "secondary" : "ghost"}
+            className="h-8 gap-1 text-xs"
+            onClick={() => setShowThumbnails((v) => !v)}
+          >
+            <PanelBottom className="h-3.5 w-3.5" />
+            Thumbs
+          </Button>
+        )}
         {activePaperId && (
           <Button type="button" size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={markReviewed}>
             <Check className="h-3.5 w-3.5" />
@@ -507,7 +536,7 @@ export function NotebookStudioPreview({
               {pageAnnotations.map((ann) => (
                 <div
                   key={ann.id}
-                  className="pointer-events-none absolute rounded-sm border border-amber-500/30"
+                  className="pointer-events-none absolute rounded-sm border border-primary/30"
                   style={{
                     left: `${ann.rect.x * 100}%`,
                     top: `${ann.rect.y * 100}%`,
@@ -520,7 +549,7 @@ export function NotebookStudioPreview({
               ))}
               {dragRect && highlightMode && (
                 <div
-                  className="pointer-events-none absolute rounded-sm border border-amber-600/50"
+                  className="pointer-events-none absolute rounded-sm border border-primary/50"
                   style={{
                     left: `${dragRect.x * 100}%`,
                     top: `${dragRect.y * 100}%`,
@@ -544,25 +573,35 @@ export function NotebookStudioPreview({
         onClose={() => setSearchOpen(false)}
       />
       </div>
-      {activePaperId && (
+      {activePaperId && !readingMode && (
         <PdfAnnotationList
           annotations={paper?.annotations ?? []}
           currentPage={pdfPage}
           onSelectPage={(p) => setPdfPageInfo(p, pdfNumPages)}
         />
       )}
-      {activePaperId && (
-        <div className="shrink-0 border-t border-border/50 bg-card/90 px-3 py-2">
-          <Textarea
-            className="min-h-[52px] resize-none text-xs"
-            placeholder={`Note for page ${pdfPage}…`}
+      {activePaperId && !readingMode && (
+        <div className="flex shrink-0 items-center gap-2 border-t border-border/50 bg-card/90 px-3 py-1.5">
+          <StickyNote className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <Input
+            className="h-8 flex-1 border-0 bg-transparent text-xs shadow-none focus-visible:ring-0"
+            placeholder={`Page ${pdfPage} note…`}
             value={pageNote}
             onChange={(e) => setPageNote(e.target.value)}
             onBlur={savePageNote}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                savePageNote();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
           />
         </div>
       )}
-      <div ref={thumbsRef} className="flex shrink-0 gap-1.5 overflow-x-auto border-t border-border/50 bg-muted/30 px-2 py-2" />
+      {!readingMode && showThumbnails && (
+        <div ref={thumbsRef} className="flex h-16 shrink-0 gap-1.5 overflow-x-auto border-t border-border/50 bg-muted/30 px-2 py-1.5" />
+      )}
       </div>
     </div>
   );

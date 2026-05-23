@@ -13,8 +13,8 @@ import { Loader2, Info } from "lucide-react";
 
 function confidenceBadge(c: RetrievalHit["confidence"]) {
   const colors = {
-    high: "text-emerald-600 dark:text-emerald-400",
-    medium: "text-amber-600 dark:text-amber-400",
+    high: "text-primary",
+    medium: "text-primary",
     low: "text-muted-foreground",
   };
   return colors[c ?? "low"];
@@ -119,7 +119,7 @@ export function NotebookSimilarityPanel() {
       </div>
 
       {indexReady && (
-        <p className="text-xs text-emerald-600 dark:text-emerald-400">
+        <p className="text-xs text-primary">
           Embedding index (MiniLM): {embeddedCount} chunks — hybrid scan uses both signals.
         </p>
       )}
@@ -140,7 +140,7 @@ export function NotebookSimilarityPanel() {
       )}
 
       {project.papers.length === 0 && (
-        <p className="text-xs text-amber-600 dark:text-amber-400">Add PDFs in Library → Papers first.</p>
+        <p className="text-xs text-primary">Add PDFs in Library → Papers first.</p>
       )}
 
       <ul className="space-y-3">
@@ -171,7 +171,7 @@ export function NotebookSimilarityPanel() {
       </ul>
 
       {hits.length > 0 && (
-        <p className="text-xs text-muted-foreground border-l-2 border-amber-500/40 pl-2">
+        <p className="text-xs text-muted-foreground border-l-2 border-primary/40 pl-2">
           Similarity scores indicate textual overlap with your library — not plagiarism verdicts. Review matches
           manually before citing or revising.
         </p>

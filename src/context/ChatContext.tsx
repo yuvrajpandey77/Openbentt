@@ -473,11 +473,25 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       )
     );
 
+    setIsLoading(true);
+    setStreamingPromptTokens(null);
+
     const workspaceBlock = notebookAssistSyncRef.current?.() ?? workspaceRouteAssistRef.current;
-    const extras = await buildPipelineExtras(msgs, apiConfig, {
-      workspaceAssistBlock: workspaceBlock,
-    });
-    await runAssistantPipeline(currentChatId, msgs, apiConfig, extras);
+    try {
+      const extras = await buildPipelineExtras(msgs, apiConfig, {
+        workspaceAssistBlock: workspaceBlock,
+      });
+      await runAssistantPipeline(currentChatId, msgs, apiConfig, extras);
+    } catch (e) {
+      setIsLoading(false);
+      setStreamingPromptTokens(null);
+      console.error("Error regenerating:", e);
+      toast({
+        title: "Error",
+        description: formatUserFacingError(e, "Failed to retry"),
+        variant: "destructive",
+      });
+    }
   };
 
   const runAssistantPipeline = async (
@@ -511,6 +525,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: "assistant",
         content: "",
         timestamp: new Date(),
+        streaming: true,
       };
 
       setChats((prevChats) =>
@@ -645,6 +660,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                       metrics: finalMetrics,
                       researchSources: extras.researchSources,
                       agentTrace: extras.agentTrace,
+                      streaming: false,
                     }
                   : msg
               ),
@@ -970,15 +986,29 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
     );
 
+    setIsLoading(true);
+    setStreamingPromptTokens(null);
+
     const workspaceBlock =
       options?.workspaceAssistBlock ??
       notebookAssistSyncRef.current?.() ??
       workspaceRouteAssistRef.current;
 
-    const extras = await buildPipelineExtras(chatMessages, apiConfig, {
-      workspaceAssistBlock: workspaceBlock,
-    });
-    await runAssistantPipeline(activeChatId, chatMessages, apiConfig, extras);
+    try {
+      const extras = await buildPipelineExtras(chatMessages, apiConfig, {
+        workspaceAssistBlock: workspaceBlock,
+      });
+      await runAssistantPipeline(activeChatId, chatMessages, apiConfig, extras);
+    } catch (e) {
+      setIsLoading(false);
+      setStreamingPromptTokens(null);
+      console.error("Error preparing chat:", e);
+      toast({
+        title: "Error",
+        description: formatUserFacingError(e, "Failed to send message"),
+        variant: "destructive",
+      });
+    }
   };
 
   const value: ChatContextProps = {

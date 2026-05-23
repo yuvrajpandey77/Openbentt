@@ -67,7 +67,7 @@ export async function renderPdfPages(
     if (n > limit) {
       const note = document.createElement("p");
       note.className =
-        "mt-2 max-w-prose rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-center text-xs text-amber-950 dark:text-amber-100";
+        "mt-2 max-w-prose rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-center text-xs text-foreground";
       note.textContent = `Preview shows the first ${limit} of ${n} pages to save CPU and memory. The full PDF file is unchanged; Source may include more extracted text (subject to extract limits).`;
       container.appendChild(note);
     }

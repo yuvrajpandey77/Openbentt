@@ -385,7 +385,7 @@ const SettingsPanel: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-teal-500/30 bg-teal-500/[0.06] px-4 py-3">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/[0.06] px-4 py-3">
               <div>
                 <Label className="text-sm font-medium">Local-only mode</Label>
                 <p className="text-[11px] text-muted-foreground">
@@ -478,11 +478,11 @@ const SettingsPanel: React.FC = () => {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
               <div className="flex items-center gap-2">
-                <Sun size={18} className={theme === "light" ? "text-amber-500" : "text-muted-foreground"} />
+                <Sun size={18} className={theme === "light" ? "text-primary" : "text-muted-foreground"} />
                 <Label htmlFor="theme-toggle" className="text-sm font-medium">
                   Dark mode
                 </Label>
-                <Moon size={18} className={theme === "dark" ? "text-sky-400" : "text-muted-foreground"} />
+                <Moon size={18} className={theme === "dark" ? "text-primary" : "text-muted-foreground"} />
               </div>
               <Switch id="theme-toggle" checked={theme === "dark"} onCheckedChange={toggleTheme} />
             </div>
@@ -567,7 +567,7 @@ const SettingsPanel: React.FC = () => {
 
             {localAiProvider === "local_gguf" && (
               <>
-                <Alert className="border-amber-500/30 bg-amber-500/[0.06]">
+                <Alert className="border-primary/30 bg-primary/[0.06]">
                   <AlertTitle className="flex flex-wrap items-center gap-2 text-sm">
                     Local file model (desktop){" "}
                     <Badge variant="secondary" className="font-normal">
@@ -618,7 +618,7 @@ const SettingsPanel: React.FC = () => {
                     <code className="text-[10px]">whoami</code> in Labs.
                   </p>
                   {hfSecretStatus?.stored ? (
-                    <p className="text-[11px] text-teal-600 dark:text-teal-400">
+                    <p className="text-[11px] text-primary">
                       A token is already stored securely
                       {!hfSecretStatus.encryptionAvailable ? " (encryption unavailable — restricted file fallback)." : "."}
                     </p>
@@ -666,7 +666,7 @@ const SettingsPanel: React.FC = () => {
 
             {localAiProvider === "webgpu_gemma" && (
               <>
-                <Alert className="border-teal-500/30 bg-teal-500/[0.06]">
+                <Alert className="border-primary/30 bg-primary/[0.06]">
                   <AlertTitle className="text-sm">On-device model</AlertTitle>
                   <AlertDescription className="text-[11px] leading-relaxed text-muted-foreground">
                     Nothing is downloaded until you run the first-time setup (a prompt appears in the composer when this
@@ -909,7 +909,7 @@ const SettingsPanel: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             {!webClient && (
-            <Alert className="border-amber-500/35 bg-amber-500/[0.06]">
+            <Alert className="border-primary/35 bg-primary/[0.06]">
               <AlertTitle className="text-sm">Security</AlertTitle>
               <AlertDescription className="text-[11px] leading-relaxed text-muted-foreground">
                 Brave Search keys and proxy URLs in Settings are stored in localStorage. Prefer an HTTPS research proxy

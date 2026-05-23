@@ -276,7 +276,7 @@ export function NotebookLeftRail() {
       <aside
         aria-hidden={!explorerOpen}
         className={cn(
-          "pointer-events-auto absolute bottom-3 z-[55] flex flex-col overflow-hidden rounded-lg border border-border/80 bg-card/95 shadow-xl backdrop-blur-sm transition-[opacity,transform] duration-200",
+          "pointer-events-auto absolute bottom-0 z-[55] flex flex-col overflow-hidden rounded-lg border border-border/80 bg-card/95 shadow-xl backdrop-blur-sm transition-[opacity,transform] duration-200",
           explorerOpen ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-2 opacity-0"
         )}
         style={{

@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { LIMITS } from "@/lib/research/projectLimits";
 import { Link } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Message } from "@/types/chat";
-import { Bot, Pencil, RotateCcw, FileText, ChevronDown, Sparkles, BookOpen, MessageSquare } from "lucide-react";
+import { Pencil, RotateCcw, FileText, ChevronDown, Sparkles, BookOpen, MessageSquare } from "lucide-react";
 import { getWorkspaceNavItems } from "@/config/workspaceNav";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { cn } from "@/lib/utils";
@@ -17,7 +17,10 @@ import { MessageReferences } from "@/components/MessageReferences";
 import { AssistantMessageToolbar } from "@/components/AssistantMessageToolbar";
 import { buildAssistantPlainText } from "@/lib/assistantPlainText";
 import { highlightSearchInText } from "@/lib/highlightSearch";
+import { ChatThinkingIndicator } from "@/components/ChatThinkingIndicator";
 import { CompareUseInNotebook } from "@/components/research/CompareUseInNotebook";
+
+const SCROLL_PIN_THRESHOLD_PX = 80;
 
 function messageMatchesSearch(m: Message, q: string): boolean {
   const t = q.trim().toLowerCase();
@@ -60,21 +63,24 @@ const AssistantRoleContent: React.FC<{
   isLoading: boolean;
   showAgentTraces: boolean;
   highlightQuery?: string;
-}> = ({ message, idx, messages, isLoading, showAgentTraces, highlightQuery }) => {
+  compact?: boolean;
+}> = ({ message, idx, messages, isLoading, showAgentTraces, highlightQuery, compact }) => {
   const exportRef = useRef<HTMLDivElement>(null);
   const plainText = useMemo(() => buildAssistantPlainText(message), [message]);
+  const isLast = idx === messages.length - 1;
   const toolsDisabled =
     isLoading &&
-    idx === messages.length - 1 &&
+    isLast &&
     (message.comparisonResponses
       ? message.comparisonResponses.every((p) => !p.content.trim() && !p.error)
       : !message.content.trim());
 
-  const streamingSingle =
-    idx === messages.length - 1 &&
+  const isStreamingSingle =
+    isLast &&
     isLoading &&
-    message.content === "" &&
     !message.comparisonResponses?.length;
+
+  const streamingActive = Boolean(message.streaming || isStreamingSingle);
 
   if (message.comparisonResponses?.length) {
     return (
@@ -100,7 +106,10 @@ const AssistantRoleContent: React.FC<{
                       <CompareUseInNotebook model={part.model} content={part.content} />
                     )}
                     {part.streaming && (
-                      <span className="text-[10px] uppercase tracking-wide text-primary">Streaming</span>
+                      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-primary">
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+                        Live
+                      </span>
                     )}
                   </div>
                 </div>
@@ -116,6 +125,7 @@ const AssistantRoleContent: React.FC<{
                       content={part.content}
                       streaming={part.streaming}
                       highlightQuery={highlightQuery}
+                      compact={compact}
                     />
                   </div>
                 )}
@@ -140,8 +150,9 @@ const AssistantRoleContent: React.FC<{
       <div ref={exportRef}>
         <AssistantContent
           content={message.content}
-          streaming={streamingSingle}
+          streaming={streamingActive}
           highlightQuery={highlightQuery}
+          compact={compact}
         />
         <MessageReferences sources={message.researchSources ?? []} />
       </div>
@@ -179,7 +190,23 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const pinnedToBottomRef = useRef(true);
   const { beginEditUserMessage, regenerateLastResponse, apiConfig } = useChat();
+
+  const isNearBottom = useCallback((el: HTMLElement) => {
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_PIN_THRESHOLD_PX;
+  }, []);
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      pinnedToBottomRef.current = isNearBottom(el);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [isNearBottom]);
 
   const visibleMessages = useMemo(() => {
     if (!searchQuery.trim()) return messages;
@@ -189,37 +216,70 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
   const useVirtual = visibleMessages.length > LIMITS.maxChatMessagesVirtualize;
   const virtualizer = useVirtualizer({
     count: useVirtual ? visibleMessages.length : 0,
-    getScrollElement: () => scrollRef.current,
+    getScrollElement: () => viewportRef.current,
     estimateSize: () => 140,
     overscan: 6,
   });
 
-  useEffect(() => {
-    if (useVirtual) {
-      virtualizer.scrollToIndex(visibleMessages.length - 1, { align: "end" });
-    } else {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages, visibleMessages.length, useVirtual, virtualizer]);
+  const scrollToBottom = useCallback(
+    (instant: boolean) => {
+      if (!pinnedToBottomRef.current) return;
 
-  const hasAssistant = messages.some((m) => m.role === "assistant");
+      const viewport = viewportRef.current;
+      if (useVirtual) {
+        virtualizer.scrollToIndex(visibleMessages.length - 1, { align: "end", behavior: instant ? "auto" : "smooth" });
+        return;
+      }
+
+      if (viewport) {
+        if (instant) {
+          viewport.scrollTop = viewport.scrollHeight;
+        } else {
+          bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+        }
+        return;
+      }
+
+      bottomRef.current?.scrollIntoView({ behavior: instant ? "auto" : "smooth", block: "end" });
+    },
+    [useVirtual, virtualizer, visibleMessages.length]
+  );
+
+  useEffect(() => {
+    const isStreaming = isLoading || messages.some((m) => m.streaming);
+    scrollToBottom(isStreaming);
+  }, [messages, visibleMessages.length, isLoading, scrollToBottom]);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last?.role === "user") {
+      pinnedToBottomRef.current = true;
+    }
+  }, [messages]);
+
   const lastMsg = messages[messages.length - 1];
   const showRetry =
     lastMsg?.role === "assistant" && !lastMsg.comparisonResponses && !isLoading;
 
   const renderMessage = (message: Message, displayIdx: number) => {
     const idx = messages.indexOf(message);
+    const isLast = idx === messages.length - 1;
+    const isActiveStream =
+      (isLoading && isLast && message.role === "assistant") || Boolean(message.streaming);
     return (
     <div
       key={message.id}
       className={cn(
         "w-full streaming-message group/msg pb-8",
+        isActiveStream && "streaming-message-active",
         message.role === "user" ? "flex justify-end" : "flex justify-start"
       )}
     >
       <div
         className={cn(
-          "flex items-start gap-3 animate-fade-in w-full",
+          "flex items-start gap-3 w-full",
+          !isActiveStream && "animate-fade-in",
           message.role === "user" ? "flex-row-reverse max-w-[min(100%,42rem)]" : ""
         )}
       >
@@ -267,6 +327,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
                 isLoading={isLoading}
                 showAgentTraces={apiConfig.showAgentTraces}
                 highlightQuery={searchQuery}
+                compact={emptyVariant === "studio"}
               />
               {showRetry && message.id === lastMsg?.id && (
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -307,6 +368,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
 
   return (
     <ScrollArea
+      viewportRef={viewportRef}
       className={cn(
         "min-h-0",
         emptyVariant === "studio" ? "h-full w-full p-2" : "flex-1 p-4"
@@ -496,20 +558,15 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
           visibleMessages.map((message, idx) => renderMessage(message, idx))
         )}
 
-        {isLoading && !hasAssistant && (
-          <div className="flex items-start gap-3 animate-fade-in">
-            <div className="p-2 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
-              <Bot size={16} />
-            </div>
-            <div className="openbentt-card p-4 max-w-[85%] bg-card/90 border border-border/80">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Generating</span>
-                <div className="flex gap-1">
-                  <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{ animationDelay: "0ms" }} />
-                  <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{ animationDelay: "150ms" }} />
-                  <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{ animationDelay: "300ms" }} />
-                </div>
-              </div>
+        {isLoading && lastMsg?.role === "user" && (
+          <div className="flex justify-start pb-8 streaming-message streaming-message-active">
+            <div
+              className={cn(
+                "openbentt-card w-full border border-border/80 bg-card p-4 shadow-sm",
+                emptyVariant === "studio" ? "max-w-full" : "max-w-[min(100%,42rem)]"
+              )}
+            >
+              <ChatThinkingIndicator compact={emptyVariant === "studio"} />
             </div>
           </div>
         )}

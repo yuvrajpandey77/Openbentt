@@ -24,6 +24,8 @@
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
     "verify:release": "npm run lint && npm run test && npm run build && npm run test:e2e",
+    "verify:templates": "node scripts/verify-template-packs.mjs",
+    "verify:templates:tex": "VERIFY_TEX=1 node scripts/verify-template-packs.mjs",
     "verify:release:pack": "npm run build && npm run electron:pack:linux",
     "test:stress": "vitest run src/lib/research/perfStress.test.ts",
     "test:watch": "vitest",

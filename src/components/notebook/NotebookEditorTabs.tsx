@@ -80,7 +80,7 @@ export function NotebookEditorTabs({ embedded = false }: { embedded?: boolean })
               active
                 ? "border-primary/40 bg-background text-foreground shadow-sm ring-1 ring-primary/15"
                 : "border-transparent bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-              pendingConnection?.from === "chat-tex" && "ring-1 ring-sky-500/50"
+              pendingConnection?.from === "chat-tex" && "ring-1 ring-primary/50"
             )}
           >
             <button

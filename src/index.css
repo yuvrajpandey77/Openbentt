@@ -157,7 +157,7 @@
   }
 
   .openbentt-gradient {
-    @apply bg-gradient-to-br from-violet-50 to-slate-100 dark:from-violet-950/30 dark:to-slate-900/80;
+    @apply bg-gradient-to-br from-primary/5 to-slate-100 dark:from-primary/10 dark:to-slate-900/80;
   }
 
   .openbentt-button {
@@ -184,6 +184,35 @@
     animation: blink 1s infinite;
   }
 
+  .chat-stream-cursor {
+    animation: blink 0.85s step-end infinite;
+  }
+
+  .chat-shimmer-bar {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--primary) / 0.35) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: chatShimmer 1.4s ease-in-out infinite;
+  }
+
+  @keyframes chatShimmer {
+    0% {
+      background-position: 100% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
+  }
+
+  /* Glow disabled during streaming — plain-text render avoids layout jitter */
+  .chat-streaming-content::after {
+    display: none;
+  }
+
   @keyframes fadeInUp {
     from {
       opacity: 0.85;
@@ -204,12 +233,8 @@
     }
   }
 
-  .streaming-message {
+  .streaming-message:not(.streaming-message-active) {
     transition: opacity 0.15s ease-out;
-  }
-
-  .streaming-message:last-child {
-    animation: slideInFromBottom 0.25s ease-out;
   }
 
   /* Marketing pages: flat canvas, no app dot grid */

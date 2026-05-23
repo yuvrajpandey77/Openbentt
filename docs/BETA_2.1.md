@@ -5,26 +5,31 @@
 
 ---
 
-## Scope (PR06–PR22)
+## Scope (PR06–PR22 + launch polish)
 
 | Area | Delivered |
 |------|-----------|
 | Forensic PDF | Highlight annotations, in-pane search, annotation list |
+| PDF reading mode | Collapsible notes/annotations/thumbnails (default maximized) |
 | Folder taxonomy | `ProjectFolder` migration + file tree |
-| Templates | 112-entry catalog, gallery, apply pack to project |
+| Templates | 112-entry catalog, gallery, apply pack; **projects home create-from-template** |
 | Compile cache | Bundle hash, IndexedDB (web) + desktop file cache |
+| Bibliography | `references.bib` in hero packs; compile hints; cite dropdown in toolbar |
 | Retrieval | Hybrid v2 defaults, incremental embed pruning |
-| Chat context | Multi-PDF connections (cap 3), sources popover |
+| Chat context | Multi-PDF connections (cap 10), sources popover |
 | M0 (PR01–05) | PDF/editor separation, corruption recovery, context meter |
+| Keyboard | J/K PDF nav ignores CodeMirror editor focus |
 
 ---
 
 ## Ship checklist
 
-1. Run `npm run test` (unit + electron)
-2. Run `npm run test:e2e` (smoke + beta spec)
-3. Manual pass: [NOTEBOOK_STUDIO.md](./NOTEBOOK_STUDIO.md) beta sections PR01–PR22
-4. Desktop smoke: `npm run electron:dev` → create project → template → compile → PDF highlight
+1. Run `npm run verify:templates`
+2. Run `VERIFY_TEX=1 npm run verify:templates:tex` (optional, needs pdflatex)
+3. Run `npm run test` (unit + electron)
+4. Run `npm run test:e2e` (smoke + beta spec)
+5. Manual pass: [NOTEBOOK_STUDIO.md](./NOTEBOOK_STUDIO.md) production launch checklist
+6. Desktop smoke: Projects → template → compile → PDF reading mode → highlight
 
 ---
 

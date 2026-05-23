@@ -284,7 +284,26 @@ Fixed gear left of the chat launcher. Tabs: **All** (compile backend, document c
 ### 8. Per-file tabs
 
 1. Click `references.bib` in tree → new tab.
-2. Compile still uses **main.tex** bundle (toast warns if editing fragment).
+2. Compile still uses **main.tex** bundle (toast warns if `.bib` is not wired via `\bibliography{references}`).
+
+### 9. Projects home templates
+
+1. Open **Projects** → **Start from a template** cards or **New project → Template**.
+2. Pick a verified pack → project opens with `main.tex` + `references.bib`.
+3. Run `npm run verify:templates` (and `verify:templates:tex` with TeX Live) before release.
+
+### 10. PDF reading mode
+
+1. Open a paper PDF → toolbar **Reading** mode is on by default (max PDF area).
+2. Toggle **Panels** for annotations, page notes, and optional thumbnails.
+
+## Production launch checklist
+
+1. `npm run verify:templates` — all 12 packs present
+2. `npm run verify:templates:tex` — hero packs compile with pdflatex+bibtex
+3. `npm run verify:release` — lint, unit, electron, build, e2e
+4. Manual: create from template → compile → cite from toolbar → PDF highlight in reading mode
+5. Settings → **Local TeX Live** for IEEE/resume/full templates
 
 ## Known gaps (not blocking core flow)
 

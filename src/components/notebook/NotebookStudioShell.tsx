@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
+import { isEditableTarget } from "@/lib/isEditableTarget";
 import {
   editorFileKey,
   editorFileLabel,
@@ -49,7 +50,7 @@ export function NotebookStudioShell() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
+      if (isEditableTarget(e.target)) return;
       if (e.key === "j" || e.key === "J") {
         e.preventDefault();
         fileNav?.next();
@@ -148,7 +149,7 @@ export function NotebookStudioShell() {
             <span
               className={cn(
                 "hidden text-[10px] tabular-nums sm:inline",
-                draftSaveStatus === "dirty" && "text-amber-600 dark:text-amber-400",
+                draftSaveStatus === "dirty" && "text-primary",
                 draftSaveStatus === "error" && "text-destructive",
                 draftSaveStatus === "saved" && "text-muted-foreground"
               )}

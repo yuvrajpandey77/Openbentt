@@ -1,26 +1,33 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { DesktopOnlyGate } from "@/components/notebook/DesktopOnlyGate";
+import { NewProjectDialog } from "@/components/notebook/NewProjectDialog";
+import { TemplateGallery } from "@/components/notebook/TemplateGallery";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { useChat } from "@/context/ChatContext";
 import { canSendChat } from "@/types/chat";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { ProjectLoadingScreen } from "@/components/notebook/ProjectLoadingScreen";
+import {
+  featuredTemplateEntries,
+  loadTemplateCatalog,
+  type TemplateCatalogEntry,
+} from "@/lib/research/templateCatalog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   BookOpen,
-  ChevronDown,
   FolderOpen,
   LayoutGrid,
+  LayoutTemplate,
   List,
   MessageSquare,
   MoreHorizontal,
@@ -43,18 +50,43 @@ function formatRelative(iso: string): string {
 
 const ProjectsHubPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { apiConfig } = useChat();
   const chatReady = canSendChat(apiConfig);
-  const { projects, loading, selectProject, createProject, removeProject, importProjectFromFile } =
-    useResearchProject();
+  const {
+    projects,
+    loading,
+    selectProject,
+    createProject,
+    createProjectFromTemplate,
+    removeProject,
+    importProjectFromFile,
+  } = useResearchProject();
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"list" | "grid">("list");
   const [newTitle, setNewTitle] = useState("");
   const [opening, setOpening] = useState(false);
+  const [newDialogOpen, setNewDialogOpen] = useState(false);
+  const [browseTemplatesOpen, setBrowseTemplatesOpen] = useState(false);
+  const [featuredTemplates, setFeaturedTemplates] = useState<TemplateCatalogEntry[]>([]);
+  const [templateTitle, setTemplateTitle] = useState("");
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     document.title = "Projects — Openbentt";
+  }, []);
+
+  useEffect(() => {
+    if (searchParams.get("templates") === "1") {
+      setBrowseTemplatesOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete("templates");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    void loadTemplateCatalog().then((cat) => setFeaturedTemplates(featuredTemplateEntries(cat)));
   }, []);
 
   const filtered = useMemo(() => {
@@ -79,6 +111,16 @@ const ProjectsHubPage: React.FC = () => {
     try {
       await createProject(t);
       setNewTitle("");
+      navigate("/notebook");
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  const handleCreateFromTemplate = async (title: string, entry: TemplateCatalogEntry) => {
+    setOpening(true);
+    try {
+      await createProjectFromTemplate(title.trim() || entry.label, entry);
       navigate("/notebook");
     } finally {
       setOpening(false);
@@ -127,6 +169,14 @@ const ProjectsHubPage: React.FC = () => {
               <FolderOpen className="h-4 w-4 shrink-0" />
               All projects
             </button>
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+              onClick={() => setBrowseTemplatesOpen(true)}
+            >
+              <LayoutTemplate className="h-4 w-4 shrink-0" />
+              Templates
+            </button>
             <Link
               to="/chat"
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
@@ -144,7 +194,7 @@ const ProjectsHubPage: React.FC = () => {
           </nav>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col overflow-auto">
           {!chatReady && (
             <Alert className="mx-6 mt-4 rounded-md border-primary/30 bg-primary/5 py-2 md:mx-10">
               <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -211,41 +261,53 @@ const ProjectsHubPage: React.FC = () => {
                 <Upload className="h-4 w-4" />
                 <span className="hidden sm:inline">Import</span>
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="h-9 gap-1.5 rounded-xl">
-                    <Plus className="h-4 w-4" />
-                    New
-                    <ChevronDown className="h-3.5 w-3.5 opacity-70" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-72">
-                  <DropdownMenuItem onClick={() => void handleCreate("New project")}>
-                    Blank project
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void handleCreate("Paper review")}>
-                    Paper review queue
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <div className="flex gap-2 p-2">
-                    <Input
-                      placeholder="Project name"
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") void handleCreate();
-                      }}
-                    />
-                    <Button type="button" size="sm" onClick={() => void handleCreate()}>
-                      Create
-                    </Button>
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Button className="h-9 gap-1.5 rounded-xl" onClick={() => setNewDialogOpen(true)}>
+                <Plus className="h-4 w-4" />
+                New project
+              </Button>
             </div>
           </header>
 
           <main className="flex-1 px-6 py-6 md:px-10 md:py-8">
+            <section className="mb-8">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-sm font-semibold">Start from a template</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Verified LaTeX scaffolds with main.tex, references.bib, and compile hints.
+                  </p>
+                </div>
+                <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => setBrowseTemplatesOpen(true)}>
+                  Browse all
+                </Button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {featuredTemplates.slice(0, 8).map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    className="flex flex-col rounded-xl border border-border/60 bg-card p-4 text-left shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/20"
+                    onClick={() => void handleCreateFromTemplate(entry.label, entry)}
+                  >
+                    <LayoutTemplate className="h-5 w-5 text-primary" />
+                    <p className="mt-2 font-medium leading-tight">{entry.label}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{entry.description}</p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {entry.requiresLocalTex ? (
+                        <Badge variant="outline" className="text-[10px]">
+                          Local TeX
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-[10px]">
+                          WASM OK
+                        </Badge>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
+
             <div className="relative mb-4 sm:hidden">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -257,21 +319,20 @@ const ProjectsHubPage: React.FC = () => {
             </div>
 
             {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/20 px-6 py-20 text-center">
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/20 px-6 py-16 text-center">
                 <BookOpen className="h-10 w-10 text-muted-foreground/50" />
                 <p className="mt-4 font-medium">No projects yet</p>
                 <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                  Create a project to write LaTeX, upload PDFs, and proofread at scale. Or import an existing{" "}
-                  <code className="rounded bg-muted px-1 text-xs">.tex</code> file.
+                  Pick a template above or create a blank project to write LaTeX and review PDFs.
                 </p>
                 <div className="mt-6 flex flex-wrap justify-center gap-2">
-                  <Button className="rounded-xl" onClick={() => void handleCreate()}>
+                  <Button className="rounded-xl" onClick={() => setNewDialogOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" />
                     New project
                   </Button>
-                  <Button variant="outline" className="rounded-xl" onClick={() => importRef.current?.click()}>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Import .tex
+                  <Button variant="outline" className="rounded-xl" onClick={() => setBrowseTemplatesOpen(true)}>
+                    <LayoutTemplate className="mr-2 h-4 w-4" />
+                    Templates
                   </Button>
                 </div>
               </div>
@@ -288,7 +349,7 @@ const ProjectsHubPage: React.FC = () => {
                       <div
                         role="button"
                         tabIndex={0}
-                        className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-4 border-b border-border/40 px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-muted/40 cursor-pointer"
+                        className="grid w-full cursor-pointer grid-cols-[1fr_auto_auto] items-center gap-4 border-b border-border/40 px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-muted/40"
                         onClick={() => void openProject(p.id)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
@@ -359,6 +420,26 @@ const ProjectsHubPage: React.FC = () => {
           </main>
         </div>
       </div>
+
+      <NewProjectDialog
+        open={newDialogOpen}
+        onOpenChange={setNewDialogOpen}
+        busy={opening}
+        onCreateBlank={(title) => void handleCreate(title)}
+        onCreateFromTemplate={(title, entry) => void handleCreateFromTemplate(title, entry)}
+        onImport={(files) => void onImport(files)}
+      />
+
+      <TemplateGallery
+        open={browseTemplatesOpen}
+        onOpenChange={setBrowseTemplatesOpen}
+        mode="create"
+        featuredOnly
+        projectTitle={templateTitle}
+        onProjectTitleChange={setTemplateTitle}
+        applying={opening}
+        onApply={(entry) => void handleCreateFromTemplate(templateTitle.trim() || entry.label, entry)}
+      />
     </DesktopOnlyGate>
   );
 };

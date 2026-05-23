@@ -50,6 +50,8 @@ import {
   onResearchJobProgress,
   restoreDraftHistoryDesktop,
 } from "@/lib/research/researchDesktopApi";
+import { createProjectFromTemplate as createProjectFromTemplateStore } from "@/lib/research/createProjectFromTemplate";
+import type { TemplateCatalogEntry } from "@/lib/research/templateCatalog";
 import {
   migrateProjectIntegrity,
   pickCleanDraftHistoryEntry,
@@ -80,6 +82,7 @@ type ResearchProjectContextValue = {
   refreshProjects: () => Promise<void>;
   selectProject: (id: string) => Promise<void>;
   createProject: (title: string) => Promise<void>;
+  createProjectFromTemplate: (title: string, entry: TemplateCatalogEntry) => Promise<void>;
   importProjectFromFile: (file: File) => Promise<void>;
   removeProject: (id: string) => Promise<void>;
   updateProject: (patch: Partial<ResearchProjectData>) => Promise<void>;
@@ -405,6 +408,19 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
     [refreshProjects, toast]
   );
 
+  const createProjectFromTemplate = useCallback(
+    async (title: string, entry: TemplateCatalogEntry) => {
+      const p = await createProjectFromTemplateStore(title, entry);
+      setProject(p);
+      await refreshProjects();
+      toast({
+        title: "Project created from template",
+        description: `${p.title} · ${entry.label}${entry.requiresLocalTex ? " (use Local TeX to compile)" : ""}`,
+      });
+    },
+    [refreshProjects, toast]
+  );
+
   const importProjectFromFile = useCallback(
     async (file: File) => {
       const text = await file.text();
@@ -668,6 +684,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       refreshProjects,
       selectProject,
       createProject,
+      createProjectFromTemplate,
       importProjectFromFile,
       removeProject,
       updateProject,
@@ -745,6 +762,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       refreshProjects,
       selectProject,
       createProject,
+      createProjectFromTemplate,
       importProjectFromFile,
       removeProject,
       updateProject,

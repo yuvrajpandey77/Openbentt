@@ -66,14 +66,19 @@ export const MarkdownCodeBlock: React.FC<{ children: React.ReactNode }> = ({ chi
   return (
     <TooltipProvider delayDuration={300}>
       <div className="my-3 overflow-hidden rounded-lg border border-border/60 bg-muted/50">
-        <div className="flex flex-wrap items-center justify-end gap-1 border-b border-border/50 bg-muted/80 px-2 py-1">
+        <div className="flex items-center border-b border-border/50 bg-muted/80 px-2 py-1">
           {language ? (
-            <span className="mr-auto font-mono text-[10px] uppercase tracking-wide text-muted-foreground">{language}</span>
+            <span className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">{language}</span>
           ) : (
-            <span className="mr-auto text-[10px] text-muted-foreground">code</span>
+            <span className="text-[10px] text-muted-foreground">code</span>
           )}
+        </div>
+        <div className="overflow-x-auto p-3 text-xs leading-relaxed text-foreground [&_code]:bg-transparent [&_code]:p-0 [&_code]:text-[0.95em] [&_code]:text-foreground">
+          {children}
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-1 border-t border-border/50 bg-muted/80 px-2 py-1">
           <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[11px]" onClick={onCopy}>
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Copied" : "Copy"}
           </Button>
           {looksLatexFence && (
@@ -81,9 +86,9 @@ export const MarkdownCodeBlock: React.FC<{ children: React.ReactNode }> = ({ chi
               <TooltipTrigger asChild>
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="ghost"
                   size="sm"
-                  className="h-7 gap-1 px-2 text-[11px]"
+                  className="h-7 gap-1 px-2 text-[11px] text-primary hover:bg-primary/10 hover:text-primary"
                   onClick={onInsertLatex}
                 >
                   <FileCode2 className="h-3.5 w-3.5 shrink-0" />
@@ -95,9 +100,6 @@ export const MarkdownCodeBlock: React.FC<{ children: React.ReactNode }> = ({ chi
               </TooltipContent>
             </Tooltip>
           )}
-        </div>
-        <div className="overflow-x-auto p-3 text-xs leading-relaxed text-foreground [&_code]:bg-transparent [&_code]:p-0 [&_code]:text-[0.95em] [&_code]:text-foreground">
-          {children}
         </div>
       </div>
     </TooltipProvider>
