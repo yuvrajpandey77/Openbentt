@@ -83,6 +83,10 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR20 — Context sources popover
+
+- [ ] Floating chat **Sources** popover lists connected LaTeX + PDF with disconnect
+
 ### PR19 — Multi-PDF chat connections model
 
 - [ ] `ChatConnections.pdfPaperIds` supports up to 3 PDF sources
