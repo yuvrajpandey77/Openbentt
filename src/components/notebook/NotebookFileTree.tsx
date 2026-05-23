@@ -34,7 +34,13 @@ import { loadPaperPdfDesktop, listProjectAssetsDesktop, storeProjectAssetDesktop
 import { displayPaperTitle } from "@/lib/research/displayPaperLabel";
 import { downloadBlob, exportProjectZip } from "@/lib/research/projectExport";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "@/lib/research/base64";
-import type { PaperReviewStatus, ProjectFile } from "@/types/researchProject";
+import type { PaperReviewStatus, ProjectFile, ProjectFolder } from "@/types/researchProject";
+import {
+  folderForProjectPath,
+  migrateProjectFolders,
+  sortedFolders,
+  SYSTEM_FOLDER_IDS,
+} from "@/lib/research/folderMigration";
 import { cn } from "@/lib/utils";
 import {
   BookMarked,
@@ -64,37 +70,46 @@ type TreeNode = {
 function buildTree(
   projectFiles: ProjectFile[] | undefined,
   papers: { id: string; fileName: string; metadata: { title?: string }; reviewStatus?: PaperReviewStatus }[],
-  assets: string[]
+  assets: string[],
+  folders: ProjectFolder[]
 ): TreeNode[] {
   const root: TreeNode[] = [
     { id: "draft", label: "main.tex", kind: "draft" },
     { id: "bib", label: "references.bib", kind: "bib" },
   ];
 
-  const chapters: TreeNode = { id: "folder-chapters", label: "chapters", kind: "folder", children: [] };
-  const figures: TreeNode = { id: "folder-figures", label: "figures", kind: "folder", children: [] };
-  const other: TreeNode = { id: "folder-other", label: "includes", kind: "folder", children: [] };
+  const folderNodes = new Map<string, TreeNode>();
+  for (const f of sortedFolders(folders)) {
+    if (f.id === SYSTEM_FOLDER_IDS.papers || f.id === SYSTEM_FOLDER_IDS.assets) continue;
+    folderNodes.set(f.id, { id: f.id, label: f.label, kind: "folder", children: [] });
+  }
+  const includesFolder = folderNodes.get(SYSTEM_FOLDER_IDS.includes);
 
-  for (const f of projectFiles ?? []) {
-    const label = f.path.split("/").pop() ?? f.path;
+  for (const pf of projectFiles ?? []) {
+    const label = pf.path.split("/").pop() ?? pf.path;
     const node: TreeNode = {
-      id: `pf-${f.id}`,
+      id: `pf-${pf.id}`,
       label,
       kind: "projectFile",
-      fileId: f.id,
+      fileId: pf.id,
     };
-    if (f.path.startsWith("chapters/")) chapters.children!.push(node);
-    else if (f.path.startsWith("figures/") || f.path.startsWith("assets/")) figures.children!.push(node);
-    else other.children!.push({ ...node, label: f.path });
+    const targetFolder = folderForProjectPath(folders, pf.path);
+    if (targetFolder && folderNodes.has(targetFolder.id)) {
+      folderNodes.get(targetFolder.id)!.children!.push(node);
+    } else if (includesFolder) {
+      includesFolder.children!.push({ ...node, label: pf.path });
+    }
   }
 
-  if (chapters.children!.length) root.push(chapters);
-  if (figures.children!.length) root.push(figures);
-  if (other.children!.length) root.push(other);
+  for (const f of sortedFolders(folders)) {
+    if (f.id === SYSTEM_FOLDER_IDS.papers || f.id === SYSTEM_FOLDER_IDS.assets) continue;
+    const node = folderNodes.get(f.id);
+    if (node?.children?.length) root.push(node);
+  }
 
   const papersFolder: TreeNode = {
-    id: "folder-papers",
-    label: "papers",
+    id: SYSTEM_FOLDER_IDS.papers,
+    label: folders.find((x) => x.id === SYSTEM_FOLDER_IDS.papers)?.label ?? "papers",
     kind: "folder",
     children: papers.map((p) => ({
       id: `paper-${p.id}`,
@@ -108,8 +123,8 @@ function buildTree(
 
   if (assets.length) {
     root.push({
-      id: "folder-assets",
-      label: "assets",
+      id: SYSTEM_FOLDER_IDS.assets,
+      label: folders.find((x) => x.id === SYSTEM_FOLDER_IDS.assets)?.label ?? "assets",
       kind: "folder",
       children: assets.map((name) => ({
         id: `asset-${name}`,
@@ -270,9 +285,14 @@ export function NotebookFileTree({
     });
   }, [project, reviewFilter]);
 
+  const projectFolders = useMemo(
+    () => (project ? migrateProjectFolders(project).folders ?? [] : []),
+    [project]
+  );
+
   const tree = useMemo(
-    () => buildTree(project?.projectFiles, filteredPapers, assets),
-    [project?.projectFiles, filteredPapers, assets]
+    () => buildTree(project?.projectFiles, filteredPapers, assets, projectFolders),
+    [project?.projectFiles, filteredPapers, assets, projectFolders]
   );
 
   const flatPapers = useMemo(() => filteredPapers.map((p) => p.id), [filteredPapers]);

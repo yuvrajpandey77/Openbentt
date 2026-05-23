@@ -83,6 +83,10 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR09 — File tree uses folder taxonomy
+
+- [ ] Tree folders match project `folders` labels (chapters, figures, includes, papers, assets)
+
 ### PR08 — Folder taxonomy migration
 
 - [ ] Legacy projects gain default `folders` on load (chapters, figures, includes, papers, assets)
