@@ -83,6 +83,11 @@ Requires `npm run download:busytex` once before first compile.
 
 ## Beta launch — M0 data integrity (v2.1)
 
+### PR22 — E2E + Beta 2.1 docs
+
+- [ ] `e2e/notebook-studio-beta.spec.ts` passes (catalog, pack, projects route)
+- [ ] [BETA_2.1.md](./BETA_2.1.md) documents beta scope and tag **v2.1.0-beta.2**
+
 ### PR21 — Multi-PDF context in assist pipeline
 
 - [ ] Notebook assist merges context from all connected PDF paper ids
