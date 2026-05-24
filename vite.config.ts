@@ -74,6 +74,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    strictPort: true,
     proxy: {
       // Notebook: `npm run latex-compile` (pdflatex) — POST /compile
       "/api/latex-compile": {

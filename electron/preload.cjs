@@ -141,4 +141,12 @@ contextBridge.exposeInMainWorld("openbenttResearch", {
     ipcRenderer.on("research:beforeQuit", handler);
     return () => ipcRenderer.removeListener("research:beforeQuit", handler);
   },
+  patchKnowledge: (projectId, content) =>
+    ipcRenderer.invoke("research:patchKnowledge", projectId, content),
+  appendChatLog: (projectId, entry) =>
+    ipcRenderer.invoke("research:appendChatLog", projectId, entry),
+  listChatLogs: (projectId, opts) =>
+    ipcRenderer.invoke("research:listChatLogs", projectId, opts),
+  listLinkedThreads: (projectId) =>
+    ipcRenderer.invoke("research:listLinkedThreads", projectId),
 });

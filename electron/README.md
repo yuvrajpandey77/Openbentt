@@ -24,6 +24,8 @@ If you see `GBM-DRV error`, `driver (null)`, or `GPU process exited unexpectedly
 npm run electron:dev:safe   # software rendering — window opens reliably
 ```
 
+Dev loads Vite at **`http://127.0.0.1:8080`** (not `localhost`) to avoid IPv6 mismatches. Dev mode uses an isolated profile at **`.electron-dev-profile/`** (not `~/.config/Openbentt`) plus `--disable-http-cache`. Optional: `OPENBENTT_ELECTRON_DEVTOOLS=1` opens DevTools on start. If loading still fails, delete `.electron-dev-profile/` or ensure port 8080 is free.
+
 From v2.1+, `electron:dev` **auto-enables** software rendering on Linux when NVIDIA is detected on a Wayland session (uses native Wayland, not X11/XWayland). To force hardware acceleration anyway:
 
 ```bash

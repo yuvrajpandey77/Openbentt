@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 release
+.electron-dev-profile
 *.local
 
 # Editor directories and files

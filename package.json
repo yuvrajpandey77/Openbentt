@@ -7,7 +7,7 @@
     "email": "openbentt-contributors@users.noreply.github.com"
   },
   "private": true,
-  "version": "2.1.0-beta.4",
+  "version": "2.2.0",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
@@ -38,10 +38,11 @@
     "download:llama-server": "node scripts/download-llama-server.mjs",
     "download:llama-server:all": "node scripts/download-llama-server.mjs --all",
     "predownload:llama-server": "node -e \"console.log('Fetching llama-server from ggml-org/llama.cpp releases…')\"",
-    "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http-get://127.0.0.1:8080 && cross-env OPENBENTT_ELECTRON_DEV=1 node electron/launch.mjs\"",
-    "electron:dev:safe": "concurrently -k \"npm run dev\" \"wait-on http-get://127.0.0.1:8080 && cross-env OPENBENTT_ELECTRON_DEV=1 OPENBENTT_DISABLE_GPU=1 node electron/launch.mjs\"",
+    "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http-get://127.0.0.1:8080 http-get://127.0.0.1:8080/src/main.tsx && cross-env OPENBENTT_ELECTRON_DEV=1 VITE_DEV_SERVER_URL=http://127.0.0.1:8080 node electron/launch.mjs\"",
+    "electron:dev:safe": "concurrently -k \"npm run dev\" \"wait-on http-get://127.0.0.1:8080 http-get://127.0.0.1:8080/src/main.tsx && cross-env OPENBENTT_ELECTRON_DEV=1 OPENBENTT_DISABLE_GPU=1 VITE_DEV_SERVER_URL=http://127.0.0.1:8080 node electron/launch.mjs\"",
     "electron:start": "npm run build && node electron/launch.mjs",
     "electron:start:safe": "npm run build && cross-env OPENBENTT_DISABLE_GPU=1 node electron/launch.mjs",
+    "electron:test:safe": "npm run build && cross-env OPENBENTT_DISABLE_GPU=1 OPENBENTT_SMOKE_TEST=1 node electron/smokeTest.mjs",
     "electron:build": "npm run build && npm run download:llama-server && electron-builder",
     "electron:build:ci": "npm run build && npm run download:llama-server:all && electron-builder",
     "electron:pack": "electron-builder",

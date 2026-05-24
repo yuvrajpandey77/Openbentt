@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.2.0] — 2026-05-24
+
+### Added
+
+- **Persistent Knowledge Context:** Every project now has a "Knowledge" panel in the Notebook Studio. Write insights, hypotheses, and findings — they are automatically injected into every AI chat for that project, giving the model full continuity across sessions. Includes an "AI update" button that synthesizes your papers and draft into a fresh context block.
+- **Auto-RAG on every message:** When PDFs are loaded in a project, each chat message automatically triggers hybrid semantic + keyword retrieval over the full paper library. The top-6 most relevant passages are silently appended to the model context — no buttons, no configuration.
+- **Chat transcript persistence:** Every conversation in a project is now saved to the project SQLite database (`chat_logs` table), so nothing is ever lost. The Projects Hub now shows a linked chat count on each project card.
+- **SQLite schema v6:** Added `knowledge` column to `projects` table and a new `chat_logs` table with full indexes. Migration runs automatically on first launch, safe for existing data.
+- **No-GPU smoke test:** `npm run electron:test:safe` builds the app and launches it with GPU disabled, verifying it stays alive for 12 seconds — catches GPU-related startup crashes before release.
+
+### Changed
+
+- **Tools panel UX (Notebook Studio):** The Tools tab in the left-rail explorer now shows labeled cards with descriptions for every research panel. Clicking a tool opens its content **inline inside the explorer panel** (back arrow to return to the list) — no more right-side Sheet drawer, no modal blocking the editor. Works like VS Code's extension panel system.
+- **Tools dialog (Chat):** The "Tools" button in the chat composer now opens a centered dialog instead of a cramped right-side popover. Organized into AI Modes and Utilities sections with clear descriptions, active-state highlighting, and a copy button on calculator results.
+- **Banner overflow fixed:** The OpenRouter API key banner on the Projects page no longer causes horizontal scroll at any screen width.
+- **Version bump:** `2.1.0-beta.4` → `2.2.0`.
+
+### Fixed
+
+- `electron:dev` ERR_FAILED loading on devices without GPU — isolated dev profile, `--disable-http-cache`, `SingletonLock` cleanup, `127.0.0.1` instead of `localhost`.
+- Electron exits immediately in `concurrently` — bypassed `requestSingleInstanceLock` in dev mode, fixed stdin close causing early exit.
+- Window not appearing despite Electron running — explicit `win.show()` + `win.focus()` in dev mode.
+
 ## [2.0.6] — 2026-05-19
 
 ### Added
@@ -81,7 +104,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
-- Desktop app starts on **`/projects`** (not `/chat`).
+- Desktop app starts on `**/projects`** (not `/chat`).
 - Setup lists OpenRouter first; local GGUF/WebGPU are advanced options.
 
 ### Fixed

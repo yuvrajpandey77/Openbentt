@@ -7,6 +7,7 @@ import { NotebookZoteroPanel } from "@/components/research/NotebookZoteroPanel";
 import { NotebookNotesPanel } from "@/components/research/NotebookNotesPanel";
 import { NotebookAssistantPanel } from "@/components/research/NotebookAssistantPanel";
 import { LibraryPapersPanel } from "@/components/research/LibraryPapersPanel";
+import { KnowledgePanel } from "@/components/research/KnowledgePanel";
 
 export function ResearchSidePanel({ id }: { id: ResearchPanelId }) {
   switch (id) {
@@ -16,6 +17,8 @@ export function ResearchSidePanel({ id }: { id: ResearchPanelId }) {
       return <NotebookZoteroPanel />;
     case "assistant":
       return <NotebookAssistantPanel />;
+    case "knowledge":
+      return <KnowledgePanel />;
     case "notes":
       return <NotebookNotesPanel />;
     case "search":

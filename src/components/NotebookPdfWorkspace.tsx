@@ -330,10 +330,12 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   );
 
   useEffect(() => {
-    const block = buildNotebookFullWorkspaceAssist(notebookAssistParams);
+    const block = buildNotebookFullWorkspaceAssist(notebookAssistParams, {
+      knowledge: researchProject?.knowledge,
+    });
     setWorkspaceRouteAssist(block);
     setWorkspaceAssistTokenEstimate(estimateTokensFromText(block));
-  }, [notebookAssistParams, setWorkspaceRouteAssist, setWorkspaceAssistTokenEstimate]);
+  }, [notebookAssistParams, researchProject?.knowledge, setWorkspaceRouteAssist, setWorkspaceAssistTokenEstimate]);
 
   useEffect(() => {
     return () => setWorkspaceAssistTokenEstimate(0);
@@ -367,8 +369,11 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   );
 
   const getLatestNotebookAssist = useCallback(
-    () => buildNotebookFullWorkspaceAssist(notebookAssistParamsLive),
-    [notebookAssistParamsLive]
+    () =>
+      buildNotebookFullWorkspaceAssist(notebookAssistParamsLive, {
+        knowledge: researchProject?.knowledge,
+      }),
+    [notebookAssistParamsLive, researchProject?.knowledge]
   );
 
   useEffect(() => {

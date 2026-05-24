@@ -2,6 +2,7 @@
  * Spawn Electron with GPU flags applied before the binary starts (avoids early NVIDIA GBM probes).
  */
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import electron from "electron";
@@ -19,11 +20,21 @@ if (decision.enabled) {
   env.LIBGL_ALWAYS_SOFTWARE = "1";
 }
 
+const isDev = process.env.OPENBENTT_ELECTRON_DEV === "1";
+if (isDev) {
+  /** Isolated profile — avoids stale ~/.config/Openbentt cache/DIPS breaking dev loads. */
+  const devUserData = path.join(appRoot, ".electron-dev-profile");
+  fs.mkdirSync(devUserData, { recursive: true });
+  /** Remove stale SingletonLock so a crashed previous run never blocks restart. */
+  try { fs.unlinkSync(path.join(devUserData, "SingletonLock")); } catch { /* not present */ }
+  electronArgs.push(`--user-data-dir=${devUserData}`, "--disable-http-cache");
+}
+
 electronArgs.push(".");
 
 const child = spawn(electron, electronArgs, {
   cwd: appRoot,
-  stdio: "inherit",
+  stdio: ["ignore", "inherit", "inherit"],
   env,
 });
 

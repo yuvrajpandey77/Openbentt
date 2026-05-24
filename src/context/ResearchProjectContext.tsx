@@ -17,6 +17,7 @@ import {
   listResearchProjects,
   patchProjectBibliography,
   patchProjectDraft,
+  patchProjectKnowledge,
   saveProjectEmbeddingsOnly,
   saveResearchProject,
   setActiveProjectId,
@@ -59,6 +60,10 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { isDesktopApp } from "@/lib/isDesktopApp";
+import { useChat } from "@/context/ChatContext";
+import { assembleResearchContext, formatRetrievalForPrompt } from "@/lib/ai/researchOrchestrator";
+import { buildTfidfIndex } from "@/lib/research/corpusIndex";
+import { resolveLibraryEmbeddings } from "@/lib/research/embeddingLoader";
 
 type BackgroundJobStatus = {
   jobId: string;
@@ -102,6 +107,7 @@ type ResearchProjectContextValue = {
   deleteProjectFile: (fileId: string) => Promise<void>;
   renameProjectFile: (fileId: string, newPath: string) => Promise<void>;
   updateProjectFileContent: (fileId: string, content: string) => void;
+  updateKnowledge: (content: string) => Promise<void>;
   linkThread: (threadId: string) => Promise<void>;
   recordModelAttribution: (model: string, section: string) => Promise<void>;
   rebuildSemanticIndex: () => void;
@@ -131,6 +137,62 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftPendingRef = useRef<string | null>(null);
   const integrityWarnedRef = useRef<string | null>(null);
+  const projectRef = useRef<ResearchProjectData | null>(null);
+  projectRef.current = project;
+
+  const { registerCorpusRagProvider, registerChatLogPersister } = useChat();
+
+  // Register corpus RAG provider whenever there's an active project.
+  useEffect(() => {
+    if (!project?.chunks.length) {
+      registerCorpusRagProvider(null);
+      return;
+    }
+    registerCorpusRagProvider(async (query: string) => {
+      const p = projectRef.current;
+      if (!p || !p.chunks.length) return "";
+      try {
+        const names = Object.fromEntries(
+          p.papers.map((paper) => [paper.id, paper.metadata.title ?? paper.fileName])
+        );
+        const tfidf = buildTfidfIndex(p.chunks);
+        const vectors = await resolveLibraryEmbeddings(p.id, p.chunks, p.chunkEmbeddings);
+        const { hybridRetrieveV2 } = await import("@/lib/research/retrievalV2");
+        const hits = await hybridRetrieveV2(query, p.chunks, names, tfidf, vectors, { limit: 6 });
+        return formatRetrievalForPrompt(hits, 8000);
+      } catch {
+        return "";
+      }
+    });
+    return () => registerCorpusRagProvider(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id, project?.chunks.length, registerCorpusRagProvider]);
+
+  // Register chat-log persister when a project is active (desktop only).
+  useEffect(() => {
+    if (!project?.id || !isDesktopApp()) {
+      registerChatLogPersister(null);
+      return;
+    }
+    const pid = project.id;
+    registerChatLogPersister((threadId, role, content, model) => {
+      const api = window.openbenttResearch as {
+        appendChatLog?: (
+          projectId: string,
+          entry: { id: string; threadId: string; role: string; content: string; model?: string }
+        ) => void;
+      };
+      api?.appendChatLog?.(pid, {
+        id: crypto.randomUUID(),
+        threadId,
+        role,
+        content,
+        model: model || undefined,
+      });
+    });
+    return () => registerChatLogPersister(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id, registerChatLogPersister]);
 
   const restoreCleanDraftFromHistory = useCallback(async () => {
     if (!project?.id || !isDesktopApp()) {
@@ -730,6 +792,11 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       deleteProjectFile,
       renameProjectFile,
       updateProjectFileContent,
+      updateKnowledge: async (content) => {
+        if (!project) return;
+        setProject((prev) => (prev ? { ...prev, knowledge: content } : prev));
+        await patchProjectKnowledge(project.id, content);
+      },
       linkThread: async (threadId) => {
         if (!project) return;
         const ids = [...new Set([...project.linkedThreadIds, threadId])];

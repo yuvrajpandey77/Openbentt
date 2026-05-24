@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
 import { useChat } from "@/context/ChatContext";
@@ -17,6 +16,7 @@ import { ResearchSidePanel } from "@/components/research/ResearchSidePanel";
 import { NotebookFileTree } from "@/components/notebook/NotebookFileTree";
 import { cn } from "@/lib/utils";
 import {
+  ArrowLeft,
   ChevronRight,
   Files,
   ListTree,
@@ -86,7 +86,7 @@ function RailTabButton({
   );
 }
 
-function ToolNavButton({
+function ToolNavCard({
   item,
   active,
   onClick,
@@ -96,27 +96,27 @@ function ToolNavButton({
   onClick: () => void;
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={item.label}
-          className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors",
-            active
-              ? "bg-primary/10 text-primary shadow-sm"
-              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-          )}
-          onClick={onClick}
-        >
-          <item.Icon className="h-4 w-4 shrink-0 opacity-85" strokeWidth={2} />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" className="max-w-[220px]">
-        <p className="font-medium">{item.label}</p>
-        <p className="text-xs text-muted-foreground">{item.description}</p>
-      </TooltipContent>
-    </Tooltip>
+    <button
+      type="button"
+      aria-label={item.label}
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors",
+        active
+          ? "border-primary/40 bg-primary/8 text-primary"
+          : "border-border/50 bg-muted/10 text-foreground hover:border-primary/25 hover:bg-muted/40"
+      )}
+    >
+      <span className={cn("shrink-0", active ? "text-primary" : "text-muted-foreground")}>
+        <item.Icon className="h-4 w-4" strokeWidth={2} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-medium leading-none">{item.label}</p>
+        <p className="mt-0.5 truncate text-[10px] leading-tight text-muted-foreground">
+          {item.description}
+        </p>
+      </div>
+    </button>
   );
 }
 
@@ -219,8 +219,11 @@ export function NotebookLeftRail() {
   if (!project) return null;
 
   const outline = parseOutline(project.draftTex);
-  const activeTool =
-    layout.activeSidePanel !== "editor" ? (layout.activeSidePanel as ResearchSidePanelId) : null;
+  // Only treat as "active" when the drawer was explicitly opened by the user.
+  const activeTool: ResearchSidePanelId | null =
+    sidePanelDrawerOpen && layout.activeSidePanel !== "editor"
+      ? (layout.activeSidePanel as ResearchSidePanelId)
+      : null;
 
   const onBulkUpload = async (files: FileList | null) => {
     if (!files?.length) return;
@@ -230,13 +233,10 @@ export function NotebookLeftRail() {
   };
 
   const openTool = (id: ResearchSidePanelId) => {
-    if (activeTool === id && sidePanelDrawerOpen) {
-      closeTool();
-      return;
-    }
     openResearchToolPanel(id);
     setSearchParams({ panel: id }, { replace: true });
     setTab("tools");
+    setExplorerOpen(true);
   };
 
   const closeTool = () => {
@@ -244,14 +244,6 @@ export function NotebookLeftRail() {
     const next = new URLSearchParams(searchParams);
     next.delete("panel");
     setSearchParams(next, { replace: true });
-  };
-
-  const onToolDrawerOpenChange = (open: boolean) => {
-    if (open) {
-      if (activeTool) openResearchToolPanel(activeTool);
-      return;
-    }
-    closeTool();
   };
 
   const tabs: { id: RailTab; label: string; Icon: typeof Files }[] = [
@@ -378,19 +370,54 @@ export function NotebookLeftRail() {
             </ScrollArea>
           )}
 
-          {tab === "tools" && (
+          {tab === "tools" && !activeTool && (
             <ScrollArea className="min-h-0 flex-1">
-              <div className="grid grid-cols-4 justify-items-center gap-1 p-2">
+              <div className="flex flex-col gap-1 p-2">
                 {RESEARCH_PANEL_NAV.map((item) => (
-                  <ToolNavButton
+                  <ToolNavCard
                     key={item.id}
                     item={item}
-                    active={activeTool === item.id && sidePanelDrawerOpen}
+                    active={false}
                     onClick={() => openTool(item.id)}
                   />
                 ))}
               </div>
             </ScrollArea>
+          )}
+
+          {tab === "tools" && activeTool && (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              {/* Panel header with back button */}
+              <div className="flex shrink-0 items-center gap-1.5 border-b border-border/50 bg-muted/20 px-2 py-1.5">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 shrink-0"
+                  onClick={closeTool}
+                  aria-label="Back to tools list"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                </Button>
+                {(() => {
+                  const navItem = RESEARCH_PANEL_NAV.find((n) => n.id === activeTool);
+                  return (
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      {navItem && (
+                        <navItem.Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      )}
+                      <span className="truncate text-xs font-semibold">
+                        {PANEL_LABELS[activeTool]}
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+              {/* Panel content renders inline — no modal, no sheet */}
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <ResearchSidePanel id={activeTool} />
+              </div>
+            </div>
           )}
         </div>
         <div
@@ -403,20 +430,6 @@ export function NotebookLeftRail() {
         />
       </aside>
 
-      <Sheet open={sidePanelDrawerOpen} onOpenChange={onToolDrawerOpenChange}>
-        <SheetContent
-          key={sidePanelDrawerOpen && activeTool ? `${activeTool}-open` : "tool-drawer-closed"}
-          side="right"
-          className="flex w-[min(400px,90vw)] flex-col p-0 sm:max-w-md"
-        >
-          <SheetHeader className="border-b border-border/60 px-4 py-3 text-left">
-            <SheetTitle>{activeTool ? PANEL_LABELS[activeTool] : "Research tool"}</SheetTitle>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-hidden">
-            {activeTool && sidePanelDrawerOpen ? <ResearchSidePanel id={activeTool} /> : null}
-          </div>
-        </SheetContent>
-      </Sheet>
     </>
   );
 }

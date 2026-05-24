@@ -37,6 +37,46 @@ export async function patchBibliographyDesktop(projectId: string, content: strin
   return api()?.patchBibliography?.(projectId, content);
 }
 
+export async function patchKnowledgeDesktop(
+  projectId: string,
+  content: string
+): Promise<{ ok: boolean; updatedAt: string } | undefined> {
+  return api()?.patchKnowledge?.(projectId, content);
+}
+
+export type ChatLogEntry = {
+  id: string;
+  threadId: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  model?: string;
+  createdAt?: string;
+};
+
+export async function appendChatLogDesktop(
+  projectId: string,
+  entry: { id: string; threadId: string; role: string; content: string; model?: string }
+): Promise<void> {
+  await api()?.appendChatLog?.(projectId, entry);
+}
+
+export async function listChatLogsDesktop(
+  projectId: string,
+  opts?: { limit?: number }
+): Promise<ChatLogEntry[]> {
+  const rows = await api()?.listChatLogs?.(projectId, opts);
+  if (!Array.isArray(rows)) return [];
+  return rows as ChatLogEntry[];
+}
+
+export async function listLinkedThreadsDesktop(
+  projectId: string
+): Promise<{ threadId: string; messageCount: number; lastAt: string }[]> {
+  const rows = await api()?.listLinkedThreads?.(projectId);
+  if (!Array.isArray(rows)) return [];
+  return rows as { threadId: string; messageCount: number; lastAt: string }[];
+}
+
 export async function upsertEmbeddingsDesktop(
   projectId: string,
   batch: { chunkId: string; vector: number[] }[]

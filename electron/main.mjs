@@ -1,6 +1,6 @@
 /**
  * Openbentt desktop shell — loads the same Vite app as the web build.
- * - Dev (hot reload): set OPENBENTT_ELECTRON_DEV=1 → http://localhost:8080 (Vite must be running)
+ * - Dev (hot reload): set OPENBENTT_ELECTRON_DEV=1 → http://127.0.0.1:8080 (Vite must be running)
  * - Packaged / local dist: custom app:// protocol → dist/ with SPA fallback (no src/ changes)
  */
 import { app, BrowserWindow, protocol, net, ipcMain } from "electron";
@@ -43,8 +43,10 @@ if (gpuSafeMode.enabled) {
   app.commandLine.appendSwitch("disable-gpu-compositing");
 }
 
-/** One app instance — second launch focuses the existing window. */
-const singleInstanceLock = app.requestSingleInstanceLock();
+/** One app instance — second launch focuses the existing window.
+ *  Dev mode skips this so restarts never get blocked by a stale lock. */
+const singleInstanceLock =
+  process.env.OPENBENTT_ELECTRON_DEV === "1" || app.requestSingleInstanceLock();
 if (!singleInstanceLock) {
   app.quit();
 }
@@ -111,9 +113,14 @@ if (!gpuSafeMode.enabled && process.env.OPENBENTT_DISABLE_GPU === "1") {
   app.disableHardwareAcceleration();
 }
 
-const VITE_DEV_URL = process.env.VITE_DEV_SERVER_URL || "http://localhost:8080";
+const VITE_DEV_URL = process.env.VITE_DEV_SERVER_URL || "http://127.0.0.1:8080";
 /** When true, load the Vite dev server (use `npm run electron:dev`). Otherwise load built `dist/` via app:// */
 const useViteDevServer = process.env.OPENBENTT_ELECTRON_DEV === "1";
+
+/** Dev load runs async; keep the app alive if the window closes mid-retry. */
+let devStartupInProgress = false;
+let devWindowRecreateCount = 0;
+const MAX_DEV_WINDOW_RECREATE = 2;
 
 /** Desktop home: projects hub (Notebook Studio entry). */
 const START_PATH = "/projects";
@@ -209,6 +216,50 @@ function windowIconPath() {
   return fs.existsSync(p) ? p : undefined;
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Vite can accept TCP connections before the first HTML/transform is ready — retry in dev. */
+async function waitForViteDevServer(baseUrl, maxMs = 45_000) {
+  const root = baseUrl.replace(/\/$/, "");
+  const deadline = Date.now() + maxMs;
+  let attempt = 0;
+  while (Date.now() < deadline) {
+    attempt += 1;
+    try {
+      const res = await fetch(`${root}/`);
+      if (res.ok) return;
+    } catch {
+      /* retry */
+    }
+    const delay = Math.min(250 * attempt, 1500);
+    if (attempt === 1 || attempt % 5 === 0) {
+      console.info(`[electron] Waiting for Vite at ${root} (attempt ${attempt})…`);
+    }
+    await sleep(delay);
+  }
+  throw new Error(`Vite dev server not ready at ${root} after ${maxMs}ms`);
+}
+
+async function loadDevUrlWithRetry(win, url, maxAttempts = 12) {
+  for (let i = 0; i < maxAttempts; i++) {
+    if (win.isDestroyed()) {
+      throw new Error(`BrowserWindow closed before dev load finished (${url})`);
+    }
+    try {
+      await win.loadURL(url);
+      return;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const delay = Math.min(300 * (i + 1), 2000);
+      console.warn(
+        `[electron] Dev load attempt ${i + 1}/${maxAttempts} failed (${msg}); retry in ${delay}ms…`
+      );
+      await sleep(delay);
+    }
+  }
+  throw new Error(`Failed to load ${url} after ${maxAttempts} attempts. Is Vite running? (npm run dev)`);
+}
+
 function createWindow() {
   const icon = windowIconPath();
   const win = new BrowserWindow({
@@ -229,20 +280,41 @@ function createWindow() {
     });
   }
 
-  win.once("ready-to-show", () => win.show());
   setLocalGgufProgressTarget(win);
   setZoteroProgressTarget(win);
   setUpdaterTargetWindow(win);
 
   if (useViteDevServer) {
+    /** Show immediately — don't wait for page load so the window is always visible. */
+    win.show();
+    win.focus();
     const devBase = VITE_DEV_URL.replace(/\/$/, "");
     const devStart = `${devBase}${START_PATH}`;
-    win.loadURL(devStart).catch((err) => {
-      console.error(`[electron] Failed to load ${devStart}. Is Vite running? (npm run dev)`, err);
+    devStartupInProgress = true;
+    win.webContents.on("did-fail-load", (_event, code, _desc, url, isMainFrame) => {
+      if (isMainFrame) {
+        console.warn(`[electron] Main frame failed to load (${code}): ${url}`);
+      }
     });
-    win.webContents.openDevTools({ mode: "detach" });
+    void (async () => {
+      try {
+        await waitForViteDevServer(devBase);
+        await loadDevUrlWithRetry(win, devStart);
+        if (process.env.OPENBENTT_ELECTRON_DEVTOOLS === "1" && !win.isDestroyed()) {
+          win.webContents.openDevTools({ mode: "detach" });
+        }
+      } catch (err) {
+        console.error("[electron]", err instanceof Error ? err.message : err);
+      } finally {
+        devStartupInProgress = false;
+      }
+      if (!win.isDestroyed() && !win.isVisible()) win.show();
+    })();
+    /** Show window unconditionally after 3 s so a silent load failure never leaves it invisible. */
+    sleep(3000).then(() => { if (!win.isDestroyed() && !win.isVisible()) win.show(); });
   } else {
     // Path must match React Router; `app://` with no pathname would show marketing `/`.
+    win.once("ready-to-show", () => win.show());
     win.loadURL(`app://openbentt${START_PATH}`);
   }
 }
@@ -289,7 +361,12 @@ app.on("before-quit", () => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
+  if (process.platform === "darwin") return;
+  if (useViteDevServer && devStartupInProgress && devWindowRecreateCount < MAX_DEV_WINDOW_RECREATE) {
+    devWindowRecreateCount += 1;
+    console.warn("[electron] Window closed during dev startup — recreating…");
+    createWindow();
+    return;
   }
+  app.quit();
 });

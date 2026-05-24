@@ -148,6 +148,12 @@ export interface ResearchProjectData {
   updatedAt: string;
   targetVenue: TargetVenue;
   linkedThreadIds: string[];
+  /**
+   * Persistent knowledge context for this project — accumulates key insights,
+   * questions, and findings across sessions. Stored in SQLite (desktop) or
+   * localStorage (web). Updated manually or auto-summarized by AI.
+   */
+  knowledge: string;
   draftTex: string;
   bibliography: string;
   bibEntries: BibEntry[];

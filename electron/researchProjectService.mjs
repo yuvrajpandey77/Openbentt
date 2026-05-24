@@ -10,19 +10,23 @@ import {
   putCompileArtifactDesktop,
 } from "./compileArtifactStore.mjs";
 import {
+  appendChatLog,
   backupDatabase,
   closeDb,
   createSnapshot,
   deleteProject,
   getActiveProjectId,
   getDraftHistoryEntry,
+  listChatLogs,
   listDraftHistory,
+  listLinkedThreadsWithCount,
   listProjectSummaries,
   listSnapshots,
   loadProject,
   migrateLegacyProjects,
   patchBibliography,
   patchDraft,
+  patchKnowledge,
   projectDir,
   pushDraftHistory,
   restoreSnapshot,
@@ -61,7 +65,7 @@ export async function initResearchStorage(app) {
   const { migrated } = await migrateLegacyProjects(app);
   backupDatabase(app);
   const { resumed } = resumeInterruptedJobs(app);
-  return { migrated, schemaVersion: 5, resumed };
+  return { migrated, schemaVersion: 6, resumed };
 }
 
 export function registerResearchProjectIpc(ipcMain, app) {
@@ -341,6 +345,29 @@ export function registerResearchProjectIpc(ipcMain, app) {
     const buf = Buffer.from(base64, "base64");
     await putCompileArtifactDesktop(app, projectId, hash, buf, meta ?? {});
     return { ok: true };
+  });
+
+  ipcMain.handle("research:patchKnowledge", async (_e, projectId, content) => {
+    assertSafeId(projectId, "project id");
+    if (typeof content !== "string") throw new Error("Invalid knowledge content");
+    return patchKnowledge(app, projectId, content);
+  });
+
+  ipcMain.handle("research:appendChatLog", async (_e, projectId, entry) => {
+    assertSafeId(projectId, "project id");
+    if (!entry?.id || !entry?.threadId || !entry?.role || typeof entry?.content !== "string")
+      throw new Error("Invalid chat log entry");
+    return appendChatLog(app, projectId, entry);
+  });
+
+  ipcMain.handle("research:listChatLogs", async (_e, projectId, opts) => {
+    assertSafeId(projectId, "project id");
+    return listChatLogs(app, projectId, opts ?? {});
+  });
+
+  ipcMain.handle("research:listLinkedThreads", async (_e, projectId) => {
+    assertSafeId(projectId, "project id");
+    return listLinkedThreadsWithCount(app, projectId);
   });
 }
 

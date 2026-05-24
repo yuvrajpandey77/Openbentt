@@ -16,6 +16,7 @@ import {
   loadEmbeddingsDesktop,
   patchBibliographyDesktop,
   patchDraftDesktop,
+  patchKnowledgeDesktop,
   upsertEmbeddingsDesktop,
 } from "@/lib/research/researchDesktopApi";
 import { clearIndexCheckpoint } from "@/lib/research/indexCheckpoint";
@@ -118,6 +119,7 @@ function defaultProject(title: string): ResearchProjectData {
     updatedAt: now,
     targetVenue: "generic",
     linkedThreadIds: [],
+    knowledge: "",
     draftTex,
     bibliography: "",
     bibEntries: [],
@@ -314,6 +316,19 @@ export async function saveProjectEmbeddingsOnly(
     return;
   }
   saveEmbeddingsLocal(projectId, vectors);
+}
+
+export async function patchProjectKnowledge(
+  projectId: string,
+  content: string
+): Promise<void> {
+  if (isDesktopApp()) {
+    await patchKnowledgeDesktop(projectId, content);
+    return;
+  }
+  // Web: update localStorage project directly
+  const proj = loadProjectLocal(projectId);
+  if (proj) saveProjectLocal({ ...proj, knowledge: content });
 }
 
 export async function deleteResearchProject(id: string): Promise<void> {

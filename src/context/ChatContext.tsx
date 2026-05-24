@@ -76,6 +76,12 @@ interface ChatContextProps {
   setWorkspaceRouteAssist: (block: string | undefined) => void;
   /** Notebook: register a function that returns full workspace assist with current Source (for send/regenerate). */
   registerNotebookAssistSync: (fn: (() => string) | null) => void;
+  /** Research: register an async function that returns corpus RAG evidence for a query. */
+  registerCorpusRagProvider: (fn: ((query: string) => Promise<string>) | null) => void;
+  /** Research: register a callback that persists chat messages to the project DB. */
+  registerChatLogPersister: (
+    fn: ((threadId: string, role: string, content: string, model: string) => void) | null
+  ) => void;
   /** Estimated tokens from notebook workspace assist (connected files + source snapshot). */
   workspaceAssistTokenEstimate: number;
   setWorkspaceAssistTokenEstimate: (n: number) => void;
@@ -137,6 +143,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const workspaceRouteAssistRef = useRef<string | undefined>(undefined);
   /** Notebook registers a sync builder so sends use latest Source (debounced assist may lag typing). */
   const notebookAssistSyncRef = useRef<(() => string) | null>(null);
+  /**
+   * Research project context injected by ResearchProjectContext for corpus RAG.
+   * Provides getCorpusEvidence(query) → formatted evidence string.
+   */
+  const corpusRagProviderRef = useRef<((query: string) => Promise<string>) | null>(null);
+  /**
+   * Callback registered by ResearchProjectContext to persist chat messages to the
+   * project's SQLite database. Arguments: (threadId, role, content, model).
+   */
+  const chatLogPersisterRef = useRef<
+    ((threadId: string, role: string, content: string, model: string) => void) | null
+  >(null);
   const chatsRef = useRef(chats);
   chatsRef.current = chats;
 
@@ -147,6 +165,20 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const registerNotebookAssistSync = useCallback((fn: (() => string) | null) => {
     notebookAssistSyncRef.current = fn;
   }, []);
+
+  const registerCorpusRagProvider = useCallback(
+    (fn: ((query: string) => Promise<string>) | null) => {
+      corpusRagProviderRef.current = fn;
+    },
+    []
+  );
+
+  const registerChatLogPersister = useCallback(
+    (fn: ((threadId: string, role: string, content: string, model: string) => void) | null) => {
+      chatLogPersisterRef.current = fn;
+    },
+    []
+  );
 
   useEffect(() => {
     setProviderQuotaSnapshot(null);
@@ -364,7 +396,26 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     cfg: ApiKeyConfig,
     pipelineOpts?: { workspaceAssistBlock?: string }
   ): Promise<PipelineExtras> => {
-    const ws = pipelineOpts?.workspaceAssistBlock;
+    let ws = pipelineOpts?.workspaceAssistBlock;
+
+    // Auto-RAG: if a research corpus provider is registered, fetch top hits for
+    // the last user message and append them to the workspace assist block.
+    if (corpusRagProviderRef.current) {
+      try {
+        const lastUser = [...msgs].reverse().find((m) => m.role === "user");
+        const query = (typeof lastUser?.content === "string" ? lastUser.content : "")
+          .slice(0, 400)
+          .trim();
+        if (query) {
+          const evidence = await corpusRagProviderRef.current(query);
+          if (evidence.trim()) {
+            ws = ws ? `${ws}\n\n${evidence}` : evidence;
+          }
+        }
+      } catch {
+        /* RAG failure is non-fatal; continue without evidence */
+      }
+    }
     const researchOn =
       cfg.researchEnabled &&
       isResearchNetworkAllowed(cfg, !isNavigatorOnline()) &&
@@ -673,6 +724,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...chatMessages,
           { ...assistantMessage, content: text, metrics: finalMetrics },
         ]);
+
+        // Persist messages to research project DB (fire-and-forget; non-critical).
+        if (chatLogPersisterRef.current) {
+          const lastUser = [...chatMessages].reverse().find((m) => m.role === "user");
+          if (lastUser && typeof lastUser.content === "string") {
+            chatLogPersisterRef.current(activeChatId, "user", lastUser.content, "");
+          }
+          chatLogPersisterRef.current(activeChatId, "assistant", text, cfg.model ?? "");
+        }
       } catch (error) {
         const aborted =
           (error instanceof Error || (typeof DOMException !== "undefined" && error instanceof DOMException)) &&
@@ -1033,6 +1093,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     providerQuotaSnapshot,
     setWorkspaceRouteAssist,
     registerNotebookAssistSync,
+    registerCorpusRagProvider,
+    registerChatLogPersister,
     workspaceAssistTokenEstimate,
     setWorkspaceAssistTokenEstimate,
     notebookLatexInsertRequest,

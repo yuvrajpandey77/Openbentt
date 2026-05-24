@@ -7,7 +7,7 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 const ROOT_DIR = "research-projects";
 
 export function projectsRoot(app) {
@@ -81,6 +81,7 @@ function runMigrations(db) {
   if (v < 3) migrateV3(db);
   if (v < 4) migrateV4(db);
   if (v < 5) migrateV5(db);
+  if (v < 6) migrateV6(db);
 
   if (v < SCHEMA_VERSION) {
     db.prepare("DELETE FROM schema_version").run();
@@ -252,6 +253,29 @@ function migrateV5(db) {
   `);
 }
 
+/**
+ * v6: knowledge context column on projects; chat_logs table.
+ */
+function migrateV6(db) {
+  const projCols = db.prepare("PRAGMA table_info(projects)").all();
+  if (!projCols.some((c) => c.name === "knowledge")) {
+    db.exec(`ALTER TABLE projects ADD COLUMN knowledge TEXT NOT NULL DEFAULT ''`);
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS chat_logs (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      thread_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      model TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_logs_project ON chat_logs(project_id, created_at ASC);
+    CREATE INDEX IF NOT EXISTS idx_chat_logs_thread ON chat_logs(thread_id);
+  `);
+}
+
 export function hasActiveRechunkJob(app, projectId) {
   const db = openDb(app);
   const row = db
@@ -396,6 +420,7 @@ export function loadProject(app, id) {
     updatedAt: p.updated_at,
     targetVenue: p.target_venue,
     linkedThreadIds,
+    knowledge: p.knowledge ?? "",
     draftTex: draft?.content ?? "",
     bibliography: bib?.content ?? "",
     bibEntries: [],
@@ -415,8 +440,9 @@ export function saveProjectMeta(app, data, opts = {}) {
   db.prepare(
     `INSERT INTO projects (
       id, title, created_at, updated_at, target_venue, linked_thread_ids,
-      revision_suggestions, model_attributions, abstract_variants, keyword_suggestions
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      revision_suggestions, model_attributions, abstract_variants, keyword_suggestions,
+      knowledge
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       title = excluded.title,
       updated_at = excluded.updated_at,
@@ -425,7 +451,8 @@ export function saveProjectMeta(app, data, opts = {}) {
       revision_suggestions = excluded.revision_suggestions,
       model_attributions = excluded.model_attributions,
       abstract_variants = excluded.abstract_variants,
-      keyword_suggestions = excluded.keyword_suggestions`
+      keyword_suggestions = excluded.keyword_suggestions,
+      knowledge = excluded.knowledge`
   ).run(
     data.id,
     data.title,
@@ -436,7 +463,8 @@ export function saveProjectMeta(app, data, opts = {}) {
     JSON.stringify(data.revisionSuggestions ?? []),
     JSON.stringify(data.modelAttributions ?? []),
     JSON.stringify(data.abstractVariants ?? []),
-    JSON.stringify(data.keywordSuggestions ?? [])
+    JSON.stringify(data.keywordSuggestions ?? []),
+    data.knowledge ?? ""
   );
 
   db.prepare(
@@ -478,6 +506,48 @@ export function patchBibliography(app, projectId, content) {
   ).run(projectId, content, now);
   db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(now, projectId);
   return { ok: true, updatedAt: now };
+}
+
+export function patchKnowledge(app, projectId, content) {
+  const db = openDb(app);
+  const now = new Date().toISOString();
+  db.prepare("UPDATE projects SET knowledge = ?, updated_at = ? WHERE id = ?").run(
+    content,
+    now,
+    projectId
+  );
+  return { ok: true, updatedAt: now };
+}
+
+export function appendChatLog(app, projectId, { id, threadId, role, content, model }) {
+  const db = openDb(app);
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO chat_logs (id, project_id, thread_id, role, content, model, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO NOTHING`
+  ).run(id, projectId, threadId, role, content, model ?? null, now);
+  return { ok: true };
+}
+
+export function listChatLogs(app, projectId, { limit = 200 } = {}) {
+  const db = openDb(app);
+  return db
+    .prepare(
+      `SELECT id, thread_id AS threadId, role, content, model, created_at AS createdAt
+       FROM chat_logs WHERE project_id = ? ORDER BY created_at ASC LIMIT ?`
+    )
+    .all(projectId, limit);
+}
+
+export function listLinkedThreadsWithCount(app, projectId) {
+  const db = openDb(app);
+  return db
+    .prepare(
+      `SELECT thread_id AS threadId, COUNT(*) AS messageCount, MAX(created_at) AS lastAt
+       FROM chat_logs WHERE project_id = ? GROUP BY thread_id ORDER BY lastAt DESC`
+    )
+    .all(projectId);
 }
 
 export function savePapers(app, projectId, papers) {

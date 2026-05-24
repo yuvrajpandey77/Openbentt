@@ -4,6 +4,7 @@ export type ResearchPanelId =
   | "citations"
   | "zotero"
   | "assistant"
+  | "knowledge"
   | "notes"
   | "search"
   | "revisions"
@@ -17,6 +18,7 @@ export const RESEARCH_SIDE_PANEL_IDS: ResearchSidePanelId[] = [
   "citations",
   "zotero",
   "assistant",
+  "knowledge",
   "notes",
   "search",
   "revisions",
@@ -48,6 +50,7 @@ export const PANEL_LABELS: Record<ResearchPanelId, string> = {
   citations: "Citations",
   zotero: "Zotero",
   assistant: "AI assist",
+  knowledge: "Knowledge",
   notes: "Notes",
   search: "Similarity",
   revisions: "Revisions",

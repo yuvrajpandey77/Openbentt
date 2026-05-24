@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { DesktopOnlyGate } from "@/components/notebook/DesktopOnlyGate";
 import { NewProjectDialog } from "@/components/notebook/NewProjectDialog";
@@ -36,6 +36,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 import { cn } from "@/lib/utils";
 
 function formatRelative(iso: string): string {
@@ -71,6 +72,8 @@ const ProjectsHubPage: React.FC = () => {
   const [featuredTemplates, setFeaturedTemplates] = useState<TemplateCatalogEntry[]>([]);
   const [templateTitle, setTemplateTitle] = useState("");
   const importRef = useRef<HTMLInputElement>(null);
+  // Map from projectId → number of linked chat threads stored in the project DB.
+  const [linkedThreadCounts, setLinkedThreadCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     document.title = "Projects — Openbentt";
@@ -88,6 +91,22 @@ const ProjectsHubPage: React.FC = () => {
   useEffect(() => {
     void loadTemplateCatalog().then((cat) => setFeaturedTemplates(featuredTemplateEntries(cat)));
   }, []);
+
+  // Load linked thread counts from the project DB (desktop only).
+  useEffect(() => {
+    if (!isDesktopApp() || !projects.length) return;
+    const api = (window as { openbenttResearch?: { listLinkedThreads?: (id: string) => Promise<{ threadId: string; messageCount: number }[]> } }).openbenttResearch;
+    if (!api?.listLinkedThreads) return;
+    Promise.all(
+      projects.map((p) =>
+        api.listLinkedThreads!(p.id)
+          .then((rows) => [p.id, rows.length] as [string, number])
+          .catch(() => [p.id, 0] as [string, number])
+      )
+    ).then((pairs) => {
+      setLinkedThreadCounts(Object.fromEntries(pairs));
+    });
+  }, [projects]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -152,7 +171,7 @@ const ProjectsHubPage: React.FC = () => {
 
   return (
     <DesktopOnlyGate>
-      <div className="flex h-full min-h-0 bg-background">
+      <div className="flex h-full min-h-0 w-full overflow-hidden bg-background">
         <aside className="flex w-[220px] shrink-0 flex-col border-r border-border/60 bg-muted/10">
           <div className="flex items-center gap-2.5 px-4 py-4">
             <Avatar className="h-8 w-8">
@@ -194,18 +213,20 @@ const ProjectsHubPage: React.FC = () => {
           </nav>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col overflow-auto">
+        <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
           {!chatReady && (
-            <Alert className="mx-6 mt-4 rounded-md border-primary/30 bg-primary/5 py-2 md:mx-10">
-              <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span>
-                  Add your OpenRouter API key to enable AI chat and writing assist (free models available).
-                </span>
-                <Button asChild size="sm" variant="default" className="h-7 text-xs">
-                  <Link to="/setup">Set up OpenRouter</Link>
-                </Button>
-              </AlertDescription>
-            </Alert>
+            <div className="mx-6 mt-4 min-w-0 md:mx-10">
+              <Alert className="w-full rounded-md border-primary/30 bg-primary/5 py-2">
+                <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="min-w-0 shrink break-words">
+                    Add your OpenRouter API key to enable AI chat and writing assist (free models available).
+                  </span>
+                  <Button asChild size="sm" variant="default" className="h-7 shrink-0 text-xs">
+                    <Link to="/setup">Set up OpenRouter</Link>
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            </div>
           )}
           <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/60 px-6 py-4 md:px-10">
             <h1 className="font-display text-xl font-semibold tracking-tight md:text-2xl">All projects</h1>
@@ -358,7 +379,15 @@ const ProjectsHubPage: React.FC = () => {
                           }
                         }}
                       >
-                        <span className="truncate font-medium">{p.title}</span>
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <span className="truncate font-medium">{p.title}</span>
+                          {(linkedThreadCounts[p.id] ?? 0) > 0 && (
+                            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                              <MessageSquare className="h-2.5 w-2.5" />
+                              {linkedThreadCounts[p.id]} chat{linkedThreadCounts[p.id] !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                        </span>
                         <span className="hidden text-sm tabular-nums text-muted-foreground sm:block">
                           {p.paperCount}
                         </span>
@@ -411,6 +440,12 @@ const ProjectsHubPage: React.FC = () => {
                       <p className="mt-3 truncate font-medium">{p.title}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {p.paperCount} papers · {formatRelative(p.createdAt)}
+                        {(linkedThreadCounts[p.id] ?? 0) > 0 && (
+                          <span className="ml-2 inline-flex items-center gap-0.5">
+                            <MessageSquare className="h-2.5 w-2.5" />
+                            {linkedThreadCounts[p.id]} chat{linkedThreadCounts[p.id] !== 1 ? "s" : ""}
+                          </span>
+                        )}
                       </p>
                     </button>
                   </li>

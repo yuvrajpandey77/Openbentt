@@ -121,8 +121,30 @@ export function buildNotebookLiveSnapshot(params: {
   return lines.join("\n");
 }
 
-export function buildNotebookFullWorkspaceAssist(snapshotParams: Parameters<typeof buildNotebookLiveSnapshot>[0]): string {
+export function buildNotebookFullWorkspaceAssist(
+  snapshotParams: Parameters<typeof buildNotebookLiveSnapshot>[0],
+  projectContext?: {
+    knowledge?: string;
+    corpusEvidence?: string;
+  }
+): string {
   const base = getNotebookBaseWorkspaceAssist();
   const snap = buildNotebookLiveSnapshot(snapshotParams);
-  return `${base}\n\n---\n\n${snap}`;
+
+  const parts: string[] = [base, "---", snap];
+
+  if (projectContext?.knowledge?.trim()) {
+    parts.push(
+      "---",
+      "**Project Knowledge Context** (accumulated insights — treat as established background):",
+      "",
+      projectContext.knowledge.trim()
+    );
+  }
+
+  if (projectContext?.corpusEvidence?.trim()) {
+    parts.push("---", projectContext.corpusEvidence.trim());
+  }
+
+  return parts.join("\n\n");
 }

@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BookMarked,
+  Brain,
   FileText,
   GitCompare,
   Quote,
@@ -26,6 +27,7 @@ const PANEL_DESCRIPTIONS: Record<ResearchSidePanelId, string> = {
   citations: "Bibliography keys and in-text cites",
   zotero: "Sync and import from Zotero",
   assistant: "AI writing help for the draft",
+  knowledge: "Persistent insights injected into every chat",
   notes: "Scratch notes tied to the project",
   search: "Similar passages across the corpus",
   revisions: "Review comments and tracked edits",
@@ -37,6 +39,7 @@ const PANEL_ICONS: Record<ResearchSidePanelId, LucideIcon> = {
   citations: Quote,
   zotero: BookMarked,
   assistant: Sparkles,
+  knowledge: Brain,
   notes: StickyNote,
   search: Search,
   revisions: GitCompare,
