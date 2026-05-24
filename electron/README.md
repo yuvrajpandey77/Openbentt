@@ -16,6 +16,26 @@ One command (starts Vite + Electron; `OPENBENTT_ELECTRON_DEV=1` loads the dev se
 npm run electron:dev
 ```
 
+### GPU crashes on Linux (NVIDIA / Wayland)
+
+If you see `GBM-DRV error`, `driver (null)`, or `GPU process exited unexpectedly: exit_code=139`, Chromium’s GPU stack is failing (common on **NVIDIA + Wayland** laptops, including Kali):
+
+```bash
+npm run electron:dev:safe   # software rendering — window opens reliably
+```
+
+From v2.1+, `electron:dev` **auto-enables** software rendering on Linux when NVIDIA is detected on a Wayland session (uses native Wayland, not X11/XWayland). To force hardware acceleration anyway:
+
+```bash
+OPENBENTT_DISABLE_GPU=0 npm run electron:dev
+```
+
+If the window is blank but logs look fine, try `OPENBENTT_OZONE_PLATFORM=x11 npm run electron:dev:safe`.
+
+Harmless log lines you can ignore in safe mode: `Browserslist`, `SQLite is an experimental feature`, occasional `XGetWindowAttributes` (should be rare after the Wayland fix).
+
+Other overrides: `OPENBENTT_OZONE_PLATFORM=wayland|auto|x11`, `OPENBENTT_DISABLE_WEBGPU_FLAGS=1`.
+
 ## Production-like desktop build
 
 Build the web app, bundle **llama-server**, then package Electron:

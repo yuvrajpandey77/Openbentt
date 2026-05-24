@@ -64,6 +64,12 @@ if (process.platform === "linux") {
     process.env.XDG_SESSION_TYPE === "wayland" || Boolean(process.env.WAYLAND_DISPLAY);
   if (ozoneOverride && ozoneOverride !== "auto") {
     app.commandLine.appendSwitch("ozone-platform", ozoneOverride);
+  } else if (!ozoneOverride && isWaylandSession && gpuSafeMode.enabled) {
+    /** X11/XWayland + software rendering triggers XGetWindowAttributes failures on NVIDIA laptops. */
+    app.commandLine.appendSwitch("ozone-platform", "wayland");
+    console.info(
+      "[electron] Software rendering: using native Wayland (not X11/XWayland). Override with OPENBENTT_OZONE_PLATFORM=x11."
+    );
   } else if (!ozoneOverride && isWaylandSession) {
     app.commandLine.appendSwitch("ozone-platform", "x11");
     console.info(

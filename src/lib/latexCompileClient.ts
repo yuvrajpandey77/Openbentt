@@ -3,6 +3,9 @@
  * Optional HTTP fallback: same-origin `/api/latex-compile` or `VITE_LATEX_COMPILE_URL`.
  * Electron: `compileProjectLatexDesktop` for full TeX Live on project folder.
  *
+ * **Auto (default):** BusyTeX first for simple docs; local pdflatex first when the
+ * document needs full TeX Live (IEEE, TikZ, …). Missing pdflatex falls back to WASM.
+ *
  * Set `VITE_LATEX_REMOTE=1` to force HTTP-only (no WASM).
  */
 
@@ -14,6 +17,8 @@ import { compileProjectLatexDesktop, hasResearchDesktopApi } from "@/lib/researc
 import { arrayBufferToBase64 } from "@/lib/research/base64";
 import { loadNotebookCompileSettings, type CompileBackend } from "@/lib/notebookCompileSettings";
 import { isDesktopApp } from "@/lib/isDesktopApp";
+
+export type CompileEngine = "wasm" | "local" | "http";
 
 export function getLatexCompileEndpoint(): string {
   const env = import.meta.env.VITE_LATEX_COMPILE_URL as string | undefined;
@@ -27,10 +32,10 @@ const LOCAL_LATEX_DOWN_HINT =
   "Vite proxies /api/latex-compile to 127.0.0.1:8788. Start the helper in another terminal: npm run latex-compile (requires pdflatex on PATH).";
 
 const LOCAL_ELECTRON_HINT =
-  "In Notebook settings (gear), set Compile backend to “Local TeX Live (Electron)”. Install TeX Live or MacTeX so pdflatex is on PATH.";
+  "Install TeX Live or MacTeX so pdflatex is on PATH, or set Compile backend to “Browser BusyTeX” in Notebook settings (gear).";
 
 const WASM_LIMIT_HINT =
-  "Browser BusyTeX cannot load IEEEtran, TikZ, or many journal packages. Use Local TeX Live (Electron) or install pdflatex on your machine.";
+  "Browser BusyTeX cannot load IEEEtran, TikZ, or many journal packages. Install TeX Live and use “Local TeX Live (Electron)” in Notebook settings.";
 
 const FULL_TEX_SIGNALS: RegExp[] = [
   /\\documentclass\s*(\[[^\]]*\])?\{IEEEtran\}/i,
@@ -62,6 +67,17 @@ export function documentNeedsFullTexLive(tex: string, bundle?: CompileBundle): b
   }
   const combined = chunks.join("\n");
   return FULL_TEX_SIGNALS.some((re) => re.test(combined));
+}
+
+/**
+ * Compile engine order for **auto** mode.
+ * - Simple docs: BusyTeX → local pdflatex → HTTP
+ * - Full-TeX docs (IEEE, TikZ, …): local pdflatex → BusyTeX → HTTP
+ */
+export function autoCompileEngineOrder(needsFullTex: boolean, localAvailable: boolean): CompileEngine[] {
+  if (needsFullTex && localAvailable) return ["local", "wasm", "http"];
+  if (localAvailable) return ["wasm", "local", "http"];
+  return ["wasm", "http"];
 }
 
 function appendLocalLatexHintIfProxyDown(errText: string, status: number): string {
@@ -139,13 +155,18 @@ function canCompileLocalElectron(bundle?: CompileBundle): bundle is CompileBundl
   return Boolean(bundle && isDesktopApp() && hasResearchDesktopApi());
 }
 
+export function isLocalTexUnavailableError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /pdflatex not found/i.test(msg);
+}
+
 function formatLocalCompileError(message: string, needsFullTex: boolean): Error {
   const brief = briefCompileMessage(message, 900) || message;
   if (/pdflatex not found/i.test(message)) {
     return new Error(`${brief}\n\n${LOCAL_ELECTRON_HINT}`);
   }
   if (needsFullTex) {
-    return new Error(`${brief}\n\n${WASM_LIMIT_HINT}\n\n${LOCAL_ELECTRON_HINT}`);
+    return new Error(`${brief}\n\n${WASM_LIMIT_HINT}`);
   }
   return new Error(brief);
 }
@@ -162,27 +183,87 @@ async function compileLocalElectron(bundle: CompileBundle): Promise<Blob> {
   return new Blob([bytes], { type: "application/pdf" });
 }
 
-function resolveBackend(
-  requested: CompileBackend,
-  tex: string,
-  bundle?: CompileBundle
-): CompileBackend {
-  if (requested === "wasm" || requested === "remote") return requested;
-  if (requested === "local") return "local";
-  if (canCompileLocalElectron(bundle)) return "local";
-  if (isDesktopApp() && hasResearchDesktopApi() && documentNeedsFullTexLive(tex, bundle)) {
-    return "local";
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function shouldSkipLocalInAuto(err: unknown): boolean {
+  return isLocalTexUnavailableError(err);
+}
+
+function enrichWasmFailure(wasmMsg: string, needsFullTex: boolean): Error {
+  if (needsFullTex) {
+    return new Error(`${briefCompileMessage(wasmMsg, 700)}\n\n${WASM_LIMIT_HINT}\n\n${LOCAL_ELECTRON_HINT}`);
   }
-  return "wasm";
+  return new Error(wasmMsg);
+}
+
+function enrichAutoFailure(
+  attempts: { engine: CompileEngine; message: string }[],
+  needsFullTex: boolean
+): Error {
+  const rollup = attempts.map((a) => `${a.engine}: ${briefCompileMessage(a.message, 480)}`).join("\n\n");
+  const fileHint = missingBundledFileHint(rollup);
+  const extra = needsFullTex ? `\n\n${WASM_LIMIT_HINT}` : "";
+  const suffix = fileHint || ASSET_HINT;
+  return new Error(`Compile failed (auto):\n\n${rollup}${extra}\n\n${suffix}`);
+}
+
+async function runCompileEngine(
+  engine: CompileEngine,
+  tex: string,
+  bundle: CompileBundle | undefined,
+  localAvailable: boolean
+): Promise<Blob> {
+  switch (engine) {
+    case "wasm":
+      return compileLatexWasmToPdf(tex, bundle);
+    case "local":
+      if (!localAvailable || !bundle) {
+        throw new Error("Local TeX compile requires the Electron app with a project compile bundle.");
+      }
+      return compileLocalElectron(bundle);
+    case "http":
+      return compileLatexHttp(tex, getLatexCompileEndpoint(), bundle);
+  }
+}
+
+async function compileAuto(
+  tex: string,
+  bundle: CompileBundle | undefined,
+  needsFullTex: boolean,
+  localAvailable: boolean
+): Promise<Blob> {
+  const order = autoCompileEngineOrder(needsFullTex, localAvailable);
+  const attempts: { engine: CompileEngine; message: string }[] = [];
+
+  for (const engine of order) {
+    try {
+      return await runCompileEngine(engine, tex, bundle, localAvailable);
+    } catch (err) {
+      const message = errMessage(err);
+      attempts.push({ engine, message });
+      if (engine === "local" && shouldSkipLocalInAuto(err)) {
+        console.warn("[latex] Local TeX unavailable (no pdflatex), trying next backend…");
+        continue;
+      }
+    }
+  }
+
+  throw enrichAutoFailure(attempts, needsFullTex);
 }
 
 export async function compileLatexToPdfBlob(tex: string, bundle?: CompileBundle): Promise<Blob> {
   const texClean = sanitizeLatexUnicodeForPdflatex(tex);
   const settings = loadNotebookCompileSettings();
   const forceRemote = import.meta.env.VITE_LATEX_REMOTE === "1";
-  const backend = forceRemote ? "remote" : resolveBackend(settings.backend, texClean, bundle);
+  const backend: CompileBackend = forceRemote ? "remote" : settings.backend;
   const needsFullTex = documentNeedsFullTexLive(texClean, bundle);
   const localAvailable = canCompileLocalElectron(bundle);
+
+  if (backend === "auto") {
+    return compileAuto(texClean, bundle, needsFullTex, localAvailable);
+  }
 
   if (backend === "remote") {
     return compileLatexHttp(texClean, getLatexCompileEndpoint(), bundle);
@@ -199,47 +280,10 @@ export async function compileLatexToPdfBlob(tex: string, bundle?: CompileBundle)
     return compileLocalElectron(bundle);
   }
 
-  if (localAvailable && (settings.backend === "auto" || needsFullTex)) {
-    try {
-      return await compileLocalElectron(bundle);
-    } catch (localErr) {
-      if (settings.backend === "auto" && !needsFullTex) {
-        console.warn("Local TeX compile failed, falling back to WASM:", localErr);
-      } else {
-        throw localErr;
-      }
-    }
-  }
-
+  // wasm — explicit BusyTeX only
   try {
     return await compileLatexWasmToPdf(texClean, bundle);
   } catch (wasmErr) {
-    const wasmMsg = wasmErr instanceof Error ? wasmErr.message : String(wasmErr);
-
-    if (backend === "wasm") {
-      if (needsFullTex) {
-        throw new Error(`${briefCompileMessage(wasmMsg, 700)}\n\n${WASM_LIMIT_HINT}\n\n${LOCAL_ELECTRON_HINT}`);
-      }
-      throw wasmErr;
-    }
-
-    try {
-      if (localAvailable) {
-        return await compileLocalElectron(bundle);
-      }
-      return await compileLatexHttp(texClean, getLatexCompileEndpoint(), bundle);
-    } catch (fallbackErr) {
-      const httpMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
-      console.error("LaTeX WASM compile failed:", wasmErr);
-      console.error("LaTeX fallback failed:", fallbackErr);
-      const wBrief = briefCompileMessage(wasmMsg, 520);
-      const hBrief = briefCompileMessage(httpMsg, 520);
-      const rollup = `${wasmMsg}\n${httpMsg}`;
-      const fileHint = missingBundledFileHint(rollup);
-      const extra = needsFullTex ? `\n\n${WASM_LIMIT_HINT}` : "";
-      const body = `Client LaTeX (WASM): ${wBrief}\n\nFallback: ${hBrief}${extra}`;
-      const suffix = fileHint ? fileHint : ASSET_HINT;
-      throw new Error(`${body}\n\n${suffix}`);
-    }
+    throw enrichWasmFailure(errMessage(wasmErr), needsFullTex);
   }
 }

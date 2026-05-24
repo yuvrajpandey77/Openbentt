@@ -32,9 +32,7 @@ export function saveNotebookCompileSettings(next: Partial<NotebookCompileSetting
 export function compileBackendLabel(b: CompileBackend): string {
   switch (b) {
     case "auto":
-      return typeof window !== "undefined" && window.openbenttDesktop?.isElectron
-        ? "Auto (local TeX → WASM)"
-        : "Auto (WASM → HTTP)";
+      return "Auto (BusyTeX → local TeX when needed)";
     case "wasm":
       return "Browser BusyTeX";
     case "local":

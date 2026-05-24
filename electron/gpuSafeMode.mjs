@@ -30,6 +30,14 @@ export function resolveGpuSafeMode() {
     if (!linuxHasGpuDevice()) {
       return { enabled: true, reason: "no-dri-device" };
     }
+    /**
+     * NVIDIA + Wayland: GBM often fails (`nv_gbm_create_device failed`, `driver (null)`),
+     * and Electron's X11 ozone fallback still segfaults the GPU process (exit 139).
+     * Software rendering avoids blank windows; set OPENBENTT_DISABLE_GPU=0 to opt out.
+     */
+    if (linuxIsWaylandSession() && linuxHasNvidiaDriver()) {
+      return { enabled: true, reason: "nvidia-on-wayland" };
+    }
   }
 
   return { enabled: false, reason: null };
@@ -41,6 +49,18 @@ function linuxHasGpuDevice() {
     if (!fs.existsSync(dri)) return false;
     const entries = fs.readdirSync(dri);
     return entries.some((name) => name.startsWith("card") || name.startsWith("renderD"));
+  } catch {
+    return false;
+  }
+}
+
+export function linuxIsWaylandSession() {
+  return process.env.XDG_SESSION_TYPE === "wayland" || Boolean(process.env.WAYLAND_DISPLAY);
+}
+
+export function linuxHasNvidiaDriver() {
+  try {
+    return fs.existsSync("/proc/driver/nvidia/version") || fs.existsSync("/dev/nvidia0");
   } catch {
     return false;
   }

@@ -229,8 +229,8 @@ Requires `npm run download:busytex` once before first compile.
 ## Compile pipeline (Phases 0–1)
 
 - **Multi-file bundle:** Compile sends `main.tex` + `references.bib` + `chapters/*.tex` + `assets/*` to BusyTeX or local TeX.
-- **Backends:** Settings ⚙️ → **All** tab → Auto (local TeX on desktop, else WASM) / Browser BusyTeX / Local TeX Live / Remote HTTP.
-- **IEEE / TikZ:** Use **Local TeX Live** backend (requires `pdflatex` on PATH). WASM remains limited.
+- **Backends:** Settings ⚙️ → **All** tab → **Auto (BusyTeX → local TeX when needed)** (default) / Browser BusyTeX / Local TeX Live / Remote HTTP.
+- **IEEE / TikZ:** Auto tries local pdflatex first when detected; install TeX Live if BusyTeX cannot compile the template.
 - **Assets:** Upload under **assets/** → reference `\includegraphics{assets/name.png}` → included in compile bundle.
 - **Export:** Download icon in file tree → ZIP (`main.tex`, bib, chapters, assets).
 

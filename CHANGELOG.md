@@ -128,6 +128,26 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [2.1.0-beta.4] — 2026-05-24
+
+### Added
+
+- **LaTeX auto compile:** BusyTeX-first `auto` backend with smart escalation to local pdflatex for IEEE/TikZ-style docs; missing `pdflatex` falls back to WASM instead of hard-failing on desktop.
+- **Electron launch helper:** `electron/launch.mjs` applies GPU-disable flags before the binary starts (reduces early NVIDIA GBM noise on Linux).
+- **Tests:** `latexCompileClient.test.ts` for auto engine order and full-TeX detection.
+
+### Changed
+
+- **Compile settings label:** Auto → “BusyTeX → local TeX when needed”.
+- **Software rendering banner:** Dismissible Close control; persists in localStorage.
+
+### Fixed
+
+- **Linux NVIDIA + Wayland:** Auto software rendering (`nvidia-on-wayland`); native Wayland ozone path in safe mode (avoids `XGetWindowAttributes` blank-window glitches).
+- **Desktop dev scripts:** `electron:dev` / `electron:start` route through `launch.mjs`.
+
+---
+
 ## [Unreleased]
 
 ### Added (prior work merged into 2.0.6)

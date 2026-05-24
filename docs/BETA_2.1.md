@@ -1,6 +1,6 @@
 # Openbentt Notebook Studio — Beta 2.1
 
-**Tags:** `v2.1.0-beta.1` (templates milestone) · `v2.1.0-beta.2` (QA milestone) · `v2.1.0-beta.3` (studio UX + release)  
+**Tags:** `v2.1.0-beta.1` (templates) · `v2.1.0-beta.2` (QA) · `v2.1.0-beta.3` (studio UX) · `v2.1.0-beta.4` (compile auto + Linux GPU)  
 **Companion:** [NOTEBOOK_STUDIO.md](./NOTEBOOK_STUDIO.md)
 
 ---
