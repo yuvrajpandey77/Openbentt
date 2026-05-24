@@ -18,6 +18,16 @@ const env = { ...process.env };
 if (decision.enabled) {
   electronArgs.push("--disable-gpu", "--disable-gpu-compositing");
   env.LIBGL_ALWAYS_SOFTWARE = "1";
+  if (!process.env.OPENBENTT_OZONE_PLATFORM) {
+    const wayland =
+      process.env.XDG_SESSION_TYPE === "wayland" || Boolean(process.env.WAYLAND_DISPLAY);
+    electronArgs.push(`--ozone-platform=${wayland ? "wayland" : "x11"}`);
+  }
+  electronArgs.push(
+    "--disable-gpu-sandbox",
+    "--enable-software-rasterizer",
+    "--disable-features=Vulkan,VulkanFromANGLE,DefaultANGLEVulkan,UseSkiaRenderer"
+  );
 }
 
 const isDev = process.env.OPENBENTT_ELECTRON_DEV === "1";

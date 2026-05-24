@@ -4,7 +4,11 @@ contextBridge.exposeInMainWorld("openbenttDesktop", {
   platform: process.platform,
   isElectron: true,
   softwareRenderingMode: process.env.OPENBENTT_SOFTWARE_RENDERING === "1",
-  framelessTitleBar: process.platform === "linux",
+  /** false in Linux safe mode → native frame, menu bar, and window icon (no in-app title strip). */
+  framelessTitleBar:
+    process.platform === "linux" && process.env.OPENBENTT_SOFTWARE_RENDERING !== "1",
+  nativeMenuBar:
+    process.platform === "linux" && process.env.OPENBENTT_SOFTWARE_RENDERING === "1",
   windowMinimize: () => ipcRenderer.invoke("desktop:windowMinimize"),
   windowToggleMaximize: () => ipcRenderer.invoke("desktop:windowToggleMaximize"),
   windowClose: () => ipcRenderer.invoke("desktop:windowClose"),

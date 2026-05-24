@@ -213,7 +213,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           draft: false
-          generate_release_notes: true
+          generate_release_notes: false
+          body_path: docs/releases/${{ github.ref_name }}.md
           files: upload/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -18,15 +18,18 @@ describe("gpuSafeMode", () => {
 
   it("enables safe mode on Linux Wayland + NVIDIA unless forced off", async () => {
     if (process.platform !== "linux") return;
-    const { linuxHasNvidiaDriver, linuxIsWaylandSession, resolveGpuSafeMode } = await import(
+    const { linuxHasNvidiaGpu, linuxIsWaylandSession, resolveGpuSafeMode } = await import(
       "./gpuSafeMode.mjs"
     );
-    if (!linuxHasNvidiaDriver() || !linuxIsWaylandSession()) return;
+    if (!linuxHasNvidiaGpu() || !linuxIsWaylandSession()) return;
 
     delete process.env.OPENBENTT_DISABLE_GPU;
     const decision = resolveGpuSafeMode();
     assert.equal(decision.enabled, true);
-    assert.equal(decision.reason, "nvidia-on-wayland");
+    assert.ok(
+      decision.reason === "nvidia-on-wayland" || decision.reason === "nvidia-no-driver",
+      `unexpected reason: ${decision.reason}`
+    );
 
     process.env.OPENBENTT_DISABLE_GPU = "0";
     assert.equal(resolveGpuSafeMode().enabled, false);

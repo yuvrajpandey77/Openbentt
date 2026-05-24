@@ -25,6 +25,8 @@ export interface OpenbenttDesktopApi {
   /** True when Electron disabled GPU (software rendering / safe mode). */
   softwareRenderingMode?: boolean;
   framelessTitleBar?: boolean;
+  /** Linux safe mode: menus live in the native menu bar, not the in-app title strip. */
+  nativeMenuBar?: boolean;
   windowMinimize?(): Promise<void>;
   windowToggleMaximize?(): Promise<boolean>;
   windowClose?(): Promise<void>;

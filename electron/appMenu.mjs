@@ -25,12 +25,14 @@ async function showAboutDialog() {
 }
 
 /**
- * Native application menu (Alt / macOS menu bar). Frameless Linux also uses in-app title bar menus.
+ * Native application menu (macOS menu bar, Linux/Windows menu bar when visible).
+ * Frameless Linux uses duplicate menus in the in-app title bar; framed safe mode uses this only.
  * @param {{ isDev?: boolean }} opts
  */
 export function setupApplicationMenu(opts = {}) {
   const { isDev = false } = opts;
   const isMac = process.platform === "darwin";
+  const isLinux = process.platform === "linux";
 
   /** @type {import('electron').MenuItemConstructorOptions[]} */
   const template = [];
@@ -121,5 +123,15 @@ export function setupApplicationMenu(opts = {}) {
     }
   );
 
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+
+  /** Keep File/Edit/View/Help visible below the title bar on framed Linux (safe mode). */
+  if (isLinux) {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) {
+        win.setMenuBarVisibility(true);
+      }
+    }
+  }
 }

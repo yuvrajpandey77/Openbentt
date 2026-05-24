@@ -61,18 +61,40 @@ if (!singleInstanceLock) {
  * `OPENBENTT_OZONE_PLATFORM=auto` (let Chromium decide).
  */
 if (process.platform === "linux") {
+  applyLinuxOzonePlatform();
+}
+
+/** Linux display backend — must run before app.ready. */
+function applyLinuxOzonePlatform() {
   const ozoneOverride = process.env.OPENBENTT_OZONE_PLATFORM?.trim();
   const isWaylandSession =
     process.env.XDG_SESSION_TYPE === "wayland" || Boolean(process.env.WAYLAND_DISPLAY);
+
   if (ozoneOverride && ozoneOverride !== "auto") {
     app.commandLine.appendSwitch("ozone-platform", ozoneOverride);
-  } else if (!ozoneOverride && isWaylandSession && gpuSafeMode.enabled) {
-    /** X11/XWayland + software rendering triggers XGetWindowAttributes failures on NVIDIA laptops. */
-    app.commandLine.appendSwitch("ozone-platform", "wayland");
-    console.info(
-      "[electron] Software rendering: using native Wayland (not X11/XWayland). Override with OPENBENTT_OZONE_PLATFORM=x11."
+    return;
+  }
+
+  if (gpuSafeMode.enabled) {
+    /**
+     * On Wayland, native ozone=wayland + software rasterizer paints reliably.
+     * ozone=x11 (XWayland) + software triggers invisible windows on many NVIDIA setups.
+     */
+    const platform = isWaylandSession ? "wayland" : "x11";
+    app.commandLine.appendSwitch("ozone-platform", platform);
+    app.commandLine.appendSwitch("disable-gpu-sandbox");
+    app.commandLine.appendSwitch("enable-software-rasterizer");
+    app.commandLine.appendSwitch(
+      "disable-features",
+      "Vulkan,VulkanFromANGLE,DefaultANGLEVulkan,UseSkiaRenderer"
     );
-  } else if (!ozoneOverride && isWaylandSession) {
+    console.info(
+      `[electron] Software rendering: ozone-platform=${platform} (native, not XWayland). Override with OPENBENTT_OZONE_PLATFORM=x11|wayland.`
+    );
+    return;
+  }
+
+  if (isWaylandSession) {
     app.commandLine.appendSwitch("ozone-platform", "x11");
     console.info(
       "[electron] Wayland session detected; forcing --ozone-platform=x11 for Vulkan/WebGPU stability. Override with OPENBENTT_OZONE_PLATFORM=wayland or =auto."
@@ -171,15 +193,29 @@ const APP_SHELL_BG = "#1f1f1f";
 /** Compact caption strip (native overlay height on Windows; in-app bar elsewhere). */
 const TITLE_BAR_HEIGHT = 28;
 
+function ensureWindowVisible(win) {
+  if (win.isDestroyed()) return;
+  if (!win.isVisible()) win.show();
+  win.focus();
+  win.moveTop();
+  if (!win.isVisible()) {
+    win.setAlwaysOnTop(true, "screen-saver");
+    win.show();
+    win.setAlwaysOnTop(false);
+  }
+}
+
 function buildBrowserWindowOptions(icon) {
+  /** Framed Linux (safe mode): native menu bar + window icon; no in-app title strip. */
+  const linuxNativeChrome = process.platform === "linux" && gpuSafeMode.enabled;
   const base = {
     width: 1280,
     height: 840,
     minWidth: 900,
     minHeight: 600,
-    show: false,
+    show: gpuSafeMode.enabled,
     title: "Openbentt",
-    autoHideMenuBar: true,
+    autoHideMenuBar: !linuxNativeChrome,
     backgroundColor: APP_SHELL_BG,
     ...(icon ? { icon } : {}),
   };
@@ -204,10 +240,10 @@ function buildBrowserWindowOptions(icon) {
     };
   }
 
-  /** Linux: frameless window — renderer draws title bar + window controls. */
+  /** Linux: framed window in safe mode — frameless + software rendering often never maps on screen. */
   return {
     ...base,
-    frame: false,
+    frame: gpuSafeMode.enabled,
   };
 }
 
@@ -284,6 +320,14 @@ function createWindow() {
   setZoteroProgressTarget(win);
   setUpdaterTargetWindow(win);
 
+  if (gpuSafeMode.enabled) {
+    win.center();
+    ensureWindowVisible(win);
+    if (process.platform === "linux") {
+      win.setMenuBarVisibility(true);
+    }
+  }
+
   if (useViteDevServer) {
     /** Show immediately — don't wait for page load so the window is always visible. */
     win.show();
@@ -313,9 +357,17 @@ function createWindow() {
     /** Show window unconditionally after 3 s so a silent load failure never leaves it invisible. */
     sleep(3000).then(() => { if (!win.isDestroyed() && !win.isVisible()) win.show(); });
   } else {
-    // Path must match React Router; `app://` with no pathname would show marketing `/`.
-    win.once("ready-to-show", () => win.show());
+    win.once("ready-to-show", () => ensureWindowVisible(win));
+    win.webContents.on("did-finish-load", () => ensureWindowVisible(win));
+    win.webContents.on("did-fail-load", (_event, code, desc, url, isMainFrame) => {
+      if (isMainFrame) {
+        console.error(`[electron] Production load failed (${code}): ${url} — ${desc}`);
+        ensureWindowVisible(win);
+      }
+    });
     win.loadURL(`app://openbentt${START_PATH}`);
+    sleep(2000).then(() => ensureWindowVisible(win));
+    sleep(5000).then(() => ensureWindowVisible(win));
   }
 }
 

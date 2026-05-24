@@ -40,8 +40,8 @@ export function DesktopSafeModeBanner() {
     >
       <MonitorOff className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
       <p className="min-w-0 flex-1 leading-relaxed">
-        Running in software rendering mode (GPU unavailable). Cloud models via OpenRouter work normally;
-        on-device WebGPU is disabled. Set{" "}
+        Running in software rendering mode (GPU unavailable). Use File / Edit / View / Help in the
+        system menu bar; cloud models via OpenRouter work normally; on-device WebGPU is disabled. Set{" "}
         <code className="rounded bg-black/10 px-1">OPENBENTT_DISABLE_GPU=0</code> to force hardware
         acceleration if your drivers support it.
       </p>

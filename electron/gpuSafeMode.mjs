@@ -30,10 +30,14 @@ export function resolveGpuSafeMode() {
     if (!linuxHasGpuDevice()) {
       return { enabled: true, reason: "no-dri-device" };
     }
+    /** NVIDIA present but proprietary stack not loaded (`driver (null)` in Mesa logs). */
+    if (linuxHasNvidiaGpu() && !linuxNvidiaDriverLoaded()) {
+      return { enabled: true, reason: "nvidia-no-driver" };
+    }
     /**
      * NVIDIA + Wayland: GBM often fails (`nv_gbm_create_device failed`, `driver (null)`),
-     * and Electron's X11 ozone fallback still segfaults the GPU process (exit 139).
-     * Software rendering avoids blank windows; set OPENBENTT_DISABLE_GPU=0 to opt out.
+     * and XWayland + software X11 painting yields invisible windows
+     * (`XGetWindowAttributes failed for window 1`). Software + native Wayland avoids both.
      */
     if (linuxIsWaylandSession() && linuxHasNvidiaGpu()) {
       return { enabled: true, reason: "nvidia-on-wayland" };
@@ -64,9 +68,18 @@ export function linuxIsWaylandSession() {
  * and no-driver setups don't, but the PCI vendor 0x10de is always visible via
  * /sys/bus/pci/devices. Both paths must be checked to cover all Linux configs.
  */
+/** True when the proprietary NVIDIA kernel driver is loaded. */
+export function linuxNvidiaDriverLoaded() {
+  try {
+    return fs.existsSync("/proc/driver/nvidia/version") || fs.existsSync("/dev/nvidia0");
+  } catch {
+    return false;
+  }
+}
+
 export function linuxHasNvidiaGpu() {
   try {
-    if (fs.existsSync("/proc/driver/nvidia/version") || fs.existsSync("/dev/nvidia0")) {
+    if (linuxNvidiaDriverLoaded()) {
       return true;
     }
   } catch {}

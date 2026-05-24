@@ -27,6 +27,7 @@ interface OpenbenttDesktopApi {
   readonly platform: string;
   readonly softwareRenderingMode?: boolean;
   readonly framelessTitleBar?: boolean;
+  readonly nativeMenuBar?: boolean;
   windowMinimize?: () => Promise<void>;
   windowToggleMaximize?: () => Promise<boolean>;
   windowClose?: () => Promise<void>;

@@ -26,17 +26,27 @@ npm run electron:dev:safe   # software rendering — window opens reliably
 
 Dev loads Vite at **`http://127.0.0.1:8080`** (not `localhost`) to avoid IPv6 mismatches. Dev mode uses an isolated profile at **`.electron-dev-profile/`** (not `~/.config/Openbentt`) plus `--disable-http-cache`. Optional: `OPENBENTT_ELECTRON_DEVTOOLS=1` opens DevTools on start. If loading still fails, delete `.electron-dev-profile/` or ensure port 8080 is free.
 
-From v2.1+, `electron:dev` **auto-enables** software rendering on Linux when NVIDIA is detected on a Wayland session (uses native Wayland, not X11/XWayland). To force hardware acceleration anyway:
+From v2.2.3, packaged apps and `electron:dev` **auto-enable** software rendering on Linux when:
+
+- NVIDIA GPU is on a **Wayland** session, or
+- NVIDIA GPU is present but the **proprietary driver is not loaded** (`driver (null)`), or
+- No GPU device / software GL env vars are set.
+
+Safe mode uses **native Wayland** (not XWayland), a **standard window frame**, and the **system menu bar** (File / Edit / View / Help) — not the in-app title strip.
+
+To force hardware acceleration anyway:
 
 ```bash
 OPENBENTT_DISABLE_GPU=0 npm run electron:dev
 ```
 
-If the window is blank but logs look fine, try `OPENBENTT_OZONE_PLATFORM=x11 npm run electron:dev:safe`.
+If the window misbehaves, try `OPENBENTT_DISABLE_GPU=1` or `OPENBENTT_OZONE_PLATFORM=x11`.
 
-Harmless log lines you can ignore in safe mode: `Browserslist`, `SQLite is an experimental feature`, occasional `XGetWindowAttributes` (should be rare after the Wayland fix).
+Harmless log lines you can ignore in safe mode: `Browserslist`, `SQLite is an experimental feature`, `GBM-DRV error`, `pci id … driver (null)`.
 
 Other overrides: `OPENBENTT_OZONE_PLATFORM=wayland|auto|x11`, `OPENBENTT_DISABLE_WEBGPU_FLAGS=1`.
+
+Production install: see [docs/releases/v2.2.3.md](../docs/releases/v2.2.3.md) on GitHub Releases.
 
 ## Production-like desktop build
 

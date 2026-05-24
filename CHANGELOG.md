@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.2.3] — 2026-05-24
+
+### Added
+
+- **Native menu bar in Linux safe mode:** File / Edit / View / Help move to the system menu bar; window uses the standard frame and icon (more content area).
+- **Broader GPU safe-mode detection:** NVIDIA GPU without loaded proprietary driver (`nvidia-no-driver`).
+
+### Fixed
+
+- **Invisible window on Linux (NVIDIA + Wayland):** Safe mode uses native `ozone-platform=wayland` + software rasterizer instead of XWayland (avoids `XGetWindowAttributes failed` and icon-without-window).
+- **Production window visibility:** Show/focus/center on create; timed fallbacks if `ready-to-show` is delayed.
+- **PCI-based NVIDIA detection** (v2.2.1) and framed-window fallback (v2.2.2) — consolidated in this release.
+
 ## [2.2.0] — 2026-05-24
 
 ### Added

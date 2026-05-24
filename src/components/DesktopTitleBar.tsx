@@ -262,14 +262,18 @@ export function DesktopTitleBar() {
   );
 }
 
-/** Full-height desktop shell: compact title bar + scrollable app body. */
+/** Full-height desktop shell: in-app title bar when frameless; native chrome otherwise. */
 export function DesktopAppFrame({ children }: { children: React.ReactNode }) {
   if (!isDesktopApp()) return <>{children}</>;
+
+  const chrome = readDesktopChrome();
+  /** Framed window: File/Edit/View/Help + logo use the system title bar / menu bar. */
+  const showInAppTitleBar = chrome?.frameless === true;
 
   return (
     <div className="app-shell dark flex h-screen max-h-screen flex-col overflow-hidden bg-background text-foreground">
       <DesktopMenuNavigateBridge />
-      <DesktopTitleBar />
+      {showInAppTitleBar ? <DesktopTitleBar /> : null}
       <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
     </div>
   );
