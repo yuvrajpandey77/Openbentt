@@ -35,7 +35,7 @@ export function resolveGpuSafeMode() {
      * and Electron's X11 ozone fallback still segfaults the GPU process (exit 139).
      * Software rendering avoids blank windows; set OPENBENTT_DISABLE_GPU=0 to opt out.
      */
-    if (linuxIsWaylandSession() && linuxHasNvidiaDriver()) {
+    if (linuxIsWaylandSession() && linuxHasNvidiaGpu()) {
       return { enabled: true, reason: "nvidia-on-wayland" };
     }
   }
@@ -58,12 +58,36 @@ export function linuxIsWaylandSession() {
   return process.env.XDG_SESSION_TYPE === "wayland" || Boolean(process.env.WAYLAND_DISPLAY);
 }
 
-export function linuxHasNvidiaDriver() {
+/**
+ * Returns true when an NVIDIA GPU is present — regardless of which driver is
+ * loaded. The proprietary driver exposes /proc/driver/nvidia/version; nouveau
+ * and no-driver setups don't, but the PCI vendor 0x10de is always visible via
+ * /sys/bus/pci/devices. Both paths must be checked to cover all Linux configs.
+ */
+export function linuxHasNvidiaGpu() {
   try {
-    return fs.existsSync("/proc/driver/nvidia/version") || fs.existsSync("/dev/nvidia0");
-  } catch {
-    return false;
-  }
+    if (fs.existsSync("/proc/driver/nvidia/version") || fs.existsSync("/dev/nvidia0")) {
+      return true;
+    }
+  } catch {}
+  // PCI vendor scan — works with nouveau, no driver, or any other setup.
+  try {
+    const pciDevs = "/sys/bus/pci/devices";
+    if (fs.existsSync(pciDevs)) {
+      for (const dir of fs.readdirSync(pciDevs)) {
+        try {
+          const vendor = fs.readFileSync(`${pciDevs}/${dir}/vendor`, "utf8").trim();
+          if (vendor === "0x10de") return true;
+        } catch {}
+      }
+    }
+  } catch {}
+  return false;
+}
+
+/** @deprecated Use linuxHasNvidiaGpu — kept for any external callers. */
+export function linuxHasNvidiaDriver() {
+  return linuxHasNvidiaGpu();
 }
 
 /** @type {GpuSafeModeDecision | null} */
