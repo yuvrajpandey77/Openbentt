@@ -32,6 +32,10 @@ A **desktop-first, local-first** AI workspace (Electron) with an optional **web 
 
 The product name is **Openbentt**. Older localStorage keys and chart fences may still use the legacy `cogerphere-*` prefix; the app migrates storage on first load.
 
+## Setup guide
+
+For a step-by-step install and Linux GPU crash troubleshooting guide, see **[docs/SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)**.
+
 ## Requirements
 
 - **Node.js** 18+ (repo uses **22** in Docker) and **npm**
