@@ -32,6 +32,10 @@ A **desktop-first, local-first** AI workspace (Electron) with an optional **web 
 
 The product name is **Openbentt**. Older localStorage keys and chart fences may still use the legacy `cogerphere-*` prefix; the app migrates storage on first load.
 
+## Setup guide
+
+For a step-by-step install and Linux GPU crash troubleshooting guide, see **[docs/SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)**.
+
 ## Requirements
 
 - **Node.js** 18+ (repo uses **22** in Docker) and **npm**
@@ -104,6 +108,17 @@ Rebuild the image if you change `VITE_*` build args.
 
 - `npm run build` and `npm run test`
 - **`PRODUCTION_CHECKLIST.md`** — host-specific items (env, smoke tests, Lighthouse)
+
+
+## Product reach metrics (privacy-first)
+
+If you need to track growth without invasive telemetry:
+
+- **Site visits:** enable Vercel Analytics and read totals in your Vercel dashboard.
+- **App downloads:** use GitHub Releases asset download counts per installer.
+- **Active users:** not collected by default (privacy-first).
+
+See release playbook notes in **`docs/releases/v2.2.4.md`**.
 
 ## Environment variables
 

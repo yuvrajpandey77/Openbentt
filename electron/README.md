@@ -26,6 +26,8 @@ npm run electron:dev:safe   # software rendering — window opens reliably
 
 Dev loads Vite at **`http://127.0.0.1:8080`** (not `localhost`) to avoid IPv6 mismatches. Dev mode uses an isolated profile at **`.electron-dev-profile/`** (not `~/.config/Openbentt`) plus `--disable-http-cache`. Optional: `OPENBENTT_ELECTRON_DEVTOOLS=1` opens DevTools on start. If loading still fails, delete `.electron-dev-profile/` or ensure port 8080 is free.
 
+From this release onward, if hardware rendering starts but the GPU process crashes repeatedly at startup, Openbentt **auto-relaunches once** in software-render mode (`OPENBENTT_DISABLE_GPU=1`) to reduce hangs and blank-window failures on unstable Linux driver stacks.
+
 From v2.2.3, packaged apps and `electron:dev` **auto-enable** software rendering on Linux when:
 
 - NVIDIA GPU is on a **Wayland** session, or
