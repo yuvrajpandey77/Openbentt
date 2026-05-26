@@ -109,6 +109,17 @@ Rebuild the image if you change `VITE_*` build args.
 - `npm run build` and `npm run test`
 - **`PRODUCTION_CHECKLIST.md`** — host-specific items (env, smoke tests, Lighthouse)
 
+
+## Product reach metrics (privacy-first)
+
+If you need to track growth without invasive telemetry:
+
+- **Site visits:** enable Vercel Analytics and read totals in your Vercel dashboard.
+- **App downloads:** use GitHub Releases asset download counts per installer.
+- **Active users:** not collected by default (privacy-first).
+
+See release playbook notes in **`docs/releases/v2.2.4.md`**.
+
 ## Environment variables
 
 | Variable | When to set | Purpose |
