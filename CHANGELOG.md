@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.2.4] — 2026-05-27
+
+### Added
+
+- **Setup guide:** Added `docs/SETUP_GUIDE.md` with web/desktop setup, production checks, and Linux GPU troubleshooting flows.
+- **Release notes:** Added `docs/releases/v2.2.4.md` with rollout guidance and privacy-first metrics notes.
+
+### Changed
+
+- **Download/version alignment:** Bumped app version to `2.2.4` and aligned release-asset fallback version used by download links.
+
+### Fixed
+
+- **GPU crash recovery:** Desktop now auto-relaunches once in software-render mode after repeated GPU process crash bursts during startup, reducing hang/blank-window loops on unstable Linux GPU stacks.
+
 ## [2.2.3] — 2026-05-24
 
 ### Added

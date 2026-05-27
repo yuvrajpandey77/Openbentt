@@ -49,6 +49,31 @@ function stripTagPrefix(tag: string): string {
   return tag.replace(/^v/i, "");
 }
 
+function latestAssetUrl(filename: string): string {
+  return `https://github.com/${GITHUB_REPO}/releases/latest/download/${encodeURIComponent(filename)}`;
+}
+
+function versionedFallbackUrl(kind: ReleaseAssetKind, version: string): string {
+  switch (kind) {
+    case "windowsNsis":
+      return latestAssetUrl(`Openbentt Setup ${version}.exe`);
+    case "windowsPortable":
+      return latestAssetUrl("Openbentt.exe");
+    case "windowsZip":
+      return latestAssetUrl(`Openbentt-${version}-win.zip`);
+    case "linuxAppImage":
+      return latestAssetUrl(`Openbentt-${version}.AppImage`);
+    case "linuxDeb":
+      return latestAssetUrl(`openbentt_${version}_amd64.deb`);
+    case "macDmgArm64":
+      return latestAssetUrl(`Openbentt-${version}-arm64.dmg`);
+    case "macZipArm64":
+      return latestAssetUrl(`Openbentt-${version}-arm64-mac.zip`);
+    case "webStaticZip":
+      return latestAssetUrl("openbentt-web-dist.zip");
+  }
+}
+
 function fallbackAssets(): ResolvedReleaseAssets {
   const kinds = Object.keys(releaseAssets) as ReleaseAssetKind[];
   const assets: Partial<Record<ReleaseAssetKind, string>> = {};
@@ -91,17 +116,19 @@ export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets>
       }
     }
 
-    // Fill gaps with static fallback URLs (versioned filenames).
+    // Fill gaps with versioned filenames derived from latest tag first.
+    // This avoids stale env/build defaults (e.g. old 2.2.3 filenames) when a release is newer.
+    const latestVersion = stripTagPrefix(data.tag_name);
     const kinds = Object.keys(releaseAssets) as ReleaseAssetKind[];
     for (const kind of kinds) {
       if (!assets[kind]) {
-        const url = releaseAssets[kind]();
+        const url = versionedFallbackUrl(kind, latestVersion) || releaseAssets[kind]();
         if (url) assets[kind] = url;
       }
     }
 
     return {
-      version: stripTagPrefix(data.tag_name),
+      version: latestVersion,
       tagName: data.tag_name,
       releaseUrl: data.html_url,
       assets,
