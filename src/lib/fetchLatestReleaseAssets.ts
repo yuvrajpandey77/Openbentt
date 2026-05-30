@@ -78,22 +78,6 @@ function versionedFallbackUrl(kind: ReleaseAssetKind, version: string): string {
   }
 }
 
-function extractVersionFromAssetName(name: string): string | null {
-  const patterns = [
-    /Openbentt Setup (\d+\.\d+\.\d+(?:-[\w.]+)?)\.exe/i,
-    /Openbentt-(\d+\.\d+\.\d+(?:-[\w.]+)?)-win\.zip/i,
-    /Openbentt-(\d+\.\d+\.\d+(?:-[\w.]+)?)\.AppImage/i,
-    /openbentt_(\d+\.\d+\.\d+(?:-[\w.]+)?)_amd64\.deb/i,
-    /Openbentt-(\d+\.\d+\.\d+(?:-[\w.]+)?)-arm64\.dmg/i,
-    /Openbentt-(\d+\.\d+\.\d+(?:-[\w.]+)?)-arm64-mac\.zip/i,
-  ];
-  for (const re of patterns) {
-    const m = name.match(re);
-    if (m?.[1]) return m[1];
-  }
-  return null;
-}
-
 function fallbackAssets(): ResolvedReleaseAssets {
   const kinds = Object.keys(releaseAssets) as ReleaseAssetKind[];
   const assets: Partial<Record<ReleaseAssetKind, string>> = {};
