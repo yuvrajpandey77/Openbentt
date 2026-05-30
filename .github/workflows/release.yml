@@ -36,6 +36,11 @@ jobs:
       - name: Verify Electron packages
         run: node -e "require('fs').accessSync('node_modules/electron/package.json'); require('fs').accessSync('node_modules/electron-builder/package.json'); console.log('electron', require('electron/package.json').version)"
 
+      - name: Verify release version matches tag
+        run: node scripts/verify-release-version.mjs
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+
       - name: Cache BusyTeX WASM (~175MB)
         id: busytex-cache
         uses: actions/cache@v4
@@ -93,6 +98,11 @@ jobs:
       - name: Verify Electron packages
         run: node -e "require('fs').accessSync('node_modules/electron/package.json'); require('fs').accessSync('node_modules/electron-builder/package.json'); console.log('electron', require('electron/package.json').version)"
 
+      - name: Verify release version matches tag
+        run: node scripts/verify-release-version.mjs
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+
       - name: Cache BusyTeX WASM
         id: busytex-cache
         uses: actions/cache@v4
@@ -147,6 +157,11 @@ jobs:
 
       - name: Verify Electron packages
         run: node -e "require('fs').accessSync('node_modules/electron/package.json'); require('fs').accessSync('node_modules/electron-builder/package.json'); console.log('electron', require('electron/package.json').version)"
+
+      - name: Verify release version matches tag
+        run: node scripts/verify-release-version.mjs
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
 
       - name: Cache BusyTeX WASM
         id: busytex-cache
