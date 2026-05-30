@@ -149,6 +149,22 @@ const DownloadPage: React.FC = () => {
               </p>
             </MarketingReveal>
 
+            {!loading && release?.versionMismatch && (
+              <MarketingReveal delay={30} className="mt-8">
+                <div className="flex max-w-2xl gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-foreground">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div>
+                    <p className="font-medium">Release tag and installer filenames differ</p>
+                    <p className="mt-1 text-muted-foreground">
+                      Latest tag is <code className="text-xs">{release.tagName}</code> but installer files look like
+                      <code className="text-xs"> v{release.inferredAssetVersion}</code>. Download links use published assets
+                      from GitHub Releases; republish installers if you want filenames to match the tag.
+                    </p>
+                  </div>
+                </div>
+              </MarketingReveal>
+            )}
+
             {!loading && release && !release.hasInstallers && (
               <MarketingReveal delay={40} className="mt-8">
                 <div className="flex max-w-2xl gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm text-foreground">

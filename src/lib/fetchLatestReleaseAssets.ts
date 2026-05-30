@@ -12,6 +12,10 @@ export type ResolvedReleaseAssets = {
   hasInstallers: boolean;
   /** GitHub API fetch failed — fall back to static URLs. */
   fromFallback: boolean;
+  /** Most common semver detected from installer asset filenames (if present). */
+  inferredAssetVersion: string | null;
+  /** True when latest tag version and installer filename version differ. */
+  versionMismatch: boolean;
 };
 
 type GhAsset = { name: string; browser_download_url: string };
@@ -88,6 +92,8 @@ function fallbackAssets(): ResolvedReleaseAssets {
     assets,
     hasInstallers: true,
     fromFallback: true,
+    inferredAssetVersion: null,
+    versionMismatch: false,
   };
 }
 
@@ -107,9 +113,14 @@ export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets>
     const data = (await res.json()) as GhRelease;
     const assets: Partial<Record<ReleaseAssetKind, string>> = {};
     let hasInstallers = false;
+    const versionVotes = new Map<string, number>();
 
     for (const asset of data.assets ?? []) {
-      if (isInstallerAsset(asset.name)) hasInstallers = true;
+      if (isInstallerAsset(asset.name)) {
+        hasInstallers = true;
+        const inferred = extractVersionFromAssetName(asset.name);
+        if (inferred) versionVotes.set(inferred, (versionVotes.get(inferred) ?? 0) + 1);
+      }
       const kind = classifyAsset(asset.name);
       if (kind && !assets[kind]) {
         assets[kind] = asset.browser_download_url;
@@ -127,6 +138,9 @@ export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets>
       }
     }
 
+    const inferredAssetVersion = [...versionVotes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const versionMismatch = Boolean(inferredAssetVersion && inferredAssetVersion !== latestVersion);
+
     return {
       version: latestVersion,
       tagName: data.tag_name,
@@ -134,6 +148,8 @@ export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets>
       assets,
       hasInstallers,
       fromFallback: false,
+      inferredAssetVersion,
+      versionMismatch,
     };
   } catch {
     return fallbackAssets();
