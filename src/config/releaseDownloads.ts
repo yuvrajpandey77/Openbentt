@@ -1,23 +1,22 @@
 /**
  * GitHub Releases download URLs. Set at build time:
  * - VITE_GITHUB_REPO — `owner/repo` (optional; defaults to the public upstream so /download works without extra env)
- * - VITE_DESKTOP_ASSET_VERSION — version string in artifact filenames (default matches package.json installers)
+ * - VITE_DESKTOP_ASSET_VERSION — legacy fallback only; package.json version wins to avoid stale deploy overrides
  */
 
 const trim = (s: string | undefined) => (s ?? "").trim();
 
 /** Public upstream releases. Self-hosts and forks: set `VITE_GITHUB_REPO` to your `owner/repo`. */
-const DEFAULT_GITHUB_REPO = "yuvrajpandey77/SecuredChatCogerphere";
+const DEFAULT_GITHUB_REPO = "yuvrajpandey77/Openbentt";
 
-/** e.g. `myorg/SecuredChatCogerphere` */
+/** e.g. `myorg/Openbentt` */
 export const GITHUB_REPO = trim(import.meta.env.VITE_GITHUB_REPO) || DEFAULT_GITHUB_REPO;
 
 /**
  * Version segment in desktop/web zip filenames from electron-builder / CI (e.g. 2.0.2 in `Openbentt-2.0.2.AppImage`).
- * Defaults to `package.json` via `VITE_APP_VERSION` at build time; override with `VITE_DESKTOP_ASSET_VERSION` if filenames ever diverge.
+ * Defaults to `package.json` via `VITE_APP_VERSION` at build time. A legacy `VITE_DESKTOP_ASSET_VERSION` is only used if `VITE_APP_VERSION` is unavailable.
  */
 export const DESKTOP_ASSET_VERSION =
-  trim(import.meta.env.VITE_DESKTOP_ASSET_VERSION) ||
   trim(import.meta.env.VITE_APP_VERSION) ||
   "2.2.4";
 

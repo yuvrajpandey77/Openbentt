@@ -9,6 +9,7 @@ import {
 describe("releaseDownloads", () => {
   it("has a default GitHub repo for download links", () => {
     expect(GITHUB_REPO).toMatch(/\//);
+    expect(GITHUB_REPO).toBe("yuvrajpandey77/Openbentt");
     expect(githubReleasesLatestUrl()).toContain("github.com");
     expect(githubReleasesLatestUrl()).toContain("/releases/latest");
   });

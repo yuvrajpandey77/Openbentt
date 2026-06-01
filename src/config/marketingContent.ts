@@ -306,7 +306,7 @@ export const footerColumns = [
   {
     title: "Community",
     links: [
-      { label: "GitHub", external: "https://github.com/yuvrajpandey77/SecuredChatCogerphere" },
+      { label: "GitHub", external: "https://github.com/yuvrajpandey77/Openbentt" },
       { label: "Notebook", to: "/notebook" },
     ],
   },

@@ -15,6 +15,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- **Security dependency cleanup:** Removed the `wait-on` dev dependency to eliminate its transitive `axios` dependency from the lockfile and replaced dev-server waiting with a small local Node script.
 - **GPU crash recovery:** Desktop now auto-relaunches once in software-render mode after repeated GPU process crash bursts during startup, reducing hang/blank-window loops on unstable Linux GPU stacks.
 
 ## [2.2.3] — 2026-05-24

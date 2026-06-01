@@ -111,7 +111,9 @@ export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets>
     if (!res.ok) return fallbackAssets();
 
     const data = (await res.json()) as GhRelease;
+    const latestVersion = stripTagPrefix(data.tag_name);
     const assets: Partial<Record<ReleaseAssetKind, string>> = {};
+    const mismatchedKinds = new Set<ReleaseAssetKind>();
     let hasInstallers = false;
     const versionVotes = new Map<string, number>();
 
@@ -122,9 +124,19 @@ export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets>
         if (inferred) versionVotes.set(inferred, (versionVotes.get(inferred) ?? 0) + 1);
       }
       const kind = classifyAsset(asset.name);
-      if (kind && !assets[kind]) {
-        assets[kind] = asset.browser_download_url;
+      const inferred = extractVersionFromAssetName(asset.name);
+      if (isInstallerAsset(asset.name)) {
+        hasInstallers = true;
+        if (inferred) versionVotes.set(inferred, (versionVotes.get(inferred) ?? 0) + 1);
       }
+      if (!kind || assets[kind]) continue;
+
+      if (inferred && inferred !== latestVersion) {
+        mismatchedKinds.add(kind);
+        continue;
+      }
+
+      assets[kind] = asset.browser_download_url;
     }
 
     // Fill gaps with versioned filenames derived from latest tag first.
