@@ -129,7 +129,6 @@ export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets>
     const data = (await res.json()) as GhRelease;
     const latestVersion = stripTagPrefix(data.tag_name);
     const assets: Partial<Record<ReleaseAssetKind, string>> = {};
-    const mismatchedKinds = new Set<ReleaseAssetKind>();
     let hasInstallers = false;
     const versionVotes = new Map<string, number>();
 
@@ -142,23 +141,14 @@ export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets>
       }
       if (!kind || assets[kind]) continue;
 
-      if (inferred && inferred !== latestVersion) {
-        mismatchedKinds.add(kind);
-        continue;
-      }
-
       assets[kind] = asset.browser_download_url;
     }
 
-    // Fill gaps with versioned filenames derived from the latest tag first.
-    // If the only published asset for a row had a stale versioned filename, route to
-    // the release page instead of sending users to an obviously wrong direct download.
+    // Fill gaps with versioned filenames derived from the latest tag.
     const kinds = Object.keys(releaseAssets) as ReleaseAssetKind[];
     for (const kind of kinds) {
       if (!assets[kind]) {
-        const url = mismatchedKinds.has(kind)
-          ? data.html_url
-          : versionedFallbackUrl(kind, latestVersion) || releaseAssets[kind]();
+        const url = versionedFallbackUrl(kind, latestVersion) || releaseAssets[kind]();
         if (url) assets[kind] = url;
       }
     }

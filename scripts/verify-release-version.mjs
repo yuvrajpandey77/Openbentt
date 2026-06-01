@@ -4,7 +4,7 @@ const rawTag = process.env.RELEASE_TAG || process.env.GITHUB_REF_NAME || "";
 const expectedVersion = rawTag.replace(/^v/i, "").trim();
 
 if (!expectedVersion) {
-  console.error("Release version check requires RELEASE_TAG or GITHUB_REF_NAME (for example v2.2.4).");
+  console.error("Release version check requires RELEASE_TAG or GITHUB_REF_NAME (for example v2.2.5).");
   process.exit(1);
 }
 

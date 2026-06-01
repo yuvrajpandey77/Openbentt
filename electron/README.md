@@ -28,8 +28,7 @@ Dev loads Vite at **`http://127.0.0.1:8080`** (not `localhost`) to avoid IPv6 mi
 
 From this release onward, if hardware rendering starts but the GPU process crashes repeatedly at startup, Openbentt **auto-relaunches once** in software-render mode (`OPENBENTT_DISABLE_GPU=1`) to reduce hangs and blank-window failures on unstable Linux driver stacks.
 
-From v2.2.4, packaged apps and `electron:dev` **auto-enable** software rendering on Linux when:
-From v2.2.3, packaged apps and `electron:dev` **auto-enable** software rendering on Linux when:
+From v2.2.4 onward, packaged apps and `electron:dev` **auto-enable** software rendering on Linux when:
 
 - NVIDIA GPU is on a **Wayland** session, or
 - NVIDIA GPU is present but the **proprietary driver is not loaded** (`driver (null)`), or
@@ -49,7 +48,7 @@ Harmless log lines you can ignore in safe mode: `Browserslist`, `SQLite is an ex
 
 Other overrides: `OPENBENTT_OZONE_PLATFORM=wayland|auto|x11`, `OPENBENTT_DISABLE_WEBGPU_FLAGS=1`.
 
-Production install: see [docs/releases/v2.2.4.md](../docs/releases/v2.2.4.md) on GitHub Releases.
+Production install: see [docs/releases/v2.2.5.md](../docs/releases/v2.2.5.md) on GitHub Releases.
 
 ## Production-like desktop build
 

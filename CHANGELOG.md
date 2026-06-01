@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.2.5] — 2026-06-01
+
+### Fixed
+
+- **Direct downloads:** Download buttons no longer redirect to the GitHub Releases page when asset filenames differ from the release tag; links always resolve to direct asset URLs.
+- **Production build:** Restored `fetchLatestReleaseAssets.ts` after a bad merge (duplicate `latestVersion`, missing `extractVersionFromAssetName`) that broke Vercel builds.
+- **Download repo alignment:** Release asset resolution targets the Openbentt upstream repo with tag-derived fallback filenames.
+
+### Changed
+
+- **Version bump:** `2.2.4` → `2.2.5` across package, lockfile, and download fallbacks.
+- **Release notes:** Added `docs/releases/v2.2.5.md`.
+
 ## [2.2.4] — 2026-05-27
 
 ### Added
