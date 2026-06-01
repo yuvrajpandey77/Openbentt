@@ -78,22 +78,6 @@ function versionedFallbackUrl(kind: ReleaseAssetKind, version: string): string {
   }
 }
 
-function extractVersionFromAssetName(name: string): string | null {
-  const patterns = [
-    /Openbentt Setup (\d+\.\d+\.\d+(?:-[\w.]+)?)\.exe/i,
-    /Openbentt-(\d+\.\d+\.\d+(?:-[\w.]+)?)-win\.zip/i,
-    /Openbentt-(\d+\.\d+\.\d+(?:-[\w.]+)?)\.AppImage/i,
-    /openbentt_(\d+\.\d+\.\d+(?:-[\w.]+)?)_amd64\.deb/i,
-    /Openbentt-(\d+\.\d+\.\d+(?:-[\w.]+)?)-arm64\.dmg/i,
-    /Openbentt-(\d+\.\d+\.\d+(?:-[\w.]+)?)-arm64-mac\.zip/i,
-  ];
-  for (const re of patterns) {
-    const m = name.match(re);
-    if (m?.[1]) return m[1];
-  }
-  return null;
-}
-
 function fallbackAssets(): ResolvedReleaseAssets {
   const kinds = Object.keys(releaseAssets) as ReleaseAssetKind[];
   const assets: Partial<Record<ReleaseAssetKind, string>> = {};
@@ -134,6 +118,11 @@ export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets>
     const versionVotes = new Map<string, number>();
 
     for (const asset of data.assets ?? []) {
+      if (isInstallerAsset(asset.name)) {
+        hasInstallers = true;
+        const inferred = extractVersionFromAssetName(asset.name);
+        if (inferred) versionVotes.set(inferred, (versionVotes.get(inferred) ?? 0) + 1);
+      }
       const kind = classifyAsset(asset.name);
       const inferred = extractVersionFromAssetName(asset.name);
       if (isInstallerAsset(asset.name)) {
@@ -150,15 +139,13 @@ export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets>
       assets[kind] = asset.browser_download_url;
     }
 
-    // Fill gaps with versioned filenames derived from the latest tag first.
-    // If the only published asset for a row had a stale versioned filename, route to
-    // the release page instead of sending users to an obviously wrong direct download.
+    // Fill gaps with versioned filenames derived from latest tag first.
+    // This avoids stale env/build defaults (e.g. old 2.2.3 filenames) when a release is newer.
+    const latestVersion = stripTagPrefix(data.tag_name);
     const kinds = Object.keys(releaseAssets) as ReleaseAssetKind[];
     for (const kind of kinds) {
       if (!assets[kind]) {
-        const url = mismatchedKinds.has(kind)
-          ? data.html_url
-          : versionedFallbackUrl(kind, latestVersion) || releaseAssets[kind]();
+        const url = versionedFallbackUrl(kind, latestVersion) || releaseAssets[kind]();
         if (url) assets[kind] = url;
       }
     }

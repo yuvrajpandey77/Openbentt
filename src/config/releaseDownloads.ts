@@ -18,7 +18,6 @@ export const GITHUB_REPO = trim(import.meta.env.VITE_GITHUB_REPO) || DEFAULT_GIT
  */
 export const DESKTOP_ASSET_VERSION =
   trim(import.meta.env.VITE_APP_VERSION) ||
-  trim(import.meta.env.VITE_DESKTOP_ASSET_VERSION) ||
   "2.2.4";
 
 export function githubReleasesLatestUrl(): string | null {

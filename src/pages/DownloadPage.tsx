@@ -157,7 +157,8 @@ const DownloadPage: React.FC = () => {
                     <p className="font-medium">Release tag and installer filenames differ</p>
                     <p className="mt-1 text-muted-foreground">
                       Latest tag is <code className="text-xs">{release.tagName}</code> but installer files look like
-                      <code className="text-xs"> v{release.inferredAssetVersion}</code>. Buttons for mismatched installers open the GitHub Release page instead of a stale direct asset; republish installers to restore one-click downloads.
+                      <code className="text-xs"> v{release.inferredAssetVersion}</code>. Download links use published assets
+                      from GitHub Releases; republish installers if you want filenames to match the tag.
                     </p>
                   </div>
                 </div>
