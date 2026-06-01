@@ -118,7 +118,7 @@ If you need to track growth without invasive telemetry:
 - **App downloads:** use GitHub Releases asset download counts per installer.
 - **Active users:** not collected by default (privacy-first).
 
-See release playbook notes in **`docs/releases/v2.2.4.md`**.
+See release playbook notes in **`docs/releases/v2.2.5.md`**.
 
 ## Environment variables
 
