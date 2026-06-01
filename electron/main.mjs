@@ -135,6 +135,37 @@ if (!gpuSafeMode.enabled && process.env.OPENBENTT_DISABLE_GPU === "1") {
   app.disableHardwareAcceleration();
 }
 
+
+const gpuRecoveryAttempted = process.env.OPENBENTT_GPU_RECOVERY_ONCE === "1";
+let gpuCrashBurstCount = 0;
+let gpuCrashBurstWindowStart = 0;
+
+function noteGpuCrashBurst() {
+  const now = Date.now();
+  const windowMs = 20_000;
+  if (!gpuCrashBurstWindowStart || now - gpuCrashBurstWindowStart > windowMs) {
+    gpuCrashBurstWindowStart = now;
+    gpuCrashBurstCount = 0;
+  }
+  gpuCrashBurstCount += 1;
+  return gpuCrashBurstCount;
+}
+
+function relaunchInGpuSafeMode(reason) {
+  if (gpuSafeMode.enabled || gpuRecoveryAttempted) return false;
+  console.error(`[electron] ${reason}. Relaunching once with OPENBENTT_DISABLE_GPU=1 for compatibility.`);
+  app.relaunch({
+    args: process.argv.slice(1),
+    env: {
+      ...process.env,
+      OPENBENTT_DISABLE_GPU: "1",
+      OPENBENTT_GPU_RECOVERY_ONCE: "1",
+    },
+  });
+  app.exit(0);
+  return true;
+}
+
 const VITE_DEV_URL = process.env.VITE_DEV_SERVER_URL || "http://127.0.0.1:8080";
 /** When true, load the Vite dev server (use `npm run electron:dev`). Otherwise load built `dist/` via app:// */
 const useViteDevServer = process.env.OPENBENTT_ELECTRON_DEV === "1";
@@ -377,6 +408,29 @@ if (singleInstanceLock) {
     if (win) {
       if (win.isMinimized()) win.restore();
       win.focus();
+    }
+  });
+}
+
+
+if (!gpuSafeMode.enabled) {
+  app.on("child-process-gone", (_event, details) => {
+    if (details?.type !== "GPU") return;
+    const exitCode = Number.isFinite(details.exitCode) ? details.exitCode : -1;
+    const burst = noteGpuCrashBurst();
+    console.error(
+      `[electron] GPU process crashed (reason=${details.reason ?? "unknown"}, exitCode=${exitCode}, burst=${burst}).`
+    );
+    if (burst >= 2) {
+      relaunchInGpuSafeMode("Repeated GPU process crashes detected");
+    }
+  });
+
+  app.on("gpu-process-crashed", (_event, killed) => {
+    const burst = noteGpuCrashBurst();
+    console.error(`[electron] gpu-process-crashed (killed=${Boolean(killed)} burst=${burst}).`);
+    if (burst >= 2) {
+      relaunchInGpuSafeMode("Legacy gpu-process-crashed signal received repeatedly");
     }
   });
 }

@@ -12,6 +12,10 @@ export type ResolvedReleaseAssets = {
   hasInstallers: boolean;
   /** GitHub API fetch failed — fall back to static URLs. */
   fromFallback: boolean;
+  /** Most common semver detected from installer asset filenames (if present). */
+  inferredAssetVersion: string | null;
+  /** True when latest tag version and installer filename version differ. */
+  versionMismatch: boolean;
 };
 
 type GhAsset = { name: string; browser_download_url: string };
@@ -49,6 +53,47 @@ function stripTagPrefix(tag: string): string {
   return tag.replace(/^v/i, "");
 }
 
+function latestAssetUrl(filename: string): string {
+  return `https://github.com/${GITHUB_REPO}/releases/latest/download/${encodeURIComponent(filename)}`;
+}
+
+function versionedFallbackUrl(kind: ReleaseAssetKind, version: string): string {
+  switch (kind) {
+    case "windowsNsis":
+      return latestAssetUrl(`Openbentt Setup ${version}.exe`);
+    case "windowsPortable":
+      return latestAssetUrl("Openbentt.exe");
+    case "windowsZip":
+      return latestAssetUrl(`Openbentt-${version}-win.zip`);
+    case "linuxAppImage":
+      return latestAssetUrl(`Openbentt-${version}.AppImage`);
+    case "linuxDeb":
+      return latestAssetUrl(`openbentt_${version}_amd64.deb`);
+    case "macDmgArm64":
+      return latestAssetUrl(`Openbentt-${version}-arm64.dmg`);
+    case "macZipArm64":
+      return latestAssetUrl(`Openbentt-${version}-arm64-mac.zip`);
+    case "webStaticZip":
+      return latestAssetUrl("openbentt-web-dist.zip");
+  }
+}
+
+function extractVersionFromAssetName(name: string): string | null {
+  const patterns = [
+    /Openbentt Setup (\d+\.\d+\.\d+(?:-[\w.]+)?)\.exe/i,
+    /Openbentt-(\d+\.\d+\.\d+(?:-[\w.]+)?)-win\.zip/i,
+    /Openbentt-(\d+\.\d+\.\d+(?:-[\w.]+)?)\.AppImage/i,
+    /openbentt_(\d+\.\d+\.\d+(?:-[\w.]+)?)_amd64\.deb/i,
+    /Openbentt-(\d+\.\d+\.\d+(?:-[\w.]+)?)-arm64\.dmg/i,
+    /Openbentt-(\d+\.\d+\.\d+(?:-[\w.]+)?)-arm64-mac\.zip/i,
+  ];
+  for (const re of patterns) {
+    const m = name.match(re);
+    if (m?.[1]) return m[1];
+  }
+  return null;
+}
+
 function fallbackAssets(): ResolvedReleaseAssets {
   const kinds = Object.keys(releaseAssets) as ReleaseAssetKind[];
   const assets: Partial<Record<ReleaseAssetKind, string>> = {};
@@ -63,6 +108,8 @@ function fallbackAssets(): ResolvedReleaseAssets {
     assets,
     hasInstallers: true,
     fromFallback: true,
+    inferredAssetVersion: null,
+    versionMismatch: false,
   };
 }
 
@@ -80,33 +127,54 @@ export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets>
     if (!res.ok) return fallbackAssets();
 
     const data = (await res.json()) as GhRelease;
+    const latestVersion = stripTagPrefix(data.tag_name);
     const assets: Partial<Record<ReleaseAssetKind, string>> = {};
+    const mismatchedKinds = new Set<ReleaseAssetKind>();
     let hasInstallers = false;
+    const versionVotes = new Map<string, number>();
 
     for (const asset of data.assets ?? []) {
-      if (isInstallerAsset(asset.name)) hasInstallers = true;
       const kind = classifyAsset(asset.name);
-      if (kind && !assets[kind]) {
-        assets[kind] = asset.browser_download_url;
+      const inferred = extractVersionFromAssetName(asset.name);
+      if (isInstallerAsset(asset.name)) {
+        hasInstallers = true;
+        if (inferred) versionVotes.set(inferred, (versionVotes.get(inferred) ?? 0) + 1);
       }
+      if (!kind || assets[kind]) continue;
+
+      if (inferred && inferred !== latestVersion) {
+        mismatchedKinds.add(kind);
+        continue;
+      }
+
+      assets[kind] = asset.browser_download_url;
     }
 
-    // Fill gaps with static fallback URLs (versioned filenames).
+    // Fill gaps with versioned filenames derived from the latest tag first.
+    // If the only published asset for a row had a stale versioned filename, route to
+    // the release page instead of sending users to an obviously wrong direct download.
     const kinds = Object.keys(releaseAssets) as ReleaseAssetKind[];
     for (const kind of kinds) {
       if (!assets[kind]) {
-        const url = releaseAssets[kind]();
+        const url = mismatchedKinds.has(kind)
+          ? data.html_url
+          : versionedFallbackUrl(kind, latestVersion) || releaseAssets[kind]();
         if (url) assets[kind] = url;
       }
     }
 
+    const inferredAssetVersion = [...versionVotes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const versionMismatch = Boolean(inferredAssetVersion && inferredAssetVersion !== latestVersion);
+
     return {
-      version: stripTagPrefix(data.tag_name),
+      version: latestVersion,
       tagName: data.tag_name,
       releaseUrl: data.html_url,
       assets,
       hasInstallers,
       fromFallback: false,
+      inferredAssetVersion,
+      versionMismatch,
     };
   } catch {
     return fallbackAssets();
