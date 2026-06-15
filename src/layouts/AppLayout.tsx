@@ -131,7 +131,7 @@ const AppLayout: React.FC = () => {
   }
 
   return (
-    <div className={cn("flex overflow-hidden", isDesktopApp() ? "h-full" : "h-screen")}>
+    <div className={cn("flex overflow-hidden", isDesktopApp() ? "h-full" : isWebChat ? "h-[100dvh]" : "h-screen")}>
       <Sidebar
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
@@ -157,36 +157,36 @@ const AppLayout: React.FC = () => {
       >
         {isWebChat ? (
           <WebChatUiProvider>
-            <AppChromeHeader
-              onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-              sidebarCollapsed={sidebarCollapsed}
-              onExpandSidebar={() => setSidebarCollapsed(false)}
-              workspaceMeta={workspaceMeta}
-            />
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              {workspaceMeta && isMobile ? (
-                <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  <TabsList className="mx-2 mt-2 grid h-9 w-auto shrink-0 grid-cols-2 rounded-lg bg-muted/80 p-1">
-                    <TabsTrigger value="chat" className="text-xs sm:text-sm">Chat</TabsTrigger>
-                    <TabsTrigger value="workspace" className="text-xs sm:text-sm">Workspace</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="chat" className="mt-0 min-h-0 flex-1 overflow-hidden focus-visible:outline-none">
-                    <div className="flex h-full min-h-0 flex-col">
-                      <ChatMessages messages={messages} isLoading={isLoading} />
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="workspace" className="mt-0 min-h-0 flex-1 overflow-hidden focus-visible:outline-none">
-                    <div className="flex h-full min-h-0 flex-col overflow-y-auto">
+              <AppChromeHeader
+                onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+                sidebarCollapsed={sidebarCollapsed}
+                onExpandSidebar={() => setSidebarCollapsed(false)}
+                workspaceMeta={workspaceMeta}
+              />
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                {workspaceMeta && isMobile ? (
+                  <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <TabsList className="mx-2 mt-2 grid h-9 w-auto shrink-0 grid-cols-2 rounded-lg bg-muted/80 p-1">
+                      <TabsTrigger value="chat" className="text-xs sm:text-sm">Chat</TabsTrigger>
+                      <TabsTrigger value="workspace" className="text-xs sm:text-sm">Workspace</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="chat" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden focus-visible:outline-none">
                       <Outlet />
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              ) : (
-                <Outlet />
-              )}
-            </div>
-            <div className="shrink-0 bg-transparent px-0 pb-0 pt-0">
-              <ChatInput isLoading={isLoading} workspaceMeta={workspaceMeta} />
+                    </TabsContent>
+                    <TabsContent value="workspace" className="mt-0 min-h-0 flex-1 overflow-hidden focus-visible:outline-none">
+                      <div className="flex h-full min-h-0 flex-col overflow-y-auto">
+                        <Outlet />
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                ) : (
+                  <Outlet />
+                )}
+              </div>
+              <div className="shrink-0 bg-background">
+                <ChatInput isLoading={isLoading} workspaceMeta={workspaceMeta} />
+              </div>
             </div>
           </WebChatUiProvider>
         ) : (

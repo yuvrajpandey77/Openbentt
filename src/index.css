@@ -256,6 +256,17 @@
     background: hsl(var(--muted-foreground) / 0.35);
   }
 
+  /** Web /chat — only the message list scrolls; header + composer stay fixed. */
+  .web-chat-thread {
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+  }
+
+  .web-chat-thread [data-radix-scroll-area-viewport] {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .streaming-text {
     animation: fadeInUp 0.08s ease-out;
   }

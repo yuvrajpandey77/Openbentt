@@ -49,7 +49,7 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
       className={cn(
         "flex shrink-0 items-center justify-between gap-2 backdrop-blur-md",
         isWebChat
-          ? "border-0 bg-transparent px-3 py-2 md:px-4"
+          ? "z-20 border-0 bg-background px-3 py-2 md:bg-transparent md:px-4"
           : "border-b border-border/60 bg-background/90 px-2 py-2 supports-[backdrop-filter]:bg-background/80 md:px-3"
       )}
     >

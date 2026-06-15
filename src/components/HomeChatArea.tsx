@@ -7,14 +7,15 @@ import { WebChatStarterPrompts } from "@/components/web/WebChatStarterPrompts";
 import { WebChatInstallDialog } from "@/components/web/WebChatInstallDialog";
 import { useChat } from "@/context/ChatContext";
 import { useWebChatUi } from "@/context/WebChatUiContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Search, X } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { enableChatPwa, disableChatPwa } from "@/lib/chatPwa";
 
 /** Main thread view (route `/chat`) — messages scroll above the global composer. */
 const HomeChatArea: React.FC = () => {
   const { chats, currentChatId, isLoading } = useChat();
   const webUi = useWebChatUi();
+  const isMobile = useIsMobile();
   const [threadSearch, setThreadSearch] = React.useState("");
 
   const currentChat = chats.find((c) => c.id === currentChatId);
@@ -44,13 +45,25 @@ const HomeChatArea: React.FC = () => {
     window.history.replaceState(null, "", url);
   }, [webUi]);
 
+  React.useEffect(() => {
+    if (!isMobile) return;
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+    };
+  }, [isMobile]);
+
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="web-chat-thread flex min-h-0 flex-1 flex-col overflow-hidden">
       <OpenRouterKeyPrompt />
       <WebChatInstallDialog open={webUi?.installOpen ?? false} onOpenChange={(v) => (v ? webUi?.openInstall() : webUi?.closeInstall())} />
 
       {!isEmpty && searchActive && (
-        <div className="absolute inset-x-0 top-0 z-20 flex items-center gap-1 bg-background/95 px-3 py-2 backdrop-blur-md">
+        <div className="z-10 flex shrink-0 items-center gap-1 border-b border-border/40 bg-background px-3 py-2">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -69,13 +82,17 @@ const HomeChatArea: React.FC = () => {
         </div>
       )}
 
-      <ChatMessages messages={messages} isLoading={isLoading} searchQuery={threadSearch} webCleanEmpty={isEmpty} />
-
-      {isEmpty && (
-        <div className={cn("shrink-0 px-2 pb-2 md:mx-auto md:w-full md:max-w-5xl md:px-6")}>
-          <WebChatStarterPrompts onSelect={(text) => webUi?.setComposerSeed(text)} />
-        </div>
-      )}
+      <ChatMessages
+        messages={messages}
+        isLoading={isLoading}
+        searchQuery={threadSearch}
+        webCleanEmpty={isEmpty}
+        webStarterSlot={
+          isEmpty ? (
+            <WebChatStarterPrompts onSelect={(text) => webUi?.setComposerSeed(text)} />
+          ) : undefined
+        }
+      />
     </div>
   );
 };

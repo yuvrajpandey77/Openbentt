@@ -1,5 +1,7 @@
 const MANIFEST_LINK_ID = "openbentt-chat-manifest";
 const SW_URL = "/sw.js";
+/** Matches app-shell `--background` (hsl 0 0% 12%). */
+export const CHAT_PWA_THEME_COLOR = "#1f1f1f";
 
 const CHAT_PWA_ALLOWED = ["/chat", "/setup", "/share"] as const;
 
@@ -48,6 +50,18 @@ function removeSiteManifestLink(): void {
   });
 }
 
+function ensureLink(rel: string, href: string, id?: string): void {
+  const sel = id ? `link#${id}` : `link[rel="${rel}"][href="${href}"]`;
+  let el = document.querySelector<HTMLLinkElement>(sel);
+  if (!el) {
+    el = document.createElement("link");
+    el.rel = rel;
+    if (id) el.id = id;
+    document.head.appendChild(el);
+  }
+  el.href = href;
+}
+
 /** Point this tab at the chat-scoped web manifest (installable /chat app). */
 export function linkChatWebManifest(): void {
   removeSiteManifestLink();
@@ -62,8 +76,10 @@ export function linkChatWebManifest(): void {
 
   ensureMeta("apple-mobile-web-app-capable", "yes");
   ensureMeta("apple-mobile-web-app-title", "Obent Chat");
+  ensureMeta("apple-mobile-web-app-status-bar-style", "black-translucent");
   ensureMeta("mobile-web-app-capable", "yes");
-  ensureMeta("theme-color", "#0080cc");
+  ensureMeta("theme-color", CHAT_PWA_THEME_COLOR);
+  ensureLink("apple-touch-icon", "/pwa-chat-icon.png", "openbentt-chat-touch-icon");
 }
 
 export function unlinkChatWebManifest(): void {

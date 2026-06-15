@@ -25,6 +25,21 @@
           p === "/setup" ||
           p.indexOf("/share") === 0;
         if (!ok) location.replace("/chat");
+        var tc = document.querySelector('meta[name="theme-color"]');
+        if (!tc) {
+          tc = document.createElement("meta");
+          tc.name = "theme-color";
+          document.head.appendChild(tc);
+        }
+        tc.content = "#1f1f1f";
+        var touch = document.getElementById("openbentt-chat-touch-icon");
+        if (!touch) {
+          touch = document.createElement("link");
+          touch.id = "openbentt-chat-touch-icon";
+          touch.rel = "apple-touch-icon";
+          touch.href = "/pwa-chat-icon.png";
+          document.head.appendChild(touch);
+        }
       })();
     </script>
   </head>

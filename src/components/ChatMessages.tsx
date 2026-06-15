@@ -42,6 +42,8 @@ interface ChatMessagesProps {
   emptyVariant?: "home" | "studio";
   /** Web /chat: ultra-minimal empty — logo only; starters live below. */
   webCleanEmpty?: boolean;
+  /** Rendered inside scroll area on web /chat empty thread (starter chips). */
+  webStarterSlot?: React.ReactNode;
 }
 
 function MetricsBar({ metrics }: { metrics: NonNullable<Message["metrics"]> }) {
@@ -191,6 +193,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
   searchQuery = "",
   emptyVariant = "home",
   webCleanEmpty = false,
+  webStarterSlot,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -375,6 +378,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
       viewportRef={viewportRef}
       className={cn(
         "min-h-0",
+        isWebClient() && emptyVariant !== "studio" && "h-0 flex-1",
         emptyVariant === "studio"
           ? "h-full w-full p-2"
           : cn("flex-1", isWebClient() ? "p-3 sm:p-4" : "p-4")
@@ -444,11 +448,12 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
               </div>
             </div>
           ) : webCleanEmpty ? (
-          <div className="flex flex-1 items-center justify-center py-6">
+          <div className="flex flex-col items-center justify-center py-6">
             <Avatar className="h-14 w-14 rounded-2xl shadow-sm">
               <AvatarImage src="/openbentt-logo.svg" alt="" />
               <AvatarFallback className="font-display text-sm">OB</AvatarFallback>
             </Avatar>
+            {webStarterSlot ? <div className="mt-4 w-full max-w-5xl px-2">{webStarterSlot}</div> : null}
           </div>
           ) : (
           <div className="flex min-h-[min(50vh,380px)] items-center justify-center py-8 sm:py-12">
