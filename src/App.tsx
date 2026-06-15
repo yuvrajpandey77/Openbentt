@@ -53,6 +53,7 @@ function DownloadPageOrDesktopRedirect() {
   if (isChatPwaStandalone()) {
     return <Navigate to="/chat" replace />;
   }
+  if (isDesktopApp()) {
     return <Navigate to="/projects" replace />;
   }
   return <DownloadPage />;
