@@ -16,12 +16,15 @@ import { NewsStrip } from "@/components/marketing/NewsStrip";
 import { useSuggestedDownload } from "@/components/marketing/useSuggestedDownload";
 import { heroPrinciples, showcaseBlocks } from "@/config/marketingContent";
 import { Download } from "lucide-react";
+import { LandingMobileInstallCta } from "@/components/marketing/LandingMobileInstallCta";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const downloadBtnClass =
   "h-12 min-w-[220px] gap-2.5 rounded-xl px-8 text-base font-semibold md:h-14 md:min-w-[260px] md:text-lg";
 
 const HomeLandingPage: React.FC = () => {
   const suggested = useSuggestedDownload();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     document.title = "Openbentt | desktop-first AI workspace for researchers";
@@ -52,23 +55,26 @@ const HomeLandingPage: React.FC = () => {
           <div className="marketing-hero-actions">
             <div className="marketing-container">
               <div className="marketing-hero-cta marketing-hero-enter marketing-hero-enter--4">
-                {primaryDownload}
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="h-12 rounded-xl border-border/80 px-8 text-base font-medium transition-colors md:h-14 md:px-10 md:text-lg"
-                  asChild
-                >
-                  <Link to="/download">All platforms</Link>
-                </Button>
+                <LandingMobileInstallCta />
+                <div className="hidden md:contents">
+                  {primaryDownload}
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="h-12 rounded-xl border-border/80 px-8 text-base font-medium transition-colors md:h-14 md:px-10 md:text-lg"
+                    asChild
+                  >
+                    <Link to="/download">All platforms</Link>
+                  </Button>
+                </div>
               </div>
 
               <p className="marketing-hero-web-link">
                 <Link to="/chat" className="font-medium text-foreground underline-offset-4 hover:underline">
-                  Try the web app
+                  {isMobile ? "Try chat in browser" : "Try the web app"}
                 </Link>
-                <span className="text-muted-foreground/50"> · </span>
-                <span>no install required</span>
+                <span className="hidden text-muted-foreground/50 md:inline"> · </span>
+                <span className="hidden md:inline">no install required</span>
               </p>
             </div>
           </div>

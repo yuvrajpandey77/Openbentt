@@ -12,6 +12,21 @@
     <meta name="author" content="Openbentt" />
     <meta name="google-site-verification" content="lr8hQLP1wBYcAydKMsT0jKUV1NSB3tjzqnLfMkxuUfw" />
     <!-- Additional SEO (canonical, Open Graph, Twitter, JSON-LD) is injected at build time in vite.config.ts -->
+    <script>
+      (function () {
+        var standalone =
+          window.matchMedia("(display-mode: standalone)").matches ||
+          window.navigator.standalone === true;
+        if (!standalone) return;
+        var p = location.pathname;
+        var ok =
+          p === "/chat" ||
+          p.indexOf("/chat/") === 0 ||
+          p === "/setup" ||
+          p.indexOf("/share") === 0;
+        if (!ok) location.replace("/chat");
+      })();
+    </script>
   </head>
 
   <body>

@@ -17,6 +17,8 @@ import NotFound from "./pages/NotFound";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { WebWorkspaceRouteGuard } from "@/components/WebWorkspaceRouteGuard";
 import { isDesktopApp } from "@/lib/isDesktopApp";
+import { isChatPwaStandalone } from "@/lib/chatPwa";
+import { ChatPwaStandaloneGuard } from "@/components/web/ChatPwaStandaloneGuard";
 
 const NotebookStudioPage = lazy(() => import("./pages/NotebookStudioPage"));
 const ProjectsHubPage = lazy(() => import("./pages/ProjectsHubPage"));
@@ -35,8 +37,11 @@ const RouteFallback = () => (
   <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground text-sm">Loading…</div>
 );
 
-/** Web: marketing landing. Electron: projects hub (Prism-style home). */
+/** Web: marketing landing. Electron: projects hub. Installed chat PWA: always /chat. */
 function RootMarketingOrElectronRedirect() {
+  if (isChatPwaStandalone()) {
+    return <Navigate to="/chat" replace />;
+  }
   if (isDesktopApp()) {
     return <Navigate to="/projects" replace />;
   }
@@ -45,7 +50,9 @@ function RootMarketingOrElectronRedirect() {
 
 /** Installers page is for the website only — desktop users already have the app. */
 function DownloadPageOrDesktopRedirect() {
-  if (isDesktopApp()) {
+  if (isChatPwaStandalone()) {
+    return <Navigate to="/chat" replace />;
+  }
     return <Navigate to="/projects" replace />;
   }
   return <DownloadPage />;
@@ -68,6 +75,7 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <DesktopAppFrame>
+            <ChatPwaStandaloneGuard>
             <Suspense fallback={<RouteFallback />}>
               <Routes>
                 {/* Public / marketing routes */}
@@ -113,6 +121,7 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
+            </ChatPwaStandaloneGuard>
             </DesktopAppFrame>
           </BrowserRouter>
         </TooltipProvider>

@@ -34,6 +34,16 @@ const HomeChatArea: React.FC = () => {
     };
   }, []);
 
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("install") !== "1") return;
+    webUi?.openInstall();
+    params.delete("install");
+    const next = params.toString();
+    const url = `${window.location.pathname}${next ? `?${next}` : ""}${window.location.hash}`;
+    window.history.replaceState(null, "", url);
+  }, [webUi]);
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <OpenRouterKeyPrompt />

@@ -23,7 +23,6 @@ function openbenttSeoPlugin(): Plugin {
         `    <link rel="canonical" href="${canonical}" />`,
         `    <meta name="theme-color" content="#6C5CE7" />`,
         `    <meta name="robots" content="index, follow, max-image-preview:large" />`,
-        `    <link rel="manifest" href="/site.webmanifest" />`,
         `    <meta name="application-name" content="Openbentt" />`,
         `    <meta property="og:type" content="website" />`,
         `    <meta property="og:title" content="Openbentt · AI workspace for chat, research, and documents" />`,

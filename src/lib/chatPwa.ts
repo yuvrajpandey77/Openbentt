@@ -1,5 +1,7 @@
 const MANIFEST_LINK_ID = "openbentt-chat-manifest";
-const SW_URL = "/chat-sw.js";
+const SW_URL = "/sw.js";
+
+const CHAT_PWA_ALLOWED = ["/chat", "/setup", "/share"] as const;
 
 function ensureMeta(name: string, content: string): void {
   let el = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
@@ -18,6 +20,21 @@ export function isChatPwaStandalone(): boolean {
   return window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true;
 }
 
+export function isChatPwaAllowedPath(pathname: string): boolean {
+  return CHAT_PWA_ALLOWED.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
+/** Installed chat app: only /chat (and /setup, /share). Redirect marketing routes. */
+export function enforceChatPwaEntry(pathname = window.location.pathname): boolean {
+  if (!isChatPwaStandalone()) return false;
+  if (isChatPwaAllowedPath(pathname)) return false;
+  const target = `/chat${window.location.search}${window.location.hash}`;
+  window.location.replace(target);
+  return true;
+}
+
 export function isIosSafari(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
@@ -25,8 +42,15 @@ export function isIosSafari(): boolean {
   return ios && !/CriOS|FxiOS|EdgiOS/.test(ua);
 }
 
+function removeSiteManifestLink(): void {
+  document.querySelectorAll('link[rel="manifest"]').forEach((el) => {
+    if (el.id !== MANIFEST_LINK_ID) el.remove();
+  });
+}
+
 /** Point this tab at the chat-scoped web manifest (installable /chat app). */
 export function linkChatWebManifest(): void {
+  removeSiteManifestLink();
   let link = document.querySelector<HTMLLinkElement>(`link#${MANIFEST_LINK_ID}`);
   if (!link) {
     link = document.createElement("link");
@@ -49,7 +73,7 @@ export function unlinkChatWebManifest(): void {
 export async function registerChatServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!("serviceWorker" in navigator)) return null;
   try {
-    return await navigator.serviceWorker.register(SW_URL, { scope: "/chat/" });
+    return await navigator.serviceWorker.register(SW_URL, { scope: "/" });
   } catch (err) {
     console.warn("[Openbentt] chat service worker registration failed", err);
     return null;
@@ -58,8 +82,10 @@ export async function registerChatServiceWorker(): Promise<ServiceWorkerRegistra
 
 export async function unregisterChatServiceWorker(): Promise<void> {
   if (!("serviceWorker" in navigator)) return;
-  const reg = await navigator.serviceWorker.getRegistration(SW_URL);
-  await reg?.unregister();
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (reg?.active?.scriptURL?.includes("sw.js")) {
+    await reg.unregister();
+  }
 }
 
 /** Wire manifest + service worker for /chat installability. */
