@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, PanelLeft, Info, Search } from "lucide-react";
+import { Menu, PanelLeft, Info, Search, Smartphone } from "lucide-react";
 import { canSendChat } from "@/types/chat";
 import { ShareLinkButton } from "@/components/ShareLinkButton";
 import { CapabilitiesSheet } from "@/components/CapabilitiesSheet";
@@ -17,6 +17,7 @@ import { isDesktopApp } from "@/lib/isDesktopApp";
 import { isWebClient } from "@/config/platformSurface";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useWebChatUiOptional } from "@/context/WebChatUiContext";
+import { useChatPwaInstall } from "@/hooks/useChatPwaInstall";
 import { cn } from "@/lib/utils";
 
 interface AppChromeHeaderProps {
@@ -35,6 +36,7 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
 }) => {
   const { apiConfig, currentChatId, chats } = useChat();
   const webUi = useWebChatUiOptional();
+  const { showMobileInstall, standalone } = useChatPwaInstall();
   const { pathname } = useLocation();
   const isMobile = useIsMobile();
   const isChat = pathname === "/chat";
@@ -110,6 +112,18 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
 
       {/* Right: share (primary) + status popover */}
       <div className="flex shrink-0 items-center gap-0.5 md:gap-1.5">
+        {isWebChat && showMobileInstall && !standalone && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 rounded-full bg-muted/30 text-muted-foreground hover:bg-muted/50 md:h-11 md:w-11"
+            onClick={() => webUi.openInstall()}
+            aria-label="Install on mobile"
+          >
+            <Smartphone size={18} className="md:h-5 md:w-5" />
+          </Button>
+        )}
+
         {isWebChat && hasThreadMessages && (
           <Button
             variant="ghost"

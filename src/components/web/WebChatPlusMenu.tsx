@@ -11,6 +11,7 @@ import {
   Plus,
   Search,
   Settings2,
+  Smartphone,
   Video,
   Wrench,
 } from "lucide-react";
@@ -40,6 +41,7 @@ type WebChatPlusMenuProps = {
   onModelChange: (id: string) => void;
   hasMessages: boolean;
   onExportMd?: () => void;
+  onOpenInstall?: () => void;
   className?: string;
 };
 
@@ -74,6 +76,7 @@ export function WebChatPlusMenu({
   onModelChange,
   hasMessages,
   onExportMd,
+  onOpenInstall,
   className,
 }: WebChatPlusMenuProps) {
   const [open, setOpen] = useState(false);
@@ -188,6 +191,18 @@ export function WebChatPlusMenu({
       label: "Set up on-device model",
       onClick: () => {
         onOpenSetup();
+        close();
+      },
+    });
+  }
+
+  if (onOpenInstall) {
+    rows.push({
+      id: "install",
+      icon: Smartphone,
+      label: "Use on mobile",
+      onClick: () => {
+        onOpenInstall();
         close();
       },
     });

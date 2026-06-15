@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import ChatMessages from "@/components/ChatMessages";
 import { OpenRouterKeyPrompt } from "@/components/OpenRouterKeyPrompt";
 import { WebChatStarterPrompts } from "@/components/web/WebChatStarterPrompts";
+import { WebChatInstallDialog } from "@/components/web/WebChatInstallDialog";
 import { useChat } from "@/context/ChatContext";
 import { useWebChatUi } from "@/context/WebChatUiContext";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { enableChatPwa, disableChatPwa } from "@/lib/chatPwa";
 
 /** Main thread view (route `/chat`) — messages scroll above the global composer. */
 const HomeChatArea: React.FC = () => {
@@ -25,9 +27,17 @@ const HomeChatArea: React.FC = () => {
     webUi?.closeSearch();
   };
 
+  React.useEffect(() => {
+    void enableChatPwa();
+    return () => {
+      void disableChatPwa();
+    };
+  }, []);
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <OpenRouterKeyPrompt />
+      <WebChatInstallDialog open={webUi?.installOpen ?? false} onOpenChange={(v) => (v ? webUi?.openInstall() : webUi?.closeInstall())} />
 
       {!isEmpty && searchActive && (
         <div className="absolute inset-x-0 top-0 z-20 flex items-center gap-1 bg-background/95 px-3 py-2 backdrop-blur-md">

@@ -7,6 +7,9 @@ type WebChatUiContextValue = {
   searchOpen: boolean;
   openSearch: () => void;
   closeSearch: () => void;
+  installOpen: boolean;
+  openInstall: () => void;
+  closeInstall: () => void;
 };
 
 const WebChatUiContext = createContext<WebChatUiContextValue | null>(null);
@@ -14,6 +17,7 @@ const WebChatUiContext = createContext<WebChatUiContextValue | null>(null);
 export function WebChatUiProvider({ children }: { children: React.ReactNode }) {
   const [composerSeed, setComposerSeedState] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [installOpen, setInstallOpen] = useState(false);
 
   const value = useMemo<WebChatUiContextValue>(
     () => ({
@@ -23,8 +27,11 @@ export function WebChatUiProvider({ children }: { children: React.ReactNode }) {
       searchOpen,
       openSearch: () => setSearchOpen(true),
       closeSearch: () => setSearchOpen(false),
+      installOpen,
+      openInstall: () => setInstallOpen(true),
+      closeInstall: () => setInstallOpen(false),
     }),
-    [composerSeed, searchOpen]
+    [composerSeed, searchOpen, installOpen]
   );
 
   return <WebChatUiContext.Provider value={value}>{children}</WebChatUiContext.Provider>;
@@ -46,6 +53,9 @@ export function useWebChatUiOptional() {
         searchOpen: false,
         openSearch: () => {},
         closeSearch: () => {},
+        installOpen: false,
+        openInstall: () => {},
+        closeInstall: () => {},
       },
     [ctx]
   );

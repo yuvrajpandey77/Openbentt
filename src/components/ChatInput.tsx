@@ -75,6 +75,12 @@ import { isWebChatRoute } from "@/components/web/webChatRoute";
 import { WebChatPlusMenu } from "@/components/web/WebChatPlusMenu";
 import { useWebChatUiOptional } from "@/context/WebChatUiContext";
 import { buildChatMarkdownExport, downloadTextFile } from "@/lib/chatExportMarkdown";
+import {
+  findUnsupportedVisionAttachments,
+  imageUnsupportedMessage,
+  modelSupportsImages,
+} from "@/lib/attachmentModelSupport";
+import { AttachmentPreviewErrorBoundary } from "@/components/web/AttachmentPreviewErrorBoundary";
 
 interface ChatInputProps {
   isLoading: boolean;
@@ -173,6 +179,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
     [models, ggufModels, apiConfig.customModelIds, apiConfig.model, apiConfig.comparisonModelIds, apiConfig.aiProvider]
   );
 
+  const currentModelMeta = useMemo(
+    () => models?.find((m) => m.id === apiConfig.model) ?? null,
+    [models, apiConfig.model]
+  );
+
   const currentChat = useMemo(
     () => chats.find((c) => c.id === currentChatId),
     [chats, currentChatId]
@@ -262,6 +273,15 @@ const ChatInput: React.FC<ChatInputProps> = ({
       toast({
         title: "Pick at least two models",
         description: "Open Compare in the extras menu and select 2–4 models.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const unsupportedVision = findUnsupportedVisionAttachments(attachments, apiConfig, currentModelMeta);
+    if (unsupportedVision.length > 0) {
+      toast({
+        title: "Images not supported",
+        description: imageUnsupportedMessage(apiConfig.model),
         variant: "destructive",
       });
       return;
@@ -392,9 +412,20 @@ const ChatInput: React.FC<ChatInputProps> = ({
     setApiConfig(normalizeApiConfig({ ...apiConfig, comparisonModelIds: next }));
   };
 
+  const rejectVisionAttachment = (): boolean => {
+    if (modelSupportsImages(apiConfig, currentModelMeta)) return false;
+    toast({
+      title: "Images not supported",
+      description: imageUnsupportedMessage(apiConfig.model),
+      variant: "destructive",
+    });
+    return true;
+  };
+
   const addAttachment = async (file: File) => {
     try {
       if (file.type.startsWith("image/")) {
+        if (rejectVisionAttachment()) return;
         assertImageSize(file);
         const dataUrl = await readFileAsDataUrl(file);
         setAttachments((a) => [...a, { id: uuidv4(), kind: "image", mediaType: file.type, name: file.name, dataUrl }]);
@@ -407,6 +438,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         return;
       }
       if (file.type.startsWith("video/")) {
+        if (rejectVisionAttachment()) return;
         toast({ title: "Video", description: "Extracting a preview frame for vision models…" });
         const dataUrl = await extractVideoFrameDataUrl(file);
         setAttachments((a) => [...a, { id: uuidv4(), kind: "video_frame", mediaType: "image/jpeg", name: `${file.name} (frame)`, dataUrl }]);
@@ -456,29 +488,28 @@ const ChatInput: React.FC<ChatInputProps> = ({
         {attachments.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">
             {attachments.map((a) => (
-              <div
-                key={a.id}
-                className="relative group h-16 w-16 overflow-hidden rounded-xl bg-muted/40"
-              >
-                {a.kind === "pdf" ? (
-                  <div className="flex h-full flex-col items-center justify-center p-1 text-[10px] text-muted-foreground">
-                    <FileText className="h-6 w-6 text-primary" />
-                  </div>
-                ) : a.kind === "audio" ? (
-                  <div className="flex h-full items-center justify-center p-1">
-                    <Mic className="h-5 w-5 text-primary" />
-                  </div>
-                ) : (
-                  <img src={a.dataUrl} alt="" className="h-full w-full object-cover" />
-                )}
-                <button
-                  type="button"
-                  className="absolute inset-0 flex items-center justify-center bg-black/50 text-xs text-white opacity-0 group-hover:opacity-100"
-                  onClick={() => removeAtt(a.id)}
-                >
-                  Remove
-                </button>
-              </div>
+              <AttachmentPreviewErrorBoundary key={a.id} attachmentName={a.name} onRemove={() => removeAtt(a.id)}>
+                <div className="relative group h-16 w-16 overflow-hidden rounded-xl bg-muted/40">
+                  {a.kind === "pdf" ? (
+                    <div className="flex h-full flex-col items-center justify-center p-1 text-[10px] text-muted-foreground">
+                      <FileText className="h-6 w-6 text-primary" />
+                    </div>
+                  ) : a.kind === "audio" ? (
+                    <div className="flex h-full items-center justify-center p-1">
+                      <Mic className="h-5 w-5 text-primary" />
+                    </div>
+                  ) : (
+                    <img src={a.dataUrl} alt="" className="h-full w-full object-cover" />
+                  )}
+                  <button
+                    type="button"
+                    className="absolute inset-0 flex items-center justify-center bg-black/50 text-xs text-white opacity-0 group-hover:opacity-100"
+                    onClick={() => removeAtt(a.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </AttachmentPreviewErrorBoundary>
             ))}
           </div>
         )}
@@ -514,6 +545,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
             onModelChange={handleModelChange}
             hasMessages={hasThreadMessages}
             onExportMd={exportThreadMd}
+            onOpenInstall={() => webUi.openInstall()}
           />
           <textarea
             ref={webTextareaRef}
