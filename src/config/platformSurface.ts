@@ -1,6 +1,6 @@
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import type { AiProvider, ApiKeyConfig } from "@/types/chat";
-import { DEFAULT_MODEL_ID } from "@/types/chat";
+import { DEFAULT_MODEL_ID, DEPRECATED_DEFAULT_MODEL_IDS } from "@/types/chat";
 
 /** Browser deployment (not Electron). */
 export function isWebClient(): boolean {
@@ -47,6 +47,30 @@ export function coerceApiConfigForPlatform(cfg: ApiKeyConfig): ApiKeyConfig {
           ? next.model
           : DEFAULT_MODEL_ID,
     };
+  }
+
+  // Web /chat: simple AI by default — no research pipeline unless user re-enables in session.
+  next = {
+    ...next,
+    researchEnabled: false,
+    showAgentTraces: false,
+  };
+
+  if (next.aiProvider === "openrouter") {
+    const modelStale =
+      !next.model?.trim() || DEPRECATED_DEFAULT_MODEL_IDS.includes(next.model.trim());
+    if (modelStale) {
+      next = {
+        ...next,
+        model: DEFAULT_MODEL_ID,
+        comparisonModelIds:
+          next.comparisonModelIds.length > 0
+            ? next.comparisonModelIds.map((id) =>
+                DEPRECATED_DEFAULT_MODEL_IDS.includes(id) ? DEFAULT_MODEL_ID : id
+              )
+            : [DEFAULT_MODEL_ID],
+      };
+    }
   }
 
   return next;

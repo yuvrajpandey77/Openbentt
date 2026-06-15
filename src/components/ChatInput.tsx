@@ -439,7 +439,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   if (isWebChat) {
     return (
-      <div className="px-3 pb-4 pt-2 md:mx-auto md:w-full md:max-w-5xl md:px-6 md:pb-6 md:pt-3">
+      <div className="mx-auto w-[90%] max-w-[90%] px-0 pb-6 pt-2 md:w-full md:max-w-5xl md:px-6 md:pb-6 md:pt-3">
         <input
           ref={fileRef}
           type="file"
@@ -526,6 +526,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 isLoadingConfig,
                 workspacePlaceholder: workspaceMeta?.composerPlaceholder,
                 comparisonEnabled: apiConfig.comparisonEnabled,
+                webChat: true,
               })
             }
             disabled={isLoading || isLoadingConfig || !canSendMessage(apiConfig)}
@@ -544,7 +545,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
             }
             size="icon"
             className={cn(
-              "h-10 w-10 shrink-0 rounded-full md:h-11 md:w-11",
+              "h-10 w-10 shrink-0 self-center rounded-full md:h-11 md:w-11",
               isLoading
                 ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                 : "bg-primary hover:bg-primary/90 text-primary-foreground"

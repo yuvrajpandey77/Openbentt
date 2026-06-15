@@ -57,13 +57,15 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
           variant="ghost"
           size="icon"
           className={cn(
-            "h-9 w-9 shrink-0 md:hidden",
-            isWebChat && "rounded-full bg-muted/40 hover:bg-muted/60"
+            "shrink-0 md:hidden",
+            isWebChat
+              ? "h-10 w-10 rounded-full bg-muted/40 hover:bg-muted/60 md:h-11 md:w-11"
+              : "h-9 w-9"
           )}
           onClick={onOpenMobileSidebar}
           aria-label="Open menu"
         >
-          <Menu size={20} />
+          <Menu size={isWebChat ? 22 : 20} />
         </Button>
 
         {sidebarCollapsed && (
@@ -72,11 +74,14 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
               <Button
                 variant="ghost"
                 size="icon"
-                className="hidden h-9 w-9 shrink-0 md:inline-flex"
+                className={cn(
+                  "hidden shrink-0 md:inline-flex",
+                  isWebChat ? "h-10 w-10 rounded-full bg-muted/40 hover:bg-muted/60 md:h-11 md:w-11" : "h-9 w-9"
+                )}
                 onClick={onExpandSidebar}
                 aria-label="Show sidebar"
               >
-                <PanelLeft size={20} />
+                <PanelLeft size={isWebChat ? 22 : 20} />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">Show sidebar</TooltipContent>
@@ -109,11 +114,11 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-full bg-muted/30 text-muted-foreground hover:bg-muted/50"
+            className="h-10 w-10 rounded-full bg-muted/30 text-muted-foreground hover:bg-muted/50 md:h-11 md:w-11"
             onClick={() => webUi.openSearch()}
             aria-label="Search chat"
           >
-            <Search size={16} />
+            <Search size={18} className="md:h-5 md:w-5" />
           </Button>
         )}
 
@@ -126,12 +131,14 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "h-8 w-8 text-muted-foreground",
-                  isWebChat && "rounded-full bg-muted/30 hover:bg-muted/50"
+                  "text-muted-foreground",
+                  isWebChat
+                    ? "h-10 w-10 rounded-full bg-muted/30 hover:bg-muted/50 md:h-11 md:w-11"
+                    : "h-8 w-8"
                 )}
                 aria-label="Status"
               >
-                <Info size={16} />
+                <Info size={isWebChat ? 18 : 16} className={isWebChat ? "md:h-5 md:w-5" : undefined} />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-72 p-3 space-y-3" align="end">

@@ -171,15 +171,17 @@ export const ToolsPopover: React.FC<ToolsPopoverProps> = ({
                 AI Modes
               </h3>
               <div className="space-y-2">
-                <ModeRow
-                  icon={<Globe className="h-4 w-4" />}
-                  label="Research"
-                  description="Fetches Wikipedia, Semantic Scholar, web URLs, and optional Brave Search results before responding."
-                  checked={apiConfig.researchEnabled}
-                  onCheckedChange={(v) =>
-                    setApiConfig(normalizeApiConfig({ ...apiConfig, researchEnabled: v }))
-                  }
-                />
+                {!webClient && (
+                  <ModeRow
+                    icon={<Globe className="h-4 w-4" />}
+                    label="Research"
+                    description="Fetches Wikipedia, Semantic Scholar, web URLs, and optional Brave Search results before responding."
+                    checked={apiConfig.researchEnabled}
+                    onCheckedChange={(v) =>
+                      setApiConfig(normalizeApiConfig({ ...apiConfig, researchEnabled: v }))
+                    }
+                  />
+                )}
                 <ModeRow
                   icon={<Sigma className="h-4 w-4" />}
                   label="Math mode"

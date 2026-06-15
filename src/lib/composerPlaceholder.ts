@@ -7,6 +7,8 @@ export function getComposerPlaceholder(
     isLoadingConfig?: boolean;
     workspacePlaceholder?: string;
     comparisonEnabled?: boolean;
+    /** Web /chat — shorter placeholder */
+    webChat?: boolean;
   } = {}
 ): string {
   if (opts.isLoadingConfig) return "Loading…";
@@ -38,5 +40,6 @@ export function getComposerPlaceholder(
   if (opts.comparisonEnabled ?? cfg.comparisonEnabled) {
     return "Same prompt goes to each selected model…";
   }
+  if (opts.webChat) return "Ask Obent";
   return "Ask anything — attach images, audio, or files with the paperclip";
 }

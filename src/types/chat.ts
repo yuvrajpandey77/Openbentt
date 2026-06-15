@@ -95,10 +95,11 @@ export interface Chat {
  * OpenRouter today and handles general chat, code, and research prompts reasonably.
  * `DEPRECATED_DEFAULT_MODEL_IDS` migrates users off ids that OpenRouter no longer serves.
  */
-export const DEFAULT_MODEL_ID = "meta-llama/llama-3.3-70b-instruct:free";
+export const DEFAULT_MODEL_ID = "openrouter/free";
 
-/** Old app defaults that OpenRouter removed; `normalizeApiConfig` bumps them to the current default. */
+/** Old app defaults that OpenRouter removed or we no longer prefer; `normalizeApiConfig` bumps them to the current default. */
 export const DEPRECATED_DEFAULT_MODEL_IDS: readonly string[] = [
+  "meta-llama/llama-3.3-70b-instruct:free",
   "mistralai/mistral-small-3.2-24b-instruct:free",
   "mistralai/mistral-7b-instruct:free",
 ];

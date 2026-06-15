@@ -43,8 +43,8 @@ const HomeChatArea: React.FC = () => {
               autoFocus={webUi?.searchOpen}
             />
           </div>
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={closeSearch} aria-label="Close search">
-            <X className="h-4 w-4" />
+          <Button type="button" variant="ghost" size="icon" className="h-10 w-10 shrink-0 md:h-11 md:w-11" onClick={closeSearch} aria-label="Close search">
+            <X className="h-4 w-4 md:h-5 md:w-5" />
           </Button>
         </div>
       )}

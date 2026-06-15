@@ -64,6 +64,15 @@ describe("getComposerPlaceholder", () => {
     expect(getComposerPlaceholder(cfg)).toContain("Ask anything");
   });
 
+  it("shows short web placeholder when ready to chat", () => {
+    vi.mocked(getLocalWeightsConsent).mockReturnValue(true);
+    const cfg = normalizeApiConfig({
+      aiProvider: "openrouter",
+      apiKey: "sk-test",
+    });
+    expect(getComposerPlaceholder(cfg, { webChat: true })).toBe("Ask Obent");
+  });
+
   it("uses default prompt for openai_compatible when base URL is set", () => {
     const cfg = normalizeApiConfig({
       aiProvider: "openai_compatible",

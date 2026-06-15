@@ -49,8 +49,8 @@ describe("normalizeApiConfig", () => {
 });
 
 describe("DEFAULT_MODEL_ID", () => {
-  it("is a :free id", () => {
-    expect(DEFAULT_MODEL_ID).toContain(":free");
+  it("is the OpenRouter free router model", () => {
+    expect(DEFAULT_MODEL_ID).toBe("openrouter/free");
   });
 
   it("is not itself listed as deprecated", () => {

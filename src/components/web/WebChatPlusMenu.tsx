@@ -201,7 +201,7 @@ export function WebChatPlusMenu({
           variant="ghost"
           size="icon"
           className={cn(
-            "h-10 w-10 shrink-0 rounded-full bg-sidebar-accent/70 text-sidebar-foreground hover:bg-sidebar-accent md:h-11 md:w-11",
+            "h-10 w-10 shrink-0 self-center rounded-full bg-sidebar-accent/70 text-sidebar-foreground hover:bg-sidebar-accent md:h-11 md:w-11",
             open && "bg-sidebar-accent",
             className
           )}
