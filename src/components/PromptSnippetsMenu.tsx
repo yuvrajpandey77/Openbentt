@@ -18,10 +18,21 @@ import { loadAllSnippets, addCustomSnippet, type PromptSnippet } from "@/lib/pro
 
 interface PromptSnippetsMenuProps {
   onInsert: (text: string) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
 }
 
-export const PromptSnippetsMenu: React.FC<PromptSnippetsMenuProps> = ({ onInsert }) => {
+export const PromptSnippetsMenu: React.FC<PromptSnippetsMenuProps> = ({
+  onInsert,
+  open: controlledOpen,
+  onOpenChange,
+  showTrigger = true,
+}) => {
   const { toast } = useToast();
+  const [internalOpen, setInternalOpen] = useState(false);
+  const menuOpen = controlledOpen ?? internalOpen;
+  const setMenuOpen = onOpenChange ?? setInternalOpen;
   const [snippets, setSnippets] = useState<PromptSnippet[]>(() => loadAllSnippets());
   const [openAdd, setOpenAdd] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -46,13 +57,15 @@ export const PromptSnippetsMenu: React.FC<PromptSnippetsMenuProps> = ({ onInsert
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button type="button" variant="outline" size="sm" className="h-8 gap-1 px-2 text-[11px]" aria-label="Insert saved prompt">
-            <Sparkles className="h-3.5 w-3.5" />
-            Snippets
-          </Button>
-        </DropdownMenuTrigger>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        {showTrigger && (
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="outline" size="sm" className="h-8 gap-1 px-2 text-[11px]" aria-label="Insert saved prompt">
+              <Sparkles className="h-3.5 w-3.5" />
+              Snippets
+            </Button>
+          </DropdownMenuTrigger>
+        )}
         <DropdownMenuContent align="start" className="w-[min(100vw-2rem,22rem)] max-h-[min(70vh,24rem)] overflow-y-auto">
           <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
             Insert a starter prompt (stored locally)

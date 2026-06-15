@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useLayoutEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -71,6 +71,10 @@ import LocalOnDeviceModelBar from "@/components/LocalOnDeviceModelBar";
 import type { WorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
 import { cn } from "@/lib/utils";
 import { isWebClient } from "@/config/platformSurface";
+import { isWebChatRoute } from "@/components/web/webChatRoute";
+import { WebChatPlusMenu } from "@/components/web/WebChatPlusMenu";
+import { useWebChatUiOptional } from "@/context/WebChatUiContext";
+import { buildChatMarkdownExport, downloadTextFile } from "@/lib/chatExportMarkdown";
 
 interface ChatInputProps {
   isLoading: boolean;
@@ -115,7 +119,25 @@ const ChatInput: React.FC<ChatInputProps> = ({
     sendMessage,
     pendingComposer,
     clearPendingComposer,
+    chats,
+    currentChatId,
   } = useChat();
+  const webUi = useWebChatUiOptional();
+  const isWebChat = isWebChatRoute(pathKey) && variant === "default";
+  const webTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const syncWebTextareaHeight = useCallback(() => {
+    const el = webTextareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const maxPx = window.matchMedia("(min-width: 768px)").matches ? 208 : 128;
+    const next = Math.min(el.scrollHeight, maxPx);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > maxPx ? "auto" : "hidden";
+  }, []);
+  const [webToolsOpen, setWebToolsOpen] = useState(false);
+  const [webSnippetsOpen, setWebSnippetsOpen] = useState(false);
+  const [webSpecsOpen, setWebSpecsOpen] = useState(false);
+  const [webSetupOpen, setWebSetupOpen] = useState(false);
   const { toast } = useToast();
   const { data: models, isLoading: modelsLoading, isError: modelsError } = useOpenRouterModels(
     apiConfig.apiKey,
@@ -151,10 +173,46 @@ const ChatInput: React.FC<ChatInputProps> = ({
     [models, ggufModels, apiConfig.customModelIds, apiConfig.model, apiConfig.comparisonModelIds, apiConfig.aiProvider]
   );
 
-  const selectedModelMeta = useMemo(
-    () => selectable.find((m) => m.id === apiConfig.model),
-    [selectable, apiConfig.model]
+  const currentChat = useMemo(
+    () => chats.find((c) => c.id === currentChatId),
+    [chats, currentChatId]
   );
+  const hasThreadMessages = (currentChat?.messages.length ?? 0) > 0;
+
+  const exportThreadMd = () => {
+    if (!currentChat?.messages.length) {
+      toast({ title: "Nothing to export", description: "Send a message first.", variant: "destructive" });
+      return;
+    }
+    const md = buildChatMarkdownExport(currentChat);
+    const safe = currentChat.title.replace(/[^\w-]+/g, "-").slice(0, 48) || "chat";
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadTextFile(`openbentt-${safe}-${stamp}.md`, md);
+    toast({ title: "Markdown exported", description: "File download started." });
+  };
+
+  const pickWithAccept = (accept: string) => {
+    if (!fileRef.current) return;
+    fileRef.current.accept = accept;
+    fileRef.current.click();
+  };
+
+  const showWebSetup = apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent();
+
+  useEffect(() => {
+    if (!isWebChat || !webUi.composerSeed) return;
+    setMessage(webUi.composerSeed);
+    webUi.clearComposerSeed();
+    requestAnimationFrame(() => {
+      syncWebTextareaHeight();
+      webTextareaRef.current?.focus();
+    });
+  }, [isWebChat, webUi.composerSeed, webUi.clearComposerSeed, syncWebTextareaHeight]);
+
+  useLayoutEffect(() => {
+    if (!isWebChat) return;
+    syncWebTextareaHeight();
+  }, [isWebChat, message, syncWebTextareaHeight]);
 
   useEffect(() => {
     if (apiConfig.aiProvider === "webgpu_gemma" && apiConfig.model) {
@@ -379,8 +437,190 @@ const ChatInput: React.FC<ChatInputProps> = ({
     setAttachments((a) => a.filter((x) => x.id !== id));
   };
 
+  if (isWebChat) {
+    return (
+      <div className="px-3 pb-4 pt-2 md:mx-auto md:w-full md:max-w-5xl md:px-6 md:pb-6 md:pt-3">
+        <input
+          ref={fileRef}
+          type="file"
+          className="hidden"
+          accept="image/*,audio/*,video/*,.pdf,application/pdf"
+          multiple
+          onChange={onFilePick}
+        />
+
+        {showWebSetup && (
+          <LocalOnDeviceModelBar dialogOnly open={webSetupOpen} onOpenChange={setWebSetupOpen} />
+        )}
+
+        {attachments.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {attachments.map((a) => (
+              <div
+                key={a.id}
+                className="relative group h-16 w-16 overflow-hidden rounded-xl bg-muted/40"
+              >
+                {a.kind === "pdf" ? (
+                  <div className="flex h-full flex-col items-center justify-center p-1 text-[10px] text-muted-foreground">
+                    <FileText className="h-6 w-6 text-primary" />
+                  </div>
+                ) : a.kind === "audio" ? (
+                  <div className="flex h-full items-center justify-center p-1">
+                    <Mic className="h-5 w-5 text-primary" />
+                  </div>
+                ) : (
+                  <img src={a.dataUrl} alt="" className="h-full w-full object-cover" />
+                )}
+                <button
+                  type="button"
+                  className="absolute inset-0 flex items-center justify-center bg-black/50 text-xs text-white opacity-0 group-hover:opacity-100"
+                  onClick={() => removeAtt(a.id)}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {isLoading && apiConfig.aiProvider === "webgpu_gemma" && webgpuModelDownloadProgress != null && (
+          <ModelDownloadProgressBar
+            title="Downloading on-device model"
+            percentOnly
+            className="mb-2 border-0 bg-transparent p-0"
+            progress={{
+              percent: webgpuModelDownloadProgress,
+              received: null,
+              total: null,
+              speedBps: null,
+              etaSeconds: null,
+            }}
+          />
+        )}
+
+        <div className="web-composer-pill">
+          <WebChatPlusMenu
+            onPickAccept={pickWithAccept}
+            onOpenSearch={() => webUi.openSearch()}
+            onOpenTools={() => setWebToolsOpen(true)}
+            onOpenSnippets={() => setWebSnippetsOpen(true)}
+            onToggleCompare={() => setComparisonEnabled(!apiConfig.comparisonEnabled)}
+            onOpenSpecs={() => setWebSpecsOpen(true)}
+            onOpenSetup={() => setWebSetupOpen(true)}
+            showSetup={showWebSetup}
+            compareOn={apiConfig.comparisonEnabled}
+            modelId={apiConfig.model}
+            models={selectable}
+            onModelChange={handleModelChange}
+            hasMessages={hasThreadMessages}
+            onExportMd={exportThreadMd}
+          />
+          <textarea
+            ref={webTextareaRef}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              placeholderOverride ??
+              getComposerPlaceholder(apiConfig, {
+                isLoadingConfig,
+                workspacePlaceholder: workspaceMeta?.composerPlaceholder,
+                comparisonEnabled: apiConfig.comparisonEnabled,
+              })
+            }
+            disabled={isLoading || isLoadingConfig || !canSendMessage(apiConfig)}
+            rows={1}
+            className="web-composer-input"
+          />
+          <Button
+            onClick={isLoading ? () => stopStreaming() : () => void handleSendMessage()}
+            disabled={
+              isLoading
+                ? false
+                : ((!message.trim() && attachments.length === 0) ||
+                    isLoadingConfig ||
+                    !canSendMessage(apiConfig) ||
+                    (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()))
+            }
+            size="icon"
+            className={cn(
+              "h-10 w-10 shrink-0 rounded-full md:h-11 md:w-11",
+              isLoading
+                ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                : "bg-primary hover:bg-primary/90 text-primary-foreground"
+            )}
+          >
+            {isLoading ? <Square size={14} className="md:h-4 md:w-4" /> : <ArrowUp size={16} className="md:h-[1.1rem] md:w-[1.1rem]" />}
+          </Button>
+        </div>
+
+        <p className="mt-2 hidden text-center text-[11px] text-muted-foreground/70 md:block">
+          {shortModelLabel(apiConfig.model)}
+          {apiConfig.comparisonEnabled ? " · compare on" : ""}
+        </p>
+
+        <ToolsPopover message={message} setMessage={setMessage} open={webToolsOpen} onOpenChange={setWebToolsOpen} showTrigger={false} />
+        <PromptSnippetsMenu onInsert={(text) => setMessage((prev) => (prev.trim() ? `${prev.trim()}\n\n${text}` : text))} open={webSnippetsOpen} onOpenChange={setWebSnippetsOpen} showTrigger={false} />
+        <ModelSpecDialog modelId={apiConfig.model} models={models} open={webSpecsOpen} onOpenChange={setWebSpecsOpen} showTrigger={false} />
+
+        <Dialog open={localDownloadOpen} onOpenChange={setLocalDownloadOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Pre-cache on-device model</DialogTitle>
+              <DialogDescription>
+                Download & store a model in this browser cache so the first chat loads instantly.
+              </DialogDescription>
+            </DialogHeader>
+            {!getLocalWeightsConsent() ? (
+              <p className="text-sm text-muted-foreground">
+                Complete the on-device model setup before pre-caching.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Model</Label>
+                  <Select value={localPrewarmId} onValueChange={setLocalPrewarmId}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {LOCAL_MODEL_CATALOG.map((e) => (
+                        <SelectItem key={e.storedId} value={e.storedId}>
+                          {e.displayName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {localPrewarmPct != null && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[11px] text-muted-foreground">
+                      <span>Progress</span>
+                      <span>{localPrewarmPct}%</span>
+                    </div>
+                    <Progress value={localPrewarmPct} className="h-2" />
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setLocalDownloadOpen(false)} disabled={localPrewarmBusy}>
+                Close
+              </Button>
+              {getLocalWeightsConsent() && (
+                <Button type="button" onClick={() => void runLocalPrewarmFromDialog()} disabled={localPrewarmBusy}>
+                  {localPrewarmBusy ? "Loading…" : "Download to cache"}
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn("border-t border-border/70 bg-gradient-to-t from-card/80 via-card/50 to-transparent backdrop-blur-md", isStudio ? "px-2 pb-2 pt-2" : "px-3 pb-4 pt-3")}>
+    <div className={cn("border-t border-border/70 bg-gradient-to-t from-card/80 via-card/50 to-transparent backdrop-blur-md", isStudio ? "px-2 pb-2 pt-2" : "px-2 pb-2 pt-2 md:px-3 md:pb-4 md:pt-3")}>
       <input
         ref={fileRef}
         type="file"
@@ -484,7 +724,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
           />
         )}
 
-        <div className={cn("composer-shell relative", isStudio ? "p-1" : "p-1.5 sm:p-2")}>
+        <div
+          className={cn(
+            "composer-shell flex flex-col gap-1.5 p-1.5 md:relative md:p-2",
+            isStudio && "relative gap-0 p-1"
+          )}
+        >
           <Textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -504,12 +749,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 ? "min-h-[2.25rem] max-h-24 py-2 pb-9 text-sm"
                 : isCompact
                   ? "min-h-[2.75rem] max-h-32 py-2.5 pb-10"
-                  : "min-h-[7.5rem] max-h-96 pb-14 pt-3"
+                  : "min-h-[3.25rem] max-h-40 pb-2 pt-2.5 md:min-h-[7.5rem] md:max-h-96 md:pb-14 md:pt-3"
             )}
             style={{
               height: "auto",
-              minHeight: isStudio ? "2.25rem" : isCompact ? "2.75rem" : "7.5rem",
-              maxHeight: isStudio ? "6rem" : "24rem",
+              minHeight: isStudio ? "2.25rem" : isCompact ? "2.75rem" : undefined,
+              maxHeight: isStudio ? "6rem" : undefined,
               overflowY: message.length > 500 ? "auto" : "hidden",
             }}
             onInput={(e) => {
@@ -519,8 +764,16 @@ const ChatInput: React.FC<ChatInputProps> = ({
             }}
           />
 
+          <div className={cn("flex items-center justify-between gap-1", !isStudio && "md:contents")}>
           {/* Bottom-left toolbar: model selector + attach + extras toggle */}
-          <div className={cn("absolute bottom-2 left-2 flex max-w-[calc(100%-3.5rem)] items-center gap-1 flex-wrap", isStudio && "gap-1")}>
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto max-md:shrink-0",
+              !isStudio &&
+                "md:absolute md:bottom-2 md:left-2 md:max-w-[calc(100%-3.5rem)] md:flex-wrap md:gap-1",
+              isStudio && "absolute bottom-2 left-2 max-w-[calc(100%-3.5rem)] flex-wrap gap-1"
+            )}
+          >
             {/* Model selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -528,25 +781,15 @@ const ChatInput: React.FC<ChatInputProps> = ({
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    "h-auto border border-border/50 bg-background/90 shadow-sm backdrop-blur hover:bg-muted/90",
+                    "h-auto shrink-0 border border-border/50 bg-background/90 shadow-sm backdrop-blur hover:bg-muted/90",
                     isStudio
                       ? "min-h-8 max-w-[11rem] flex-row items-center gap-1 px-2 py-1 text-xs"
-                      : "min-h-9 max-w-[min(100%,22rem)] flex-col items-stretch gap-1 px-2 py-1.5 text-sm sm:flex-row sm:items-center"
+                      : "h-8 max-w-[8.5rem] flex-row items-center gap-1 px-1.5 py-0 text-xs md:min-h-9 md:max-w-[min(100%,22rem)] md:gap-1.5 md:px-2 md:py-1.5 md:text-sm"
                   )}
                 >
-                  <span className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto">
-                    <Bot size={isStudio ? 14 : 15} className="shrink-0" />
-                    <span className="truncate text-left font-medium">{shortModelLabel(apiConfig.model)}</span>
-                    <ChevronDown size={13} className="ml-auto shrink-0 sm:ml-1" />
-                  </span>
-                  {!isStudio && (
-                    <ModelCapabilityBadges
-                      modelId={apiConfig.model}
-                      meta={selectedModelMeta}
-                      compact
-                      className="justify-start pl-0 sm:pl-7"
-                    />
-                  )}
+                  <Bot size={isStudio ? 14 : 14} className="shrink-0" />
+                  <span className="min-w-0 truncate text-left font-medium">{shortModelLabel(apiConfig.model)}</span>
+                  <ChevronDown size={12} className="shrink-0" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="flex max-h-[min(70vh,420px)] w-[min(100vw-2rem,28rem)] flex-col overflow-hidden">
@@ -575,7 +818,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {!isStudio && <ModelSpecDialog modelId={apiConfig.model} models={models} />}
+            {!isStudio && (
+              <div className="hidden md:block">
+                <ModelSpecDialog modelId={apiConfig.model} models={models} />
+              </div>
+            )}
 
             {/* Single attach button */}
             <TooltipProvider>
@@ -584,12 +831,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-9 w-9 p-0 bg-background/80 border border-border/60"
+                    className="h-8 w-8 shrink-0 p-0 border border-border/60 bg-background/80 md:h-9 md:w-9"
                     type="button"
                     onClick={() => fileRef.current?.click()}
                     disabled={!canSendChat(apiConfig) || isLoading}
                   >
-                    <Paperclip size={15} />
+                    <Paperclip size={14} />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Attach — image, audio, video, or PDF</TooltipContent>
@@ -604,12 +851,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
                   <Button
                     variant={showExtras ? "secondary" : "ghost"}
                     size="sm"
-                    className="h-9 w-9 p-0 bg-background/80 border border-border/60"
+                    className="h-8 w-8 shrink-0 p-0 border border-border/60 bg-background/80 md:h-9 md:w-9"
                     type="button"
                     onClick={() => setShowExtras((v) => !v)}
                     aria-label="More options"
                   >
-                    <MoreHorizontal size={15} />
+                    <MoreHorizontal size={14} />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Tools, snippets, compare models</TooltipContent>
@@ -634,9 +881,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     <Button
                       variant={apiConfig.comparisonEnabled ? "secondary" : "ghost"}
                       size="sm"
-                      className="h-9 px-2.5 text-sm border border-border/60"
+                      className="h-8 shrink-0 px-2 text-xs border border-border/60 md:h-9 md:px-2.5 md:text-sm"
                     >
-                      <Columns2 size={15} className="mr-1 shrink-0" />
+                      <Columns2 size={14} className="mr-1 shrink-0" />
                       <span className="hidden sm:inline">Compare</span>
                       {apiConfig.comparisonEnabled && (
                         <span className="ml-1 rounded bg-primary/15 px-1.5 text-[10px] text-primary">on</span>
@@ -713,7 +960,13 @@ const ChatInput: React.FC<ChatInputProps> = ({
           </div>
 
           {/* Bottom-right: send / stop */}
-          <div className="absolute bottom-2 right-2">
+          <div
+            className={cn(
+              "shrink-0",
+              !isStudio && "md:absolute md:bottom-2 md:right-2",
+              isStudio && "absolute bottom-2 right-2"
+            )}
+          >
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -733,13 +986,13 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     }
                     size="sm"
                     className={cn(
-                      "h-9 w-9 p-0 relative z-20",
+                      "h-8 w-8 p-0 relative z-20 md:h-9 md:w-9",
                       isLoading
                         ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                         : "bg-primary hover:bg-primary/90 text-primary-foreground"
                     )}
                   >
-                    {isLoading ? <Square size={15} /> : <ArrowUp size={15} />}
+                    {isLoading ? <Square size={14} /> : <ArrowUp size={14} />}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -747,6 +1000,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+          </div>
           </div>
         </div>
       </div>

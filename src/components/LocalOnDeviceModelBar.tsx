@@ -36,10 +36,23 @@ const LABEL_BY_PROFILE: Record<LocalInferenceProfile, string> = {
  * Renders a compact setup banner while consent is pending, plus a Dialog with the
  * full setup UI. Returns null once the user has given consent.
  */
-const LocalOnDeviceModelBar: React.FC = () => {
+type LocalOnDeviceModelBarProps = {
+  /** Hide inline banner; dialog can still open via `open` / `onOpenChange`. */
+  dialogOnly?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+};
+
+const LocalOnDeviceModelBar: React.FC<LocalOnDeviceModelBarProps> = ({
+  dialogOnly = false,
+  open: controlledOpen,
+  onOpenChange,
+}) => {
   const { apiConfig, setApiConfig } = useChat();
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [picked, setPicked] = useState(apiConfig.model || DEFAULT_LOCAL_GEMMA_MODEL_ID);
   const [ack, setAck] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -121,24 +134,24 @@ const LocalOnDeviceModelBar: React.FC = () => {
 
   return (
     <>
-      {/* Compact inline prompt — much smaller than the old full-width band */}
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/[0.06] px-3 py-2 text-sm">
-        <div className="flex items-center gap-2 text-foreground/80">
-          <Cpu size={14} className="shrink-0 text-primary" />
-          <span className="text-xs">On-device model needs a one-time setup before your first chat.</span>
+      {!dialogOnly && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/[0.06] px-3 py-2 text-sm">
+          <div className="flex items-center gap-2 text-foreground/80">
+            <Cpu size={14} className="shrink-0 text-primary" />
+            <span className="text-xs">On-device model needs a one-time setup before your first chat.</span>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 shrink-0 border-primary/40 px-3 text-xs"
+            onClick={() => setOpen(true)}
+          >
+            Set up
+          </Button>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-7 shrink-0 border-primary/40 px-3 text-xs"
-          onClick={() => setOpen(true)}
-        >
-          Set up
-        </Button>
-      </div>
+      )}
 
-      {/* Full setup Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>

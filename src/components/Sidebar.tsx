@@ -7,7 +7,6 @@ import { useChat } from "@/context/ChatContext";
 import {
   PlusCircle,
   Trash2,
-  MessageSquare,
   Settings,
   Download,
   PanelLeftClose,
@@ -30,6 +29,28 @@ function chatInitials(title: string): string {
   return t.slice(0, 2).toUpperCase();
 }
 
+const MOBILE_FOOTER_GRID =
+  "grid w-full grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3 rounded-full px-2 py-2 text-sm text-left";
+
+function SidebarMobileIconBadge({
+  children,
+  tone = "default",
+}: {
+  children: React.ReactNode;
+  tone?: "default" | "destructive";
+}) {
+  return (
+    <span
+      className={cn(
+        "flex h-10 w-10 items-center justify-center rounded-full",
+        tone === "destructive" ? "bg-destructive/10" : "bg-sidebar-accent/70"
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 interface SidebarProps {
   isMobileOpen: boolean;
   onCloseMobile: () => void;
@@ -45,6 +66,7 @@ function IconNavItem({
   active,
   onClick,
   showLabel,
+  circularMobile,
 }: {
   to?: string;
   label: string;
@@ -53,16 +75,39 @@ function IconNavItem({
   active?: boolean;
   onClick?: () => void;
   showLabel: boolean;
+  circularMobile?: boolean;
 }) {
   const className = cn(
-    "flex items-center rounded-xl transition-colors",
-    showLabel ? "w-full gap-2.5 px-2.5 py-2 text-sm" : "h-10 w-10 justify-center",
-    active
-      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-      : "text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+    "flex items-center transition-colors",
+    circularMobile
+      ? "w-full gap-3 rounded-full px-2 py-2 text-sm"
+      : showLabel
+        ? "w-full gap-2.5 rounded-xl px-2.5 py-2 text-sm"
+        : "h-11 w-11 justify-center rounded-full",
+    circularMobile
+      ? active
+        ? "text-sidebar-foreground"
+        : "text-sidebar-foreground/85 hover:bg-sidebar-accent/60"
+      : active
+        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+        : "text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-foreground"
   );
 
-  const inner = (
+  const inner = circularMobile ? (
+    <>
+      <span
+        className={cn(
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+          active
+            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+            : "bg-sidebar-accent/70 text-sidebar-foreground"
+        )}
+      >
+        <Icon className="h-4 w-4" strokeWidth={2} />
+      </span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </>
+  ) : (
     <>
       <Icon className={cn("shrink-0", showLabel ? "h-4 w-4" : "h-[18px] w-[18px]")} strokeWidth={2} />
       {showLabel && <span className="min-w-0 flex-1 truncate">{label}</span>}
@@ -118,51 +163,77 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const workspaceItems = getPrimaryWorkspaceNavItems();
+  const sidebarWidth = isMobile
+    ? undefined
+    : iconOnly
+      ? SIDEBAR_WIDTH_ICON
+      : SIDEBAR_WIDTH_EXPANDED;
 
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border/80 bg-sidebar transition-[width,transform] duration-300 ease-out",
+        "fixed inset-y-0 left-0 z-50 flex flex-col bg-sidebar transition-[transform] duration-300 ease-out",
+        isMobile ? "w-[100dvw] max-w-[100dvw] border-0" : "border-r border-border/80",
         isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}
-      style={{ width: iconOnly ? SIDEBAR_WIDTH_ICON : SIDEBAR_WIDTH_EXPANDED }}
+      style={!isMobile && sidebarWidth ? { width: sidebarWidth } : undefined}
     >
       <div
         className={cn(
           "flex h-full flex-col py-3",
-          iconOnly ? "items-center px-1.5" : "px-3"
+          iconOnly ? "items-center px-1.5" : isMobile ? "px-4" : "px-3"
         )}
       >
         {/* Header: logo + collapse */}
         <div
           className={cn(
             "mb-2 flex w-full shrink-0 items-center",
-            iconOnly ? "flex-col gap-1.5" : "justify-between gap-2"
+            iconOnly ? "flex-col gap-1.5" : "h-11 justify-between gap-2"
           )}
         >
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link
-                to={appHomePath()}
-                onClick={onCloseMobile}
-                className="flex shrink-0 items-center rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-                aria-label="Openbentt — all projects"
-              >
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src="/openbentt-logo.svg" alt="" />
-                  <AvatarFallback className="font-display text-xs">OB</AvatarFallback>
-                </Avatar>
-                {showLabels && (
-                  <span className="ml-2 truncate font-display text-base font-semibold text-sidebar-foreground">
-                    Openbentt
-                  </span>
-                )}
-              </Link>
-            </TooltipTrigger>
-            {iconOnly && (
-              <TooltipContent side="right">All projects</TooltipContent>
-            )}
-          </Tooltip>
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  to={appHomePath()}
+                  onClick={onCloseMobile}
+                  className="flex min-w-0 shrink-0 items-center rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                  aria-label="Openbentt — all projects"
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src="/openbentt-logo.svg" alt="" />
+                    <AvatarFallback className="font-display text-xs">OB</AvatarFallback>
+                  </Avatar>
+                  {showLabels && (
+                    <span className="ml-2 truncate font-display text-base font-semibold text-sidebar-foreground">
+                      Openbentt
+                    </span>
+                  )}
+                </Link>
+              </TooltipTrigger>
+              {iconOnly && (
+                <TooltipContent side="right">All projects</TooltipContent>
+              )}
+            </Tooltip>
+          </div>
+
+          {isMobileOpen && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 shrink-0 rounded-full text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground md:hidden"
+                  onClick={onCloseMobile}
+                  aria-label="Close menu"
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Close menu</TooltipContent>
+            </Tooltip>
+          )}
 
           {!isMobile && collapsed && (
             <Tooltip>
@@ -205,10 +276,13 @@ const Sidebar: React.FC<SidebarProps> = ({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant="default"
+                variant={isMobile && !iconOnly ? "ghost" : "default"}
                 className={cn(
-                  "bg-primary",
-                  iconOnly ? "h-10 w-10 p-0" : "w-full justify-center gap-2"
+                  iconOnly
+                    ? "h-11 w-11 rounded-full bg-sidebar-accent p-0 text-sidebar-foreground hover:bg-sidebar-accent/80"
+                    : isMobile
+                      ? "w-full justify-center gap-2.5 rounded-full bg-sidebar-accent text-sidebar-foreground shadow-none hover:bg-sidebar-accent/80"
+                      : "w-full justify-center gap-2 bg-primary"
                 )}
                 onClick={handleNewChat}
                 aria-label="New chat"
@@ -244,6 +318,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 active={active}
                 onClick={onCloseMobile}
                 showLabel={showLabels}
+                circularMobile={isMobile && showLabels}
               />
             );
           })}
@@ -263,7 +338,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <button
                           type="button"
                           className={cn(
-                            "flex h-10 w-10 items-center justify-center rounded-xl text-[11px] font-semibold transition-colors",
+                            "flex h-11 w-11 items-center justify-center rounded-full text-[11px] font-semibold transition-colors",
                             currentChatId === chat.id
                               ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
                               : "bg-sidebar-accent/70 text-sidebar-foreground hover:bg-sidebar-accent"
@@ -285,25 +360,28 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <div
                       key={chat.id}
                       className={cn(
-                        "group flex cursor-pointer items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-sidebar-accent",
-                        currentChatId === chat.id && "bg-sidebar-accent"
+                        "group flex cursor-pointer items-center justify-between rounded-full px-2 py-2 transition-colors hover:bg-sidebar-accent/70",
+                        currentChatId === chat.id && "bg-sidebar-accent/80"
                       )}
                       onClick={() => handleSelectChat(chat.id)}
                     >
-                      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                        <MessageSquare
-                          size={16}
+                      <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
+                        <span
                           className={cn(
-                            "shrink-0",
-                            currentChatId === chat.id ? "text-primary" : "text-sidebar-foreground/70"
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold",
+                            currentChatId === chat.id
+                              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                              : "bg-sidebar-accent/70 text-sidebar-foreground"
                           )}
-                        />
+                        >
+                          {chatInitials(chat.title)}
+                        </span>
                         <span className="truncate text-sm font-medium leading-snug">{chat.title}</span>
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                        className="h-9 w-9 shrink-0 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteChat(chat.id);
@@ -326,7 +404,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Footer */}
-        <div className={cn("mt-auto space-y-1 pt-2", iconOnly && "flex flex-col items-center")}>
+        <div className={cn("mt-auto w-full space-y-1 pt-2", iconOnly && "flex flex-col items-center")}>
           <Separator className={cn("mb-2 bg-sidebar-border/80", iconOnly && "w-8")} />
 
           {!desktopApp &&
@@ -336,7 +414,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <NavLink
                     to="/download"
                     onClick={onCloseMobile}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl text-sidebar-foreground/85 hover:bg-sidebar-accent"
+                    className="flex h-11 w-11 items-center justify-center rounded-full text-sidebar-foreground/85 hover:bg-sidebar-accent"
                   >
                     <Download className="h-[18px] w-[18px]" strokeWidth={2} />
                   </NavLink>
@@ -347,22 +425,32 @@ const Sidebar: React.FC<SidebarProps> = ({
               <NavLink
                 to="/download"
                 onClick={onCloseMobile}
-                className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/90 hover:bg-sidebar-accent"
+                className={cn(
+                  "text-sidebar-foreground/90 hover:bg-sidebar-accent/60",
+                  isMobile ? MOBILE_FOOTER_GRID : "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm"
+                )}
               >
-                <Download className="h-4 w-4 shrink-0" strokeWidth={2} />
-                <span>Get desktop app</span>
+                {isMobile ? (
+                  <SidebarMobileIconBadge>
+                    <Download className="h-4 w-4 shrink-0" strokeWidth={2} />
+                  </SidebarMobileIconBadge>
+                ) : (
+                  <Download className="h-4 w-4 shrink-0" strokeWidth={2} />
+                )}
+                <span className="min-w-0 truncate">Get desktop app</span>
               </NavLink>
             ))}
 
-          <AppSettingsDialog
-            tooltip={iconOnly ? "Settings" : undefined}
-            trigger={
+          <div className={cn(!iconOnly && "w-full")}>
+            <AppSettingsDialog
+              tooltip={iconOnly ? "Settings" : undefined}
+              trigger={
               iconOnly ? (
                 <Button
                   type="button"
                   variant="outline"
                   size="icon"
-                  className="h-10 w-10 border-sidebar-border bg-sidebar-accent/30"
+                  className="h-11 w-11 rounded-full border-sidebar-border bg-sidebar-accent/30"
                   aria-label="Settings"
                 >
                   <Settings size={18} />
@@ -370,15 +458,30 @@ const Sidebar: React.FC<SidebarProps> = ({
               ) : (
                 <Button
                   type="button"
-                  variant="outline"
-                  className="w-full justify-start gap-2 border-sidebar-border bg-sidebar-accent/30"
+                  variant={isMobile ? "ghost" : "outline"}
+                  className={cn(
+                    "w-full",
+                    isMobile
+                      ? cn(
+                          MOBILE_FOOTER_GRID,
+                          "h-auto border-0 bg-transparent font-normal text-sidebar-foreground/90 shadow-none hover:bg-sidebar-accent/60"
+                        )
+                      : "justify-start gap-2 border-sidebar-border bg-sidebar-accent/30"
+                  )}
                 >
-                  <Settings size={16} />
-                  Settings
+                  {isMobile ? (
+                    <SidebarMobileIconBadge>
+                      <Settings size={16} />
+                    </SidebarMobileIconBadge>
+                  ) : (
+                    <Settings size={16} />
+                  )}
+                  <span className="min-w-0 truncate">Settings</span>
                 </Button>
               )
             }
-          />
+            />
+          </div>
 
           {chats.length > 0 &&
             (iconOnly ? (
@@ -387,7 +490,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-10 w-10 text-destructive hover:bg-destructive/10"
+                    className="h-11 w-11 rounded-full text-destructive hover:bg-destructive/10"
                     onClick={clearChats}
                   >
                     <Trash2 size={18} />
@@ -398,11 +501,22 @@ const Sidebar: React.FC<SidebarProps> = ({
             ) : (
               <Button
                 variant="ghost"
-                className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10"
+                className={cn(
+                  "w-full text-destructive hover:bg-destructive/10",
+                  isMobile
+                    ? cn(MOBILE_FOOTER_GRID, "h-auto font-normal")
+                    : "justify-start gap-2"
+                )}
                 onClick={clearChats}
               >
-                <Trash2 size={16} />
-                Clear all chats
+                {isMobile ? (
+                  <SidebarMobileIconBadge tone="destructive">
+                    <Trash2 size={16} />
+                  </SidebarMobileIconBadge>
+                ) : (
+                  <Trash2 size={16} />
+                )}
+                <span className="min-w-0 truncate">Clear all chats</span>
               </Button>
             ))}
         </div>

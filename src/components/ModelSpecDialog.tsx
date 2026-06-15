@@ -24,20 +24,31 @@ function fmtPrice(v: string | number | undefined): string {
 interface ModelSpecDialogProps {
   modelId: string;
   models: OpenRouterModel[] | undefined;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
 }
 
-export const ModelSpecDialog: React.FC<ModelSpecDialogProps> = ({ modelId, models }) => {
+export const ModelSpecDialog: React.FC<ModelSpecDialogProps> = ({
+  modelId,
+  models,
+  open,
+  onOpenChange,
+  showTrigger = true,
+}) => {
   const m = models?.find((x) => x.id === modelId);
   const href = `https://openrouter.ai/${modelId}`;
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5 border-primary/40 text-primary font-medium">
-          <Info className="h-4 w-4" />
-          Specs
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {showTrigger && (
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="h-9 gap-1.5 border-primary/40 text-primary font-medium">
+            <Info className="h-4 w-4" />
+            Specs
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-left leading-tight pr-8">

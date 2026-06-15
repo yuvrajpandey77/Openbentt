@@ -176,6 +176,86 @@
     @apply border-border/70 outline-none ring-0 ring-offset-0;
   }
 
+  /** Web /chat — floating pill composer */
+  .web-composer-pill {
+    @apply flex items-end gap-1.5 rounded-[1.75rem] border px-2 py-1.5 transition-all;
+    background-color: hsl(var(--popover));
+    border-color: hsl(var(--border) / 0.85);
+    box-shadow:
+      0 1px 0 hsl(var(--foreground) / 0.05),
+      0 6px 28px -10px hsl(0 0% 0% / 0.5);
+  }
+
+  .web-composer-pill:focus-within {
+    border-color: hsl(var(--primary) / 0.45);
+    box-shadow:
+      0 1px 0 hsl(var(--foreground) / 0.06),
+      0 8px 36px -10px hsl(0 0% 0% / 0.55),
+      0 0 0 2px hsl(var(--primary) / 0.12);
+  }
+
+  html.app-shell-route .web-composer-pill,
+  .app-shell .web-composer-pill {
+    background-color: hsl(0 0% 20%);
+    border-color: hsl(0 0% 32%);
+  }
+
+  html.app-shell-route .web-composer-pill:focus-within,
+  .app-shell .web-composer-pill:focus-within {
+    background-color: hsl(0 0% 22%);
+    border-color: hsl(var(--primary) / 0.5);
+  }
+
+  @media (min-width: 768px) {
+    .web-composer-pill {
+      @apply gap-2.5 rounded-[2.25rem] px-4 py-3;
+    }
+  }
+
+  .web-composer-input {
+    @apply min-h-[2.75rem] max-h-32 flex-1 resize-none border-0 bg-transparent px-2 py-2.5 text-[15px] leading-relaxed caret-primary shadow-none outline-none;
+    color: hsl(var(--foreground));
+    @apply focus-visible:ring-0;
+  }
+
+  .web-composer-input::placeholder {
+    color: hsl(var(--muted-foreground) / 0.75);
+  }
+
+  html.app-shell-route .web-composer-input,
+  .app-shell .web-composer-input {
+    color: hsl(0 0% 93%);
+  }
+
+  html.app-shell-route .web-composer-input::placeholder,
+  .app-shell .web-composer-input::placeholder {
+    color: hsl(0 0% 52%);
+  }
+
+  @media (min-width: 768px) {
+    .web-composer-input {
+      @apply min-h-[4.5rem] max-h-60 px-4 py-3.5 text-[17px] leading-relaxed;
+    }
+  }
+
+  .web-plus-menu-scroll {
+    max-height: min(55vh, 22rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+  }
+
+  .web-plus-menu-scroll::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .web-plus-menu-scroll::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: hsl(var(--muted-foreground) / 0.35);
+  }
+
   .streaming-text {
     animation: fadeInUp 0.08s ease-out;
   }

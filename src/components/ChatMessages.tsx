@@ -4,9 +4,10 @@ import { LIMITS } from "@/lib/research/projectLimits";
 import { Link } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Message } from "@/types/chat";
-import { Pencil, RotateCcw, FileText, ChevronDown, Sparkles, BookOpen, MessageSquare } from "lucide-react";
-import { getWorkspaceNavItems } from "@/config/workspaceNav";
+import { Pencil, RotateCcw, FileText, ChevronDown, BookOpen } from "lucide-react";
 import { isDesktopApp } from "@/lib/isDesktopApp";
+import { isWebClient } from "@/config/platformSurface";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { shortModelLabel } from "@/lib/openrouter";
 import { AssistantContent } from "@/components/AssistantContent";
@@ -39,6 +40,8 @@ interface ChatMessagesProps {
   searchQuery?: string;
   /** Minimal empty state for notebook studio dock. */
   emptyVariant?: "home" | "studio";
+  /** Web /chat: ultra-minimal empty — logo only; starters live below. */
+  webCleanEmpty?: boolean;
 }
 
 function MetricsBar({ metrics }: { metrics: NonNullable<Message["metrics"]> }) {
@@ -187,6 +190,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
   isLoading,
   searchQuery = "",
   emptyVariant = "home",
+  webCleanEmpty = false,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -371,7 +375,9 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
       viewportRef={viewportRef}
       className={cn(
         "min-h-0",
-        emptyVariant === "studio" ? "h-full w-full p-2" : "flex-1 p-4"
+        emptyVariant === "studio"
+          ? "h-full w-full p-2"
+          : cn("flex-1", isWebClient() ? "p-3 sm:p-4" : "p-4")
       )}
     >
       <div ref={scrollRef} className="max-w-5xl mx-auto">
@@ -437,94 +443,26 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
                 </Collapsible>
               </div>
             </div>
+          ) : webCleanEmpty ? (
+          <div className="flex flex-1 items-center justify-center py-6">
+            <Avatar className="h-14 w-14 rounded-2xl shadow-sm">
+              <AvatarImage src="/openbentt-logo.svg" alt="" />
+              <AvatarFallback className="font-display text-sm">OB</AvatarFallback>
+            </Avatar>
+          </div>
           ) : (
-          <div className="flex min-h-[min(70vh,560px)] items-center justify-center py-12">
-            <div className="w-full max-w-2xl px-4 text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <Sparkles className="h-6 w-6" aria-hidden />
+          <div className="flex min-h-[min(50vh,380px)] items-center justify-center py-8 sm:py-12">
+            <div className="flex flex-col items-center gap-3 px-6 text-center">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-11 w-11 rounded-xl shadow-sm ring-1 ring-border/50">
+                  <AvatarImage src="/openbentt-logo.svg" alt="" />
+                  <AvatarFallback className="font-display text-xs">OB</AvatarFallback>
+                </Avatar>
+                <h2 className="font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+                  Openbentt
+                </h2>
               </div>
-              <h2 className="font-display text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
-                Welcome to Openbentt
-              </h2>
-              <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground md:text-base">
-                {isDesktopApp()
-                  ? "General AI chat for questions outside a project. Open a project for LaTeX writing, PDF proofreading, and research tools."
-                  : "Connect OpenRouter or an on-device model, attach files, enable research in Settings, and compare cloud models side by side. Your keys stay in this browser."}
-              </p>
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-                {isDesktopApp() ? (
-                  <>
-                    <Link
-                      to="/projects"
-                      className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/15"
-                    >
-                      <BookOpen className="h-4 w-4" strokeWidth={2} />
-                      Open projects
-                    </Link>
-                    <Link
-                      to="/labs"
-                      className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/35 hover:bg-primary/5"
-                    >
-                      Library
-                    </Link>
-                  </>
-                ) : (
-                  getWorkspaceNavItems().map((item) => (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/35 hover:bg-primary/5"
-                    >
-                      <item.Icon className="h-3.5 w-3.5 text-primary" strokeWidth={2} />
-                      {item.label}
-                    </Link>
-                  ))
-                )}
-              </div>
-              {!isDesktopApp() && (
-              <p className="mt-4 text-[11px] text-muted-foreground/90 md:text-xs">
-                Use <strong className="text-foreground/90">Notebook</strong> in the sidebar for LaTeX and PDF work. More
-                workspaces (labs, benchmarks, local GGUF) ship in the desktop app.
-              </p>
-              )}
-              {isDesktopApp() && (
-              <p className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground/90 md:text-xs">
-                <MessageSquare className="h-3 w-3" />
-                Projects are your home screen — chat is always available from the sidebar.
-              </p>
-              )}
-              <div className="mt-10 grid grid-cols-1 gap-4 text-left sm:grid-cols-2">
-                <div className="openbentt-card rounded-xl border border-border/80 p-4">
-                  <h3 className="mb-2 font-medium text-foreground">Chat tips</h3>
-                  <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
-                    <li>
-                      • <strong className="text-foreground/90">Specs</strong> — model pricing & context (by the model
-                      name).
-                    </li>
-                    <li>
-                      • <strong className="text-foreground/90">Retry</strong> on the last reply; <strong className="text-foreground/90">Edit</strong> on your message to tweak and resend.
-                    </li>
-                    <li>
-                      • Charts: fenced <code className="rounded bg-muted px-1 text-[11px]">openbentt-chart</code> JSON
-                      blocks render as live charts.
-                    </li>
-                    <li>
-                      • <strong className="text-foreground/90">Search / Export .md</strong> — bar above the thread on Home.
-                    </li>
-                  </ul>
-                </div>
-                <div className="openbentt-card rounded-xl border border-border/80 p-4">
-                  <h3 className="mb-2 font-medium text-foreground">Multimodal</h3>
-                  <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
-                    <li>• Images & video (first frame) — pick a vision-capable model.</li>
-                    <li>
-                      • Audio — sent as <code className="rounded bg-muted px-1 text-[11px]">input_audio</code> when the
-                      provider supports it.
-                    </li>
-                    <li>• PDFs — text is extracted and sent with your prompt.</li>
-                  </ul>
-                </div>
-              </div>
+              <p className="max-w-[16rem] text-sm text-muted-foreground">Ask anything below</p>
             </div>
           </div>
           )

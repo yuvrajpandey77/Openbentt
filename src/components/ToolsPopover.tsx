@@ -84,12 +84,23 @@ function ModeRow({ icon, label, description, checked, onCheckedChange, badge }: 
 interface ToolsPopoverProps {
   message: string;
   setMessage: (s: string) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
 }
 
-export const ToolsPopover: React.FC<ToolsPopoverProps> = ({ message, setMessage }) => {
+export const ToolsPopover: React.FC<ToolsPopoverProps> = ({
+  message,
+  setMessage,
+  open: controlledOpen,
+  onOpenChange,
+  showTrigger = true,
+}) => {
   const webClient = isWebClient();
   const { apiConfig, setApiConfig } = useChat();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [calcExpr, setCalcExpr] = useState("");
   const [calcResult, setCalcResult] = useState<string | null>(null);
   const [calcError, setCalcError] = useState(false);
@@ -122,16 +133,18 @@ export const ToolsPopover: React.FC<ToolsPopoverProps> = ({ message, setMessage 
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-9 gap-1.5 border-border/60"
-        type="button"
-        onClick={() => setOpen(true)}
-      >
-        <Wrench className="h-4 w-4" />
-        <span className="hidden sm:inline">Tools</span>
-      </Button>
+      {showTrigger && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 gap-1.5 border-border/60"
+          type="button"
+          onClick={() => setOpen(true)}
+        >
+          <Wrench className="h-4 w-4" />
+          <span className="hidden sm:inline">Tools</span>
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] w-full max-w-xl overflow-y-auto p-0">

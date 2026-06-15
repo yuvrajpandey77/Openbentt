@@ -10,14 +10,27 @@ const rows: { action: string; keys: string }[] = [
   { action: "Chat search / export", keys: "Bar above messages on Home" },
 ];
 
-export const KeyboardShortcutsSheet: React.FC = () => {
+type KeyboardShortcutsSheetProps = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** When false, only the sheet panel is rendered (for menu-driven open). */
+  showTrigger?: boolean;
+};
+
+export const KeyboardShortcutsSheet: React.FC<KeyboardShortcutsSheetProps> = ({
+  open,
+  onOpenChange,
+  showTrigger = true,
+}) => {
   return (
-    <Sheet>
-      <SheetTrigger asChild>
-        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Keyboard shortcuts">
-          <Keyboard className="h-4 w-4" />
-        </Button>
-      </SheetTrigger>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      {showTrigger && (
+        <SheetTrigger asChild>
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Keyboard shortcuts">
+            <Keyboard className="h-4 w-4" />
+          </Button>
+        </SheetTrigger>
+      )}
       <SheetContent side="right" className="w-full sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Shortcuts</SheetTitle>
