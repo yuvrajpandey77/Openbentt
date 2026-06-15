@@ -50,7 +50,7 @@ function removeSiteManifestLink(): void {
   });
 }
 
-function ensureLink(rel: string, href: string, id?: string): void {
+function ensureLink(rel: string, href: string, id?: string, sizes?: string): void {
   const sel = id ? `link#${id}` : `link[rel="${rel}"][href="${href}"]`;
   let el = document.querySelector<HTMLLinkElement>(sel);
   if (!el) {
@@ -60,6 +60,8 @@ function ensureLink(rel: string, href: string, id?: string): void {
     document.head.appendChild(el);
   }
   el.href = href;
+  if (sizes) el.sizes = sizes;
+  else el.removeAttribute("sizes");
 }
 
 /** Point this tab at the chat-scoped web manifest (installable /chat app). */
@@ -79,7 +81,8 @@ export function linkChatWebManifest(): void {
   ensureMeta("apple-mobile-web-app-status-bar-style", "black-translucent");
   ensureMeta("mobile-web-app-capable", "yes");
   ensureMeta("theme-color", CHAT_PWA_THEME_COLOR);
-  ensureLink("apple-touch-icon", "/pwa-chat-icon.png", "openbentt-chat-touch-icon");
+  ensureLink("apple-touch-icon", "/pwa-chat-icon-180.png", "openbentt-chat-touch-icon-180", "180x180");
+  ensureLink("apple-touch-icon", "/pwa-chat-icon-1024.png", "openbentt-chat-touch-icon", "1024x1024");
 }
 
 export function unlinkChatWebManifest(): void {

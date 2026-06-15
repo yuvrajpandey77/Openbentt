@@ -32,12 +32,22 @@
           document.head.appendChild(tc);
         }
         tc.content = "#1f1f1f";
+        var touch180 = document.getElementById("openbentt-chat-touch-icon-180");
+        if (!touch180) {
+          touch180 = document.createElement("link");
+          touch180.id = "openbentt-chat-touch-icon-180";
+          touch180.rel = "apple-touch-icon";
+          touch180.sizes = "180x180";
+          touch180.href = "/pwa-chat-icon-180.png";
+          document.head.appendChild(touch180);
+        }
         var touch = document.getElementById("openbentt-chat-touch-icon");
         if (!touch) {
           touch = document.createElement("link");
           touch.id = "openbentt-chat-touch-icon";
           touch.rel = "apple-touch-icon";
-          touch.href = "/pwa-chat-icon.png";
+          touch.sizes = "1024x1024";
+          touch.href = "/pwa-chat-icon-1024.png";
           document.head.appendChild(touch);
         }
       })();

@@ -7,6 +7,7 @@ import { Message } from "@/types/chat";
 import { Pencil, RotateCcw, FileText, ChevronDown, BookOpen } from "lucide-react";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { isWebClient } from "@/config/platformSurface";
+import { WebChatLogo } from "@/components/web/WebChatLogo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { shortModelLabel } from "@/lib/openrouter";
@@ -449,10 +450,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
             </div>
           ) : webCleanEmpty ? (
           <div className="flex flex-col items-center justify-center py-6">
-            <Avatar className="h-14 w-14 rounded-2xl shadow-sm">
-              <AvatarImage src="/openbentt-logo.svg" alt="" />
-              <AvatarFallback className="font-display text-sm">OB</AvatarFallback>
-            </Avatar>
+            <WebChatLogo size="md" />
             {webStarterSlot ? <div className="mt-4 w-full max-w-5xl px-2">{webStarterSlot}</div> : null}
           </div>
           ) : (
