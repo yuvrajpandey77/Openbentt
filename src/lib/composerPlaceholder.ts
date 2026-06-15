@@ -40,6 +40,6 @@ export function getComposerPlaceholder(
   if (opts.comparisonEnabled ?? cfg.comparisonEnabled) {
     return "Same prompt goes to each selected model…";
   }
-  if (opts.webChat) return "Ask Obent";
+  if (opts.webChat) return "Ask Cobentt";
   return "Ask anything — attach images, audio, or files with the paperclip";
 }

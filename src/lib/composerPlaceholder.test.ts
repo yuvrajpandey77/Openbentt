@@ -70,7 +70,7 @@ describe("getComposerPlaceholder", () => {
       aiProvider: "openrouter",
       apiKey: "sk-test",
     });
-    expect(getComposerPlaceholder(cfg, { webChat: true })).toBe("Ask Obent");
+    expect(getComposerPlaceholder(cfg, { webChat: true })).toBe("Ask Cobentt");
   });
 
   it("uses default prompt for openai_compatible when base URL is set", () => {

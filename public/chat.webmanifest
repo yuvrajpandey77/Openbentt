@@ -1,7 +1,7 @@
 {
   "id": "/chat",
-  "name": "Openbentt Chat",
-  "short_name": "Obent Chat",
+  "name": "Cobentt",
+  "short_name": "Cobentt",
   "description": "OpenRouter AI chat in your browser. API keys stay on your device.",
   "start_url": "/chat",
   "scope": "/",
@@ -13,25 +13,25 @@
   "categories": ["productivity", "utilities"],
   "icons": [
     {
-      "src": "/pwa-chat-icon-192.png",
+      "src": "/cobentt-pwa-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/pwa-chat-icon.png",
+      "src": "/cobentt-pwa-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/pwa-chat-icon-1024.png",
+      "src": "/cobentt-pwa-icon-1024.png",
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/pwa-chat-icon-1024.png",
+      "src": "/cobentt-pwa-icon-1024.png",
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "maskable"

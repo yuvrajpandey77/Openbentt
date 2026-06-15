@@ -1,4 +1,6 @@
 import { cn } from "@/lib/utils";
+import { isWebClient } from "@/config/platformSurface";
+import { WebChatLogo } from "@/components/web/WebChatLogo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type ChatThinkingIndicatorProps = {
@@ -6,8 +8,24 @@ type ChatThinkingIndicatorProps = {
   compact?: boolean;
 };
 
-/** Pre-token / waiting state for assistant replies — Openbentt logo (matches empty state). */
+/** Pre-token / waiting state for assistant replies — Cobentt on web /chat, Openbentt elsewhere. */
 export function ChatThinkingIndicator({ className, compact }: ChatThinkingIndicatorProps) {
+  if (isWebClient()) {
+    return (
+      <div
+        className={cn("flex items-center", className)}
+        role="status"
+        aria-live="polite"
+        aria-label="Generating response"
+      >
+        <WebChatLogo
+          size={compact ? "sm" : "md"}
+          className={cn("animate-pulse", compact && "h-8 w-8")}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn("flex items-center", className)}

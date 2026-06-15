@@ -7,7 +7,7 @@ import { useChatPwaInstall } from "@/hooks/useChatPwaInstall";
 import { enableChatPwa, isChatPwaStandalone } from "@/lib/chatPwa";
 import { WebChatInstallDialog } from "@/components/web/WebChatInstallDialog";
 
-/** Mobile-only: install Obent Chat PWA from the marketing landing page. */
+/** Mobile-only: install Cobentt PWA from the marketing landing page. */
 export function LandingMobileInstallCta() {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -40,7 +40,7 @@ export function LandingMobileInstallCta() {
         onClick={() => void onInstallClick()}
       >
         <Smartphone className="h-5 w-5" />
-        Install mobile chat app
+        Install Cobentt
       </Button>
 
       <WebChatInstallDialog open={dialogOpen} onOpenChange={setDialogOpen} />

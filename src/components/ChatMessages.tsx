@@ -293,8 +293,8 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
       >
         <div
           className={cn(
-            "openbentt-card p-4 border border-border/80 shadow-sm",
-            message.role === "user" ? "bg-secondary/40" : "bg-card w-full max-w-full"
+            "openbentt-card min-w-0 p-4 border border-border/80 shadow-sm",
+            message.role === "user" ? "bg-secondary/40" : "bg-card w-full max-w-full overflow-hidden"
           )}
         >
           {message.role === "user" && message.attachments && message.attachments.length > 0 && (
@@ -382,10 +382,10 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
         isWebClient() && emptyVariant !== "studio" && "h-0 flex-1",
         emptyVariant === "studio"
           ? "h-full w-full p-2"
-          : cn("flex-1", isWebClient() ? "p-3 sm:p-4" : "p-4")
+          : cn("flex-1", isWebClient() ? "px-0 py-3 sm:p-4" : "p-4")
       )}
     >
-      <div ref={scrollRef} className="max-w-5xl mx-auto">
+      <div ref={scrollRef} className={cn("mx-auto max-w-5xl", isWebClient() && "web-chat-messages-inner w-full")}>
         {useVirtual && visibleMessages.length > 0 && (
           <p className="mb-4 text-center text-[11px] text-muted-foreground">
             Virtualized thread ({visibleMessages.length} messages) — scroll stays responsive.

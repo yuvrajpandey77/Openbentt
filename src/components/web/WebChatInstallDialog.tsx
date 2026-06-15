@@ -32,16 +32,16 @@ export function WebChatInstallDialog({ open, onOpenChange }: WebChatInstallDialo
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <Smartphone className="h-5 w-5 text-primary" />
-            Use Obent Chat on mobile
+            Use Cobentt on mobile
           </DialogTitle>
           <DialogDescription>
-            Install Openbentt Chat on your phone for a full-screen app — same chats and API key, no app store.
+            Install Cobentt on your phone for a full-screen app — same chats and API key, no app store.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 text-sm text-muted-foreground">
           {canNativeInstall ? (
-            <p>Tap Install below, then open Obent Chat from your home screen.</p>
+            <p>Tap Install below, then open Cobentt from your home screen.</p>
           ) : isIos ? (
             <ol className="list-decimal space-y-2 pl-4">
               <li className="flex items-start gap-2">
@@ -53,7 +53,7 @@ export function WebChatInstallDialog({ open, onOpenChange }: WebChatInstallDialo
               <li>
                 Choose <strong className="text-foreground">Add to Home Screen</strong>, then tap Add.
               </li>
-              <li>Open <strong className="text-foreground">Obent Chat</strong> from your home screen.</li>
+              <li>Open <strong className="text-foreground">Cobentt</strong> from your home screen.</li>
             </ol>
           ) : (
             <p>
@@ -67,7 +67,7 @@ export function WebChatInstallDialog({ open, onOpenChange }: WebChatInstallDialo
           {canNativeInstall && (
             <Button type="button" className="w-full gap-2" onClick={() => void onInstall()}>
               <Download className="h-4 w-4" />
-              Install Obent Chat
+              Install Cobentt
             </Button>
           )}
           <Button type="button" variant="outline" className="w-full" onClick={() => onOpenChange(false)}>

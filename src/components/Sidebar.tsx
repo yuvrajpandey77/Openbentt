@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { appHomePath } from "@/lib/appHomePath";
 import { isDesktopApp } from "@/lib/isDesktopApp";
+import { isWebClient } from "@/config/platformSurface";
 import { cn } from "@/lib/utils";
 import { getPrimaryWorkspaceNavItems } from "@/config/workspaceNav";
 import { SIDEBAR_WIDTH_EXPANDED, SIDEBAR_WIDTH_ICON } from "@/lib/sidebarLayout";
@@ -144,6 +145,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapsed,
 }) => {
   const isMobile = useIsMobile();
+  const cobenttBrand = isWebClient();
   const location = useLocation();
   const desktopApp = isDesktopApp();
   /** Desktop chat sidebar stays icon-only; labels show in hover tooltips only. */
@@ -198,15 +200,18 @@ const Sidebar: React.FC<SidebarProps> = ({
                   to={appHomePath()}
                   onClick={onCloseMobile}
                   className="flex min-w-0 shrink-0 items-center rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-                  aria-label="Openbentt — all projects"
+                  aria-label={cobenttBrand ? "Cobentt — home" : "Openbentt — all projects"}
                 >
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src="/openbentt-logo.svg" alt="" />
-                    <AvatarFallback className="font-display text-xs">OB</AvatarFallback>
+                  <Avatar className={cn("h-8 w-8", cobenttBrand && "rounded-[22%]")}>
+                    <AvatarImage
+                      src={cobenttBrand ? "/cobentt-pwa-icon-192.png" : "/openbentt-logo.svg"}
+                      alt=""
+                    />
+                    <AvatarFallback className="font-display text-xs">{cobenttBrand ? "CB" : "OB"}</AvatarFallback>
                   </Avatar>
                   {showLabels && (
                     <span className="ml-2 truncate font-display text-base font-semibold text-sidebar-foreground">
-                      Openbentt
+                      {cobenttBrand ? "Cobentt" : "Openbentt"}
                     </span>
                   )}
                 </Link>

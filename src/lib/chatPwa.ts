@@ -77,12 +77,12 @@ export function linkChatWebManifest(): void {
   link.href = "/chat.webmanifest";
 
   ensureMeta("apple-mobile-web-app-capable", "yes");
-  ensureMeta("apple-mobile-web-app-title", "Obent Chat");
+  ensureMeta("apple-mobile-web-app-title", "Cobentt");
   ensureMeta("apple-mobile-web-app-status-bar-style", "black-translucent");
   ensureMeta("mobile-web-app-capable", "yes");
   ensureMeta("theme-color", CHAT_PWA_THEME_COLOR);
-  ensureLink("apple-touch-icon", "/pwa-chat-icon-180.png", "openbentt-chat-touch-icon-180", "180x180");
-  ensureLink("apple-touch-icon", "/pwa-chat-icon-1024.png", "openbentt-chat-touch-icon", "1024x1024");
+  ensureLink("apple-touch-icon", "/cobentt-pwa-icon-180.png", "openbentt-chat-touch-icon-180", "180x180");
+  ensureLink("apple-touch-icon", "/cobentt-pwa-icon-1024.png", "openbentt-chat-touch-icon", "1024x1024");
 }
 
 export function unlinkChatWebManifest(): void {
