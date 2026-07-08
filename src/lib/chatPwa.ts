@@ -1,7 +1,7 @@
 const MANIFEST_LINK_ID = "openbentt-chat-manifest";
 const SW_URL = "/sw.js";
-/** Matches app-shell `--background` (hsl 0 0% 12%). */
-export const CHAT_PWA_THEME_COLOR = "#1f1f1f";
+/** Matches app-shell `--background` (pure black). */
+export const CHAT_PWA_THEME_COLOR = "#000000";
 
 const CHAT_PWA_ALLOWED = ["/chat", "/setup", "/share"] as const;
 

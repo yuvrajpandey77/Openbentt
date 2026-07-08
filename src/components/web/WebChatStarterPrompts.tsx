@@ -1,10 +1,15 @@
-import { FileText, Globe, ImageIcon } from "lucide-react";
+import { FileText, GraduationCap, HardDrive, Calendar, Mail, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const STARTERS = [
-  { icon: ImageIcon, label: "Analyze an image", prompt: "Help me understand what's in an image I'll attach." },
-  { icon: FileText, label: "Write or edit", prompt: "Help me write or improve a draft." },
-  { icon: Globe, label: "Look something up", prompt: "Look up the latest on: " },
+const ACTION_BUTTONS = [
+  { icon: FileText, label: "Write", prompt: "Help me write or improve a draft." },
+  { icon: GraduationCap, label: "Learn", prompt: "Help me learn about a topic." },
+] as const;
+
+const INTEGRATIONS = [
+  { icon: HardDrive, label: "From Drive", comingSoon: true },
+  { icon: Calendar, label: "From Calendar", comingSoon: true },
+  { icon: Mail, label: "From Gmail", comingSoon: true },
 ] as const;
 
 type WebChatStarterPromptsProps = {
@@ -14,21 +19,35 @@ type WebChatStarterPromptsProps = {
 
 export function WebChatStarterPrompts({ onSelect, className }: WebChatStarterPromptsProps) {
   return (
-    <ul className={cn("flex flex-col gap-1 px-1 md:gap-1.5", className)}>
-      {STARTERS.map(({ icon: Icon, label, prompt }) => (
-        <li key={label}>
+    <div className={cn("flex flex-col items-center gap-2", className)}>
+      <div className="flex flex-wrap items-center justify-center gap-1.5 md:gap-2">
+        {ACTION_BUTTONS.map(({ icon: Icon, label, prompt }) => (
           <button
+            key={label}
             type="button"
             onClick={() => onSelect(prompt)}
-            className="flex w-full items-center gap-3 rounded-full px-3 py-2.5 text-left text-sm text-foreground/90 transition-colors hover:bg-muted/40 active:bg-muted/55 md:gap-3.5 md:px-4 md:py-3 md:text-[15px]"
+            className="web-quick-pill"
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted/60 md:h-11 md:w-11">
-              <Icon className="h-4 w-4 text-foreground/80 md:h-[1.1rem] md:w-[1.1rem]" strokeWidth={1.75} />
-            </span>
+            <Icon className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" strokeWidth={1.5} />
             <span>{label}</span>
           </button>
-        </li>
-      ))}
-    </ul>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-1.5 md:gap-2">
+        {INTEGRATIONS.map(({ icon: Icon, label, comingSoon }) => (
+          <button
+            key={label}
+            type="button"
+            disabled
+            className="web-quick-pill web-quick-pill--integration"
+            title={comingSoon ? "Coming soon — integrate to use" : label}
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" strokeWidth={1.5} />
+            <span>{label}</span>
+            <Zap className="h-2.5 w-2.5 text-[#16A34A]/60" strokeWidth={2} />
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

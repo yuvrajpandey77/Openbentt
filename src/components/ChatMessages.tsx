@@ -7,7 +7,6 @@ import { Message } from "@/types/chat";
 import { Pencil, RotateCcw, FileText, ChevronDown, BookOpen } from "lucide-react";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { isWebClient } from "@/config/platformSurface";
-import { WebChatLogo } from "@/components/web/WebChatLogo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { shortModelLabel } from "@/lib/openrouter";
@@ -41,10 +40,8 @@ interface ChatMessagesProps {
   searchQuery?: string;
   /** Minimal empty state for notebook studio dock. */
   emptyVariant?: "home" | "studio";
-  /** Web /chat: ultra-minimal empty — logo only; starters live below. */
+  /** Web /chat: ultra-minimal empty — logo only. */
   webCleanEmpty?: boolean;
-  /** Rendered inside scroll area on web /chat empty thread (starter chips). */
-  webStarterSlot?: React.ReactNode;
 }
 
 function MetricsBar({ metrics }: { metrics: NonNullable<Message["metrics"]> }) {
@@ -194,7 +191,6 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
   searchQuery = "",
   emptyVariant = "home",
   webCleanEmpty = false,
-  webStarterSlot,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -279,9 +275,9 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
     <div
       key={message.id}
       className={cn(
-        "w-full streaming-message group/msg pb-8",
+        "w-full streaming-message group/msg",
         isActiveStream && "streaming-message-active",
-        message.role === "user" ? "flex justify-end" : "flex justify-start"
+        message.role === "user" ? "flex justify-end mb-5" : "flex justify-start mb-5"
       )}
     >
       <div
@@ -293,8 +289,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
       >
         <div
           className={cn(
-            "openbentt-card min-w-0 p-4 border border-border/80 shadow-sm",
-            message.role === "user" ? "bg-secondary/40" : "bg-card w-full max-w-full overflow-hidden"
+            message.role === "user" ? "web-message-user" : "web-message-assistant w-full"
           )}
         >
           {message.role === "user" && message.attachments && message.attachments.length > 0 && (
@@ -382,10 +377,10 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
         isWebClient() && emptyVariant !== "studio" && "h-0 flex-1",
         emptyVariant === "studio"
           ? "h-full w-full p-2"
-          : cn("flex-1", isWebClient() ? "px-0 py-3 sm:p-4" : "p-4")
+          : cn("flex-1", isWebClient() ? "px-0 py-3 sm:px-4 sm:py-3" : "p-4")
       )}
     >
-      <div ref={scrollRef} className={cn("mx-auto max-w-5xl", isWebClient() && "web-chat-messages-inner w-full")}>
+      <div ref={scrollRef} className={cn("mx-auto max-w-3xl", isWebClient() && "web-chat-messages-inner w-full")}>
         {useVirtual && visibleMessages.length > 0 && (
           <p className="mb-4 text-center text-[11px] text-muted-foreground">
             Virtualized thread ({visibleMessages.length} messages) — scroll stays responsive.
@@ -449,9 +444,8 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
               </div>
             </div>
           ) : webCleanEmpty ? (
-          <div className="flex flex-col items-center justify-center py-6">
-            <WebChatLogo size="md" />
-            {webStarterSlot ? <div className="mt-4 w-full max-w-5xl px-2">{webStarterSlot}</div> : null}
+          <div className="web-hero-section">
+            <h1 className="web-hero-heading">Route your intelligence</h1>
           </div>
           ) : (
           <div className="flex min-h-[min(50vh,380px)] items-center justify-center py-8 sm:py-12">

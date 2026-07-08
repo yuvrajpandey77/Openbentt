@@ -20,6 +20,8 @@ export const AssistantMessageToolbar: React.FC<AssistantMessageToolbarProps> = (
   const { toast } = useToast();
   const [pdfBusy, setPdfBusy] = useState(false);
 
+  if (disabled) return null;
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(plainText);
@@ -61,7 +63,7 @@ export const AssistantMessageToolbar: React.FC<AssistantMessageToolbarProps> = (
         variant="outline"
         size="sm"
         className="h-8 gap-1.5"
-        disabled={disabled || !plainText.trim()}
+        disabled={!plainText.trim()}
         onClick={() => void copy()}
       >
         <Copy className="h-3.5 w-3.5" />
@@ -72,7 +74,7 @@ export const AssistantMessageToolbar: React.FC<AssistantMessageToolbarProps> = (
         variant="outline"
         size="sm"
         className="h-8 gap-1.5"
-        disabled={disabled || pdfBusy}
+        disabled={pdfBusy}
         onClick={() => void savePdf()}
       >
         <FileDown className="h-3.5 w-3.5" />

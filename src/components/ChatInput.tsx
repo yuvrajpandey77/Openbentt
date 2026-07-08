@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Columns2,
   Paperclip,
+  PlusCircle,
   Square,
   FileText,
   Mic,
@@ -72,7 +73,7 @@ import type { WorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
 import { cn } from "@/lib/utils";
 import { isWebClient } from "@/config/platformSurface";
 import { isWebChatRoute } from "@/components/web/webChatRoute";
-import { WebChatPlusMenu } from "@/components/web/WebChatPlusMenu";
+import { WebChatStarterPrompts } from "@/components/web/WebChatStarterPrompts";
 import { useWebChatUiOptional } from "@/context/WebChatUiContext";
 import { buildChatMarkdownExport, downloadTextFile } from "@/lib/chatExportMarkdown";
 import {
@@ -144,6 +145,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const [webSnippetsOpen, setWebSnippetsOpen] = useState(false);
   const [webSpecsOpen, setWebSpecsOpen] = useState(false);
   const [webSetupOpen, setWebSetupOpen] = useState(false);
+  const [plusOpen, setPlusOpen] = useState(false);
   const { toast } = useToast();
   const { data: models, isLoading: modelsLoading, isError: modelsError } = useOpenRouterModels(
     apiConfig.apiKey,
@@ -189,6 +191,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     [chats, currentChatId]
   );
   const hasThreadMessages = (currentChat?.messages.length ?? 0) > 0;
+  const isEmpty = !hasThreadMessages;
 
   const exportThreadMd = () => {
     if (!currentChat?.messages.length) {
@@ -470,8 +473,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   if (isWebChat) {
+    const canSend = !!message.trim() || attachments.length > 0;
+    const hasSent = !isEmpty;
     return (
-      <div className="mx-auto w-[90%] max-w-[90%] px-0 pb-6 pt-2 md:w-full md:max-w-5xl md:px-6 md:pb-6 md:pt-3">
+      <div className={cn("web-composer-wrapper", hasSent ? "web-composer-wrapper--bottom" : "web-composer-wrapper--centered")}>
         <input
           ref={fileRef}
           type="file"
@@ -514,140 +519,91 @@ const ChatInput: React.FC<ChatInputProps> = ({
           </div>
         )}
 
-        {isLoading && apiConfig.aiProvider === "webgpu_gemma" && webgpuModelDownloadProgress != null && (
-          <ModelDownloadProgressBar
-            title="Downloading on-device model"
-            percentOnly
-            className="mb-2 border-0 bg-transparent p-0"
-            progress={{
-              percent: webgpuModelDownloadProgress,
-              received: null,
-              total: null,
-              speedBps: null,
-              etaSeconds: null,
-            }}
-          />
-        )}
+        <div className={cn("web-composer-pill", hasSent && "web-composer-pill--sent")}>
+          <Popover open={plusOpen} onOpenChange={setPlusOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="web-composer-icon"
+                aria-label="Add files or attachments"
+              >
+                <PlusCircle size={18} strokeWidth={1.5} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="top"
+              align="start"
+              sideOffset={6}
+              className="w-52 border-[#1a1a1a] bg-[#0a0a0a] p-1.5 shadow-xl"
+            >
+              <button
+                type="button"
+                onClick={() => { fileRef.current?.click(); setPlusOpen(false); }}
+                className="web-plus-item w-full"
+              >
+                <Paperclip className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
+                Upload files
+              </button>
+              <button
+                type="button"
+                onClick={() => { pickWithAccept("image/*"); setPlusOpen(false); }}
+                className="web-plus-item w-full"
+              >
+                <FileText className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
+                Images
+              </button>
+              <button
+                type="button"
+                onClick={() => { pickWithAccept("audio/*"); setPlusOpen(false); }}
+                className="web-plus-item w-full"
+              >
+                <Mic className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
+                Audio
+              </button>
+              <button
+                type="button"
+                onClick={() => { pickWithAccept(".pdf,application/pdf"); setPlusOpen(false); }}
+                className="web-plus-item w-full"
+              >
+                <FileText className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
+                PDF
+              </button>
+            </PopoverContent>
+          </Popover>
 
-        <div className="web-composer-pill">
-          <WebChatPlusMenu
-            onPickAccept={pickWithAccept}
-            onOpenSearch={() => webUi.openSearch()}
-            onOpenTools={() => setWebToolsOpen(true)}
-            onOpenSnippets={() => setWebSnippetsOpen(true)}
-            onToggleCompare={() => setComparisonEnabled(!apiConfig.comparisonEnabled)}
-            onOpenSpecs={() => setWebSpecsOpen(true)}
-            onOpenSetup={() => setWebSetupOpen(true)}
-            showSetup={showWebSetup}
-            compareOn={apiConfig.comparisonEnabled}
-            modelId={apiConfig.model}
-            models={selectable}
-            onModelChange={handleModelChange}
-            hasMessages={hasThreadMessages}
-            onExportMd={exportThreadMd}
-            onOpenInstall={() => webUi.openInstall()}
-          />
           <textarea
             ref={webTextareaRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={
-              placeholderOverride ??
-              getComposerPlaceholder(apiConfig, {
-                isLoadingConfig,
-                workspacePlaceholder: workspaceMeta?.composerPlaceholder,
-                comparisonEnabled: apiConfig.comparisonEnabled,
-                webChat: true,
-              })
-            }
+            placeholder="What's on your mind?"
             disabled={isLoading || isLoadingConfig || !canSendMessage(apiConfig)}
             rows={1}
             className="web-composer-input"
           />
-          <Button
+          <button
+            type="button"
             onClick={isLoading ? () => stopStreaming() : () => void handleSendMessage()}
-            disabled={
-              isLoading
-                ? false
-                : ((!message.trim() && attachments.length === 0) ||
-                    isLoadingConfig ||
-                    !canSendMessage(apiConfig) ||
-                    (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()))
-            }
-            size="icon"
+            disabled={!isLoading && !canSend}
             className={cn(
-              "h-10 w-10 shrink-0 self-center rounded-full md:h-11 md:w-11",
-              isLoading
-                ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                : "bg-primary hover:bg-primary/90 text-primary-foreground"
+              "web-composer-icon shrink-0",
+              isLoading || canSend ? "web-composer-icon--active" : ""
             )}
+            aria-label={isLoading ? "Stop" : "Send"}
           >
-            {isLoading ? <Square size={14} className="md:h-4 md:w-4" /> : <ArrowUp size={16} className="md:h-[1.1rem] md:w-[1.1rem]" />}
-          </Button>
+            {isLoading ? (
+              <Square size={14} strokeWidth={1.5} />
+            ) : (
+              <ArrowUp size={18} strokeWidth={1.5} />
+            )}
+          </button>
         </div>
 
-        <p className="mt-2 hidden text-center text-[11px] text-muted-foreground/70 md:block">
-          {shortModelLabel(apiConfig.model)}
-          {apiConfig.comparisonEnabled ? " · compare on" : ""}
-        </p>
-
-        <ToolsPopover message={message} setMessage={setMessage} open={webToolsOpen} onOpenChange={setWebToolsOpen} showTrigger={false} />
-        <PromptSnippetsMenu onInsert={(text) => setMessage((prev) => (prev.trim() ? `${prev.trim()}\n\n${text}` : text))} open={webSnippetsOpen} onOpenChange={setWebSnippetsOpen} showTrigger={false} />
-        <ModelSpecDialog modelId={apiConfig.model} models={models} open={webSpecsOpen} onOpenChange={setWebSpecsOpen} showTrigger={false} />
-
-        <Dialog open={localDownloadOpen} onOpenChange={setLocalDownloadOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Pre-cache on-device model</DialogTitle>
-              <DialogDescription>
-                Download & store a model in this browser cache so the first chat loads instantly.
-              </DialogDescription>
-            </DialogHeader>
-            {!getLocalWeightsConsent() ? (
-              <p className="text-sm text-muted-foreground">
-                Complete the on-device model setup before pre-caching.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Model</Label>
-                  <Select value={localPrewarmId} onValueChange={setLocalPrewarmId}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {LOCAL_MODEL_CATALOG.map((e) => (
-                        <SelectItem key={e.storedId} value={e.storedId}>
-                          {e.displayName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {localPrewarmPct != null && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[11px] text-muted-foreground">
-                      <span>Progress</span>
-                      <span>{localPrewarmPct}%</span>
-                    </div>
-                    <Progress value={localPrewarmPct} className="h-2" />
-                  </div>
-                )}
-              </div>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setLocalDownloadOpen(false)} disabled={localPrewarmBusy}>
-                Close
-              </Button>
-              {getLocalWeightsConsent() && (
-                <Button type="button" onClick={() => void runLocalPrewarmFromDialog()} disabled={localPrewarmBusy}>
-                  {localPrewarmBusy ? "Loading…" : "Download to cache"}
-                </Button>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {isEmpty && (
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <WebChatStarterPrompts onSelect={(text) => webUi?.setComposerSeed(text)} />
+          </div>
+        )}
       </div>
     );
   }

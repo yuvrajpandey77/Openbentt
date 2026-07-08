@@ -94,42 +94,42 @@
   html.app-shell-route,
   .app-shell {
     color-scheme: dark;
-    --background: 0 0% 12%;
-    --foreground: 0 0% 80%;
+    --background: 0 0% 0%;
+    --foreground: 0 0% 88%;
 
-    --card: 0 0% 14%;
-    --card-foreground: 0 0% 80%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 88%;
 
-    --popover: 0 0% 13%;
-    --popover-foreground: 0 0% 80%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 88%;
 
-    --primary: 204 100% 40%;
+    --primary: 142 76% 36%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 18%;
-    --secondary-foreground: 0 0% 86%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 88%;
 
-    --muted: 0 0% 16%;
-    --muted-foreground: 0 0% 58%;
+    --muted: 0 0% 8%;
+    --muted-foreground: 0 0% 45%;
 
-    --accent: 0 0% 20%;
-    --accent-foreground: 0 0% 86%;
+    --accent: 142 76% 36%;
+    --accent-foreground: 0 0% 88%;
 
-    --destructive: 0 62% 50%;
+    --destructive: 0 72% 48%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 24%;
-    --input: 0 0% 22%;
-    --ring: 204 100% 40%;
+    --border: 0 0% 16%;
+    --input: 0 0% 10%;
+    --ring: 142 76% 36%;
 
-    --sidebar-background: 0 0% 12%;
-    --sidebar-foreground: 0 0% 80%;
-    --sidebar-primary: 204 100% 40%;
+    --sidebar-background: 0 0% 0%;
+    --sidebar-foreground: 0 0% 88%;
+    --sidebar-primary: 142 76% 36%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 18%;
-    --sidebar-accent-foreground: 0 0% 86%;
-    --sidebar-border: 0 0% 24%;
-    --sidebar-ring: 204 100% 40%;
+    --sidebar-accent: 0 0% 10%;
+    --sidebar-accent-foreground: 0 0% 88%;
+    --sidebar-border: 0 0% 12%;
+    --sidebar-ring: 142 76% 36%;
   }
 
   .app-shell .composer-shell {
@@ -176,66 +176,308 @@
     @apply border-border/70 outline-none ring-0 ring-offset-0;
   }
 
-  /** Web /chat — floating pill composer */
+  /** ─── Sidebar styles ─── */
+  .sidebar-nav-item {
+    @apply flex items-center gap-3 rounded-lg transition-all duration-150 ease-in-out;
+    padding: 10px 16px;
+    color: hsl(0 0% 53%);
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .sidebar-nav-item--mobile {
+    padding: 14px 20px;
+    gap: 14px;
+    justify-content: flex-start;
+  }
+
+  .sidebar-nav-item--mobile.sidebar-nav-item--icon-only {
+    justify-content: center;
+  }
+
+  .sidebar-nav-item:hover {
+    background-color: hsl(142 76% 36% / 0.1);
+    color: #16A34A;
+  }
+
+  .sidebar-nav-item--icon-only {
+    @apply justify-center px-0;
+    padding: 10px 0;
+  }
+
+  .sidebar-nav-item--active {
+    background-color: hsl(142 76% 36% / 0.15);
+    color: #16A34A;
+  }
+
+  .sidebar-nav-item--active .sidebar-nav-label {
+    color: #16A34A;
+    font-weight: 500;
+  }
+
+  .sidebar-nav-label {
+    color: hsl(0 0% 40%);
+    font-size: 14px;
+    transition: color 200ms ease-in-out;
+  }
+
+  .sidebar-nav-item:hover .sidebar-nav-label {
+    color: hsl(0 0% 67%);
+  }
+
+  .sidebar-logo-area {
+    @apply relative;
+  }
+
+  .sidebar-toggle-btn {
+    @apply flex items-center justify-center rounded-lg transition-all duration-200;
+    color: hsl(0 0% 55%);
+  }
+
+  .sidebar-toggle-btn:hover {
+    background-color: hsl(142 76% 36% / 0.12);
+    color: #16A34A;
+    transform: scale(1.05);
+  }
+
+  .sidebar-collapsed-toggle {
+    @apply absolute inset-0 flex items-center justify-center rounded-lg opacity-0 transition-opacity duration-200;
+    color: hsl(0 0% 55%);
+  }
+
+  .sidebar-logo-area:hover .sidebar-collapsed-toggle {
+    opacity: 1;
+  }
+
+  .sidebar-logo-area:hover .sidebar-logo-img {
+    opacity: 0;
+  }
+
+  .sidebar-collapsed-toggle:hover {
+    background-color: hsl(142 76% 36% / 0.12);
+    color: #16A34A;
+  }
+
+  .sidebar-label {
+    @apply text-[11px] font-medium;
+    color: hsl(0 0% 35%);
+  }
+
+  /** ─── Hero section (empty state) ─── */
+  .web-hero-section {
+    @apply flex flex-1 flex-col items-center justify-center px-6;
+    padding-bottom: 8px;
+  }
+
+  .web-hero-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid hsl(0 0% 20%);
+    border-top-color: hsl(142 76% 36%);
+    border-radius: 50%;
+    animation: webHeroSpin 0.8s linear infinite;
+    margin-bottom: 1.5rem;
+  }
+
+  @keyframes webHeroSpin {
+    to { transform: rotate(360deg); }
+  }
+
+  .web-hero-heading {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 2rem;
+    font-weight: 300;
+    line-height: 1.2;
+    text-align: center;
+    color: hsl(0 0% 88%);
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+
+  @media (min-width: 768px) {
+    .web-hero-heading {
+      font-size: 2.75rem;
+    }
+  }
+
+  /** ─── Web /chat composer ─── */
+  .web-composer-wrapper {
+    @apply mx-auto w-full px-4 md:px-6;
+    max-width: 1100px;
+  }
+
+  .web-composer-wrapper--centered {
+    @apply flex flex-col items-center justify-center;
+    min-height: calc(100vh - 180px);
+    padding-bottom: 32px;
+  }
+
+  .web-composer-wrapper--bottom {
+    @apply mx-auto w-full px-4 md:px-6;
+    max-width: 768px;
+    padding-bottom: 32px;
+  }
+
   .web-composer-pill {
-    @apply flex items-center gap-1.5 rounded-[1.75rem] border px-2 py-2 transition-all;
-    background-color: hsl(var(--popover));
-    border-color: hsl(var(--border) / 0.85);
-    box-shadow:
-      0 1px 0 hsl(var(--foreground) / 0.05),
-      0 6px 28px -10px hsl(0 0% 0% / 0.5);
+    @apply flex items-center gap-1.5 rounded-3xl border-2 px-6 transition-all duration-200;
+    background-color: hsl(0 0% 4%);
+    border-color: hsl(142 76% 36%);
+    min-height: 140px;
+    padding: 20px 24px;
+  }
+
+  .web-composer-pill:hover {
+    border-color: hsl(142 76% 36%);
+    box-shadow: 0 0 20px hsl(142 76% 36% / 0.2);
   }
 
   .web-composer-pill:focus-within {
-    border-color: hsl(var(--primary) / 0.45);
-    box-shadow:
-      0 1px 0 hsl(var(--foreground) / 0.06),
-      0 8px 36px -10px hsl(0 0% 0% / 0.55),
-      0 0 0 2px hsl(var(--primary) / 0.12);
+    border-color: hsl(142 76% 36%);
+    box-shadow: 0 0 30px hsl(142 76% 36% / 0.35);
+    background-color: hsl(0 0% 7%);
   }
 
   html.app-shell-route .web-composer-pill,
   .app-shell .web-composer-pill {
-    background-color: hsl(0 0% 20%);
-    border-color: hsl(0 0% 32%);
+    background-color: hsl(0 0% 4%);
+    border-color: hsl(142 76% 36%);
   }
 
   html.app-shell-route .web-composer-pill:focus-within,
   .app-shell .web-composer-pill:focus-within {
-    background-color: hsl(0 0% 22%);
-    border-color: hsl(var(--primary) / 0.5);
+    border-color: hsl(142 76% 36%);
+    box-shadow: 0 0 30px hsl(142 76% 36% / 0.35);
+    background-color: hsl(0 0% 7%);
   }
 
   @media (min-width: 768px) {
     .web-composer-pill {
-      @apply gap-2.5 rounded-[2.25rem] px-4 py-2.5;
+      @apply gap-1.5;
+      min-height: 140px;
+      padding: 20px 24px;
     }
   }
 
+  .web-composer-pill--sent {
+    @apply border rounded-3xl;
+    border-color: hsl(0 0% 20%);
+    min-height: 112px;
+    padding: 16px 20px;
+  }
+
+  .web-composer-pill--sent .web-composer-input {
+    @apply min-h-[72px] max-h-40;
+  }
+
   .web-composer-input {
-    @apply min-h-10 max-h-32 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-[15px] leading-[1.35] caret-primary shadow-none outline-none;
-    color: hsl(var(--foreground));
+    @apply min-h-[100px] max-h-48 flex-1 resize-none border-0 bg-transparent px-3 text-base font-normal shadow-none outline-none;
+    color: hsl(0 0% 94%);
+    caret-color: hsl(0 0% 80%);
     @apply focus-visible:ring-0;
+    line-height: 1.5;
+    padding-top: 38px;
+    padding-bottom: 38px;
   }
 
   .web-composer-input::placeholder {
-    color: hsl(var(--muted-foreground) / 0.75);
+    color: hsl(0 0% 33%);
+    font-weight: 400;
   }
 
   html.app-shell-route .web-composer-input,
   .app-shell .web-composer-input {
-    color: hsl(0 0% 93%);
+    color: hsl(0 0% 94%);
   }
 
   html.app-shell-route .web-composer-input::placeholder,
   .app-shell .web-composer-input::placeholder {
-    color: hsl(0 0% 52%);
+    color: hsl(0 0% 33%);
   }
 
   @media (min-width: 768px) {
     .web-composer-input {
-      @apply min-h-11 max-h-60 px-4 py-2.5 text-[17px] leading-[1.35];
+      @apply min-h-[100px] max-h-60 px-3 py-1 text-base leading-[1.5];
     }
+  }
+
+  /** ─── Composer control icons ─── */
+  .web-composer-icon {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all duration-200;
+    color: hsl(0 0% 50%);
+  }
+
+  .web-composer-icon:hover {
+    background-color: hsl(142 76% 36% / 0.12);
+    color: hsl(142 76% 36%);
+    transform: scale(1.05);
+  }
+
+  .web-composer-icon--active {
+    color: hsl(142 76% 36%);
+  }
+
+  /** ─── Plus popover menu ─── */
+  .web-plus-item {
+    @apply flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all duration-200;
+    color: hsl(0 0% 70%);
+  }
+
+  .web-plus-item:hover {
+    background-color: hsl(142 76% 36% / 0.1);
+    color: hsl(0 0% 94%);
+  }
+
+  /** ─── Quick action pills ─── */
+  .web-quick-pill {
+    @apply inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-normal transition-all duration-200;
+    background-color: hsl(0 0% 10%);
+    border-color: hsl(0 0% 20%);
+    color: hsl(0 0% 80%);
+  }
+
+  .web-quick-pill:hover {
+    background-color: #16A34A;
+    border-color: #16A34A;
+    color: #000000;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px hsl(142 76% 36% / 0.3);
+  }
+
+  .web-quick-pill:active {
+    transform: translateY(0px);
+    box-shadow: 0 2px 6px hsl(142 76% 36% / 0.2);
+  }
+
+  .web-quick-pill--integration {
+    opacity: 0.55;
+    cursor: not-allowed;
+    pointer-events: auto;
+  }
+
+  .web-quick-pill--integration:hover {
+    background-color: hsl(0 0% 10%);
+    border-color: hsl(0 0% 20%);
+    color: hsl(0 0% 80%);
+    transform: none;
+    box-shadow: none;
+  }
+
+  @media (min-width: 768px) {
+    .web-quick-pill {
+      @apply gap-2.5 px-5 py-2.5 text-sm;
+    }
+  }
+
+  /** ─── Message bubbles ─── */
+  .web-message-user {
+    @apply ml-auto w-full max-w-full rounded-3xl px-4 py-3 text-[14px] leading-[1.6];
+    background-color: hsl(0 0% 10%);
+    color: hsl(0 0% 88%);
+  }
+
+  .web-message-assistant {
+    @apply mr-auto w-full max-w-full rounded-3xl px-4 py-3 text-[14px] leading-[1.7];
+    color: hsl(0 0% 78%);
   }
 
   .web-plus-menu-scroll {
