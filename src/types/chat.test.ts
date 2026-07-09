@@ -128,4 +128,12 @@ describe("normalizeApiConfig migrations", () => {
     expect(n.comparisonEnabled).toBe(false);
     expect(n.comparisonModelIds).toEqual([LOCAL_TINY_MODEL_ID]);
   });
+
+  it("migrates legacy larger on-device models to Qwen 0.5B", () => {
+    const n = normalizeApiConfig({
+      aiProvider: "webgpu_gemma",
+      model: "openbentt/local-gemma-4-e2b",
+    });
+    expect(n.model).toBe(LOCAL_TINY_MODEL_ID);
+  });
 });

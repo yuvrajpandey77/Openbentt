@@ -1,30 +1,33 @@
 import type { OpenRouterModel } from "@/lib/openrouter";
 
 /**
- * Local on-device models we support via `@huggingface/transformers`.
+ * Local on-device models via `@huggingface/transformers`.
+ *
+ * MVP / web /chat: only the smallest SLM is offered (Qwen 2.5 0.5B).
+ * Larger Gemma/Qwen ids below are kept as deprecated constants so old
+ * localStorage values normalize cleanly to the tiny model.
  *
  * `storedId` is what we persist in `ApiKeyConfig.model` when `aiProvider === "webgpu_gemma"`.
  * `hfRepo` is the upstream Hugging Face ONNX repo we download once and cache in the browser.
- *
- * We ship three tiers so the auto-picker can gracefully degrade on limited devices:
- *   - `medium` Gemma 4 E4B – best quality, needs ~2.5 GB GPU buffer.
- *   - `small`  Gemma 4 E2B – default; needs ~1.2 GB GPU buffer.
- *   - `tiny`   Qwen 2.5 0.5B – works on almost anything (CPU-only phones / integrated GPUs).
  */
+
+/** @deprecated Not selectable; kept for migration of old configs. */
 export const LOCAL_GEMMA_MODEL_E2B = "openbentt/local-gemma-4-e2b";
+/** @deprecated Not selectable; kept for migration of old configs. */
 export const LOCAL_GEMMA_MODEL_E4B = "openbentt/local-gemma-4-e4b";
 export const LOCAL_TINY_MODEL_ID = "openbentt/local-qwen-0.5b";
+/** @deprecated Not selectable; kept for migration of old configs. */
 export const LOCAL_COMPACT_QWEN_1_5B = "openbentt/local-qwen-1.5b";
 
-export const DEFAULT_LOCAL_GEMMA_MODEL_ID = LOCAL_GEMMA_MODEL_E2B;
-/** Lightest model we'll auto-switch to when the device can't run the user's choice. */
+/** Only on-device chat model offered in Settings / composer. */
+export const DEFAULT_LOCAL_GEMMA_MODEL_ID = LOCAL_TINY_MODEL_ID;
+/** Lightest model — same as default while the catalog is tiny-only. */
 export const FALLBACK_TINY_LOCAL_MODEL_ID = LOCAL_TINY_MODEL_ID;
 
 export const LOCAL_GEMMA_CONTEXT_LIMIT = 128_000;
 /** Qwen 2.5 0.5B ships with a 32K context window. */
 export const LOCAL_TINY_CONTEXT_LIMIT = 32_768;
 
-/** Ordered from heaviest to lightest so cascade picks the smallest that still fits. */
 export type LocalModelSize = "medium" | "small" | "compact" | "tiny";
 
 export interface LocalModelEntry {
@@ -47,61 +50,23 @@ export interface LocalModelEntry {
 }
 
 /**
- * Catalog is ordered heaviest → lightest. The picker walks this list when searching for a smaller
- * model the current device can handle on WebGPU.
+ * Selectable catalog — tiny only for reliable browser WebGPU / WASM testing.
  */
 export const LOCAL_MODEL_CATALOG: readonly LocalModelEntry[] = [
   {
-    storedId: LOCAL_GEMMA_MODEL_E4B,
-    displayName: "Gemma 4 E4B (on-device · ~1.5GB download)",
-    hfRepo: "onnx-community/gemma-4-E4B-it-ONNX",
-    modelClass: "gemma4",
-    size: "medium",
-    contextLength: LOCAL_GEMMA_CONTEXT_LIMIT,
-    gpuBufferBytesQ4: 2_500_000_000,
-    gpuBufferBytesQ4f16: 2_200_000_000,
-    wasmRamBytes: 3_500_000_000,
-    defaultMaxTokens: 512,
-    subtitle: "Highest quality, needs a strong GPU",
-  },
-  {
-    storedId: LOCAL_GEMMA_MODEL_E2B,
-    displayName: "Gemma 4 E2B (on-device · ~500MB download)",
-    hfRepo: "onnx-community/gemma-4-E2B-it-ONNX",
-    modelClass: "gemma4",
-    size: "small",
-    contextLength: LOCAL_GEMMA_CONTEXT_LIMIT,
-    gpuBufferBytesQ4: 1_200_000_000,
-    gpuBufferBytesQ4f16: 1_100_000_000,
-    wasmRamBytes: 1_700_000_000,
-    defaultMaxTokens: 768,
-    subtitle: "Balanced default for most desktops",
-  },
-  {
-    storedId: LOCAL_COMPACT_QWEN_1_5B,
-    displayName: "Qwen 2.5 1.5B (compact · ~900MB download)",
-    hfRepo: "onnx-community/Qwen2.5-1.5B-Instruct",
-    modelClass: "causalLM",
-    size: "compact",
-    contextLength: LOCAL_TINY_CONTEXT_LIMIT,
-    gpuBufferBytesQ4: 950_000_000,
-    gpuBufferBytesQ4f16: 880_000_000,
-    wasmRamBytes: 1_400_000_000,
-    defaultMaxTokens: 768,
-    subtitle: "Good for notebooks and code on mid-range GPUs",
-  },
-  {
     storedId: LOCAL_TINY_MODEL_ID,
-    displayName: "Qwen 2.5 0.5B (tiny · ~400MB download)",
+    displayName: "Qwen 2.5 0.5B (on-device · ~400MB)",
     hfRepo: "onnx-community/Qwen2.5-0.5B-Instruct",
     modelClass: "causalLM",
     size: "tiny",
     contextLength: LOCAL_TINY_CONTEXT_LIMIT,
     gpuBufferBytesQ4: 380_000_000,
     gpuBufferBytesQ4f16: 320_000_000,
-    wasmRamBytes: 900_000_000,
-    defaultMaxTokens: 1024,
-    subtitle: "Fast, runs everywhere (phones, integrated GPUs, CPU)",
+    /** q8 WASM working set (fp16 was ~900MB and often hit ORT error 6 / bad_alloc). */
+    wasmRamBytes: 450_000_000,
+    /** Short replies keep WASM TTFT/total time usable on CPU. */
+    defaultMaxTokens: 192,
+    subtitle: "Smallest SLM — q8 on CPU in browser; WebGPU when stable",
   },
 ];
 
@@ -122,6 +87,17 @@ export function getLocalModelEntry(storedModelId: string): LocalModelEntry {
 
 export function isLocalGemmaModelId(modelId: string): boolean {
   return findLocalModelEntry(modelId) !== null;
+}
+
+/** Legacy ids that used to be in the catalog; normalize to tiny. */
+const LEGACY_LOCAL_MODEL_IDS = new Set([
+  LOCAL_GEMMA_MODEL_E2B,
+  LOCAL_GEMMA_MODEL_E4B,
+  LOCAL_COMPACT_QWEN_1_5B,
+]);
+
+export function isLegacyLocalGemmaModelId(modelId: string): boolean {
+  return LEGACY_LOCAL_MODEL_IDS.has(modelId);
 }
 
 /** @deprecated – prefer `getLocalModelEntry(storedId).hfRepo`. Kept for callers we haven't migrated yet. */

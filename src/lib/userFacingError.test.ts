@@ -55,6 +55,14 @@ describe("expandRuntimeInferenceMessage", () => {
     expect(out).toContain("9490152");
     expect(out).toContain("ONNX Runtime Web");
   });
+
+  it("explains ORT error code 6 / bad_alloc session failures", () => {
+    const out = expandRuntimeInferenceMessage(
+      "Can't create a session. ERROR_CODE: 6, ERROR_MESSAGE: std::bad_alloc"
+    );
+    expect(out.toLowerCase()).toContain("out of memory");
+    expect(out).toContain("q8");
+  });
 });
 
 describe("formatUserFacingError", () => {

@@ -1,4 +1,8 @@
-import { isLocalGemmaModelId, LOCAL_TINY_MODEL_ID } from "@/lib/gemmaWebGpu/models";
+import {
+  isLegacyLocalGemmaModelId,
+  isLocalGemmaModelId,
+  LOCAL_TINY_MODEL_ID,
+} from "@/lib/gemmaWebGpu/models";
 import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
 import { isCloudInferenceAllowed } from "@/lib/privacy/privacyPreferences";
 import { GGUF_MODEL_NONE, parseGgufRegistryId } from "@/lib/localGguf/ids";
@@ -245,7 +249,8 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
 
   let model = rawModel;
   if (aiProvider === "webgpu_gemma") {
-    if (!isLocalGemmaModelId(model)) {
+    // Tiny-only MVP: force any unknown or legacy larger on-device id to Qwen 0.5B.
+    if (!isLocalGemmaModelId(model) || isLegacyLocalGemmaModelId(model)) {
       model = LOCAL_TINY_MODEL_ID;
     }
   } else if (aiProvider === "local_gguf") {

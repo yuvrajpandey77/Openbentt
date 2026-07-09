@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useChat } from "@/context/ChatContext";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -10,27 +9,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Cpu } from "lucide-react";
 import { getLocalWeightsConsent, setLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
 import { ensureLocalGemmaLoaded } from "@/lib/gemmaWebGpu/localGemmaInference";
-import { DEFAULT_LOCAL_GEMMA_MODEL_ID, LOCAL_MODEL_CATALOG, type LocalModelEntry } from "@/lib/gemmaWebGpu/models";
-import { normalizeApiConfig, type LocalInferenceProfile } from "@/types/chat";
+import { LOCAL_TINY_MODEL_ID, getLocalModelEntry } from "@/lib/gemmaWebGpu/models";
+import { normalizeApiConfig } from "@/types/chat";
 import { useToast } from "@/components/ui/use-toast";
 import { ModelDownloadProgressBar } from "@/components/ModelDownloadProgressBar";
 
-const LABEL_BY_PROFILE: Record<LocalInferenceProfile, string> = {
-  eco: "Eco (low RAM, shorter replies)",
-  balanced: "Balanced",
-  performance: "Performance (uses GPU acceleration when available)",
-};
+const TINY = getLocalModelEntry(LOCAL_TINY_MODEL_ID);
 
 /**
  * Renders a compact setup banner while consent is pending, plus a Dialog with the
@@ -53,7 +41,6 @@ const LocalOnDeviceModelBar: React.FC<LocalOnDeviceModelBarProps> = ({
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
   const setOpen = onOpenChange ?? setInternalOpen;
-  const [picked, setPicked] = useState(apiConfig.model || DEFAULT_LOCAL_GEMMA_MODEL_ID);
   const [ack, setAck] = useState(false);
   const [loading, setLoading] = useState(false);
   const [barPct, setBarPct] = useState<number | null>(null);
@@ -62,13 +49,14 @@ const LocalOnDeviceModelBar: React.FC<LocalOnDeviceModelBarProps> = ({
     return null;
   }
 
-  const applyConsent = (storedId: string) => {
+  const applyConsent = () => {
     setLocalWeightsConsent(true);
     setApiConfig(
       normalizeApiConfig({
         ...apiConfig,
-        model: storedId,
-        comparisonModelIds: [storedId],
+        aiProvider: "webgpu_gemma",
+        model: LOCAL_TINY_MODEL_ID,
+        comparisonModelIds: [LOCAL_TINY_MODEL_ID],
       })
     );
   };
@@ -82,15 +70,10 @@ const LocalOnDeviceModelBar: React.FC<LocalOnDeviceModelBarProps> = ({
       });
       return;
     }
-    const m = (LOCAL_MODEL_CATALOG as readonly LocalModelEntry[]).find((e) => e.storedId === picked);
-    if (!m) {
-      toast({ title: "Pick a model", description: "Select a model from the list to continue.", variant: "destructive" });
-      return;
-    }
-    applyConsent(m.storedId);
+    applyConsent();
     toast({
       title: "On-device model enabled",
-      description: "Weights download on your first message. Pre-cache now via 'Download to cache' in the ··· menu.",
+      description: "Qwen 0.5B downloads on your first message, or use Download & cache now.",
     });
     setOpen(false);
   };
@@ -104,20 +87,21 @@ const LocalOnDeviceModelBar: React.FC<LocalOnDeviceModelBarProps> = ({
       });
       return;
     }
-    const m = (LOCAL_MODEL_CATALOG as readonly LocalModelEntry[]).find((e) => e.storedId === picked);
-    if (!m) return;
-    applyConsent(m.storedId);
+    applyConsent();
     setLoading(true);
     setBarPct(0);
     const ac = new AbortController();
     try {
       await ensureLocalGemmaLoaded(
-        m.storedId,
+        LOCAL_TINY_MODEL_ID,
         (p) => setBarPct(p),
         ac.signal,
-        { backendPreference: apiConfig.localInferenceProfile === "performance" ? "webgpu" : "auto" }
+        {
+          // Browser: WASM first avoids ORT "Can't create session" on flaky WebGPU.
+          backendPreference: apiConfig.localInferenceProfile === "performance" ? "auto" : "wasm",
+        }
       );
-      toast({ title: "Model ready", description: `${m.displayName} is cached on this device.` });
+      toast({ title: "Model ready", description: `${TINY.displayName} is cached on this device.` });
       setOpen(false);
     } catch (e) {
       if ((e as { name?: string })?.name === "AbortError") return;
@@ -136,9 +120,11 @@ const LocalOnDeviceModelBar: React.FC<LocalOnDeviceModelBarProps> = ({
     <>
       {!dialogOnly && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/[0.06] px-3 py-2 text-sm">
-          <div className="flex items-center gap-2 text-foreground/80">
+          <div className="flex min-w-0 items-center gap-2 text-foreground/80">
             <Cpu size={14} className="shrink-0 text-primary" />
-            <span className="text-xs">On-device model needs a one-time setup before your first chat.</span>
+            <span className="text-xs">
+              On-device chat uses Qwen 2.5 0.5B (~400 MB, one-time download). Set up before your first message.
+            </span>
           </div>
           <Button
             type="button"
@@ -157,40 +143,16 @@ const LocalOnDeviceModelBar: React.FC<LocalOnDeviceModelBarProps> = ({
           <DialogHeader>
             <DialogTitle>Set up on-device model</DialogTitle>
             <DialogDescription>
-              Choose a model to cache locally. Nothing is downloaded until you confirm. Weights are stored in your
-              browser cache (~400 MB–1.5 GB depending on the model, one-time).
+              Runs entirely in this browser (WebGPU when available, otherwise CPU). No cloud API key required.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            {/* Model picker */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Model</Label>
-              <Select value={picked} onValueChange={setPicked} disabled={loading}>
-                <SelectTrigger className="h-10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  {LOCAL_MODEL_CATALOG.map((e) => (
-                    <SelectItem key={e.storedId} value={e.storedId}>
-                      {e.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground">
-                Smaller models use less RAM; larger ones give higher quality. You can change this in Settings later.
-              </p>
+            <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+              <p className="text-sm font-medium text-foreground">{TINY.displayName}</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">{TINY.subtitle}</p>
             </div>
 
-            {/* Resource profile — read-only hint */}
-            <div className="rounded-lg border border-border/50 bg-muted/25 px-3 py-2.5 text-[11px] text-muted-foreground">
-              <span className="font-medium text-foreground">Resource profile:</span>{" "}
-              {LABEL_BY_PROFILE[apiConfig.localInferenceProfile]}. Change under{" "}
-              <span className="font-medium text-foreground">Settings → AI & models</span>.
-            </div>
-
-            {/* Download progress */}
             {barPct != null && (
               <ModelDownloadProgressBar
                 title="Downloading model to cache…"
@@ -206,7 +168,6 @@ const LocalOnDeviceModelBar: React.FC<LocalOnDeviceModelBarProps> = ({
               />
             )}
 
-            {/* Consent checkbox */}
             <label className="flex cursor-pointer items-start gap-2.5 text-sm">
               <Checkbox
                 checked={ack}
@@ -215,7 +176,7 @@ const LocalOnDeviceModelBar: React.FC<LocalOnDeviceModelBarProps> = ({
                 disabled={loading}
               />
               <span className="text-xs leading-relaxed text-muted-foreground">
-                I allow downloading and caching the selected model in this browser (one-time, ~400 MB–1.5 GB).
+                I allow downloading and caching Qwen 2.5 0.5B (q8) in this browser (~200–400 MB, one-time).
               </span>
             </label>
           </div>

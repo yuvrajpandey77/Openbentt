@@ -27,9 +27,8 @@ import {
   type LocalInferenceProfile,
 } from "@/types/chat";
 import {
-  DEFAULT_LOCAL_GEMMA_MODEL_ID,
-  isLocalGemmaModelId,
   LOCAL_GEMMA_SELECTABLE_MODELS,
+  LOCAL_TINY_MODEL_ID,
 } from "@/lib/gemmaWebGpu/models";
 import { GGUF_MODEL_NONE } from "@/lib/localGguf/ids";
 import { ModelCapabilityBadges } from "@/components/ModelCapabilityBadges";
@@ -142,8 +141,8 @@ const SettingsPanel: React.FC = () => {
   }, [apiConfig]);
 
   useEffect(() => {
-    if (localAiProvider === "webgpu_gemma" && !isLocalGemmaModelId(localModel)) {
-      setLocalModel(DEFAULT_LOCAL_GEMMA_MODEL_ID);
+    if (localAiProvider === "webgpu_gemma" && localModel !== LOCAL_TINY_MODEL_ID) {
+      setLocalModel(LOCAL_TINY_MODEL_ID);
     }
   }, [localAiProvider, localModel]);
 
@@ -205,7 +204,7 @@ const SettingsPanel: React.FC = () => {
       (localAiProvider === "local_gguf"
         ? GGUF_MODEL_NONE
         : localAiProvider === "webgpu_gemma"
-          ? DEFAULT_LOCAL_GEMMA_MODEL_ID
+          ? LOCAL_TINY_MODEL_ID
           : DEFAULT_MODEL_ID);
     try {
       await persistHfTokenToDesktopSecret();
@@ -260,7 +259,7 @@ const SettingsPanel: React.FC = () => {
       (localAiProvider === "local_gguf"
         ? GGUF_MODEL_NONE
         : localAiProvider === "webgpu_gemma"
-          ? DEFAULT_LOCAL_GEMMA_MODEL_ID
+          ? LOCAL_TINY_MODEL_ID
           : DEFAULT_MODEL_ID);
     saveExperimentPreset(
       presetName,
@@ -669,10 +668,9 @@ const SettingsPanel: React.FC = () => {
                 <Alert className="border-primary/30 bg-primary/[0.06]">
                   <AlertTitle className="text-sm">On-device model</AlertTitle>
                   <AlertDescription className="text-[11px] leading-relaxed text-muted-foreground">
-                    Nothing is downloaded until you run the first-time setup (a prompt appears in the composer when this
-                    provider is active). Catalog includes Qwen 0.5B, Qwen 1.5B, Gemma E2B, and Gemma E4B — the app
-                    auto-downgrades if the GPU buffer is too small. <strong>Research</strong> can run in the background
-                    when enabled (Research tab) with <strong>Research with on-device</strong> turned on below.
+                    Uses <strong>Qwen 2.5 0.5B</strong> only (~400 MB, one-time browser cache). Nothing downloads until
+                    you complete the setup banner in chat or hit Download. Runs on WebGPU when available, otherwise
+                    WASM/CPU. No API key required.
                   </AlertDescription>
                 </Alert>
                 <div className="space-y-2 rounded-xl border border-border/60 bg-muted/15 p-4">
@@ -782,7 +780,7 @@ const SettingsPanel: React.FC = () => {
                 localAiProvider !== "webgpu_gemma"
                   ? "Loading models…"
                   : localAiProvider === "webgpu_gemma"
-                    ? "Default is the smallest (Qwen 0.5B) in new installs. Pick Gemma E2B/E4B or Qwen 1.5B for better quality when you have RAM. Openbentt auto-downgrades when needed."
+                    ? "Fixed to Qwen 2.5 0.5B for reliable browser testing. Switch provider above to use cloud models."
                   : localAiProvider === "local_gguf"
                     ? "Download GGUF weights in Labs, then choose the registry entry here. Pick “GGUF (pick a model)” until you add one."
                     : localAiProvider === "openrouter"
@@ -793,52 +791,56 @@ const SettingsPanel: React.FC = () => {
               </p>
             </div>
 
-            <Separator />
+            {localAiProvider !== "webgpu_gemma" && (
+              <>
+                <Separator />
 
-            <div className="space-y-2">
-              <Label>Custom model IDs</Label>
-              <p className="text-xs text-muted-foreground">
-                Paste any model id your provider accepts. Example:{" "}
-                <code className="rounded bg-muted px-1 font-mono text-[11px]">openai/gpt-4o</code>
-              </p>
-              <div className="flex gap-2">
-                <Input
-                  value={customInput}
-                  onChange={(e) => setCustomInput(e.target.value)}
-                  placeholder="org/model-name"
-                  className="openbentt-input font-mono text-sm"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addCustomModel();
-                    }
-                  }}
-                />
-                <Button type="button" variant="secondary" className="shrink-0" onClick={addCustomModel}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              {localCustomIds.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {localCustomIds.map((id) => (
-                    <span
-                      key={id}
-                      className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2.5 py-0.5 text-xs"
-                    >
-                      <span className="max-w-[220px] truncate font-mono">{id}</span>
-                      <button
-                        type="button"
-                        className="text-muted-foreground hover:text-foreground"
-                        onClick={() => removeCustom(id)}
-                        aria-label={`Remove ${id}`}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
+                <div className="space-y-2">
+                  <Label>Custom model IDs</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Paste any model id your provider accepts. Example:{" "}
+                    <code className="rounded bg-muted px-1 font-mono text-[11px]">openai/gpt-4o</code>
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={customInput}
+                      onChange={(e) => setCustomInput(e.target.value)}
+                      placeholder="org/model-name"
+                      className="openbentt-input font-mono text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addCustomModel();
+                        }
+                      }}
+                    />
+                    <Button type="button" variant="secondary" className="shrink-0" onClick={addCustomModel}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {localCustomIds.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {localCustomIds.map((id) => (
+                        <span
+                          key={id}
+                          className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2.5 py-0.5 text-xs"
+                        >
+                          <span className="max-w-[220px] truncate font-mono">{id}</span>
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => removeCustom(id)}
+                            aria-label={`Remove ${id}`}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </CardContent>
         </Card>
 

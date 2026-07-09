@@ -86,10 +86,11 @@ export function requiredBufferBytesForEntry(
 
 export type LocalGemmaDevice = "webgpu" | "wasm";
 /**
- * `q4` / `q4f16` require WebGPU (ORT-web's WASM EP has no `GatherBlockQuantized` kernel).
- * `fp16` is the CPU-safe export shared by all the on-device ONNX repos we use.
+ * `q4` / `q4f16` prefer WebGPU (ORT-web's WASM EP often lacks `GatherBlockQuantized`).
+ * `q8` is the reliable browser CPU path (much smaller than fp16 — avoids ORT error code 6 / bad_alloc).
+ * `fp16` is a last-resort larger WASM export.
  */
-export type LocalGemmaDtype = "q4f16" | "q4" | "fp16";
+export type LocalGemmaDtype = "q4f16" | "q4" | "q8" | "fp16";
 
 export type LocalBackendReason =
   | "webgpu-ready"
@@ -117,7 +118,7 @@ export async function pickLocalGemmaBackend(
   preference: LocalGemmaBackendPreference = "auto"
 ): Promise<LocalGemmaBackend> {
   if (preference === "wasm") {
-    return { device: "wasm", dtype: "fp16", reason: "forced-wasm" };
+    return { device: "wasm", dtype: "q8", reason: "forced-wasm" };
   }
   const caps = await readWebGpuAdapterCaps();
   const webgpuDtype: Extract<LocalGemmaDtype, "q4f16" | "q4"> = caps.supportsShaderF16 ? "q4f16" : "q4";
@@ -125,11 +126,11 @@ export async function pickLocalGemmaBackend(
     return { device: "webgpu", dtype: webgpuDtype, reason: "forced-webgpu" };
   }
   if (caps.maxBufferSize == null) {
-    return { device: "wasm", dtype: "fp16", reason: "no-webgpu" };
+    return { device: "wasm", dtype: "q8", reason: "no-webgpu" };
   }
   const required = requiredBufferBytesForGemma(repoId, webgpuDtype);
   if (caps.maxBufferSize < required) {
-    return { device: "wasm", dtype: "fp16", reason: "buffer-too-small" };
+    return { device: "wasm", dtype: "q8", reason: "buffer-too-small" };
   }
   return { device: "webgpu", dtype: webgpuDtype, reason: "webgpu-ready" };
 }
@@ -165,7 +166,7 @@ export async function pickLocalLlmPlan(
     const fitsCpu = requested.wasmRamBytes <= approximateAvailableRamBytes();
     const chosen = fitsCpu ? requested : (findLocalModelEntry(FALLBACK_TINY_LOCAL_MODEL_ID) ?? requested);
     return {
-      backend: { device: "wasm", dtype: "fp16", reason: "forced-wasm" },
+      backend: { device: "wasm", dtype: "q8", reason: "forced-wasm" },
       modelEntry: chosen,
       originalRequest: chosen.storedId === requested.storedId ? null : requested,
       autoSwitched: chosen.storedId !== requested.storedId,
@@ -221,7 +222,7 @@ export async function pickLocalLlmPlan(
   return {
     backend: {
       device: "wasm",
-      dtype: "fp16",
+      dtype: "q8",
       reason: caps.maxBufferSize == null ? "no-webgpu" : "buffer-too-small",
     },
     modelEntry: wasmTarget,

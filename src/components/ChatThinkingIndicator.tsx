@@ -5,6 +5,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const loadingMessages = [
   "Thinking...",
+  "Generating...",
+  "Working on it...",
+  "Almost there...",
+  "Composing a reply...",
+  "Running on-device...",
+];
+
+const cloudLoadingMessages = [
+  "Thinking...",
   "Reasoning...",
   "Synthesizing...",
   "Orchestrating...",
@@ -15,20 +24,23 @@ const loadingMessages = [
   "Streaming inference...",
   "Aggregating intelligences...",
   "Parsing the epistemic field...",
-  "Routing through Meridian..."
+  "Routing through Meridian...",
 ];
 
 type ChatThinkingIndicatorProps = {
   className?: string;
   compact?: boolean;
+  /** Prefer short on-device copy when local inference is active. */
+  localOnDevice?: boolean;
 };
 
-export function ChatThinkingIndicator({ className, compact }: ChatThinkingIndicatorProps) {
-  const [msg, setMsg] = useState(loadingMessages[0]);
+export function ChatThinkingIndicator({ className, compact, localOnDevice }: ChatThinkingIndicatorProps) {
+  const pool = localOnDevice ? loadingMessages : cloudLoadingMessages;
+  const [msg, setMsg] = useState(pool[0]);
 
   useEffect(() => {
     const pick = () => {
-      const next = loadingMessages[Math.floor(Math.random() * loadingMessages.length)];
+      const next = pool[Math.floor(Math.random() * pool.length)];
       setMsg(next);
     };
     pick();
@@ -42,7 +54,7 @@ export function ChatThinkingIndicator({ className, compact }: ChatThinkingIndica
     };
     schedule();
     return () => clearTimeout(timeoutId);
-  }, []);
+  }, [pool]);
 
   const content = (
     <div

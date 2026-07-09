@@ -37,6 +37,23 @@ export function expandRuntimeInferenceMessage(message: string): string {
   let out = message.trim();
   if (WASM_TRAP_RE.test(out)) out = expandWasmTrapMessage(out);
   out = expandNumericRuntimeMessage(out);
+  if (/Failed to fetch|NetworkError|ERR_NETWORK|Load failed|download.*fail/i.test(out)) {
+    out =
+      `${out}\n\n` +
+      "The on-device model could not finish downloading from Hugging Face. Check your network, disable blockers for huggingface.co, then retry. " +
+      "Or switch to OpenRouter (cloud) in Settings.";
+  }
+  if (
+    /can'?t create session|cannot create session|create.?session|ERROR_CODE:\s*6|error code\s*=?\s*6|bad_alloc|Failed to allocate/i.test(
+      out
+    )
+  ) {
+    out =
+      `${out}\n\n` +
+      "ONNX Runtime ran out of memory creating the model session (error code 6 / bad_alloc). " +
+      "Hard-refresh this tab, close other heavy tabs, then try again — we load a smaller q8 CPU build by default. " +
+      "If it still fails: DevTools → Application → Clear site data for this origin (clears a broken cache), or use OpenRouter (cloud) in Settings.";
+  }
   return out;
 }
 

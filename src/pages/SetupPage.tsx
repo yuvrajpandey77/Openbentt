@@ -29,7 +29,7 @@ const BASE_PROVIDERS: { id: Provider; icon: React.ReactNode; title: string; subt
     id: "ondevice",
     icon: <Cpu size={22} />,
     title: "Run on this device (browser GPU)",
-    subtitle: "No API key. Downloads ~400 MB–1.5 GB on first use via WebGPU in the app window.",
+    subtitle: "No API key. Downloads Qwen 2.5 0.5B (~400 MB) once via WebGPU/WASM in the browser.",
   },
   {
     id: "openrouter",
@@ -105,16 +105,16 @@ const SetupPage: React.FC = () => {
       return;
     }
     if (provider === "ondevice") {
-      if (typeof navigator !== "undefined" && !navigator.gpu) {
-        toast({
-          title: "GPU acceleration not available",
-          description: "Try Chrome or Edge on HTTPS / localhost. You can still use OpenRouter or a local server.",
-          variant: "destructive",
-        });
-        return;
-      }
-      setApiConfig(normalizeApiConfig({ ...defaultApiConfig() }));
-      toast({ title: "On-device model selected", description: "Weights download on your first message (~500 MB one-time)." });
+      setApiConfig(
+        normalizeApiConfig({
+          ...defaultApiConfig(),
+          aiProvider: "webgpu_gemma",
+        })
+      );
+      toast({
+        title: "On-device model selected",
+        description: "Confirm the ~400 MB Qwen 0.5B download in chat, then send a message.",
+      });
       navigate(appHomePath(), { replace: true });
       return;
     }

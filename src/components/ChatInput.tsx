@@ -23,13 +23,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -48,9 +41,17 @@ import { parseGgufRegistryId } from "@/lib/localGguf/ids";
 import { Link } from "react-router-dom";
 import { getComposerPlaceholder } from "@/lib/composerPlaceholder";
 import { ModelDownloadProgressBar } from "@/components/ModelDownloadProgressBar";
-import { ensureLocalGemmaLoaded } from "@/lib/gemmaWebGpu/localGemmaInference";
 import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
-import { DEFAULT_LOCAL_GEMMA_MODEL_ID, LOCAL_GEMMA_SELECTABLE_MODELS, LOCAL_MODEL_CATALOG, type LocalModelEntry } from "@/lib/gemmaWebGpu/models";
+import { isLocalModelMarkedCached } from "@/lib/gemmaWebGpu/localModelCacheFlag";
+import {
+  isLocalGemmaWeightsLoaded,
+  ensureLocalGemmaLoaded,
+} from "@/lib/gemmaWebGpu/localGemmaInference";
+import {
+  LOCAL_GEMMA_SELECTABLE_MODELS,
+  LOCAL_TINY_MODEL_ID,
+  getLocalModelEntry,
+} from "@/lib/gemmaWebGpu/models";
 import {
   Dialog,
   DialogContent,
@@ -145,6 +146,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const [webSnippetsOpen, setWebSnippetsOpen] = useState(false);
   const [webSpecsOpen, setWebSpecsOpen] = useState(false);
   const [webSetupOpen, setWebSetupOpen] = useState(false);
+  /** Bumps when localStorage consent changes so web /chat re-reads getLocalWeightsConsent(). */
+  const [localConsentTick, setLocalConsentTick] = useState(0);
   const [plusOpen, setPlusOpen] = useState(false);
   const { toast } = useToast();
   const { data: models, isLoading: modelsLoading, isError: modelsError } = useOpenRouterModels(
@@ -154,7 +157,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
   );
   const { data: ggufModels } = useLocalGgufRegistryModels(apiConfig.aiProvider === "local_gguf");
   const [localDownloadOpen, setLocalDownloadOpen] = useState(false);
-  const [localPrewarmId, setLocalPrewarmId] = useState(() => DEFAULT_LOCAL_GEMMA_MODEL_ID);
   const [localPrewarmPct, setLocalPrewarmPct] = useState<number | null>(null);
   const [localPrewarmBusy, setLocalPrewarmBusy] = useState(false);
 
@@ -211,7 +213,36 @@ const ChatInput: React.FC<ChatInputProps> = ({
     fileRef.current.click();
   };
 
-  const showWebSetup = apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent();
+  const needsOnDeviceSetup = useMemo(
+    () => apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent(),
+    // localConsentTick re-reads localStorage after the setup dialog closes.
+    [apiConfig.aiProvider, localConsentTick]
+  );
+
+  useEffect(() => {
+    if (!isWebChat || !needsOnDeviceSetup) return;
+    setWebSetupOpen(true);
+  }, [isWebChat, needsOnDeviceSetup]);
+
+  /** Reopen UX: if weights were cached before, warm them into RAM in the background. */
+  useEffect(() => {
+    if (apiConfig.aiProvider !== "webgpu_gemma") return;
+    if (!getLocalWeightsConsent()) return;
+    if (!isLocalModelMarkedCached(LOCAL_TINY_MODEL_ID)) return;
+    if (isLocalGemmaWeightsLoaded()) return;
+    const ac = new AbortController();
+    void ensureLocalGemmaLoaded(
+      LOCAL_TINY_MODEL_ID,
+      () => {},
+      ac.signal,
+      {
+        backendPreference: apiConfig.localInferenceProfile === "performance" ? "auto" : "wasm",
+      }
+    ).catch(() => {
+      /* warm-up is best-effort; first send will retry */
+    });
+    return () => ac.abort();
+  }, [apiConfig.aiProvider, apiConfig.localInferenceProfile]);
 
   useEffect(() => {
     if (!isWebChat || !webUi.composerSeed) return;
@@ -227,12 +258,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
     if (!isWebChat) return;
     syncWebTextareaHeight();
   }, [isWebChat, message, syncWebTextareaHeight]);
-
-  useEffect(() => {
-    if (apiConfig.aiProvider === "webgpu_gemma" && apiConfig.model) {
-      setLocalPrewarmId(apiConfig.model);
-    }
-  }, [apiConfig.aiProvider, apiConfig.model]);
 
   useEffect(() => {
     if (pendingComposer) {
@@ -272,6 +297,14 @@ const ChatInput: React.FC<ChatInputProps> = ({
   }, [message, attachments, pathKey]);
 
   const handleSendMessage = async () => {
+    if (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
+      setWebSetupOpen(true);
+      toast({
+        title: "Enable on-device model first",
+        description: "Confirm the ~400 MB download in the setup dialog, then send again.",
+      });
+      return;
+    }
     if (apiConfig.comparisonEnabled && dedupeModels(apiConfig.comparisonModelIds).length < 2) {
       toast({
         title: "Pick at least two models",
@@ -330,8 +363,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
     setApiConfig(
       normalizeApiConfig({
         ...apiConfig,
-        model: localPrewarmId,
-        comparisonModelIds: [localPrewarmId],
+        model: LOCAL_TINY_MODEL_ID,
+        comparisonModelIds: [LOCAL_TINY_MODEL_ID],
       })
     );
     setLocalPrewarmBusy(true);
@@ -339,13 +372,17 @@ const ChatInput: React.FC<ChatInputProps> = ({
     const ac = new AbortController();
     try {
       await ensureLocalGemmaLoaded(
-        localPrewarmId,
+        LOCAL_TINY_MODEL_ID,
         (p) => setLocalPrewarmPct(p),
         ac.signal,
-        { backendPreference: apiConfig.localInferenceProfile === "performance" ? "webgpu" : "auto" }
+        {
+          backendPreference: apiConfig.localInferenceProfile === "performance" ? "auto" : "wasm",
+        }
       );
-      const label = (LOCAL_MODEL_CATALOG as readonly LocalModelEntry[]).find((e) => e.storedId === localPrewarmId)?.displayName ?? "Model";
-      toast({ title: "Model cached", description: `${label} is ready for offline use.` });
+      toast({
+        title: "Model cached",
+        description: `${getLocalModelEntry(LOCAL_TINY_MODEL_ID).displayName} is ready for offline use.`,
+      });
       setLocalDownloadOpen(false);
     } catch (e) {
       if ((e as { name?: string })?.name === "AbortError") return;
@@ -486,9 +523,36 @@ const ChatInput: React.FC<ChatInputProps> = ({
           onChange={onFilePick}
         />
 
-        {showWebSetup && (
-          <LocalOnDeviceModelBar dialogOnly open={webSetupOpen} onOpenChange={setWebSetupOpen} />
+        {needsOnDeviceSetup && (
+          <div className="mb-3 w-full max-w-xl">
+            <LocalOnDeviceModelBar
+              open={webSetupOpen}
+              onOpenChange={(open) => {
+                setWebSetupOpen(open);
+                if (!open) setLocalConsentTick((n) => n + 1);
+              }}
+            />
+          </div>
         )}
+
+        {isLoading &&
+          apiConfig.aiProvider === "webgpu_gemma" &&
+          webgpuModelDownloadProgress != null && (
+            <div className="mb-3 w-full max-w-xl">
+              <ModelDownloadProgressBar
+                title="Downloading Qwen 0.5B (one-time)"
+                percentOnly
+                progress={{
+                  percent: webgpuModelDownloadProgress,
+                  received: null,
+                  total: null,
+                  speedBps: null,
+                  etaSeconds: null,
+                }}
+                hint="~400 MB. Keep this tab open — cached after the first download."
+              />
+            </div>
+          )}
 
         {!hasSent && (
           <h1 className="web-hero-heading">Route your intelligence</h1>
@@ -715,7 +779,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
               speedBps: null,
               etaSeconds: null,
             }}
-            hint="~400 MB–1.5 GB depending on model. Cached after the first download."
+            hint="~400 MB one-time. Cached in this browser after the first download."
           />
         )}
 
@@ -943,10 +1007,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
                           onClick={() => setLocalDownloadOpen(true)}
                           disabled={isLoading}
                         >
-                          Pre-cache model
+                          Download model
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Download & cache on-device model weights</TooltipContent>
+                      <TooltipContent>Download & cache Qwen 0.5B (~400 MB) in this browser</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 )}
@@ -1004,31 +1068,22 @@ const ChatInput: React.FC<ChatInputProps> = ({
       <Dialog open={localDownloadOpen} onOpenChange={setLocalDownloadOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Pre-cache on-device model</DialogTitle>
+            <DialogTitle>Download on-device model</DialogTitle>
             <DialogDescription>
-              Download & store a model in this browser cache so the first chat loads instantly.
+              Cache Qwen 2.5 0.5B (~400 MB) in this browser so the first chat starts faster.
             </DialogDescription>
           </DialogHeader>
           {!getLocalWeightsConsent() ? (
             <p className="text-sm text-muted-foreground">
-              Complete the on-device model setup (shown above the composer) before pre-caching.
+              Complete the on-device model setup (shown above the composer) before downloading.
             </p>
           ) : (
             <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Model</Label>
-                <Select value={localPrewarmId} onValueChange={setLocalPrewarmId}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {LOCAL_MODEL_CATALOG.map((e) => (
-                      <SelectItem key={e.storedId} value={e.storedId}>
-                        {e.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+                <p className="text-sm font-medium">{getLocalModelEntry(LOCAL_TINY_MODEL_ID).displayName}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {getLocalModelEntry(LOCAL_TINY_MODEL_ID).subtitle}
+                </p>
               </div>
               {localPrewarmPct != null && (
                 <div className="space-y-1">
@@ -1047,7 +1102,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
             </Button>
             {getLocalWeightsConsent() && (
               <Button type="button" onClick={() => void runLocalPrewarmFromDialog()} disabled={localPrewarmBusy}>
-                {localPrewarmBusy ? "Loading…" : "Download to cache"}
+                {localPrewarmBusy ? "Downloading…" : "Download to cache"}
               </Button>
             )}
           </DialogFooter>

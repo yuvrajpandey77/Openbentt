@@ -197,6 +197,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
   const viewportRef = useRef<HTMLDivElement>(null);
   const pinnedToBottomRef = useRef(true);
   const { beginEditUserMessage, regenerateLastResponse, apiConfig } = useChat();
+  const localOnDevice = apiConfig.aiProvider === "webgpu_gemma";
 
   const isNearBottom = useCallback((el: HTMLElement) => {
     return el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_PIN_THRESHOLD_PX;
@@ -213,9 +214,17 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
   }, [isNearBottom]);
 
   const visibleMessages = useMemo(() => {
-    if (!searchQuery.trim()) return messages;
-    return messages.filter((m) => messageMatchesSearch(m, searchQuery));
-  }, [messages, searchQuery]);
+    const base = !searchQuery.trim()
+      ? messages
+      : messages.filter((m) => messageMatchesSearch(m, searchQuery));
+    /** Hide empty assistant placeholder until the first token arrives (avoids blank bubble + "stuck" feel). */
+    if (!isLoading) return base;
+    return base.filter((m, i) => {
+      if (i !== base.length - 1) return true;
+      if (m.role !== "assistant" || m.comparisonResponses) return true;
+      return Boolean(String(m.content ?? "").trim());
+    });
+  }, [messages, searchQuery, isLoading]);
 
   const useVirtual = visibleMessages.length > LIMITS.maxChatMessagesVirtualize;
   const virtualizer = useVirtualizer({
@@ -491,7 +500,9 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
           visibleMessages.map((message, idx) => renderMessage(message, idx))
         )}
 
-        {isLoading && lastMsg?.role === "user" && (
+        {isLoading &&
+          (!(lastMsg?.role === "assistant") ||
+            !String(lastMsg.content ?? "").trim()) && (
           <div className="flex justify-start pb-8 streaming-message streaming-message-active">
             <div
               className={cn(
@@ -499,7 +510,10 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
                 emptyVariant === "studio" ? "max-w-full" : "max-w-[min(100%,42rem)]"
               )}
             >
-              <ChatThinkingIndicator compact={emptyVariant === "studio"} />
+              <ChatThinkingIndicator
+                compact={emptyVariant === "studio"}
+                localOnDevice={localOnDevice}
+              />
             </div>
           </div>
         )}

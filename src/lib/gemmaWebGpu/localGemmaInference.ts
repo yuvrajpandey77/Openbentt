@@ -10,9 +10,10 @@ import {
   type LocalGemmaDtype,
   type LocalLlmPlan,
 } from "@/lib/gemmaWebGpu/webGpuCaps";
-import { stripSpecialTokens } from "@/lib/gemmaWebGpu/stripGemmaStreamChunk";
+import { stripSpecialTokens, isStopSpecialTokenChunk } from "@/lib/gemmaWebGpu/stripGemmaStreamChunk";
 import { chatCompletionMessagesToGemmaPrompt } from "@/lib/gemmaWebGpu/gemmaPrompt";
 import type { LocalInferenceProfile } from "@/types/chat";
+import { markLocalModelCached } from "@/lib/gemmaWebGpu/localModelCacheFlag";
 
 type HF = typeof import("@huggingface/transformers");
 
@@ -25,7 +26,16 @@ let hfPromise: Promise<HF> | null = null;
  */
 async function getTransformers(): Promise<HF> {
   if (!hfPromise) {
-    hfPromise = import("@huggingface/transformers");
+    hfPromise = import("@huggingface/transformers").then(async (tf) => {
+      try {
+        /** Prefer browser cache; never block on local file paths in Vite. */
+        tf.env.allowLocalModels = false;
+        tf.env.useBrowserCache = true;
+      } catch {
+        /* env may be frozen in some builds */
+      }
+      return tf;
+    });
   }
   return hfPromise;
 }
@@ -131,20 +141,32 @@ export interface EnsureLocalGemmaOptions {
 /** Recoverable load errors that should trigger a dtype / model cascade rather than bubble to UI. */
 function isRecoverableLoadError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
-  return /Could not find an implementation|no available backend|Failed to get GPU adapter|GPU buffer too small|exceeds the max buffer size limit|WebGPU validation failed|requires f16 but the device does not support|Device failed at creation/i.test(
+  return /Could not find an implementation|no available backend|Failed to get GPU adapter|GPU buffer too small|exceeds the max buffer size limit|WebGPU validation failed|requires f16 but the device does not support|Device failed at creation|out of memory|OOM|bad_alloc|ERROR_CODE:\s*6|error code\s*=?\s*6|Failed to create.*device|Invalid ShaderModule|GPUDevice|webgpu|can'?t create session|cannot create session|create.?session|InferenceSession|onnxruntime|ORT_|Failed to create tensor|EP Error|provider.*not available|Failed to allocate/i.test(
     msg
   );
+}
+
+/** Normalize HF progress_callback payloads (fraction 0–1 or percent 0–100). */
+function normalizeHfProgress(raw: unknown): number | null {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
+  if (raw >= 0 && raw <= 1) return Math.round(raw * 100);
+  if (raw > 1 && raw <= 100) return Math.round(raw);
+  return null;
 }
 
 /** Lightest ordering of fallback dtypes per device, tried in sequence on recoverable errors. */
 function dtypeCascade(initial: LocalGemmaBackend): LocalGemmaDtype[] {
   if (initial.device === "webgpu") {
-    /** q4f16 needs shader-f16; q4 works on any GPU; fp16 is the last-resort CPU-safe format. */
-    const base: LocalGemmaDtype[] = initial.dtype === "q4f16" ? ["q4f16", "q4"] : ["q4"];
-    return [...base, "fp16"];
+    /** Prefer quantized GPU graphs; q8 is a lighter WebGPU option some ORT builds accept. */
+    if (initial.dtype === "q4f16") return ["q4f16", "q4", "q8"];
+    if (initial.dtype === "q4") return ["q4", "q8"];
+    return ["q8", "q4"];
   }
-  /** WASM path: only fp16 is broadly supported (CPU has no GatherBlockQuantized kernel). */
-  return ["fp16"];
+  /**
+   * WASM: q8 first (small, avoids ORT error 6 / bad_alloc from fp16).
+   * q4 often fails on WASM (missing GatherBlockQuantized). fp16 last if q8 missing.
+   */
+  return initial.dtype === "fp16" ? ["fp16", "q8"] : ["q8", "fp16"];
 }
 
 export async function ensureLocalGemmaLoaded(
@@ -183,15 +205,40 @@ export async function ensureLocalGemmaLoaded(
 
     const fileProgress = new Map<string, number>();
     let lastReported = -1;
-    const progress_callback = (info: { status: string; file?: string; progress?: number }) => {
-      if (info.status === "progress" && info.file != null) {
-        fileProgress.set(info.file, info.progress ?? 0);
-        const values = [...fileProgress.values()];
-        const overall = Math.round(values.reduce((a, b) => a + b, 0) / Math.max(values.length, 1));
-        if (overall !== lastReported) {
-          lastReported = overall;
-          onProgress(overall);
+    const progress_callback = (info: {
+      status?: string;
+      file?: string;
+      progress?: number;
+      loaded?: number;
+      total?: number;
+    }) => {
+      const status = info.status ?? "";
+      if (status === "initiate" || status === "download") {
+        if (lastReported < 0) {
+          lastReported = 0;
+          onProgress(0);
         }
+        return;
+      }
+      if (status === "done" && info.file) {
+        fileProgress.set(info.file, 100);
+      } else if (status === "progress") {
+        let pct = normalizeHfProgress(info.progress);
+        if (pct == null && info.loaded != null && info.total != null && info.total > 0) {
+          pct = Math.round((info.loaded / info.total) * 100);
+        }
+        if (pct != null) {
+          fileProgress.set(info.file ?? "_", pct);
+        }
+      } else {
+        return;
+      }
+      const values = [...fileProgress.values()];
+      if (values.length === 0) return;
+      const overall = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+      if (overall !== lastReported) {
+        lastReported = overall;
+        onProgress(Math.min(100, Math.max(0, overall)));
       }
     };
 
@@ -244,33 +291,66 @@ export async function ensureLocalGemmaLoaded(
     };
 
     /**
-     * Try the planned (entry, backend) combo. If it still fails after the dtype cascade – e.g. a
-     * user-forced WebGPU choice that the GPU actually can't serve – fall through to the tiny model
-     * as the last safety net (WASM fp16 is ~500 MB download and runs on any CPU).
+     * Try the planned (entry, backend) combo. If WebGPU fails (common: "Can't create session"),
+     * unload any partial GPU state and fall through to WASM/CPU fp16 so /chat still works.
      */
     try {
       loaded = await tryLoad(plan.modelEntry, plan.backend);
     } catch (e) {
-      if (!isRecoverableLoadError(e) || plan.modelEntry.storedId === FALLBACK_TINY_LOCAL_MODEL_ID) {
+      const tiny = findLocalModelEntry(FALLBACK_TINY_LOCAL_MODEL_ID) ?? plan.modelEntry;
+      const shouldTryWasm =
+        plan.backend.device === "webgpu" &&
+        (isRecoverableLoadError(e) ||
+          /session|webgpu|gpu|onnx|ort_|adapter|device/i.test(
+            e instanceof Error ? e.message : String(e)
+          ));
+
+      if (shouldTryWasm) {
+        await unloadLocalGemma().catch(() => {});
+        if (plan.modelEntry.storedId !== tiny.storedId) {
+          options?.onModelAutoSwitched?.({
+            from: plan.modelEntry,
+            to: tiny,
+            reason: "gpu-buffer",
+          });
+        }
+        options?.onBackendPicked?.({ device: "wasm", dtype: "q8", reason: "no-webgpu" });
+        onProgress(0);
+        loaded = await tryLoad(tiny, { device: "wasm", dtype: "q8", reason: "no-webgpu" });
+      } else if (isRecoverableLoadError(e) && plan.backend.device === "wasm") {
+        /** Already on WASM — retry q8↔fp16 cascade via a fresh unload (partial session may leak). */
+        await unloadLocalGemma().catch(() => {});
+        onProgress(0);
+        const altDtype: LocalGemmaDtype = plan.backend.dtype === "q8" ? "fp16" : "q8";
+        options?.onDtypeFallback?.({ from: plan.backend.dtype, to: altDtype });
+        loaded = await tryLoad(tiny, {
+          device: "wasm",
+          dtype: altDtype,
+          reason: plan.backend.reason,
+        });
+      } else if (
+        isRecoverableLoadError(e) &&
+        plan.modelEntry.storedId !== tiny.storedId
+      ) {
+        await unloadLocalGemma().catch(() => {});
+        options?.onModelAutoSwitched?.({
+          from: plan.modelEntry,
+          to: tiny,
+          reason: "cpu-ram",
+        });
+        loaded = await tryLoad(tiny, { device: "wasm", dtype: "q8", reason: plan.backend.reason });
+      } else {
         throw e;
       }
-      const tiny = findLocalModelEntry(FALLBACK_TINY_LOCAL_MODEL_ID);
-      if (!tiny) throw e;
-      options?.onModelAutoSwitched?.({
-        from: plan.modelEntry,
-        to: tiny,
-        reason: "gpu-buffer",
-      });
-      const tinyBackend: LocalGemmaBackend =
-        plan.backend.device === "webgpu"
-          ? { device: "webgpu", dtype: "q4", reason: plan.backend.reason }
-          : { device: "wasm", dtype: "fp16", reason: plan.backend.reason };
-      loaded = await tryLoad(tiny, tinyBackend);
     }
 
     if (signal.aborted) {
       await unloadLocalGemma();
       throw new DOMException("Aborted", "AbortError");
+    }
+
+    if (loaded) {
+      markLocalModelCached(loaded.entry.storedId);
     }
   };
 
@@ -295,12 +375,12 @@ export function effectiveMaxNewTokens(
   const b = entry.defaultMaxTokens;
   switch (profile) {
     case "eco":
-      return Math.min(320, Math.max(96, Math.floor(b * 0.35)));
+      return Math.min(128, Math.max(48, Math.floor(b * 0.4)));
     case "balanced":
-      return Math.min(1024, Math.floor(b * 0.75));
+      return Math.min(256, Math.floor(b * 0.75));
     case "performance":
     default:
-      return b;
+      return Math.min(384, b);
   }
 }
 
@@ -320,10 +400,11 @@ export function buildLocalPrompt(
   tokenizer: LoadedLlm["tokenizer"],
   apiMessages: Array<{ role: string; content: unknown }>
 ): string {
-  const cleaned = apiMessages.map((m) => ({
-    role: m.role,
-    content: flattenContent(m.content),
-  }));
+  const cleaned = apiMessages.map((m) => {
+    const flat = flattenContent(m.content);
+    const scrubbed = stripSpecialTokens(flat).trim();
+    return { role: m.role, content: scrubbed || flat };
+  });
   try {
     if (typeof tokenizer.apply_chat_template === "function") {
       const out = tokenizer.apply_chat_template(cleaned, {
@@ -335,7 +416,7 @@ export function buildLocalPrompt(
   } catch {
     /** Some tokenizer configs throw for unknown roles; fall through to the manual Gemma builder. */
   }
-  return chatCompletionMessagesToGemmaPrompt(apiMessages);
+  return chatCompletionMessagesToGemmaPrompt(cleaned);
 }
 
 function flattenContent(content: unknown): string {
@@ -391,18 +472,25 @@ async function executeGenerateLocalGemma(
   let rawResult = "";
   let insideThinking = false;
   let insideToolCall = false;
+  let hitStopToken = false;
 
   /**
-   * Stream text out token-by-token. Qwen / Llama lack Gemma's `<|channel>` / `<|tool_call>` tokens,
-   * so those branches simply never fire for those models. `stripSpecialTokens` is safe for both.
+   * Stream text out token-by-token. Strip ChatML / Gemma specials so they never reach the UI.
+   * Stop early on `<|im_end|>` so WASM doesn't keep generating after the reply is done.
    */
   const streamer = new tf.TextStreamer(
     loaded.tokenizer as unknown as Parameters<typeof tf.TextStreamer>[0],
     {
       skip_prompt: true,
-      skip_special_tokens: false,
+      skip_special_tokens: true,
       callback_function: (text: string) => {
+        if (hitStopToken) return;
         rawResult += text;
+        if (isStopSpecialTokenChunk(text) || text.includes("<|im_end|>") || text.includes("<|endoftext|>")) {
+          hitStopToken = true;
+          currentInterruptCriteria?.interrupt();
+          return;
+        }
         if (text.includes("<|channel>")) {
           insideThinking = true;
           return;

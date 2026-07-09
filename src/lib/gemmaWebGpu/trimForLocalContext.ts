@@ -1,15 +1,18 @@
 import type { LocalInferenceProfile } from "@/types/chat";
 
-/** Keep system block + the tail of the conversation; budget is approximate character count. */
+/**
+ * Keep system block + the tail of the conversation; budget is approximate character count.
+ * Browser WASM SLMs are slow with long context — keep budgets tight for responsive chat.
+ */
 export function budgetCharsForLocalProfile(p: LocalInferenceProfile): number {
   switch (p) {
     case "eco":
-      return 10_000;
+      return 2_500;
     case "balanced":
-      return 40_000;
+      return 6_000;
     case "performance":
     default:
-      return 200_000;
+      return 12_000;
   }
 }
 

@@ -490,7 +490,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
       toast({
         title: "On-device model not enabled",
-        description: "Allow model download in the bar above the composer first.",
+        description:
+          "Confirm the Qwen 0.5B download in the setup banner above the composer first.",
         variant: "destructive",
       });
       return;
@@ -639,13 +640,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     setWebgpuModelDownloadProgress(pct);
                   },
                   onBackendPicked: (backend) => {
-                    if (backend.device === "wasm") {
+                    if (backend.device === "wasm" && backend.reason === "no-webgpu") {
                       toast({
                         title: "On-device model running on CPU",
                         description:
-                          backend.reason === "buffer-too-small"
-                            ? "Your GPU can't fit this model; falling back to WASM/CPU. If it feels too slow, pick the tiny Qwen 0.5B model in Settings."
-                            : "WebGPU unavailable; running via WASM/CPU. The tiny model (Qwen 0.5B) is the fastest fallback here.",
+                          "WebGPU session failed or unavailable; using WASM/CPU (q8). Replies are slower than GPU but stay fully local.",
                       });
                     }
                   },
@@ -993,7 +992,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast({
         title: "On-device model not enabled",
         description:
-          "Choose which model to cache and confirm the download in the on-device bar above the composer (or use the download button).",
+          "Confirm the Qwen 0.5B download in the setup banner above the composer (check the box, then Enable & chat or Download & cache).",
         variant: "destructive",
       });
       return;
