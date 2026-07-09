@@ -82,7 +82,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </button>
         )}
 
-      <div className={cn("flex h-full flex-col", collapsed ? "py-4 px-2" : isMobile ? "py-6 px-5" : "py-4 px-3")}>
+      <div className={cn("flex h-full flex-col", collapsed ? "py-4 px-2" : isMobile ? "overflow-y-auto py-6 px-5" : "py-4 px-3")}>
         {/* Header: Logo + collapse toggle */}
         <div
           className={cn(

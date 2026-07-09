@@ -490,6 +490,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
           <LocalOnDeviceModelBar dialogOnly open={webSetupOpen} onOpenChange={setWebSetupOpen} />
         )}
 
+        {!hasSent && (
+          <h1 className="web-hero-heading">Route your intelligence</h1>
+        )}
+
         {attachments.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">
             {attachments.map((a) => (
@@ -520,57 +524,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
         )}
 
         <div className={cn("web-composer-pill", hasSent && "web-composer-pill--sent")}>
-          <Popover open={plusOpen} onOpenChange={setPlusOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="web-composer-icon"
-                aria-label="Add files or attachments"
-              >
-                <PlusCircle size={18} strokeWidth={1.5} />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent
-              side="top"
-              align="start"
-              sideOffset={6}
-              className="w-52 border-[#1a1a1a] bg-[#0a0a0a] p-1.5 shadow-xl"
-            >
-              <button
-                type="button"
-                onClick={() => { fileRef.current?.click(); setPlusOpen(false); }}
-                className="web-plus-item w-full"
-              >
-                <Paperclip className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
-                Upload files
-              </button>
-              <button
-                type="button"
-                onClick={() => { pickWithAccept("image/*"); setPlusOpen(false); }}
-                className="web-plus-item w-full"
-              >
-                <FileText className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
-                Images
-              </button>
-              <button
-                type="button"
-                onClick={() => { pickWithAccept("audio/*"); setPlusOpen(false); }}
-                className="web-plus-item w-full"
-              >
-                <Mic className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
-                Audio
-              </button>
-              <button
-                type="button"
-                onClick={() => { pickWithAccept(".pdf,application/pdf"); setPlusOpen(false); }}
-                className="web-plus-item w-full"
-              >
-                <FileText className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
-                PDF
-              </button>
-            </PopoverContent>
-          </Popover>
-
           <textarea
             ref={webTextareaRef}
             value={message}
@@ -581,22 +534,75 @@ const ChatInput: React.FC<ChatInputProps> = ({
             rows={1}
             className="web-composer-input"
           />
-          <button
-            type="button"
-            onClick={isLoading ? () => stopStreaming() : () => void handleSendMessage()}
-            disabled={!isLoading && !canSend}
-            className={cn(
-              "web-composer-icon shrink-0",
-              isLoading || canSend ? "web-composer-icon--active" : ""
-            )}
-            aria-label={isLoading ? "Stop" : "Send"}
-          >
-            {isLoading ? (
-              <Square size={14} strokeWidth={1.5} />
-            ) : (
-              <ArrowUp size={18} strokeWidth={1.5} />
-            )}
-          </button>
+          <div className="web-composer-toolbar">
+            <Popover open={plusOpen} onOpenChange={setPlusOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="web-composer-icon"
+                  aria-label="Add files or attachments"
+                >
+                  <PlusCircle size={18} strokeWidth={1.5} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="top"
+                align="start"
+                sideOffset={6}
+                className="w-52 border-[#1a1a1a] bg-[#0a0a0a] p-1.5 shadow-xl"
+              >
+                <button
+                  type="button"
+                  onClick={() => { fileRef.current?.click(); setPlusOpen(false); }}
+                  className="web-plus-item w-full"
+                >
+                  <Paperclip className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
+                  Upload files
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { pickWithAccept("image/*"); setPlusOpen(false); }}
+                  className="web-plus-item w-full"
+                >
+                  <FileText className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
+                  Images
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { pickWithAccept("audio/*"); setPlusOpen(false); }}
+                  className="web-plus-item w-full"
+                >
+                  <Mic className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
+                  Audio
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { pickWithAccept(".pdf,application/pdf"); setPlusOpen(false); }}
+                  className="web-plus-item w-full"
+                >
+                  <FileText className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
+                  PDF
+                </button>
+              </PopoverContent>
+            </Popover>
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={isLoading ? () => stopStreaming() : () => void handleSendMessage()}
+              disabled={!isLoading && !canSend}
+              className={cn(
+                "web-composer-icon shrink-0",
+                isLoading || canSend ? "web-composer-icon--active" : ""
+              )}
+              aria-label={isLoading ? "Stop" : "Send"}
+            >
+              {isLoading ? (
+                <Square size={14} strokeWidth={1.5} />
+              ) : (
+                <ArrowUp size={18} strokeWidth={1.5} />
+              )}
+            </button>
+          </div>
         </div>
 
         {isEmpty && (

@@ -291,7 +291,7 @@
     text-align: center;
     color: hsl(0 0% 88%);
     letter-spacing: -0.01em;
-    margin-bottom: 4px;
+    margin-bottom: 16px;
   }
 
   @media (min-width: 768px) {
@@ -307,23 +307,27 @@
   }
 
   .web-composer-wrapper--centered {
-    @apply flex flex-col items-center justify-center;
+    @apply flex flex-col items-center;
     min-height: calc(100vh - 180px);
+    padding-top: 22vh;
     padding-bottom: 32px;
   }
 
   .web-composer-wrapper--bottom {
     @apply mx-auto w-full px-4 md:px-6;
-    max-width: 768px;
+    max-width: 784px;
     padding-bottom: 32px;
   }
 
   .web-composer-pill {
-    @apply flex items-center gap-1.5 rounded-3xl border-2 px-6 transition-all duration-200;
+    @apply flex w-full flex-col rounded-3xl border-2 px-4 transition-all duration-200;
     background-color: hsl(0 0% 4%);
     border-color: hsl(142 76% 36%);
-    min-height: 140px;
-    padding: 20px 24px;
+    padding: 12px 16px;
+  }
+
+  .web-composer-toolbar {
+    @apply flex items-center gap-1.5 pt-1;
   }
 
   .web-composer-pill:hover {
@@ -352,31 +356,40 @@
 
   @media (min-width: 768px) {
     .web-composer-pill {
-      @apply gap-1.5;
-      min-height: 140px;
-      padding: 20px 24px;
+      @apply px-6;
+      padding: 16px 24px;
+      max-width: 520px;
+    }
+
+    .web-composer-wrapper--bottom .web-composer-pill {
+      max-width: 100%;
     }
   }
 
   .web-composer-pill--sent {
     @apply border rounded-3xl;
     border-color: hsl(0 0% 20%);
-    min-height: 112px;
-    padding: 16px 20px;
+    padding: 10px 16px;
+  }
+
+  @media (min-width: 768px) {
+    .web-composer-pill--sent {
+      padding: 16px 20px;
+    }
   }
 
   .web-composer-pill--sent .web-composer-input {
-    @apply min-h-[72px] max-h-40;
+    @apply max-h-40;
   }
 
   .web-composer-input {
-    @apply min-h-[100px] max-h-48 flex-1 resize-none border-0 bg-transparent px-3 text-base font-normal shadow-none outline-none;
+    @apply w-full resize-none border-0 bg-transparent text-base font-normal shadow-none outline-none;
     color: hsl(0 0% 94%);
     caret-color: hsl(0 0% 80%);
     @apply focus-visible:ring-0;
     line-height: 1.5;
-    padding-top: 38px;
-    padding-bottom: 38px;
+    padding: 0;
+    min-height: 1.5em;
   }
 
   .web-composer-input::placeholder {
@@ -396,7 +409,7 @@
 
   @media (min-width: 768px) {
     .web-composer-input {
-      @apply min-h-[100px] max-h-60 px-3 py-1 text-base leading-[1.5];
+      @apply text-base leading-[1.5];
     }
   }
 
@@ -470,7 +483,7 @@
 
   /** ─── Message bubbles ─── */
   .web-message-user {
-    @apply ml-auto w-full max-w-full rounded-3xl px-4 py-3 text-[14px] leading-[1.6];
+    @apply ml-auto w-fit max-w-full rounded-3xl px-4 py-3 text-[14px] leading-[1.6];
     background-color: hsl(0 0% 10%);
     color: hsl(0 0% 88%);
   }

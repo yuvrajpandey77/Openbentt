@@ -444,9 +444,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
               </div>
             </div>
           ) : webCleanEmpty ? (
-          <div className="web-hero-section">
-            <h1 className="web-hero-heading">Route your intelligence</h1>
-          </div>
+          null
           ) : (
           <div className="flex min-h-[min(50vh,380px)] items-center justify-center py-8 sm:py-12">
             <div className="flex flex-col items-center gap-3 px-6 text-center">
