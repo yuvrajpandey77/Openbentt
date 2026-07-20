@@ -22,7 +22,6 @@ const downloadBtnClass =
 
 const HomeLandingPage: React.FC = () => {
   const suggested = useSuggestedDownload();
-  const isMobile = useIsMobile();
 
   useEffect(() => {
     document.title = "Openbentt | desktop-first AI workspace for researchers";

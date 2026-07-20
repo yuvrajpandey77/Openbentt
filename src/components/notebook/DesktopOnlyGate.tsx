@@ -24,14 +24,14 @@ export function DesktopOnlyGate({ children }: { children: React.ReactNode }) {
           </Link>
         </Button>
         <Button asChild variant="outline">
-          <Link to="/chat">Back to chat</Link>
+          <Link to="/">Back to home</Link>
         </Button>
       </div>
     </div>
   );
 }
 
-export function DesktopOnlyRedirect({ to = "/chat" }: { to?: string }) {
+export function DesktopOnlyRedirect({ to = "/" }: { to?: string }) {
   if (isDesktopApp()) return null;
   return <Navigate to={to} replace />;
 }
