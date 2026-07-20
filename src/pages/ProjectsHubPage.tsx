@@ -196,13 +196,7 @@ const ProjectsHubPage: React.FC = () => {
               <LayoutTemplate className="h-4 w-4 shrink-0" />
               Templates
             </button>
-            <Link
-              to="/chat"
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-            >
-              <MessageSquare className="h-4 w-4 shrink-0" />
-              Chat
-            </Link>
+
             <Link
               to="/labs"
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"

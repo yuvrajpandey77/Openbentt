@@ -53,7 +53,7 @@ export const hero = {
   headlineEmphasis: "not",
   headlineAfter: " leave your machine.",
   subhead:
-    "Openbentt is a desktop-first, local-first AI workspace for LaTeX, PDFs, benchmarking, and on-device GGUF. A lighter web build covers chat and Notebook when you cannot install.",
+    "Openbentt is a desktop-first, local-first AI workspace for LaTeX, PDFs, benchmarking, and on-device GGUF.",
   terminalLine: "> openbentt · local · private · yours",
 };
 
@@ -200,7 +200,7 @@ export const showcaseBlocks: ShowcaseBlock[] = [
       "Tiled comparison on desktop gives you room for two to four columns without squinting at a browser tab.",
     ],
     primaryCta: { label: "Download & compare", to: "/download" },
-    secondaryCta: { label: "Open web workspace", to: "/chat" },
+    secondaryCta: { label: "Download desktop", to: "/download" },
     icon: GitCompare,
     reverse: true,
   },
@@ -223,7 +223,7 @@ export const showcaseBlocks: ShowcaseBlock[] = [
       "Optional research mode in chat pulls Wikipedia, Scholar, and URLs when you enable the proxy.",
     ],
     primaryCta: { label: "Download desktop", to: "/download" },
-    secondaryCta: { label: "Web chat", to: "/chat" },
+    secondaryCta: { label: "Download desktop", to: "/download" },
     icon: Search,
     reverse: true,
   },
@@ -245,7 +245,7 @@ export const desktopHighlights = [
   "More headroom for PDFs, vision, and long sessions",
 ];
 
-export const webOptionalLine = "No install? Use the web app for light chat and Notebook.";
+
 
 export const comparePaths = {
   desktop: {
@@ -254,13 +254,6 @@ export const comparePaths = {
     description:
       "Offline GGUF, Research labs, tiled model arena, and long PDF sessions. Everything stays on disk with OS-backed secrets.",
     cta: { label: "Download desktop", to: "/download" },
-  },
-  web: {
-    id: "web" as const,
-    title: "Lightweight web app",
-    description:
-      "OpenRouter chat and Notebook in the browser when you cannot install. Same UI patterns, fewer offline features.",
-    cta: { label: "Open web app", to: "/chat" },
   },
 };
 
@@ -278,7 +271,7 @@ export const cogerphereWebsite = "https://cogerphere.com" as const;
 export const mission = {
   eyebrow: "Built for researchers",
   title: "Plain tools. Your machine. Your data.",
-  body: "Openbentt is not another chat tab that phones home. The desktop app is the full workspace — LaTeX, PDFs, offline GGUF, Research labs, and benchmarking. The optional web build is for OpenRouter chat and Notebook when you cannot install.",
+  body: "Openbentt is not another chat tab that phones home. The desktop app is the full workspace — LaTeX, PDFs, offline GGUF, Research labs, and benchmarking.",
   cta: { label: "Download Openbentt", to: "/download" },
 };
 
@@ -294,9 +287,7 @@ export const footerColumns = [
   {
     title: "Also available",
     links: [
-      { label: "Web app", to: "/chat" },
       { label: "First-time setup", to: "/setup" },
-      { label: "Share runs", to: "/share" },
     ],
   },
   {

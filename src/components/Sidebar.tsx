@@ -92,15 +92,15 @@ const Sidebar: React.FC<SidebarProps> = ({
         >
           <div className={cn("sidebar-logo-area flex items-center gap-3", collapsed && "h-11 w-11")}>
             <img
-              src="/cobentt-logo.png"
-              alt="Cobent"
+              src="/openbentt-logo.svg"
+              alt="Openbentt"
               className={cn(
                 "sidebar-logo-img shrink-0 object-contain transition-opacity duration-200",
                 collapsed ? "h-9 w-9" : isMobile ? "h-12 w-12" : "h-11 w-11"
               )}
             />
             {showLabels && (
-              <span className={cn("font-semibold text-white", isMobile ? "text-base" : "text-sm")}>Cobentt</span>
+              <span className={cn("font-semibold text-white", isMobile ? "text-base" : "text-sm")}>Openbentt</span>
             )}
             {!isMobile && collapsed && (
               <button

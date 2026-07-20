@@ -21,11 +21,7 @@ const NotFound = () => {
           <Link to={appHomePath()} className="font-medium text-primary underline-offset-4 hover:underline">
             Back to home
           </Link>
-          {appHomePath() === "/" && (
-            <Link to="/chat" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-              Open chat
-            </Link>
-          )}
+
         </div>
       </div>
     </div>

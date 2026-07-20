@@ -15,7 +15,6 @@ import { isWebClient } from "@/config/platformSurface";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { appHomePath } from "@/lib/appHomePath";
 import { isLocalGgufDesktopAvailable } from "@/lib/localGguf/desktopApi";
-import { WebChatLogo } from "@/components/web/WebChatLogo";
 
 type Provider = "ondevice" | "openrouter" | "local" | "local_gguf";
 
@@ -158,17 +157,13 @@ const SetupPage: React.FC = () => {
       <div className="w-full max-w-md space-y-8">
         {/* Header */}
         <div className="flex flex-col items-center gap-3 text-center">
-          {isWebClient() ? (
-            <WebChatLogo size="md" />
-          ) : (
-            <Avatar className="h-12 w-12">
-              <AvatarImage src="/openbentt-logo.svg" alt="" />
-              <AvatarFallback className="font-display text-sm">OB</AvatarFallback>
-            </Avatar>
-          )}
+          <Avatar className="h-12 w-12">
+            <AvatarImage src="/openbentt-logo.svg" alt="" />
+            <AvatarFallback className="font-display text-sm">OB</AvatarFallback>
+          </Avatar>
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">
-              {isWebClient() ? "Welcome to Cobentt" : "Welcome to Openbentt"}
+              Welcome to Openbentt
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {step === 1 ? "How do you want to run AI models?" : "Configure your connection"}

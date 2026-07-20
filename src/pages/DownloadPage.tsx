@@ -216,12 +216,6 @@ const DownloadPage: React.FC = () => {
             )}
 
             <MarketingReveal delay={120} className="mt-8 flex flex-wrap gap-3">
-              <Button variant="outline" className="h-11 rounded-xl" asChild>
-                <Link to="/chat" className="gap-2">
-                  Use web app instead
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
               <Button variant="ghost" className="h-11 rounded-xl" asChild>
                 <Link to="/">Back to home</Link>
               </Button>
@@ -285,9 +279,6 @@ const DownloadPage: React.FC = () => {
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row md:flex-col md:items-stretch lg:items-end">
-                  <Button size="lg" className="h-12 rounded-xl font-semibold" asChild>
-                    <Link to="/chat">Open web app</Link>
-                  </Button>
                   {webHref && (
                     <Button size="lg" variant="outline" className="h-12 rounded-xl gap-2" asChild>
                       <a href={webHref} target="_blank" rel="noreferrer">

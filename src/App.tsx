@@ -17,8 +17,6 @@ import NotFound from "./pages/NotFound";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { WebWorkspaceRouteGuard } from "@/components/WebWorkspaceRouteGuard";
 import { isDesktopApp } from "@/lib/isDesktopApp";
-import { isChatPwaStandalone } from "@/lib/chatPwa";
-import { ChatPwaStandaloneGuard } from "@/components/web/ChatPwaStandaloneGuard";
 
 const NotebookStudioPage = lazy(() => import("./pages/NotebookStudioPage"));
 const ProjectsHubPage = lazy(() => import("./pages/ProjectsHubPage"));
@@ -37,11 +35,8 @@ const RouteFallback = () => (
   <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground text-sm">Loading…</div>
 );
 
-/** Web: marketing landing. Electron: projects hub. Installed chat PWA: always /chat. */
+/** Web: marketing landing. Electron: projects hub. */
 function RootMarketingOrElectronRedirect() {
-  if (isChatPwaStandalone()) {
-    return <Navigate to="/chat" replace />;
-  }
   if (isDesktopApp()) {
     return <Navigate to="/projects" replace />;
   }
@@ -50,9 +45,6 @@ function RootMarketingOrElectronRedirect() {
 
 /** Installers page is for the website only — desktop users already have the app. */
 function DownloadPageOrDesktopRedirect() {
-  if (isChatPwaStandalone()) {
-    return <Navigate to="/chat" replace />;
-  }
   if (isDesktopApp()) {
     return <Navigate to="/projects" replace />;
   }
@@ -76,7 +68,6 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <DesktopAppFrame>
-            <ChatPwaStandaloneGuard>
             <Suspense fallback={<RouteFallback />}>
               <Routes>
                 {/* Public / marketing routes */}
@@ -109,7 +100,7 @@ const App = () => (
                     {/* Main app shell */}
                     <Route element={<AppLayout />}>
                       <Route element={<WebWorkspaceRouteGuard />}>
-                        <Route path="chat" element={<HomeChatArea />} />
+                        {isDesktopApp() && <Route path="chat" element={<HomeChatArea />} />}
                         <Route path="labs" element={<ResearchLabsPage />} />
                         <Route path="write" element={<DesktopWriteRedirect />} />
                         <Route path="benchmark" element={<BenchmarkPage />} />
@@ -122,7 +113,6 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
-            </ChatPwaStandaloneGuard>
             </DesktopAppFrame>
           </BrowserRouter>
         </TooltipProvider>

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { isWebClient } from "@/config/platformSurface";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const loadingMessages = [
@@ -55,31 +54,6 @@ export function ChatThinkingIndicator({ className, compact, localOnDevice }: Cha
     schedule();
     return () => clearTimeout(timeoutId);
   }, [pool]);
-
-  const content = (
-    <div
-      className={cn("flex items-center gap-3", className)}
-      role="status"
-      aria-live="polite"
-      aria-label="Generating response"
-    >
-      <div className={cn("shrink-0", compact ? "h-7 w-7" : "h-9 w-9")}>
-        <img
-          src="/cobentt-logo.png"
-          alt=""
-          className={cn(
-            "h-full w-full object-contain animate-spin",
-            compact ? "[animation-duration:3s]" : "[animation-duration:3s]"
-          )}
-        />
-      </div>
-      <span className={cn("text-[#888888] font-normal", compact ? "text-xs" : "text-sm")}>
-        {msg}
-      </span>
-    </div>
-  );
-
-  if (isWebClient()) return content;
 
   return (
     <div

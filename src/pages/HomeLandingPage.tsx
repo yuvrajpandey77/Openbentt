@@ -16,8 +16,6 @@ import { NewsStrip } from "@/components/marketing/NewsStrip";
 import { useSuggestedDownload } from "@/components/marketing/useSuggestedDownload";
 import { heroPrinciples, showcaseBlocks } from "@/config/marketingContent";
 import { Download } from "lucide-react";
-import { LandingMobileInstallCta } from "@/components/marketing/LandingMobileInstallCta";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 const downloadBtnClass =
   "h-12 min-w-[220px] gap-2.5 rounded-xl px-8 text-base font-semibold md:h-14 md:min-w-[260px] md:text-lg";
@@ -55,8 +53,7 @@ const HomeLandingPage: React.FC = () => {
           <div className="marketing-hero-actions">
             <div className="marketing-container">
               <div className="marketing-hero-cta marketing-hero-enter marketing-hero-enter--4">
-                <LandingMobileInstallCta />
-                <div className="hidden md:contents">
+                <div className="contents">
                   {primaryDownload}
                   <Button
                     size="lg"
@@ -68,14 +65,6 @@ const HomeLandingPage: React.FC = () => {
                   </Button>
                 </div>
               </div>
-
-              <p className="marketing-hero-web-link">
-                <Link to="/chat" className="font-medium text-foreground underline-offset-4 hover:underline">
-                  {isMobile ? "Try chat in browser" : "Try the web app"}
-                </Link>
-                <span className="hidden text-muted-foreground/50 md:inline"> · </span>
-                <span className="hidden md:inline">no install required</span>
-              </p>
             </div>
           </div>
         </section>
@@ -133,14 +122,6 @@ const HomeLandingPage: React.FC = () => {
               </p>
               <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
                 {primaryDownload}
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="h-12 rounded-xl border-border/80 px-8 text-base font-medium md:h-14"
-                  asChild
-                >
-                  <Link to="/chat">Open web app</Link>
-                </Button>
               </div>
             </MarketingReveal>
           </div>

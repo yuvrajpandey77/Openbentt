@@ -73,16 +73,13 @@ import LocalOnDeviceModelBar from "@/components/LocalOnDeviceModelBar";
 import type { WorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
 import { cn } from "@/lib/utils";
 import { isWebClient } from "@/config/platformSurface";
-import { isWebChatRoute } from "@/components/web/webChatRoute";
-import { WebChatStarterPrompts } from "@/components/web/WebChatStarterPrompts";
-import { useWebChatUiOptional } from "@/context/WebChatUiContext";
 import { buildChatMarkdownExport, downloadTextFile } from "@/lib/chatExportMarkdown";
 import {
   findUnsupportedVisionAttachments,
   imageUnsupportedMessage,
   modelSupportsImages,
 } from "@/lib/attachmentModelSupport";
-import { AttachmentPreviewErrorBoundary } from "@/components/web/AttachmentPreviewErrorBoundary";
+
 
 interface ChatInputProps {
   isLoading: boolean;
@@ -130,22 +127,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
     chats,
     currentChatId,
   } = useChat();
-  const webUi = useWebChatUiOptional();
-  const isWebChat = isWebChatRoute(pathKey) && variant === "default";
-  const webTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const syncWebTextareaHeight = useCallback(() => {
-    const el = webTextareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    const maxPx = window.matchMedia("(min-width: 768px)").matches ? 208 : 128;
-    const next = Math.min(el.scrollHeight, maxPx);
-    el.style.height = `${next}px`;
-    el.style.overflowY = el.scrollHeight > maxPx ? "auto" : "hidden";
-  }, []);
-  const [webToolsOpen, setWebToolsOpen] = useState(false);
-  const [webSnippetsOpen, setWebSnippetsOpen] = useState(false);
-  const [webSpecsOpen, setWebSpecsOpen] = useState(false);
-  const [webSetupOpen, setWebSetupOpen] = useState(false);
   /** Bumps when localStorage consent changes so web /chat re-reads getLocalWeightsConsent(). */
   const [localConsentTick, setLocalConsentTick] = useState(0);
   const [plusOpen, setPlusOpen] = useState(false);
@@ -219,11 +200,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
     [apiConfig.aiProvider, localConsentTick]
   );
 
-  useEffect(() => {
-    if (!isWebChat || !needsOnDeviceSetup) return;
-    setWebSetupOpen(true);
-  }, [isWebChat, needsOnDeviceSetup]);
-
   /** Reopen UX: if weights were cached before, warm them into RAM in the background. */
   useEffect(() => {
     if (apiConfig.aiProvider !== "webgpu_gemma") return;
@@ -243,21 +219,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
     });
     return () => ac.abort();
   }, [apiConfig.aiProvider, apiConfig.localInferenceProfile]);
-
-  useEffect(() => {
-    if (!isWebChat || !webUi.composerSeed) return;
-    setMessage(webUi.composerSeed);
-    webUi.clearComposerSeed();
-    requestAnimationFrame(() => {
-      syncWebTextareaHeight();
-      webTextareaRef.current?.focus();
-    });
-  }, [isWebChat, webUi.composerSeed, webUi.clearComposerSeed, syncWebTextareaHeight]);
-
-  useLayoutEffect(() => {
-    if (!isWebChat) return;
-    syncWebTextareaHeight();
-  }, [isWebChat, message, syncWebTextareaHeight]);
 
   useEffect(() => {
     if (pendingComposer) {
@@ -297,14 +258,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
   }, [message, attachments, pathKey]);
 
   const handleSendMessage = async () => {
-    if (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
-      setWebSetupOpen(true);
-      toast({
-        title: "Enable on-device model first",
-        description: "Confirm the ~400 MB download in the setup dialog, then send again.",
-      });
-      return;
-    }
     if (apiConfig.comparisonEnabled && dedupeModels(apiConfig.comparisonModelIds).length < 2) {
       toast({
         title: "Pick at least two models",
@@ -508,175 +461,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const removeAtt = (id: string) => {
     setAttachments((a) => a.filter((x) => x.id !== id));
   };
-
-  if (isWebChat) {
-    const canSend = !!message.trim() || attachments.length > 0;
-    const hasSent = !isEmpty;
-    return (
-      <div className={cn("web-composer-wrapper", hasSent ? "web-composer-wrapper--bottom" : "web-composer-wrapper--centered")}>
-        <input
-          ref={fileRef}
-          type="file"
-          className="hidden"
-          accept="image/*,audio/*,video/*,.pdf,application/pdf"
-          multiple
-          onChange={onFilePick}
-        />
-
-        {needsOnDeviceSetup && (
-          <div className="mb-3 w-full max-w-xl">
-            <LocalOnDeviceModelBar
-              open={webSetupOpen}
-              onOpenChange={(open) => {
-                setWebSetupOpen(open);
-                if (!open) setLocalConsentTick((n) => n + 1);
-              }}
-            />
-          </div>
-        )}
-
-        {isLoading &&
-          apiConfig.aiProvider === "webgpu_gemma" &&
-          webgpuModelDownloadProgress != null && (
-            <div className="mb-3 w-full max-w-xl">
-              <ModelDownloadProgressBar
-                title="Downloading Qwen 0.5B (one-time)"
-                percentOnly
-                progress={{
-                  percent: webgpuModelDownloadProgress,
-                  received: null,
-                  total: null,
-                  speedBps: null,
-                  etaSeconds: null,
-                }}
-                hint="~400 MB. Keep this tab open — cached after the first download."
-              />
-            </div>
-          )}
-
-        {!hasSent && (
-          <h1 className="web-hero-heading">Route your intelligence</h1>
-        )}
-
-        {attachments.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2">
-            {attachments.map((a) => (
-              <AttachmentPreviewErrorBoundary key={a.id} attachmentName={a.name} onRemove={() => removeAtt(a.id)}>
-                <div className="relative group h-16 w-16 overflow-hidden rounded-xl bg-muted/40">
-                  {a.kind === "pdf" ? (
-                    <div className="flex h-full flex-col items-center justify-center p-1 text-[10px] text-muted-foreground">
-                      <FileText className="h-6 w-6 text-primary" />
-                    </div>
-                  ) : a.kind === "audio" ? (
-                    <div className="flex h-full items-center justify-center p-1">
-                      <Mic className="h-5 w-5 text-primary" />
-                    </div>
-                  ) : (
-                    <img src={a.dataUrl} alt="" className="h-full w-full object-cover" />
-                  )}
-                  <button
-                    type="button"
-                    className="absolute inset-0 flex items-center justify-center bg-black/50 text-xs text-white opacity-0 group-hover:opacity-100"
-                    onClick={() => removeAtt(a.id)}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </AttachmentPreviewErrorBoundary>
-            ))}
-          </div>
-        )}
-
-        <div className={cn("web-composer-pill", hasSent && "web-composer-pill--sent")}>
-          <textarea
-            ref={webTextareaRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="What's on your mind?"
-            disabled={isLoading || isLoadingConfig || !canSendMessage(apiConfig)}
-            rows={1}
-            className="web-composer-input"
-          />
-          <div className="web-composer-toolbar">
-            <Popover open={plusOpen} onOpenChange={setPlusOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="web-composer-icon"
-                  aria-label="Add files or attachments"
-                >
-                  <PlusCircle size={18} strokeWidth={1.5} />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                side="top"
-                align="start"
-                sideOffset={6}
-                className="w-52 border-[#1a1a1a] bg-[#0a0a0a] p-1.5 shadow-xl"
-              >
-                <button
-                  type="button"
-                  onClick={() => { fileRef.current?.click(); setPlusOpen(false); }}
-                  className="web-plus-item w-full"
-                >
-                  <Paperclip className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
-                  Upload files
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { pickWithAccept("image/*"); setPlusOpen(false); }}
-                  className="web-plus-item w-full"
-                >
-                  <FileText className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
-                  Images
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { pickWithAccept("audio/*"); setPlusOpen(false); }}
-                  className="web-plus-item w-full"
-                >
-                  <Mic className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
-                  Audio
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { pickWithAccept(".pdf,application/pdf"); setPlusOpen(false); }}
-                  className="web-plus-item w-full"
-                >
-                  <FileText className="h-4 w-4 shrink-0 text-[#16A34A]" strokeWidth={1.5} />
-                  PDF
-                </button>
-              </PopoverContent>
-            </Popover>
-            <div className="flex-1" />
-            <button
-              type="button"
-              onClick={isLoading ? () => stopStreaming() : () => void handleSendMessage()}
-              disabled={!isLoading && !canSend}
-              className={cn(
-                "web-composer-icon shrink-0",
-                isLoading || canSend ? "web-composer-icon--active" : ""
-              )}
-              aria-label={isLoading ? "Stop" : "Send"}
-            >
-              {isLoading ? (
-                <Square size={14} strokeWidth={1.5} />
-              ) : (
-                <ArrowUp size={18} strokeWidth={1.5} />
-              )}
-            </button>
-          </div>
-        </div>
-
-        {isEmpty && (
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <WebChatStarterPrompts onSelect={(text) => webUi?.setComposerSeed(text)} />
-          </div>
-        )}
-      </div>
-    );
-  }
 
   return (
     <div className={cn("border-t border-border/70 bg-gradient-to-t from-card/80 via-card/50 to-transparent backdrop-blur-md", isStudio ? "px-2 pb-2 pt-2" : "px-2 pb-2 pt-2 md:px-3 md:pb-4 md:pt-3")}>

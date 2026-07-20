@@ -14,7 +14,7 @@ export const WEB_AI_PROVIDERS: readonly AiProvider[] = [
   "webgpu_gemma",
 ] as const;
 
-/** Workspace routes hidden from web sidebar and redirected to /chat. */
+/** Workspace routes hidden from web sidebar and redirected to home. */
 export const DESKTOP_ONLY_WORKSPACE_PATHS = new Set<string>([
   "/labs",
   "/write",
@@ -48,13 +48,6 @@ export function coerceApiConfigForPlatform(cfg: ApiKeyConfig): ApiKeyConfig {
           : DEFAULT_MODEL_ID,
     };
   }
-
-  // Web /chat: simple AI by default — no research pipeline unless user re-enables in session.
-  next = {
-    ...next,
-    researchEnabled: false,
-    showAgentTraces: false,
-  };
 
   if (next.aiProvider === "openrouter") {
     const modelStale =

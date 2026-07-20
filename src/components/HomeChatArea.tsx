@@ -3,7 +3,6 @@ import ChatMessages from "@/components/ChatMessages";
 import { ModelDownloadProgressBar } from "@/components/ModelDownloadProgressBar";
 import { useChat } from "@/context/ChatContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { enableChatPwa, disableChatPwa } from "@/lib/chatPwa";
 import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
 import { isLocalModelMarkedCached } from "@/lib/gemmaWebGpu/localModelCacheFlag";
 import { isLocalGemmaWeightsLoaded } from "@/lib/gemmaWebGpu/localGemmaInference";
@@ -11,7 +10,6 @@ import { LOCAL_TINY_MODEL_ID } from "@/lib/gemmaWebGpu/models";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, HardDrive } from "lucide-react";
 
-/** Main thread view (route `/chat`) — messages scroll above the global composer. */
 const HomeChatArea: React.FC = () => {
   const { chats, currentChatId, isLoading, apiConfig, webgpuModelDownloadProgress } = useChat();
   const isMobile = useIsMobile();
@@ -19,7 +17,6 @@ const HomeChatArea: React.FC = () => {
 
   const currentChat = chats.find((c) => c.id === currentChatId);
   const messages = currentChat?.messages ?? [];
-  const isEmpty = messages.length === 0;
   const showOnDeviceDownload =
     isLoading &&
     apiConfig.aiProvider === "webgpu_gemma" &&
@@ -40,13 +37,6 @@ const HomeChatArea: React.FC = () => {
   }, [showCachedWarm, isLoading]);
 
   useEffect(() => {
-    void enableChatPwa();
-    return () => {
-      void disableChatPwa();
-    };
-  }, []);
-
-  useEffect(() => {
     if (!isMobile) return;
     const prevBody = document.body.style.overflow;
     const prevHtml = document.documentElement.style.overflow;
@@ -59,7 +49,7 @@ const HomeChatArea: React.FC = () => {
   }, [isMobile]);
 
   return (
-    <div className="web-chat-thread flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {showOnDeviceDownload && (
         <div className="shrink-0 border-b border-border/50 px-3 py-2 sm:px-4">
           <div className="mx-auto max-w-3xl">
@@ -98,7 +88,7 @@ const HomeChatArea: React.FC = () => {
           </div>
         </div>
       )}
-      <ChatMessages messages={messages} isLoading={isLoading} webCleanEmpty={isEmpty} />
+      <ChatMessages messages={messages} isLoading={isLoading} />
     </div>
   );
 };

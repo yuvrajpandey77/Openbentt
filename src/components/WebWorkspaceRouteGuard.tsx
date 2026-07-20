@@ -1,11 +1,12 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 import { isWorkspacePathAllowedOnWeb } from "@/config/platformSurface";
 
 /** Sends web users away from desktop-only workspace routes. */
 export function WebWorkspaceRouteGuard() {
   const { pathname } = useLocation();
-  if (!isWorkspacePathAllowedOnWeb(pathname)) {
-    return <Navigate to="/chat" replace />;
+  if (!isDesktopApp() && !isWorkspacePathAllowedOnWeb(pathname)) {
+    return <Navigate to="/" replace />;
   }
   return <Outlet />;
 }

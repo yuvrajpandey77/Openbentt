@@ -131,9 +131,7 @@ export function MarketingShell({
                 </a>
               </Button>
             )}
-            <Button variant="ghost" className="hidden h-10 rounded-lg px-4 text-sm md:inline-flex" asChild>
-              <Link to="/chat">Web app</Link>
-            </Button>
+
             <Button className="h-10 rounded-lg px-5 text-sm font-semibold md:px-6" asChild>
               <Link to="/download">Download</Link>
             </Button>
@@ -156,7 +154,7 @@ export function MarketingShell({
                 <span className="font-display text-lg font-semibold">Openbentt</span>
               </Link>
               <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-                Desktop-first AI workspace for LaTeX, PDFs, benchmarking, and local GGUF. Optional web chat. By{" "}
+                Desktop-first AI workspace for LaTeX, PDFs, benchmarking, and local GGUF. By{" "}
                 <a
                   href={cogerphereWebsite}
                   target="_blank"

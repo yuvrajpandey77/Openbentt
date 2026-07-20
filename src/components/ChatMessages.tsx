@@ -36,12 +36,8 @@ function messageMatchesSearch(m: Message, q: string): boolean {
 interface ChatMessagesProps {
   messages: Message[];
   isLoading: boolean;
-  /** Filter which messages render (Home thread search). */
   searchQuery?: string;
-  /** Minimal empty state for notebook studio dock. */
   emptyVariant?: "home" | "studio";
-  /** Web /chat: ultra-minimal empty — logo only. */
-  webCleanEmpty?: boolean;
 }
 
 function MetricsBar({ metrics }: { metrics: NonNullable<Message["metrics"]> }) {
@@ -190,7 +186,6 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
   isLoading,
   searchQuery = "",
   emptyVariant = "home",
-  webCleanEmpty = false,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -452,8 +447,6 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
                 </Collapsible>
               </div>
             </div>
-          ) : webCleanEmpty ? (
-          null
           ) : (
           <div className="flex min-h-[min(50vh,380px)] items-center justify-center py-8 sm:py-12">
             <div className="flex flex-col items-center gap-3 px-6 text-center">

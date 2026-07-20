@@ -38,7 +38,7 @@ const ShareViewPage: React.FC = () => {
             Openbentt
           </Link>
           <Button variant="outline" size="sm" className="rounded-lg" asChild>
-            <Link to="/chat">Open app</Link>
+            <Link to="/">Openbentt</Link>
           </Button>
         </div>
       </header>

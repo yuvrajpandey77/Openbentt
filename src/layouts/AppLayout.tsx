@@ -19,9 +19,6 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { isWebChatRoute } from "@/components/web/webChatRoute";
-import { WebChatSplash } from "@/components/web/WebChatSplash";
-import { WebChatUiProvider } from "@/context/WebChatUiContext";
 
 const WORKSPACE_PANEL_KEY = "openbentt-workspace-panel-open";
 
@@ -108,12 +105,8 @@ const AppLayout: React.FC = () => {
 
   const currentChat = chats.find((c) => c.id === currentChatId);
   const messages = currentChat?.messages ?? [];
-  const isWebChat = isWebChatRoute(location.pathname);
 
   if (isLoadingConfig) {
-    if (isWebChat) {
-      return <WebChatSplash />;
-    }
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background px-4">
         <div className="h-10 w-10 animate-spin rounded-full border-2 border-muted border-t-primary" />
@@ -131,7 +124,7 @@ const AppLayout: React.FC = () => {
   }
 
   return (
-    <div className={cn("flex overflow-hidden", isDesktopApp() ? "h-full" : isWebChat ? "h-[100dvh]" : "h-screen")}>
+    <div className={cn("flex overflow-hidden", isDesktopApp() ? "h-full" : "h-screen")}>
       <Sidebar
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
@@ -155,42 +148,6 @@ const AppLayout: React.FC = () => {
           sidebarMainMarginClass(sidebarCollapsed)
         )}
       >
-        {isWebChat ? (
-          <WebChatUiProvider>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <AppChromeHeader
-                onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-                sidebarCollapsed={sidebarCollapsed}
-                onExpandSidebar={() => setSidebarCollapsed(false)}
-                workspaceMeta={workspaceMeta}
-              />
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                {workspaceMeta && isMobile ? (
-                  <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                    <TabsList className="mx-2 mt-2 grid h-9 w-auto shrink-0 grid-cols-2 rounded-lg bg-muted/80 p-1">
-                      <TabsTrigger value="chat" className="text-xs sm:text-sm">Chat</TabsTrigger>
-                      <TabsTrigger value="workspace" className="text-xs sm:text-sm">Workspace</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="chat" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden focus-visible:outline-none">
-                      <Outlet />
-                    </TabsContent>
-                    <TabsContent value="workspace" className="mt-0 min-h-0 flex-1 overflow-hidden focus-visible:outline-none">
-                      <div className="flex h-full min-h-0 flex-col overflow-y-auto">
-                        <Outlet />
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                ) : (
-                  <Outlet />
-                )}
-              </div>
-              <div className="shrink-0 bg-background">
-                <ChatInput isLoading={isLoading} workspaceMeta={workspaceMeta} />
-              </div>
-            </div>
-          </WebChatUiProvider>
-        ) : (
-          <>
         <AppChromeHeader
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
           sidebarCollapsed={sidebarCollapsed}
@@ -200,7 +157,6 @@ const AppLayout: React.FC = () => {
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {workspaceMeta && isMobile ? (
-            /* Mobile: tab switcher between chat and workspace */
             <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <TabsList className="mx-2 mt-2 grid h-9 w-auto shrink-0 grid-cols-2 rounded-lg bg-muted/80 p-1">
                 <TabsTrigger value="chat" className="text-xs sm:text-sm">Chat</TabsTrigger>
@@ -218,7 +174,6 @@ const AppLayout: React.FC = () => {
               </TabsContent>
             </Tabs>
           ) : workspaceMeta && workspacePanelOpen ? (
-            /* Desktop with workspace panel open: resizable split */
             <ResizablePanelGroup
               direction="horizontal"
               autoSaveId="openbentt-workspace-thread-split-h"
@@ -237,7 +192,6 @@ const AppLayout: React.FC = () => {
               </ResizablePanel>
             </ResizablePanelGroup>
           ) : workspaceMeta && !workspacePanelOpen ? (
-            /* Desktop with workspace available but panel closed: full-width chat + open button */
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <ChatMessages messages={messages} isLoading={isLoading} />
               <div className="shrink-0 border-t border-border/50 px-3 py-1.5 text-center">
@@ -258,7 +212,6 @@ const AppLayout: React.FC = () => {
               </div>
             </div>
           ) : (
-            /* No workspace route — just render the page */
             <Outlet />
           )}
         </div>
@@ -266,8 +219,6 @@ const AppLayout: React.FC = () => {
         <div className="shrink-0 bg-gradient-to-t from-card/90 to-background/95 backdrop-blur-sm">
           <ChatInput isLoading={isLoading} workspaceMeta={workspaceMeta} />
         </div>
-          </>
-        )}
       </main>
     </div>
   );
