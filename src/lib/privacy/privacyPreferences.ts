@@ -16,6 +16,12 @@ export interface PrivacyPreferences {
   allowShareLinks: boolean;
   /** Warn when research or embeddings download from the public internet. */
   showNetworkActivityWarnings: boolean;
+  /**
+   * Web only: keep provider keys in memory and never persist them to localStorage
+   * (re-enter after reload). Does NOT protect against XSS — it limits disk
+   * lifetime only. Desktop ignores this (vault is already the secure path).
+   */
+  memoryOnlyApiKeys: boolean;
 }
 
 const CLOUD_PROVIDERS: ReadonlySet<AiProvider> = new Set([
@@ -33,6 +39,7 @@ export function defaultPrivacyPreferences(): PrivacyPreferences {
     analyticsEnabled: false,
     allowShareLinks: !isDesktopApp(),
     showNetworkActivityWarnings: true,
+    memoryOnlyApiKeys: false,
   };
 }
 
@@ -52,6 +59,8 @@ export function loadPrivacyPreferences(): PrivacyPreferences {
         typeof j.showNetworkActivityWarnings === "boolean"
           ? j.showNetworkActivityWarnings
           : base.showNetworkActivityWarnings,
+      memoryOnlyApiKeys:
+        typeof j.memoryOnlyApiKeys === "boolean" ? j.memoryOnlyApiKeys : base.memoryOnlyApiKeys,
     };
   } catch {
     return base;

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, shell } from "electron";
+import { isAllowedExternalUrl } from "./externalUrlPolicy.mjs";
 
 const EDIT_ROLES = new Set(["undo", "redo", "cut", "copy", "paste", "selectAll"]);
 
@@ -83,7 +84,8 @@ export function registerDesktopWindowIpc(ipc) {
   });
 
   ipc.handle("desktop:openExternal", async (_event, url) => {
-    if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return { ok: false };
+    // Centralized HTTPS-only policy (file://, javascript:, data:, custom schemes denied).
+    if (!isAllowedExternalUrl(url)) return { ok: false };
     await shell.openExternal(url);
     return { ok: true };
   });

@@ -15,7 +15,7 @@ import {
   canSendChat,
   canSendMessage,
 } from "@/types/chat";
-import { ensureCloudInferenceForConfig } from "@/lib/privacy/privacyPreferences";
+import { ensureCloudInferenceForConfig, loadPrivacyPreferences } from "@/lib/privacy/privacyPreferences";
 import { useToast } from "@/components/ui/use-toast";
 import { buildChatCompletionMessages, isStreamHttpError, StreamHttpError } from "@/lib/openrouter";
 import { streamChatForConfig } from "@/lib/aiStream";
@@ -37,6 +37,7 @@ import { assertChatProviderAllowed, isResearchNetworkAllowed } from "@/lib/offli
 import { isNavigatorOnline } from "@/lib/offline/connectivity";
 import {
   apiConfigForBrowserStorage,
+  apiConfigForMemoryOnlyStorage,
   loadDesktopSecretsIntoConfig,
   migrateLegacySecretsFromConfig,
   persistDesktopSecretsFromConfig,
@@ -290,10 +291,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!isLoadingConfig) {
       void persistDesktopSecretsFromConfig(apiConfig);
-      localStorage.setItem(
-        LOCAL_STORAGE_KEYS.API_CONFIG,
-        JSON.stringify(apiConfigForBrowserStorage(apiConfig))
-      );
+      // Phase 1: memory-only keys (web opt-in) blank secrets before localStorage
+      // persistence. In-memory state keeps working until reload.
+      const toStore = loadPrivacyPreferences().memoryOnlyApiKeys
+        ? apiConfigForMemoryOnlyStorage(apiConfig)
+        : apiConfigForBrowserStorage(apiConfig);
+      localStorage.setItem(LOCAL_STORAGE_KEYS.API_CONFIG, JSON.stringify(toStore));
     }
   }, [apiConfig, isLoadingConfig]);
 

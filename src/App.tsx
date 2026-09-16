@@ -15,6 +15,7 @@ import { AppShell } from "@/components/AppShell";
 import HomeChatArea from "./components/HomeChatArea";
 import NotFound from "./pages/NotFound";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { FeatureErrorBoundary } from "./components/FeatureErrorBoundary";
 import { WebWorkspaceRouteGuard } from "@/components/WebWorkspaceRouteGuard";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 
@@ -71,9 +72,9 @@ const App = () => (
             <Suspense fallback={<RouteFallback />}>
               <Routes>
                 {/* Public / marketing routes */}
-                <Route path="/" element={<RootMarketingOrElectronRedirect />} />
-                <Route path="/download" element={<DownloadPageOrDesktopRedirect />} />
-                <Route path="/share" element={<ShareViewPage />} />
+                <Route path="/" element={<FeatureErrorBoundary feature="home"><RootMarketingOrElectronRedirect /></FeatureErrorBoundary>} />
+                <Route path="/download" element={<FeatureErrorBoundary feature="download"><DownloadPageOrDesktopRedirect /></FeatureErrorBoundary>} />
+                <Route path="/share" element={<FeatureErrorBoundary feature="shared run"><ShareViewPage /></FeatureErrorBoundary>} />
 
                 {/* All app routes share one ChatProvider instance */}
                 <Route
@@ -91,20 +92,20 @@ const App = () => (
                 >
                   {/* Onboarding — no app chrome */}
                   <Route element={<AppShell />}>
-                    <Route path="setup" element={<SetupPage />} />
+                    <Route path="setup" element={<FeatureErrorBoundary feature="setup"><SetupPage /></FeatureErrorBoundary>} />
 
                     {/* Full-screen research studio (no chat split) */}
-                    <Route path="projects" element={<ProjectsHubPage />} />
-                    <Route path="notebook" element={<NotebookStudioPage />} />
+                    <Route path="projects" element={<FeatureErrorBoundary feature="projects"><ProjectsHubPage /></FeatureErrorBoundary>} />
+                    <Route path="notebook" element={<FeatureErrorBoundary feature="notebook"><NotebookStudioPage /></FeatureErrorBoundary>} />
 
                     {/* Main app shell */}
                     <Route element={<AppLayout />}>
                       <Route element={<WebWorkspaceRouteGuard />}>
-                        {isDesktopApp() && <Route path="chat" element={<HomeChatArea />} />}
-                        <Route path="labs" element={<ResearchLabsPage />} />
-                        <Route path="write" element={<DesktopWriteRedirect />} />
-                        <Route path="benchmark" element={<BenchmarkPage />} />
-                        <Route path="webgpu" element={<WebGpuPage />} />
+                        {isDesktopApp() && <Route path="chat" element={<FeatureErrorBoundary feature="chat"><HomeChatArea /></FeatureErrorBoundary>} />}
+                        <Route path="labs" element={<FeatureErrorBoundary feature="research labs"><ResearchLabsPage /></FeatureErrorBoundary>} />
+                        <Route path="write" element={<FeatureErrorBoundary feature="latex workspace"><DesktopWriteRedirect /></FeatureErrorBoundary>} />
+                        <Route path="benchmark" element={<FeatureErrorBoundary feature="benchmark"><BenchmarkPage /></FeatureErrorBoundary>} />
+                        <Route path="webgpu" element={<FeatureErrorBoundary feature="on-device models"><WebGpuPage /></FeatureErrorBoundary>} />
                       </Route>
                     </Route>
                   </Route>

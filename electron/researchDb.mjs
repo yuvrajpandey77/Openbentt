@@ -7,7 +7,7 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 const ROOT_DIR = "research-projects";
 
 export function projectsRoot(app) {
@@ -82,6 +82,7 @@ function runMigrations(db) {
   if (v < 4) migrateV4(db);
   if (v < 5) migrateV5(db);
   if (v < 6) migrateV6(db);
+  if (v < 7) migrateV7(db);
 
   if (v < SCHEMA_VERSION) {
     db.prepare("DELETE FROM schema_version").run();
@@ -273,6 +274,55 @@ function migrateV6(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_chat_logs_project ON chat_logs(project_id, created_at ASC);
     CREATE INDEX IF NOT EXISTS idx_chat_logs_thread ON chat_logs(thread_id);
+  `);
+}
+
+/**
+ * v7 (Phase 2, additive only): canonical document intelligence tables.
+ * Existing corpus_chunks/embeddings/papers shapes are untouched; these tables
+ * carry identity/version/extraction-cache so future parsers can invalidate
+ * without reprocessing. Safe on fresh, v6-seeded, and legacy databases.
+ */
+export function migrateV7(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS documents (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      title TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT '',
+      source_type TEXT NOT NULL DEFAULT 'unknown',
+      mime_type TEXT NOT NULL DEFAULT '',
+      size INTEGER NOT NULL DEFAULT 0,
+      checksum TEXT NOT NULL DEFAULT '',
+      extractor_version TEXT NOT NULL DEFAULT '',
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      extraction_status TEXT NOT NULL DEFAULT 'failed',
+      status TEXT NOT NULL DEFAULT 'failed',
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_documents_project ON documents(project_id);
+    CREATE INDEX IF NOT EXISTS idx_documents_checksum ON documents(checksum);
+    CREATE TABLE IF NOT EXISTS document_versions (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+      version INTEGER NOT NULL,
+      checksum TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT '',
+      extractor_version TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_doc_versions_doc ON document_versions(document_id);
+    CREATE TABLE IF NOT EXISTS document_extract_cache (
+      cache_key TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL,
+      extractor TEXT NOT NULL DEFAULT '',
+      extractor_version TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'failed',
+      content_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL
+    );
   `);
 }
 

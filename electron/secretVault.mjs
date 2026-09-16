@@ -89,11 +89,16 @@ export async function writeVaultSecret(app, key, raw) {
 export async function vaultStatus(app) {
   const encryptionAvailable = safeStorage.isEncryptionAvailable();
   const stored = {};
+  // Phase 1: report plaintext-fallback presence per key so the UI can
+  // distinguish "stored encrypted" from "stored as restricted fallback".
+  const fallback = {};
   for (const key of SECRET_VAULT_KEYS) {
+    const paths = vaultPaths(app, key);
     const v = await readVaultSecret(app, key);
     stored[key] = Boolean(v.trim());
+    fallback[key] = fs.existsSync(paths.fallback);
   }
-  return { stored, encryptionAvailable };
+  return { stored, encryptionAvailable, fallback };
 }
 
 /**

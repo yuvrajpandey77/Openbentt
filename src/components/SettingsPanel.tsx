@@ -56,7 +56,7 @@ import {
   savePrivacyPreferences,
   type PrivacyPreferences,
 } from "@/lib/privacy/privacyPreferences";
-import { getSecretsApi } from "@/lib/privacy/desktopSecrets";
+import { getSecretsApi, type VaultStatus } from "@/lib/privacy/desktopSecrets";
 
 const MAX_COMPARE = 4;
 
@@ -108,10 +108,23 @@ const SettingsPanel: React.FC = () => {
     queryKey: ["hf-secret-status"],
     queryFn: async () => {
       const a = getLocalGgufApi();
-      if (!a?.hfSecretStatus) return { stored: false, encryptionAvailable: false };
+      if (!a?.hfSecretStatus) return { stored: false, encryptionAvailable: false, fallback: false };
       return a.hfSecretStatus();
     },
     enabled: localAiProvider === "local_gguf" && Boolean(getLocalGgufApi()),
+    staleTime: 15_000,
+  });
+
+  // Phase 1: OS-vault status for provider/Brave keys (desktop only) — surfaces
+  // plaintext-fallback storage so users can tell encrypted from fallback.
+  const { data: vaultStatus } = useQuery<VaultStatus>({
+    queryKey: ["secret-vault-status"],
+    queryFn: async () => {
+      const a = getSecretsApi();
+      if (!a?.status) return { stored: {}, encryptionAvailable: false };
+      return a.status();
+    },
+    enabled: !webClient && Boolean(getSecretsApi()),
     staleTime: 15_000,
   });
 
@@ -432,6 +445,22 @@ const SettingsPanel: React.FC = () => {
               />
             </div>
 
+            {webClient && (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
+                <div>
+                  <Label className="text-sm font-medium">Memory-only API keys</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Keep provider keys in memory and never persist them to localStorage — re-enter keys after each
+                    reload. Limits key lifetime on shared machines. Does not protect against XSS while the tab is open.
+                  </p>
+                </div>
+                <Switch
+                  checked={privacy.memoryOnlyApiKeys}
+                  onCheckedChange={(v) => setPrivacy((p) => ({ ...p, memoryOnlyApiKeys: v }))}
+                />
+              </div>
+            )}
+
             <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
               <div>
                 <Label className="text-sm font-medium">Share run links</Label>
@@ -560,7 +589,23 @@ const SettingsPanel: React.FC = () => {
                   onChange={(e) => setLocalApiKey(e.target.value)}
                   className="openbentt-input h-11 font-mono text-sm"
                 />
-                <p className="text-xs text-muted-foreground">Stored only in localStorage on this device.</p>
+                <p className="text-xs text-muted-foreground">
+                  {webClient
+                    ? "Stored only in localStorage on this device."
+                    : "Stored in the OS-encrypted desktop vault (never in localStorage)."}
+                </p>
+                {!webClient && vaultStatus && !vaultStatus.encryptionAvailable && (
+                  <p className="text-[11px] text-destructive">
+                    OS encryption is unavailable — keys are kept as restricted-permission plaintext fallback files
+                    (0600). Use full-disk encryption on this machine.
+                  </p>
+                )}
+                {!webClient && vaultStatus?.fallback?.provider_api_key && (
+                  <p className="text-[11px] text-destructive">
+                    The stored provider key is a plaintext fallback copy. Re-save it to move it into OS-encrypted
+                    storage where available.
+                  </p>
+                )}
               </div>
             )}
 
@@ -619,7 +664,11 @@ const SettingsPanel: React.FC = () => {
                   {hfSecretStatus?.stored ? (
                     <p className="text-[11px] text-primary">
                       A token is already stored securely
-                      {!hfSecretStatus.encryptionAvailable ? " (encryption unavailable — restricted file fallback)." : "."}
+                      {hfSecretStatus.fallback
+                        ? " (restricted plaintext fallback on disk — re-save to use OS encryption where available)."
+                        : !hfSecretStatus.encryptionAvailable
+                          ? " (encryption unavailable — restricted file fallback)."
+                          : "."}
                     </p>
                   ) : null}
                   <div className="flex flex-wrap gap-2">

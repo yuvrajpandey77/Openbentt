@@ -29,6 +29,7 @@ import {
 import { registerZoteroSecretIpc } from "./zoteroSecretStore.mjs";
 import { resolveUnderDistRoot } from "./ipcValidate.mjs";
 import { getGpuSafeMode } from "./gpuSafeMode.mjs";
+import { registerNavigationPolicy } from "./navigationPolicy.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -346,6 +347,9 @@ function createWindow() {
       height: TITLE_BAR_HEIGHT,
     });
   }
+
+  // Phase 1: deny arbitrary navigation/window creation + default-deny permissions.
+  registerNavigationPolicy(win);
 
   setLocalGgufProgressTarget(win);
   setZoteroProgressTarget(win);

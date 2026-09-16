@@ -1,25 +1,54 @@
 /**
- * Minimal HTTPS research proxy for Brave + Wikipedia + Jina (server-side, no CORS).
+ * Minimal research proxy for Brave + Wikipedia + Semantic Scholar + arXiv + Jina.
+ * Phase 1 hardening: request body cap, content-type + origin policy, in-process
+ * rate limiting, upstream timeouts, generic error responses. No Redis by design.
  *
- * Usage (dev, self-signed ok for local only):
+ * Usage (dev, loopback only):
  *   BRAVE_SEARCH_API_KEY=... node server/research-proxy.mjs
- *   # defaults: PORT=8787, uses TLS if CERT_PATH and KEY_PATH are set
+ *   # defaults: PORT=8787. Binds 127.0.0.1 unless HOST is set.
+ *   # Optional env: RESEARCH_PROXY_ALLOWED_ORIGINS (comma-separated exact origins),
+ *   #   RESEARCH_PROXY_RATE_PER_MIN (default 120), RESEARCH_PROXY_MAX_BODY_BYTES
+ *   #   (default 262144), RESEARCH_PROXY_UPSTREAM_TIMEOUT_MS (default 15000).
  *
  * Deploy: put behind nginx/Caddy with HTTPS; set VITE_RESEARCH_PROXY_URL=https://your.host
  * in the frontend build, or paste that URL in Settings → Research proxy.
+ * Remote static-web callers must be listed in RESEARCH_PROXY_ALLOWED_ORIGINS —
+ * same-origin (Host match), loopback, and app://openbentt callers are allowed
+ * without configuration (see server/httpPolicy.mjs for the rationale).
  *
- * POST /research  JSON body: { query: string, urls?: string[] }
+ * POST /research  Content-Type: application/json
+ *   body: { query: string, urls?: string[], deepResearch?: boolean, approvedDomains?: string[] }
  * Response: { context: string, sources: { title, url?, snippet }[] }
  */
 
 import http from "node:http";
 import https from "node:https";
 import fs from "node:fs";
-import { URL } from "node:url";
+import path from "node:path";
+import { URL, fileURLToPath } from "node:url";
+import {
+  parseAllowedOrigins,
+  isOriginAllowed,
+  corsHeadersFor,
+  clientIp,
+  createRateLimiter,
+  readBodyCapped,
+  fetchWithTimeout,
+  sendJson,
+} from "./httpPolicy.mjs";
 
 const PORT = Number(process.env.PORT || 8787);
+const HOST = process.env.HOST || "127.0.0.1";
 const BRAVE_KEY = process.env.BRAVE_SEARCH_API_KEY || "";
 const JINA = "https://r.jina.ai/";
+const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.RESEARCH_PROXY_ALLOWED_ORIGINS);
+const RATE_PER_MIN = Number(process.env.RESEARCH_PROXY_RATE_PER_MIN || 120);
+const MAX_BODY_BYTES = Number(process.env.RESEARCH_PROXY_MAX_BODY_BYTES || 262_144);
+const UPSTREAM_TIMEOUT_MS = Number(process.env.RESEARCH_PROXY_UPSTREAM_TIMEOUT_MS || 15_000);
+const MAX_QUERY_CHARS = 2000;
+const MAX_APPROVED_DOMAINS = 20;
+
+const limiter = createRateLimiter({ perMin: Number.isFinite(RATE_PER_MIN) && RATE_PER_MIN > 0 ? RATE_PER_MIN : 120 });
 
 function truncate(s, n) {
   return s.length <= n ? s : s.slice(0, n) + "\n…[truncated]";
@@ -35,13 +64,13 @@ async function wikipediaSummary(query) {
   search.searchParams.set("namespace", "0");
   search.searchParams.set("format", "json");
   search.searchParams.set("origin", "*");
-  const os = await fetch(search);
+  const os = await fetchWithTimeout(search, {}, UPSTREAM_TIMEOUT_MS);
   if (!os.ok) return null;
   const data = await os.json();
   const title = data?.[1]?.[0];
   if (!title) return null;
   const sumUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, "_"))}`;
-  const sr = await fetch(sumUrl);
+  const sr = await fetchWithTimeout(sumUrl, {}, UPSTREAM_TIMEOUT_MS);
   if (!sr.ok) return null;
   const page = await sr.json();
   return {
@@ -59,7 +88,7 @@ async function semanticScholarSearch(query) {
   u.searchParams.set("query", q);
   u.searchParams.set("limit", "2");
   u.searchParams.set("fields", "title,abstract,year,url,externalIds");
-  const res = await fetch(u);
+  const res = await fetchWithTimeout(u, {}, UPSTREAM_TIMEOUT_MS);
   if (!res.ok) return [];
   const json = await res.json();
   const data = json.data ?? [];
@@ -79,7 +108,7 @@ async function arxivSearch(query) {
   const q = query.slice(0, 120).trim();
   if (!q) return [];
   const url = `http://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(q)}&max_results=2`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, {}, UPSTREAM_TIMEOUT_MS);
   if (!res.ok) return [];
   const xml = await res.text();
   const out = [];
@@ -107,7 +136,7 @@ async function arxivSearch(query) {
 
 async function jinaRead(url) {
   const target = `${JINA}${url}`;
-  const res = await fetch(target);
+  const res = await fetchWithTimeout(target, {}, UPSTREAM_TIMEOUT_MS);
   if (!res.ok) return null;
   const text = await res.text();
   return truncate(text, 6000);
@@ -118,9 +147,13 @@ async function braveSearch(query) {
   const u = new URL("https://api.search.brave.com/res/v1/web/search");
   u.searchParams.set("q", query.slice(0, 400));
   u.searchParams.set("count", "5");
-  const res = await fetch(u, {
-    headers: { "X-Subscription-Token": BRAVE_KEY, Accept: "application/json" },
-  });
+  const res = await fetchWithTimeout(
+    u,
+    {
+      headers: { "X-Subscription-Token": BRAVE_KEY, Accept: "application/json" },
+    },
+    UPSTREAM_TIMEOUT_MS
+  );
   if (!res.ok) return [];
   const json = await res.json();
   const results = json.web?.results ?? [];
@@ -139,13 +172,21 @@ function hostAllowed(hostname, approvedDomains) {
   return approvedDomains.some((d) => h === d || h.endsWith("." + d));
 }
 
+function sanitizeApprovedDomains(input) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((d) => typeof d === "string")
+    .map((d) => d.trim().toLowerCase())
+    .filter((d) => d && /^[a-z0-9.-]{1,253}$/.test(d))
+    .slice(0, MAX_APPROVED_DOMAINS);
+}
+
 async function handleResearch(body) {
-  const query = typeof body.query === "string" ? body.query : "";
+  const rawQuery = typeof body.query === "string" ? body.query : "";
+  const query = rawQuery.slice(0, MAX_QUERY_CHARS);
   const urls = Array.isArray(body.urls) ? body.urls.filter((u) => typeof u === "string").slice(0, 2) : [];
   const deepResearch = body.deepResearch === true;
-  const approvedDomains = Array.isArray(body.approvedDomains)
-    ? body.approvedDomains.filter((d) => typeof d === "string" && d.trim()).map((d) => d.trim().toLowerCase())
-    : [];
+  const approvedDomains = sanitizeApprovedDomains(body.approvedDomains);
   const parts = [];
   const sources = [];
 
@@ -230,57 +271,107 @@ async function handleResearch(body) {
 }
 
 const server = http.createServer(async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  const cors = corsHeadersFor(req, ALLOWED_ORIGINS);
 
   if (req.method === "OPTIONS") {
-    res.writeHead(204);
+    res.writeHead(204, {
+      ...cors,
+      "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+      "Access-Control-Allow-Headers": "Content-Type",
+    });
     res.end();
     return;
   }
 
-  if (req.method !== "POST" || !req.url?.startsWith("/research")) {
-    res.writeHead(req.method === "GET" ? 200 : 404, { "Content-Type": "text/plain" });
-    res.end(req.method === "GET" ? "research proxy: POST /research { query, urls }\n" : "Not found");
+  if (req.method === "GET" && (!req.url || req.url === "/" || req.url.startsWith("/research"))) {
+    res.writeHead(200, { "Content-Type": "text/plain", ...cors });
+    res.end("research proxy: POST /research { query, urls }\n");
     return;
   }
 
-  let raw = "";
-  for await (const ch of req) raw += ch;
+  if (req.method !== "POST" || !req.url?.startsWith("/research")) {
+    res.writeHead(404, { "Content-Type": "application/json", ...cors });
+    res.end(JSON.stringify({ error: "not found" }));
+    return;
+  }
+
+  // Phase 1 gates — cheap checks first, in order.
+  const contentType = String(req.headers["content-type"] ?? "");
+  if (!contentType.includes("application/json")) {
+    res.writeHead(415, { "Content-Type": "application/json", ...cors });
+    res.end(JSON.stringify({ error: "content-type must be application/json" }));
+    return;
+  }
+  if (!isOriginAllowed(req, ALLOWED_ORIGINS)) {
+    res.writeHead(403, { "Content-Type": "application/json", ...cors });
+    res.end(JSON.stringify({ error: "origin not allowed" }));
+    return;
+  }
+  const ip = clientIp(req);
+  const limit = limiter.check(ip);
+  if (!limit.ok) {
+    res.writeHead(429, { "Content-Type": "application/json", ...cors });
+    res.end(JSON.stringify({ error: "rate limited", retryAfterMs: limit.retryAfterMs }));
+    return;
+  }
+
+  let raw;
+  try {
+    raw = await readBodyCapped(req, MAX_BODY_BYTES);
+  } catch {
+    // Over-cap uploads get their socket destroyed inside readBodyCapped, so no
+    // response can reach the client; any other read failure is a 400.
+    // (413 path kept explicit for logging clarity.)
+    if (!req.destroyed) {
+      res.writeHead(400, { "Content-Type": "application/json", ...cors });
+      res.end(JSON.stringify({ error: "unreadable request body" }));
+    }
+    return;
+  }
+
   let body = {};
   try {
-    body = JSON.parse(raw || "{}");
+    body = JSON.parse(raw.toString("utf8") || "{}");
   } catch {
-    res.writeHead(400, { "Content-Type": "application/json" });
+    res.writeHead(400, { "Content-Type": "application/json", ...cors });
     res.end(JSON.stringify({ error: "invalid JSON" }));
     return;
   }
 
   try {
     const out = await handleResearch(body);
-    res.writeHead(200, { "Content-Type": "application/json" });
+    res.writeHead(200, { "Content-Type": "application/json", ...cors });
     res.end(JSON.stringify(out));
   } catch (e) {
-    res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: e instanceof Error ? e.message : "error" }));
+    // Never leak upstream details/keys — log server-side, return generic error.
+    console.error("[research-proxy] request failed:", e instanceof Error ? e.message : e);
+    res.writeHead(500, { "Content-Type": "application/json", ...cors });
+    res.end(JSON.stringify({ error: "research failed" }));
   }
 });
 
 const certPath = process.env.CERT_PATH;
 const keyPath = process.env.KEY_PATH;
 
-if (certPath && keyPath) {
-  const opts = {
-    cert: fs.readFileSync(certPath),
-    key: fs.readFileSync(keyPath),
-  };
-  https.createServer(opts, server).listen(PORT, () => {
-    console.error(`research proxy (HTTPS) https://localhost:${PORT}/research`);
-  });
-} else {
-  server.listen(PORT, () => {
-    console.error(`research proxy (HTTP) http://127.0.0.1:${PORT}/research`);
-    console.error("For production use HTTPS (set CERT_PATH + KEY_PATH) or a reverse proxy.");
-  });
+// Importable without side effects for node --test (Phase 1).
+const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
+const isMainModule = invokedPath !== "" && fileURLToPath(import.meta.url) === path.resolve(invokedPath);
+
+if (isMainModule) {
+  if (certPath && keyPath) {
+    const opts = {
+      cert: fs.readFileSync(certPath),
+      key: fs.readFileSync(keyPath),
+    };
+    https.createServer(opts, server).listen(PORT, () => {
+      console.error(`research proxy (HTTPS) https://localhost:${PORT}/research`);
+    });
+  } else {
+    server.listen(PORT, HOST, () => {
+      console.error(`research proxy (HTTP) http://${HOST}:${PORT}/research`);
+      console.error("For production use HTTPS (set CERT_PATH + KEY_PATH) or a reverse proxy.");
+    });
+  }
 }
+
+export { server, handleResearch, isOriginAllowed, sanitizeApprovedDomains };

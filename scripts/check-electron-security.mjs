@@ -26,6 +26,23 @@ if (!/contextIsolation\s*:\s*true/.test(main)) {
   errors.push(`${mainPath}: expected contextIsolation: true`);
 }
 
+// Phase 1: navigation / window / permission hardening must stay wired.
+if (!/registerNavigationPolicy\s*\(/.test(main)) {
+  errors.push(`${mainPath}: expected registerNavigationPolicy(win) in createWindow (Phase 1)`);
+}
+const navPolicy = read("electron/navigationPolicy.mjs");
+for (const token of ["setWindowOpenHandler", "will-navigate", "setPermissionRequestHandler", "action: \"deny\""]) {
+  if (!navPolicy.includes(token)) {
+    errors.push(`electron/navigationPolicy.mjs: expected ${token} (Phase 1 navigation hardening)`);
+  }
+}
+const urlPolicy = read("electron/externalUrlPolicy.mjs");
+for (const token of ["parseAllowedExternalUrl", "isAllowedAppNavigationUrl", "!== \"https:\""]) {
+  if (!urlPolicy.includes(token)) {
+    errors.push(`electron/externalUrlPolicy.mjs: expected ${token} (Phase 1 URL policy)`);
+  }
+}
+
 const preload = read("electron/preload.cjs");
 const bridgeCount = (preload.match(/contextBridge\.exposeInMainWorld/g) ?? []).length;
 if (bridgeCount !== 5) {

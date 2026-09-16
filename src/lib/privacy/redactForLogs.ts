@@ -1,6 +1,21 @@
 /** Redact secrets and long payloads before logging (dev-safe). */
 const SECRET_KEYS = /api[_-]?key|token|secret|password|authorization/i;
 
+/**
+ * Secret-looking *values* that may appear embedded in free text (provider error
+ * messages, URLs, toasts). Conservative patterns for known provider key shapes
+ * plus generic `Bearer <token>`. Applied to user-facing error strings and log
+ * lines — never to request construction.
+ */
+const SECRET_VALUE_RE =
+  /(sk-(or-v1-|ant-|proj-)?[A-Za-z0-9-_]{8,}|AIza[A-Za-z0-9-_]{10,}|xox[bpas]-[A-Za-z0-9-]+|hf_[A-Za-z0-9]{8,}|Bearer\s+[A-Za-z0-9\-._~+/=]{8,})/g;
+
+/** Scrub embedded secret values from free text; safe on arbitrary strings. */
+export function redactSecretsInText(text: string): string {
+  SECRET_VALUE_RE.lastIndex = 0;
+  return text.replace(SECRET_VALUE_RE, "[redacted-secret]");
+}
+
 export function redactForLogs(value: unknown, depth = 0): unknown {
   if (depth > 4) return "[max depth]";
   if (value == null) return value;

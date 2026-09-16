@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import type { Plugin } from "vite";
 import { componentTagger } from "lovable-tagger";
+import { buildCspMetaTag } from "./scripts/csp-policy.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJson = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf-8")) as { version: string };
@@ -64,6 +65,23 @@ function openbenttSeoPlugin(): Plugin {
   };
 }
 
+/**
+ * Injects the canonical Content-Security-Policy (`scripts/csp-policy.mjs`) as a
+ * `<meta http-equiv>` tag into **built** index.html only (web dist + Electron dist).
+ * Skipped on the dev server: Vite HMR requires ws:/inline-eval that the production
+ * policy intentionally forbids. Dev remains localhost-only by default.
+ */
+function openbenttCspPlugin(): Plugin {
+  return {
+    name: "openbentt-csp",
+    transformIndexHtml(html, ctx) {
+      if (ctx.server) return html;
+      if (html.includes("http-equiv=\"Content-Security-Policy\"")) return html;
+      return html.replace("</head>", `    ${buildCspMetaTag()}\n  </head>`);
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   define: {
@@ -95,6 +113,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     openbenttSeoPlugin(),
+    openbenttCspPlugin(),
     mode === "development" && componentTagger(),
   ].filter(Boolean),
   resolve: {

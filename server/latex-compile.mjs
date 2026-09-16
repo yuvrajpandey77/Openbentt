@@ -2,6 +2,13 @@
  * Local pdflatex HTTP service for Notebook “Compile”.
  * POST /compile — text/plain body = single .tex
  * POST /compile — application/json = multi-file bundle
+ *
+ * Phase 1 hardening: request body cap, strict content-type allowlist, bundle
+ * shape validation, temp-dir containment for every written path, per-pass
+ * compile timeout, generic 500s (details stay server-side).
+ * Binds 127.0.0.1 by default; CORS stays permissive because the only callers
+ * are loopback (Vite dev/preview proxy, Electron, local scripts) — the threat
+ * model and rationale are documented in docs/OPENBENTT_PHASE_1_SECURITY_FOUNDATION.md.
  */
 
 import http from "node:http";
@@ -10,13 +17,25 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readBodyCapped, sendJson } from "./httpPolicy.mjs";
 
 const PORT = Number(process.env.PORT || 8788);
 const HOST = process.env.HOST || "127.0.0.1";
+// Single .tex documents are small; bundles may carry base64 figures.
+const MAX_BODY_BYTES = Number(process.env.TEX_MAX_BODY_BYTES || 8 * 1024 * 1024);
+const MAX_FILES = 100;
+const MAX_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_PATH_CHARS = 500;
+// Wall-clock cap per pdflatex/bibtex pass (spawnSync timeout kills the child).
+const COMPILE_TIMEOUT_MS = Number(process.env.TEX_COMPILE_TIMEOUT_MS || 120_000);
 
 function pdflatexAvailable() {
-  const r = spawnSync("pdflatex", ["--version"], { encoding: "utf8" });
-  return r.status === 0;
+  try {
+    const r = spawnSync("pdflatex", ["--version"], { encoding: "utf8", timeout: 15_000 });
+    return r.status === 0;
+  } catch {
+    return false;
+  }
 }
 
 const HAVE_PDFLATEX = pdflatexAvailable();
@@ -31,17 +50,31 @@ function send(res, status, body, type) {
   res.end(body);
 }
 
+/** Resolve `userPath` strictly inside `dir`; throw (→400) on traversal/absolute. */
+function resolveInside(dir, userPath) {
+  const raw = String(userPath ?? "");
+  if (!raw || raw.length > MAX_PATH_CHARS) throw new Error("bad path");
+  const fp = path.resolve(dir, raw);
+  const rel = path.relative(dir, fp);
+  if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) throw new Error("path escapes bundle");
+  return fp;
+}
+
 function runCompile(dir, mainPath, bibtex) {
   const opts = {
     cwd: dir,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
+    timeout: Number.isFinite(COMPILE_TIMEOUT_MS) && COMPILE_TIMEOUT_MS > 0 ? COMPILE_TIMEOUT_MS : 120_000,
+    killSignal: "SIGKILL",
   };
   const baseName = mainPath.replace(/\.tex$/i, "") || "main";
   const args = ["-interaction=nonstopmode", "-halt-on-error", mainPath];
   let log = "";
+  let timedOut = false;
   const runPdf = () => {
     const r = spawnSync("pdflatex", args, opts);
+    if (r.error) timedOut = true;
     log += (r.stdout || "") + (r.stderr || "");
     return r.status ?? 1;
   };
@@ -53,26 +86,38 @@ function runCompile(dir, mainPath, bibtex) {
   } else {
     status = runPdf();
   }
-  return { log, status, pdfPath: path.join(dir, `${baseName}.pdf`) };
+  return { log, status, timedOut, pdfPath: path.join(dir, `${baseName}.pdf`) };
 }
 
 function writeBundle(dir, payload) {
-  const mainPath = payload.mainPath || "main.tex";
-  fs.writeFileSync(path.join(dir, mainPath), payload.mainTex, "utf8");
-  for (const f of payload.files ?? []) {
-    const safe = String(f.path).replace(/\\/g, "/").replace(/^(\.\.\/)+/, "");
-    const fp = path.join(dir, safe);
+  if (!payload || typeof payload !== "object") throw new Error("bad bundle");
+  const mainTex = typeof payload.mainTex === "string" ? payload.mainTex : "";
+  if (!mainTex.trim()) throw new Error("Missing mainTex");
+  if (mainTex.length > MAX_BODY_BYTES) throw new Error("mainTex too large");
+  const mainPath = typeof payload.mainPath === "string" && payload.mainPath.trim() ? payload.mainPath : "main.tex";
+  const mainFp = resolveInside(dir, mainPath);
+  fs.mkdirSync(path.dirname(mainFp), { recursive: true });
+  fs.writeFileSync(mainFp, mainTex, "utf8");
+  const files = payload.files ?? [];
+  if (!Array.isArray(files) || files.length > MAX_FILES) throw new Error("bad files");
+  for (const f of files) {
+    if (!f || typeof f !== "object" || typeof f.path !== "string") throw new Error("bad file entry");
+    const fp = resolveInside(dir, f.path);
     fs.mkdirSync(path.dirname(fp), { recursive: true });
     if (f.encoding === "base64") {
-      fs.writeFileSync(fp, Buffer.from(f.content, "base64"));
+      const buf = Buffer.from(String(f.content ?? ""), "base64");
+      if (buf.length > MAX_FILE_BYTES) throw new Error("file too large");
+      fs.writeFileSync(fp, buf);
     } else {
-      fs.writeFileSync(fp, String(f.content ?? ""), "utf8");
+      const text = String(f.content ?? "");
+      if (text.length > MAX_FILE_BYTES) throw new Error("file too large");
+      fs.writeFileSync(fp, text, "utf8");
     }
   }
   return mainPath;
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
     send(res, 204, "", "text/plain");
     return;
@@ -100,64 +145,100 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  const chunks = [];
-  req.on("data", (c) => chunks.push(c));
-  req.on("end", () => {
-    let dir = null;
-    try {
-      const raw = Buffer.concat(chunks);
-      const contentType = String(req.headers["content-type"] ?? "");
-      let mainPath = "main.tex";
-      let bibtex = false;
+  // Phase 1: only the two content-types the real client sends (latexCompileClient).
+  const contentType = String(req.headers["content-type"] ?? "");
+  const isJson = contentType.includes("application/json");
+  const isText = contentType.includes("text/plain");
+  if (!isJson && !isText) {
+    send(res, 415, "content-type must be text/plain or application/json\n", "text/plain; charset=utf-8");
+    return;
+  }
 
-      dir = fs.mkdtempSync(path.join(os.tmpdir(), "openbentt-tex-"));
+  let raw;
+  try {
+    raw = await readBodyCapped(req, MAX_BODY_BYTES);
+  } catch {
+    // Over-cap uploads get their socket destroyed inside readBodyCapped, so no
+    // response can reach the client; any other read failure is a 400.
+    if (!req.destroyed) {
+      send(res, 400, "unreadable request body\n", "text/plain; charset=utf-8");
+    }
+    return;
+  }
 
-      if (contentType.includes("application/json")) {
-        const payload = JSON.parse(raw.toString("utf8"));
-        if (!payload?.mainTex?.trim()) {
-          send(res, 400, "Missing mainTex\n", "text/plain; charset=utf-8");
-          return;
-        }
-        mainPath = writeBundle(dir, payload);
-        bibtex = Boolean(payload.bibtex);
-      } else {
-        const tex = raw.toString("utf8");
-        if (!tex.trim()) {
-          send(res, 400, "Empty body\n", "text/plain; charset=utf-8");
-          return;
-        }
-        fs.writeFileSync(path.join(dir, "main.tex"), tex, "utf8");
-      }
+  let dir = null;
+  try {
+    let mainPath = "main.tex";
+    let bibtex = false;
 
-      const { log, status, pdfPath } = runCompile(dir, mainPath, bibtex);
-      if (status !== 0 || !fs.existsSync(pdfPath)) {
-        send(res, 500, log.slice(-24_000) || "pdflatex failed\n", "text/plain; charset=utf-8");
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "openbentt-tex-"));
+
+    if (isJson) {
+      let payload;
+      try {
+        payload = JSON.parse(raw.toString("utf8"));
+      } catch {
+        send(res, 400, "invalid JSON\n", "text/plain; charset=utf-8");
         return;
       }
-      const pdf = fs.readFileSync(pdfPath);
-      res.writeHead(200, {
-        "Content-Type": "application/pdf",
-        "Access-Control-Allow-Origin": "*",
-      });
-      res.end(pdf);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      send(res, 500, msg + "\n", "text/plain; charset=utf-8");
-    } finally {
-      if (dir && fs.existsSync(dir)) {
-        try {
-          fs.rmSync(dir, { recursive: true, force: true });
-        } catch {
-          /* ignore */
-        }
+      try {
+        mainPath = writeBundle(dir, payload);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "bad bundle";
+        send(res, 400, `${msg}\n`, "text/plain; charset=utf-8");
+        return;
+      }
+      bibtex = Boolean(payload.bibtex);
+    } else {
+      const tex = raw.toString("utf8");
+      if (!tex.trim()) {
+        send(res, 400, "Empty body\n", "text/plain; charset=utf-8");
+        return;
+      }
+      fs.writeFileSync(path.join(dir, "main.tex"), tex, "utf8");
+    }
+
+    const { log, status, timedOut, pdfPath } = runCompile(dir, mainPath, bibtex);
+    if (timedOut) {
+      send(res, 504, "compile timed out\n", "text/plain; charset=utf-8");
+      return;
+    }
+    if (status !== 0 || !fs.existsSync(pdfPath)) {
+      send(res, 500, log.slice(-24_000) || "pdflatex failed\n", "text/plain; charset=utf-8");
+      return;
+    }
+    const pdf = fs.readFileSync(pdfPath);
+    res.writeHead(200, {
+      "Content-Type": "application/pdf",
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.end(pdf);
+  } catch {
+    // Generic 500 — never reflect exception text (may embed tmpdir paths).
+    console.error("[latex-compile] request failed");
+    send(res, 500, "compile failed\n", "text/plain; charset=utf-8");
+  } finally {
+    if (dir && fs.existsSync(dir)) {
+      try {
+        fs.rmSync(dir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
       }
     }
-  });
+  }
 });
 
-server.listen(PORT, HOST, () => {
-  const dir = path.dirname(fileURLToPath(import.meta.url));
-  console.log(
-    `[latex-compile] listening http://${HOST}:${PORT}  POST /compile  (cwd ${dir})  pdflatex=${HAVE_PDFLATEX ? "yes" : "NO"}`
-  );
-});
+// Importable without side effects for node --test (Phase 1).
+const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
+const isMainModule = invokedPath !== "" && fileURLToPath(import.meta.url) === path.resolve(invokedPath);
+
+if (isMainModule) {
+  server.listen(PORT, HOST, () => {
+    const dir = path.dirname(fileURLToPath(import.meta.url));
+    console.log(
+      `[latex-compile] listening http://${HOST}:${PORT}  POST /compile  (cwd ${dir})  pdflatex=${HAVE_PDFLATEX ? "yes" : "NO"}`
+    );
+  });
+}
+
+export { server, resolveInside };

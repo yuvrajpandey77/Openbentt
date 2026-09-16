@@ -14,6 +14,7 @@ const localOnlyPrefs: PrivacyPreferences = {
   analyticsEnabled: false,
   allowShareLinks: false,
   showNetworkActivityWarnings: true,
+  memoryOnlyApiKeys: false,
 };
 
 describe("offline / local-only mode", () => {

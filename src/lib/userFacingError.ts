@@ -1,4 +1,6 @@
 /** ONNX Runtime Web / WASM sometimes throws `Error` whose `message` is only a status code. */
+import { redactSecretsInText } from "@/lib/privacy/redactForLogs";
+
 const NUMERIC_RUNTIME_MSG = /^\d{5,}$/;
 
 /** Classic WebAssembly traps from ORT / linked modules (often context too long or overlapping inference). */
@@ -61,15 +63,16 @@ export function formatUserFacingError(err: unknown, fallback = "Something went w
   if (err instanceof DOMException && err.name === "AbortError") {
     return "Aborted";
   }
+  // Provider/runtime messages are surfaced in toasts — scrub embedded secrets first.
   if (err instanceof Error) {
     const m = err.message.trim();
     if (!m) return fallback;
-    return expandRuntimeInferenceMessage(m);
+    return redactSecretsInText(expandRuntimeInferenceMessage(m));
   }
   if (typeof err === "string") {
     const m = err.trim();
-    return m ? expandRuntimeInferenceMessage(m) : fallback;
+    return m ? redactSecretsInText(expandRuntimeInferenceMessage(m)) : fallback;
   }
   const s = String(err).trim();
-  return s ? expandRuntimeInferenceMessage(s) : fallback;
+  return s ? redactSecretsInText(expandRuntimeInferenceMessage(s)) : fallback;
 }

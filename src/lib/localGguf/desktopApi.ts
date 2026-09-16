@@ -40,6 +40,8 @@ export interface DownloadProgressEvent {
 export interface HfSecretStatus {
   stored: boolean;
   encryptionAvailable: boolean;
+  /** Phase 1: true when a restricted-permission plaintext fallback file exists on disk. */
+  fallback?: boolean;
 }
 
 export interface OpenbenttLocalGgufApi {

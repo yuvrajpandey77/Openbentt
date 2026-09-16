@@ -89,6 +89,8 @@ export function registerHfSecretIpc(ipcMain, app) {
     return {
       stored,
       encryptionAvailable: safeStorage.isEncryptionAvailable(),
+      // Phase 1: true when a restricted-permission plaintext fallback file exists.
+      fallback: fs.existsSync(hfSecretPaths(app).fallback),
     };
   });
 

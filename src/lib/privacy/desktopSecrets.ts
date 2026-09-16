@@ -9,6 +9,13 @@ export type VaultKey = "provider_api_key" | "brave_search_api_key";
 export interface VaultStatus {
   stored: Record<string, boolean>;
   encryptionAvailable: boolean;
+  /**
+   * Phase 1: per-key plaintext-fallback presence — true when a `.secret`
+   * (restricted-permission, unencrypted) file currently exists on disk for the
+   * key, even if OS encryption is otherwise available. Lets the UI distinguish
+   * "stored encrypted" from "stored as fallback".
+   */
+  fallback?: Record<string, boolean>;
 }
 
 export interface VaultLoadResult {
@@ -30,6 +37,22 @@ export function getSecretsApi(): OpenbenttSecretsApi | undefined {
 /** Strip secrets before writing api config to localStorage on desktop. */
 export function apiConfigForBrowserStorage(cfg: ApiKeyConfig): ApiKeyConfig {
   if (!isDesktopApp()) return cfg;
+  return {
+    ...cfg,
+    apiKey: "",
+    braveSearchApiKey: "",
+    huggingFaceToken: "",
+  };
+}
+
+/**
+ * Phase 1 (web only): blank provider secrets so the persisted config carries no
+ * key material. In-memory React state keeps working until reload; the user
+ * re-enters keys afterwards. Desktop returns cfg unchanged (the OS vault is
+ * already the secure path, and stripping there would break vault sync).
+ */
+export function apiConfigForMemoryOnlyStorage(cfg: ApiKeyConfig): ApiKeyConfig {
+  if (isDesktopApp()) return cfg;
   return {
     ...cfg,
     apiKey: "",

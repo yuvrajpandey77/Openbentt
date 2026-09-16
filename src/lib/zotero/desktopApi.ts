@@ -31,7 +31,7 @@ export interface OpenbenttZoteroApi {
   getLibrarySnapshot: () => Promise<ZoteroLibrarySnapshot | null>;
   watchBetterBibTeX: (exportPath?: string) => Promise<{ ok: boolean; error?: string }>;
   stopWatch: () => Promise<{ ok: boolean }>;
-  secretStatus: () => Promise<{ stored: boolean; encryptionAvailable: boolean }>;
+  secretStatus: () => Promise<{ stored: boolean; encryptionAvailable: boolean; fallback?: boolean }>;
   secretSet: (apiKey: string) => Promise<{ ok: boolean }>;
   secretClear: () => Promise<{ ok: boolean }>;
   onSyncProgress: (cb: (p: ZoteroSyncProgress) => void) => () => void;
