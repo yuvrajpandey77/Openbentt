@@ -1,0 +1,18 @@
+{
+  "format": "openbentt-knowledge-v1",
+  "description": "Synthetic fixture: Person A authored Paper C; C published by Org B; C uses Tech D.",
+  "entities": [
+    { "id": "fixture_person_a", "type": "person", "canonicalName": "Ada Example", "normalizedName": "ada example", "status": "active", "properties": {}, "aliases": [], "externalIds": [{ "namespace": "orcid", "value": "0000-0000-0000-0001" }], "tags": [], "origin": "import", "provenance": "imported", "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-01-01T00:00:00.000Z" },
+    { "id": "fixture_org_b", "type": "organization", "canonicalName": "Example Lab", "normalizedName": "example lab", "status": "active", "properties": {}, "aliases": [], "externalIds": [], "tags": [], "origin": "import", "provenance": "imported", "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-01-01T00:00:00.000Z" },
+    { "id": "fixture_paper_c", "type": "paper", "canonicalName": "Example Findings", "normalizedName": "example findings", "status": "active", "properties": { "year": "2025" }, "aliases": [], "externalIds": [{ "namespace": "doi", "value": "10.0000/example" }], "tags": [], "origin": "import", "provenance": "imported", "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-01-01T00:00:00.000Z" },
+    { "id": "fixture_tech_d", "type": "technology", "canonicalName": "ExampleNet", "normalizedName": "examplenet", "status": "active", "properties": {}, "aliases": [], "externalIds": [], "tags": [], "origin": "import", "provenance": "imported", "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-01-01T00:00:00.000Z" }
+  ],
+  "relationships": [
+    { "id": "fixture_r1", "type": "AUTHORED_BY", "subjectEntityId": "fixture_person_a", "objectEntityId": "fixture_paper_c", "properties": {}, "status": "asserted", "confidence": "high", "origin": "import", "provenance": "imported", "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-01-01T00:00:00.000Z" },
+    { "id": "fixture_r2", "type": "PUBLISHED_BY", "subjectEntityId": "fixture_paper_c", "objectEntityId": "fixture_org_b", "properties": {}, "status": "asserted", "confidence": "high", "origin": "import", "provenance": "imported", "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-01-01T00:00:00.000Z" },
+    { "id": "fixture_r3", "type": "USES", "subjectEntityId": "fixture_paper_c", "objectEntityId": "fixture_tech_d", "properties": {}, "status": "asserted", "confidence": "medium", "origin": "import", "provenance": "imported", "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-01-01T00:00:00.000Z" }
+  ],
+  "evidence": [
+    { "id": "fixture_ev1", "subjectType": "relationship", "subjectId": "fixture_r1", "evidenceType": "document", "sourceRef": { "documentId": "doc_fixture", "documentVersionId": "doc_fixture@v1", "page": 1, "chunkId": "doc_fixture:b0:0", "sourceType": "markdown" }, "evidenceDocVersion": 1, "confidence": "high", "status": "current", "origin": "import", "createdAt": "2026-01-01T00:00:00.000Z" }
+  ]
+}

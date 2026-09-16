@@ -7,7 +7,11 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 10;
+
+export function getSchemaVersion() {
+  return SCHEMA_VERSION;
+}
 const ROOT_DIR = "research-projects";
 
 export function projectsRoot(app) {
@@ -83,6 +87,9 @@ function runMigrations(db) {
   if (v < 5) migrateV5(db);
   if (v < 6) migrateV6(db);
   if (v < 7) migrateV7(db);
+  if (v < 8) migrateV8(db);
+  if (v < 9) migrateV9(db);
+  if (v < 10) migrateV10(db);
 
   if (v < SCHEMA_VERSION) {
     db.prepare("DELETE FROM schema_version").run();
@@ -323,6 +330,182 @@ export function migrateV7(db) {
       content_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL
     );
+  `);
+}
+
+/**
+ * v8 (Phase 3, additive only): durable provenance-first knowledge graph.
+ * Existing tables untouched. Evidence references Phase 2 document/chunk ids
+ * without copying content; deletion/versioning handled by status + stale
+ * checks in knowledgeStore.mjs (soft semantics, history preserved).
+ */
+export function migrateV8(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS knowledge_entities (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      type TEXT NOT NULL,
+      canonical_name TEXT NOT NULL,
+      normalized_name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active',
+      merged_into TEXT,
+      properties_json TEXT NOT NULL DEFAULT '{}',
+      origin TEXT NOT NULL DEFAULT 'system',
+      provenance TEXT NOT NULL DEFAULT 'automatic',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_kent_proj_type ON knowledge_entities(project_id, type);
+    CREATE INDEX IF NOT EXISTS idx_kent_norm ON knowledge_entities(normalized_name);
+    CREATE INDEX IF NOT EXISTS idx_kent_status ON knowledge_entities(status);
+    CREATE TABLE IF NOT EXISTS knowledge_entity_aliases (
+      entity_id TEXT NOT NULL REFERENCES knowledge_entities(id) ON DELETE CASCADE,
+      alias TEXT NOT NULL,
+      PRIMARY KEY (entity_id, alias)
+    );
+    CREATE INDEX IF NOT EXISTS idx_kalias_alias ON knowledge_entity_aliases(alias);
+    CREATE TABLE IF NOT EXISTS knowledge_entity_identifiers (
+      entity_id TEXT NOT NULL REFERENCES knowledge_entities(id) ON DELETE CASCADE,
+      namespace TEXT NOT NULL,
+      value TEXT NOT NULL,
+      PRIMARY KEY (entity_id, namespace, value)
+    );
+    CREATE INDEX IF NOT EXISTS idx_kid_nsval ON knowledge_entity_identifiers(namespace, value);
+    CREATE TABLE IF NOT EXISTS knowledge_entity_tags (
+      entity_id TEXT NOT NULL REFERENCES knowledge_entities(id) ON DELETE CASCADE,
+      tag TEXT NOT NULL,
+      PRIMARY KEY (entity_id, tag)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ktag_tag ON knowledge_entity_tags(tag);
+    CREATE TABLE IF NOT EXISTS knowledge_relationships (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      type TEXT NOT NULL,
+      subject_id TEXT NOT NULL REFERENCES knowledge_entities(id) ON DELETE CASCADE,
+      object_id TEXT NOT NULL REFERENCES knowledge_entities(id) ON DELETE CASCADE,
+      properties_json TEXT NOT NULL DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'asserted',
+      confidence TEXT NOT NULL DEFAULT 'medium',
+      origin TEXT NOT NULL DEFAULT 'system',
+      provenance TEXT NOT NULL DEFAULT 'automatic',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_krel_subj ON knowledge_relationships(subject_id);
+    CREATE INDEX IF NOT EXISTS idx_krel_obj ON knowledge_relationships(object_id);
+    CREATE INDEX IF NOT EXISTS idx_krel_type ON knowledge_relationships(type);
+    CREATE INDEX IF NOT EXISTS idx_krel_proj ON knowledge_relationships(project_id, status);
+    CREATE TABLE IF NOT EXISTS knowledge_evidence (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      subject_type TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
+      predicate TEXT,
+      quote TEXT,
+      evidence_type TEXT NOT NULL DEFAULT 'document',
+      source_json TEXT NOT NULL DEFAULT '{}',
+      source_document_id TEXT NOT NULL DEFAULT '',
+      evidence_doc_version INTEGER,
+      extractor_version TEXT,
+      confidence TEXT NOT NULL DEFAULT 'medium',
+      status TEXT NOT NULL DEFAULT 'current',
+      origin TEXT NOT NULL DEFAULT 'system',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_kev_subj ON knowledge_evidence(subject_type, subject_id);
+    CREATE INDEX IF NOT EXISTS idx_kev_doc ON knowledge_evidence(source_document_id);
+    CREATE INDEX IF NOT EXISTS idx_kev_proj ON knowledge_evidence(project_id, status);
+    CREATE TABLE IF NOT EXISTS knowledge_entity_merges (
+      id TEXT PRIMARY KEY,
+      from_id TEXT NOT NULL,
+      into_id TEXT NOT NULL REFERENCES knowledge_entities(id) ON DELETE CASCADE,
+      reason TEXT,
+      origin TEXT NOT NULL DEFAULT 'system',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_kmerge_from ON knowledge_entity_merges(from_id);
+  `);
+}
+
+/**
+ * v9 (Phase 4, additive only): connector foundation tables.
+ * Existing tables untouched. Raw provider metadata is NOT stored here
+ * (bounded rawMetadata lives on the normalized item at import time only);
+ * these tables track sources, seen item hashes, sync runs, and
+ * connector→entity links. No secrets are ever stored in these tables.
+ */
+export function migrateV9(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS connector_sources (
+      id TEXT PRIMARY KEY,
+      connector_id TEXT NOT NULL,
+      display_name TEXT NOT NULL DEFAULT '',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_csrc_connector ON connector_sources(connector_id);
+    CREATE TABLE IF NOT EXISTS connector_items (
+      connector_id TEXT NOT NULL,
+      external_id TEXT NOT NULL,
+      item_hash TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'seen',
+      last_seen_at TEXT NOT NULL,
+      retrieved_at TEXT NOT NULL,
+      PRIMARY KEY (connector_id, external_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_citem_seen ON connector_items(last_seen_at);
+    CREATE TABLE IF NOT EXISTS connector_sync_runs (
+      id TEXT PRIMARY KEY,
+      connector_id TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT 'default',
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      status TEXT NOT NULL DEFAULT 'syncing',
+      counts_json TEXT NOT NULL DEFAULT '{}',
+      error TEXT,
+      provider_version TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_crun_connector ON connector_sync_runs(connector_id, started_at DESC);
+    CREATE TABLE IF NOT EXISTS connector_item_links (
+      connector_id TEXT NOT NULL,
+      external_id TEXT NOT NULL,
+      entity_id TEXT NOT NULL REFERENCES knowledge_entities(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (connector_id, external_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_clink_entity ON connector_item_links(entity_id);
+  `);
+}
+
+/**
+ * v10 (Phase 5, additive only): tool audit ledger.
+ * One bounded row per tool execution: identifiers + redacted summaries only.
+ * No secrets, no raw inputs, no document text, no provider payloads.
+ */
+export function migrateV10(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tool_audit_events (
+      id TEXT PRIMARY KEY,
+      tool_id TEXT NOT NULL,
+      tool_version TEXT NOT NULL DEFAULT '',
+      request_id TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'unknown',
+      project_id TEXT,
+      permission TEXT NOT NULL DEFAULT 'READ_ONLY',
+      risk TEXT NOT NULL DEFAULT 'LOW',
+      decision TEXT NOT NULL DEFAULT 'DENY',
+      status TEXT NOT NULL DEFAULT 'failed',
+      duration_ms INTEGER NOT NULL DEFAULT 0,
+      resource_summary_json TEXT NOT NULL DEFAULT '{}',
+      error_category TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_taudit_time ON tool_audit_events(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_taudit_tool ON tool_audit_events(tool_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_taudit_project ON tool_audit_events(project_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_taudit_status ON tool_audit_events(status, created_at DESC);
   `);
 }
 

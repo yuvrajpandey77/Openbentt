@@ -33,6 +33,7 @@ const required = [
   "src/lib/zotero/zoteroMapper.mjs",
   "src/lib/research/corpusChunksCore.mjs",
   "src/lib/research/embedCore.mjs",
+  "src/lib/knowledge/knowledgeCore.mjs",
 ];
 
 const missing = required.filter((rel) => !isCoveredByFiles(rel));

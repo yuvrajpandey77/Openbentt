@@ -17,6 +17,7 @@ import {
   deleteProject,
   getActiveProjectId,
   getDraftHistoryEntry,
+  getSchemaVersion,
   listChatLogs,
   listDraftHistory,
   listLinkedThreadsWithCount,
@@ -34,6 +35,26 @@ import {
   setActiveProjectId,
 } from "./researchDb.mjs";
 import {
+  addEvidence,
+  getEntity,
+  getEvidenceFor,
+  getRelationship,
+  knowledgeStats,
+  listEvidenceForDocument,
+  listMerges,
+  listRelationships,
+  markEvidenceStaleForDocument,
+  mergeEntities,
+  resolveEntity,
+  searchEntities,
+  setEntityStatus,
+  setEvidenceStatus,
+  setRelationshipStatus,
+  traverse,
+  upsertEntity,
+  upsertRelationship,
+} from "./knowledgeStore.mjs";
+import {
   deleteEmbeddingsForChunks,
   deleteEmbeddingsForProject,
   embeddingStats,
@@ -50,6 +71,24 @@ import {
   shutdownAllJobs,
 } from "./researchJobQueue.mjs";
 import { assertBase64Pdf, assertPathUnderRoots, assertSafeId } from "./ipcValidate.mjs";
+import {
+  dryRunConnectorImport,
+  entityIdForConnectorItem,
+  getConnectorSyncStatus,
+  importConnectorItems,
+  listConnectorSources,
+  listConnectorSyncRuns,
+  previewConnectorItems,
+  recordConnectorSyncRun,
+  resetConnector,
+  upsertConnectorSource,
+} from "./connectorStore.mjs";
+import {
+  executeToolMain,
+  inspectToolDefinition,
+  listToolAuditEvents,
+  listToolDefinitions,
+} from "./toolStore.mjs";
 
 function mimeForAsset(fileName) {
   const lower = String(fileName).toLowerCase();
@@ -65,7 +104,7 @@ export async function initResearchStorage(app) {
   const { migrated } = await migrateLegacyProjects(app);
   backupDatabase(app);
   const { resumed } = resumeInterruptedJobs(app);
-  return { migrated, schemaVersion: 6, resumed };
+  return { migrated, schemaVersion: getSchemaVersion(), resumed };
 }
 
 export function registerResearchProjectIpc(ipcMain, app) {
@@ -368,6 +407,132 @@ export function registerResearchProjectIpc(ipcMain, app) {
   ipcMain.handle("research:listLinkedThreads", async (_e, projectId) => {
     assertSafeId(projectId, "project id");
     return listLinkedThreadsWithCount(app, projectId);
+  });
+
+  /**
+   * Phase 3 knowledge graph — one generic channel with an op allowlist, riding
+   * the existing openbenttResearch bridge (no new preload surface).
+   * Payloads are validated in knowledgeStore.mjs; errors are safe generics.
+   */
+  ipcMain.handle("research:knowledge", async (_e, op, payload) => {
+    switch (op) {
+      case "upsertEntity": return upsertEntity(app, payload);
+      case "getEntity": return getEntity(app, payload?.id);
+      case "resolveEntity": return resolveEntity(app, payload?.id);
+      case "searchEntities": return searchEntities(app, payload ?? {});
+      case "setEntityStatus": return setEntityStatus(app, payload?.id, payload?.status);
+      case "mergeEntities":
+        return mergeEntities(app, payload?.fromId, payload?.intoId, payload?.reason, payload?.origin);
+      case "listMerges": return listMerges(app, payload?.entityId);
+      case "upsertRelationship": return upsertRelationship(app, payload);
+      case "getRelationship": return getRelationship(app, payload?.id);
+      case "listRelationships": return listRelationships(app, payload?.entityId, payload?.opts);
+      case "setRelationshipStatus": return setRelationshipStatus(app, payload?.id, payload?.status);
+      case "addEvidence": return addEvidence(app, payload);
+      case "getEvidenceFor": return getEvidenceFor(app, payload?.subjectType, payload?.subjectId);
+      case "listEvidenceForDocument": return listEvidenceForDocument(app, payload?.documentId, payload?.opts);
+      case "markEvidenceStale": return markEvidenceStaleForDocument(app, payload?.documentId, payload?.currentVersion);
+      case "setEvidenceStatus": return setEvidenceStatus(app, payload?.id, payload?.status);
+      case "traverse": return traverse(app, payload?.entityId, payload?.opts);
+      case "stats": return knowledgeStats(app, payload?.projectId);
+      default: throw new Error("Unknown knowledge operation");
+    }
+  });
+
+  /**
+   * Phase 4 connectors — one generic channel with an op allowlist, riding the
+   * existing openbenttResearch bridge (one added preload method, no new
+   * surface). Connector ids are registry-validated; no dynamic imports, no
+   * arbitrary URLs/paths/SQL. Imports accept normalized items only.
+   */
+  ipcMain.handle("research:connectors", async (_e, op, payload) => {
+    switch (op) {
+      case "list": return listConnectorSources(app);
+      case "get": {
+        if (!payload || typeof payload.connectorId !== "string") throw new Error("Missing connector id");
+        return getConnectorSyncStatus(app, payload.connectorId, payload.scope);
+      }
+      case "capabilities": {
+        if (!payload || typeof payload.connectorId !== "string") throw new Error("Missing connector id");
+        const id = payload.connectorId;
+        if (id !== "crossref" && id !== "zotero") throw new Error("Unknown connector");
+        return id === "crossref"
+          ? ["SEARCH", "FETCH_ITEM", "METADATA", "AUTHORS", "IDENTIFIERS"]
+          : ["FETCH_COLLECTION", "FETCH_ITEM", "METADATA", "AUTHORS", "IDENTIFIERS", "IMPORT"];
+      }
+      case "preview": return previewConnectorItems(payload?.items);
+      case "dryRun": return dryRunConnectorImport(app, payload?.items, payload?.opts);
+      case "import": {
+        const startedAt = new Date().toISOString();
+        void startedAt;
+        try {
+          const res = importConnectorItems(app, payload?.items, payload?.opts);
+          const seen = (res.created.length + res.updated.length + res.unchanged.length + res.skipped.length + res.failed.length);
+          const failed = res.failed.length;
+          const status = failed === 0 ? "synced" : failed < seen ? "partial" : "failed";
+          const first = Array.isArray(payload?.items) && payload.items.length ? payload.items[0] : null;
+          if (first && typeof first.connectorId === "string") {
+            recordConnectorSyncRun(app, {
+              connectorId: first.connectorId,
+              scope: payload?.opts?.projectId ?? "default",
+              status,
+              counts: { seen, created: res.created.length, updated: res.updated.length, failed },
+            });
+          }
+          return res;
+        } catch (err) {
+          const first = Array.isArray(payload?.items) && payload.items.length ? payload.items[0] : null;
+          if (first && typeof first.connectorId === "string" &&
+            (first.connectorId === "crossref" || first.connectorId === "zotero")) {
+            recordConnectorSyncRun(app, {
+              connectorId: first.connectorId,
+              scope: payload?.opts?.projectId ?? "default",
+              status: "failed",
+              counts: { seen: 0, created: 0, updated: 0, failed: 0 },
+              error: err instanceof Error ? err.message : "import failed",
+            });
+          }
+          throw err;
+        }
+      }
+      case "syncStatus": return getConnectorSyncStatus(app, payload?.connectorId, payload?.scope);
+      case "sync": {
+        // Explicit sync = record source + report status (no polling daemon).
+        if (!payload || typeof payload.connectorId !== "string") throw new Error("Missing connector id");
+        if (payload.connectorId !== "crossref" && payload.connectorId !== "zotero") throw new Error("Unknown connector");
+        upsertConnectorSource(app, payload.connectorId, payload.connectorId);
+        return getConnectorSyncStatus(app, payload.connectorId, payload?.scope);
+      }
+      case "syncRuns": return listConnectorSyncRuns(app, payload?.connectorId, payload?.limit);
+      case "entityFor": return entityIdForConnectorItem(app, payload?.connectorId, payload?.externalId);
+      case "disconnect":
+      case "reset": return resetConnector(app, payload?.connectorId);
+      default: throw new Error("Unknown connectors operation");
+    }
+  });
+
+  /**
+   * Phase 5 tools — one generic channel with an op allowlist, riding the
+   * existing openbenttResearch bridge (one added preload method, no new
+   * surface). Tool ids are registry-validated in toolStore.mjs; local-only
+   * tools (document.*, utility.*) execute renderer-side and never reach IPC.
+   */
+  ipcMain.handle("research:tools", async (_e, op, payload) => {
+    switch (op) {
+      case "list": return listToolDefinitions();
+      case "get": {
+        if (!payload || typeof payload.toolId !== "string") throw new Error("Missing tool id");
+        return inspectToolDefinition(payload.toolId);
+      }
+      case "execute": {
+        if (!payload || typeof payload.toolId !== "string") throw new Error("Missing tool id");
+        return executeToolMain(app, payload.toolId, payload.input, payload.context, {
+          timeoutMs: payload.timeoutMs,
+        });
+      }
+      case "audit": return listToolAuditEvents(app, payload ?? {});
+      default: throw new Error("Unknown tools operation");
+    }
   });
 }
 

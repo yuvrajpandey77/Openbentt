@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { closeDb, loadProject, saveProjectMeta } from "./researchDb.mjs";
+import { closeDb, getSchemaVersion, loadProject, saveProjectMeta } from "./researchDb.mjs";
 import { shutdownAllJobs } from "./researchJobQueue.mjs";
 import { registerResearchProjectIpc, initResearchStorage } from "./researchProjectService.mjs";
 import { makeTempUserData } from "./test/researchTestApp.mjs";
@@ -71,7 +71,9 @@ describe("researchProjectService IPC smoke", () => {
     const projectId = "ipc-smoke";
 
     const init = await ipc.invoke("research:init");
-    assert.equal(init.schemaVersion, 6);
+    // Phase 4 intentional: initResearchStorage returns the live
+    // SCHEMA_VERSION (v9 connector tables) instead of a stale literal.
+    assert.equal(init.schemaVersion, getSchemaVersion());
 
     await ipc.invoke("research:saveProject", sampleProject(projectId));
     const loaded = await ipc.invoke("research:loadProject", projectId);

@@ -112,6 +112,7 @@ interface OpenbenttResearchApi {
       message?: string;
     }) => void
   ) => () => void;
+  knowledge: (op: string, payload?: unknown) => Promise<unknown>;
 }
 
 interface Window {

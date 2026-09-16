@@ -153,4 +153,7 @@ contextBridge.exposeInMainWorld("openbenttResearch", {
     ipcRenderer.invoke("research:listChatLogs", projectId, opts),
   listLinkedThreads: (projectId) =>
     ipcRenderer.invoke("research:listLinkedThreads", projectId),
+  knowledge: (op, payload) => ipcRenderer.invoke("research:knowledge", op, payload),
+  connectors: (op, payload) => ipcRenderer.invoke("research:connectors", op, payload),
+  tools: (op, payload) => ipcRenderer.invoke("research:tools", op, payload),
 });

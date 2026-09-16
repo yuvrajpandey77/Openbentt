@@ -8,6 +8,8 @@ import { NotebookNotesPanel } from "@/components/research/NotebookNotesPanel";
 import { NotebookAssistantPanel } from "@/components/research/NotebookAssistantPanel";
 import { LibraryPapersPanel } from "@/components/research/LibraryPapersPanel";
 import { KnowledgePanel } from "@/components/research/KnowledgePanel";
+import { KnowledgeSearchPanel } from "@/components/knowledge/KnowledgeSearchPanel";
+import { ToolPanel } from "@/components/research/ToolPanel";
 
 export function ResearchSidePanel({ id }: { id: ResearchPanelId }) {
   switch (id) {
@@ -19,6 +21,10 @@ export function ResearchSidePanel({ id }: { id: ResearchPanelId }) {
       return <NotebookAssistantPanel />;
     case "knowledge":
       return <KnowledgePanel />;
+    case "graph":
+      return <KnowledgeSearchPanel />;
+    case "tools":
+      return <ToolPanel />;
     case "notes":
       return <NotebookNotesPanel />;
     case "search":
