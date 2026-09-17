@@ -66,6 +66,11 @@ const AssistantRoleContent: React.FC<{
 }> = ({ message, idx, messages, isLoading, showAgentTraces, highlightQuery, compact }) => {
   const exportRef = useRef<HTMLDivElement>(null);
   const plainText = useMemo(() => buildAssistantPlainText(message), [message]);
+  const { pendingAgentConfirm, confirmAgentRun } = useChat();
+  const awaitingConfirm =
+    pendingAgentConfirm && message.agentRunId === pendingAgentConfirm.runId
+      ? pendingAgentConfirm
+      : null;
   const isLast = idx === messages.length - 1;
   const toolsDisabled =
     isLoading &&
@@ -170,6 +175,21 @@ const AssistantRoleContent: React.FC<{
             ))}
           </CollapsibleContent>
         </Collapsible>
+      )}
+      {awaitingConfirm && (
+        <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3" role="alert">
+          <p className="text-xs font-medium text-foreground">Agent requests confirmation</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{awaitingConfirm.summary}</p>
+          <div className="mt-2 flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void confirmAgentRun(awaitingConfirm.runId)}
+            >
+              Confirm and continue
+            </Button>
+          </div>
+        </div>
       )}
       <AssistantMessageToolbar
         exportRef={exportRef}

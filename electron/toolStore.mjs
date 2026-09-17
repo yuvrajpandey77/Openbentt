@@ -27,6 +27,8 @@ import { loadProject } from "./researchDb.mjs";
 import {
   CONNECTOR_CAPABILITIES,
   CONNECTOR_META,
+} from "../src/lib/connectors/connectorCore.mjs";
+import {
   TOOL_DEFINITIONS,
   TOOL_LIMITS,
   buildToolRequest,

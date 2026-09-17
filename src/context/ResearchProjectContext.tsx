@@ -140,7 +140,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   const projectRef = useRef<ResearchProjectData | null>(null);
   projectRef.current = project;
 
-  const { registerCorpusRagProvider, registerChatLogPersister } = useChat();
+  const { registerCorpusRagProvider, registerChatLogPersister, registerAgentProjectProvider } = useChat();
 
   // Register corpus RAG provider whenever there's an active project.
   useEffect(() => {
@@ -193,6 +193,17 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
     return () => registerChatLogPersister(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id, registerChatLogPersister]);
+
+  // Register the active project id so agent runs scope tool calls to it.
+  useEffect(() => {
+    if (!project?.id) {
+      registerAgentProjectProvider(null);
+      return;
+    }
+    const pid = project.id;
+    registerAgentProjectProvider(() => pid);
+    return () => registerAgentProjectProvider(null);
+  }, [project?.id, registerAgentProjectProvider]);
 
   const restoreCleanDraftFromHistory = useCallback(async () => {
     if (!project?.id || !isDesktopApp()) {

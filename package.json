@@ -21,7 +21,7 @@
     "preview": "vite preview",
     "test": "vitest run && npm run test:electron",
     "test:unit": "vitest run",
-    "test:electron": "node --test electron/gpuSafeMode.test.mjs electron/llamaBinary.test.mjs electron/researchDb.test.mjs electron/researchVectorStore.test.mjs electron/researchJobQueue.test.mjs electron/researchProjectService.test.mjs electron/researchWorkers/chunkWorker.test.mjs electron/compileArtifactStore.test.mjs electron/externalUrlPolicy.test.mjs electron/navigationPolicy.test.mjs electron/log.test.mjs electron/documentsStore.test.mjs electron/knowledgeStore.test.mjs electron/connectorStore.test.mjs electron/toolStore.test.mjs server/httpPolicy.test.mjs server/research-proxy.test.mjs server/latex-compile.test.mjs src/lib/research/embedCore.test.mjs",
+    "test:electron": "node --test electron/gpuSafeMode.test.mjs electron/llamaBinary.test.mjs electron/researchDb.test.mjs electron/researchVectorStore.test.mjs electron/researchJobQueue.test.mjs electron/researchProjectService.test.mjs electron/researchWorkers/chunkWorker.test.mjs electron/compileArtifactStore.test.mjs electron/externalUrlPolicy.test.mjs electron/navigationPolicy.test.mjs electron/log.test.mjs electron/documentsStore.test.mjs electron/knowledgeStore.test.mjs electron/connectorStore.test.mjs electron/toolStore.test.mjs electron/agentAudit.test.mjs server/httpPolicy.test.mjs server/research-proxy.test.mjs server/latex-compile.test.mjs src/lib/research/embedCore.test.mjs",
     "bench:documents": "vitest run src/lib/documents/benchmark.test.ts",
     "bench:knowledge": "vitest run src/lib/knowledge/benchmark.test.ts",
     "test:e2e": "playwright test",

@@ -88,6 +88,7 @@ import {
   inspectToolDefinition,
   listToolAuditEvents,
   listToolDefinitions,
+  recordToolAuditEvent,
 } from "./toolStore.mjs";
 
 function mimeForAsset(fileName) {
@@ -531,6 +532,7 @@ export function registerResearchProjectIpc(ipcMain, app) {
         });
       }
       case "audit": return listToolAuditEvents(app, payload ?? {});
+      case "record": return recordToolAuditEvent(app, payload?.event);
       default: throw new Error("Unknown tools operation");
     }
   });

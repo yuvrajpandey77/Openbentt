@@ -82,6 +82,8 @@ export interface Message {
   researchSources?: ResearchSourceRef[];
   /** Pipeline steps (research, tools) for advanced users */
   agentTrace?: AgentTraceStep[];
+  /** Phase 6: links an assistant message to its controlled agent run (if any). */
+  agentRunId?: string;
   /** True while tokens are still streaming for this assistant message */
   streaming?: boolean;
 }

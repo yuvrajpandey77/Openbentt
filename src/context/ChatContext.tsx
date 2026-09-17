@@ -35,6 +35,21 @@ import { coerceApiConfigForPlatform } from "@/config/platformSurface";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { assertChatProviderAllowed, isResearchNetworkAllowed } from "@/lib/offline/mode";
 import { isNavigatorOnline } from "@/lib/offline/connectivity";
+import { getAgentDefinition } from "@/lib/agent/agentDefinitions";
+import { createRoutedModelFn, collectingModelFn } from "@/lib/agent/agentModel";
+import { defaultAgentToolExecutor, createAgentAuditSink } from "@/lib/agent/agentTools";
+import {
+  getStoredRun,
+  resumeAgentRun,
+  runAgent,
+} from "@/lib/agent/agentRuntime";
+import {
+  agentStepsToTrace,
+  confirmationPromptFor,
+  runOutputToSources,
+  streamTextChunked,
+} from "@/lib/agent/agentChat";
+import type { AgentRun } from "@/lib/agent/agentTypes";
 import {
   apiConfigForBrowserStorage,
   apiConfigForMemoryOnlyStorage,
@@ -62,6 +77,15 @@ interface ChatContextProps {
   ) => Promise<void>;
   regenerateLastResponse: () => Promise<void>;
   beginEditUserMessage: (messageId: string) => void;
+  /** Phase 6: controlled agent mode (tool-using assistant via Phase 5 boundary). */
+  agentMode: boolean;
+  setAgentMode: (v: boolean) => void;
+  /** Suspended agent run awaiting user confirmation (null when none). */
+  pendingAgentConfirm: { runId: string; toolId: string; summary: string } | null;
+  sendAgentMessage: (content: string, opts?: { projectId?: string }) => Promise<void>;
+  confirmAgentRun: (runId: string) => Promise<void>;
+  /** Research: register a provider returning the active project id for agent scoping. */
+  registerAgentProjectProvider: (fn: (() => string | null) | null) => void;
   setApiConfig: (config: ApiKeyConfig) => void;
   stopStreaming: () => void;
   /** Load text into the main chat composer (Thread). Navigating to `/chat` is recommended. */
@@ -180,6 +204,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     []
   );
+
 
   useEffect(() => {
     setProviderQuotaSnapshot(null);
@@ -1073,6 +1098,248 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  /** Phase 6: agent mode + run plumbing (additive; standard pipeline untouched). */
+  const [agentMode, setAgentMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("openbentt-agent-mode") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [pendingAgentConfirm, setPendingAgentConfirm] = useState<{
+    runId: string; toolId: string; summary: string;
+  } | null>(null);
+  const agentProjectProviderRef = useRef<(() => string | null) | null>(null);
+  const agentRunMessageRef = useRef(new Map<string, { chatId: string; messageId: string }>());
+
+  const setAgentModeAndPersist = useCallback((v: boolean) => {
+    setAgentMode(v);
+    try {
+      localStorage.setItem("openbentt-agent-mode", v ? "1" : "0");
+    } catch {
+      /* non-critical */
+    }
+  }, []);
+
+  const registerAgentProjectProvider = useCallback((fn: (() => string | null) | null) => {
+    agentProjectProviderRef.current = fn;
+  }, []);
+
+  const patchAgentMessage = useCallback(
+    (chatId: string, messageId: string, patch: (m: Message) => Message) => {
+      setChats((prevChats) =>
+        prevChats.map((chat) => {
+          if (chat.id !== chatId) return chat;
+          return {
+            ...chat,
+            messages: chat.messages.map((msg) => (msg.id === messageId ? patch(msg) : msg)),
+            updatedAt: new Date(),
+          };
+        })
+      );
+    },
+    []
+  );
+
+  const persistAgentTurn = useCallback(
+    (chatId: string, userContent: string, assistantText: string, model: string) => {
+      updateChatTitleFromMessages(chatId, [
+        ...(chatsRef.current.find((c) => c.id === chatId)?.messages ?? []),
+      ]);
+      if (chatLogPersisterRef.current) {
+        try {
+          chatLogPersisterRef.current(chatId, "user", userContent, "");
+          chatLogPersisterRef.current(chatId, "assistant", assistantText, model);
+        } catch {
+          /* non-critical */
+        }
+      }
+    },
+    []
+  );
+
+  const sendAgentMessage = async (content: string, opts?: { projectId?: string }) => {
+      const trimmed = content.trim();
+      if (!trimmed) return;
+      if (!canSendChat(apiConfig)) {
+        toast({
+          title: "Cannot send yet",
+          description: "Add an OpenRouter API key or set an OpenAI-compatible base URL in Settings.",
+          variant: "destructive",
+        });
+        return;
+      }
+      let activeChatId = currentChatId;
+      if (activeChatId && !chatsRef.current.some((c) => c.id === activeChatId)) {
+        activeChatId = null;
+      }
+      if (!activeChatId) {
+        activeChatId = createNewChat();
+      }
+      const chatId: string = activeChatId;
+      const projectId = opts?.projectId ?? agentProjectProviderRef.current?.() ?? undefined;
+
+      const userMessage: Message = {
+        id: uuidv4(), role: "user", content: trimmed, timestamp: new Date(),
+      };
+      const assistantMessage: Message = {
+        id: uuidv4(), role: "assistant", content: "", timestamp: new Date(),
+        agentTrace: [], streaming: true,
+      };
+      setChats((prevChats) =>
+        prevChats.map((chat) =>
+          chat.id === chatId
+            ? { ...chat, messages: [...chat.messages, userMessage, assistantMessage], updatedAt: new Date() }
+            : chat
+        )
+      );
+      setIsLoading(true);
+      const controller = new AbortController();
+      abortControllersRef.current.push(controller);
+      const messageId = assistantMessage.id;
+
+      try {
+        const def = getAgentDefinition("research-assistant");
+        const modelFn = collectingModelFn(createRoutedModelFn(def, apiConfig));
+        const output = await runAgent(
+          def,
+          { request: trimmed, projectId, chatId, source: "chat" },
+          { model: modelFn, executeTool: defaultAgentToolExecutor },
+          {
+            signal: controller.signal,
+            audit: createAgentAuditSink(),
+            activity: (e) => {
+              patchAgentMessage(chatId, messageId, (m) => ({
+                ...m,
+                agentTrace: [...(m.agentTrace ?? []), { step: e.kind, detail: e.detail ? `${e.label} · ${e.detail}` : e.label }],
+              }));
+            },
+          }
+        );
+        agentRunMessageRef.current.set(output.run.runId, { chatId, messageId });
+        patchAgentMessage(chatId, messageId, (m) => ({ ...m, agentRunId: output.run.runId }));
+        const trace = agentStepsToTrace(output);
+        const sources = runOutputToSources(output);
+        if (output.run.status === "awaiting_confirmation" && output.run.pendingConfirmation) {
+          const pending = output.run.pendingConfirmation;
+          setPendingAgentConfirm({ runId: output.run.runId, toolId: pending.toolId, summary: pending.summary });
+          patchAgentMessage(chatId, messageId, (m) => ({
+            ...m,
+            content: m.content || "The agent needs your confirmation to continue.",
+            agentTrace: [...trace, { step: "awaiting_confirmation", detail: confirmationPromptFor(output) ?? pending.summary }],
+            streaming: false,
+          }));
+          toast({ title: "Confirmation needed", description: `Agent requests: ${pending.toolId}` });
+        } else if (output.run.status === "completed" && output.run.finalText !== undefined) {
+          patchAgentMessage(chatId, messageId, (m) => ({ ...m, content: "", agentTrace: trace, streaming: true }));
+          await streamTextChunked(output.run.finalText ?? "", (chunk) => {
+            patchAgentMessage(chatId, messageId, (m) => ({ ...m, content: m.content + chunk }));
+          }, controller.signal);
+          patchAgentMessage(chatId, messageId, (m) => ({
+            ...m, researchSources: sources, streaming: false,
+            metrics: { ttftMs: null, totalMs: output.run.durationMs ?? 0 },
+          }));
+          persistAgentTurn(chatId, trimmed, output.run.finalText ?? "", apiConfig.model ?? "");
+        } else {
+          const kind = output.run.errorKind ?? "failed";
+          patchAgentMessage(chatId, messageId, (m) => ({
+            ...m,
+            content: m.content || `Agent run ${output.run.status}: ${output.run.error ?? kind}`,
+            agentTrace: trace,
+            streaming: false,
+          }));
+          if (output.run.status === "failed") {
+            toast({ title: "Agent run failed", description: output.run.error ?? kind, variant: "destructive" });
+          }
+        }
+      } catch (e) {
+        const aborted = e instanceof DOMException && e.name === "AbortError";
+        patchAgentMessage(chatId, messageId, (m) => ({
+          ...m,
+          content: m.content || (aborted ? "Agent run cancelled." : "Agent run failed."),
+          streaming: false,
+        }));
+        if (!aborted) {
+          console.error("Error in agent turn:", e);
+          toast({ title: "Agent error", description: formatUserFacingError(e, "Agent run failed"), variant: "destructive" });
+        }
+      } finally {
+        setIsLoading(false);
+      }
+  };
+
+  const confirmAgentRun = useCallback(
+    async (runId: string) => {
+      const stored = getStoredRun(runId);
+      const slot = agentRunMessageRef.current.get(runId);
+      if (!stored || !slot) {
+        toast({ title: "Confirmation expired", description: "The agent run is no longer available.", variant: "destructive" });
+        setPendingAgentConfirm(null);
+        return;
+      }
+      const pending = stored.run.pendingConfirmation;
+      if (!pending) {
+        setPendingAgentConfirm(null);
+        return;
+      }
+      setPendingAgentConfirm(null);
+      setIsLoading(true);
+      const controller = new AbortController();
+      abortControllersRef.current.push(controller);
+      patchAgentMessage(slot.chatId, slot.messageId, (m) => ({ ...m, streaming: true }));
+      try {
+        const def = getAgentDefinition(stored.run.agentId);
+        const modelFn = collectingModelFn(createRoutedModelFn(def, apiConfig));
+        const output = await resumeAgentRun(
+          runId, def,
+          { model: modelFn, executeTool: defaultAgentToolExecutor },
+          { userConfirmed: true, confirmedToolId: pending.toolId },
+          {
+            signal: controller.signal,
+            audit: createAgentAuditSink(),
+            activity: (e) => {
+              patchAgentMessage(slot.chatId, slot.messageId, (m) => ({
+                ...m,
+                agentTrace: [...(m.agentTrace ?? []), { step: e.kind, detail: e.detail ? `${e.label} · ${e.detail}` : e.label }],
+              }));
+            },
+          }
+        );
+        const trace = agentStepsToTrace(output);
+        const sources = runOutputToSources(output);
+        if (output.run.status === "awaiting_confirmation" && output.run.pendingConfirmation) {
+          const next = output.run.pendingConfirmation;
+          setPendingAgentConfirm({ runId: output.run.runId, toolId: next.toolId, summary: next.summary });
+          patchAgentMessage(slot.chatId, slot.messageId, (m) => ({
+            ...m, agentTrace: trace, streaming: false,
+          }));
+          toast({ title: "Confirmation needed", description: `Agent requests: ${next.toolId}` });
+        } else if (output.run.status === "completed" && output.run.finalText !== undefined) {
+          const continuation = output.run.finalText ?? "";
+          await streamTextChunked(continuation, (chunk) => {
+            patchAgentMessage(slot.chatId, slot.messageId, (m) => ({ ...m, content: m.content + chunk }));
+          }, controller.signal);
+          patchAgentMessage(slot.chatId, slot.messageId, (m) => ({
+            ...m, agentTrace: trace, researchSources: sources, streaming: false,
+            metrics: { ttftMs: null, totalMs: output.run.durationMs ?? 0 },
+          }));
+          persistAgentTurn(slot.chatId, stored.run.request, continuation, apiConfig.model ?? "");
+        } else {
+          patchAgentMessage(slot.chatId, slot.messageId, (m) => ({
+            ...m, agentTrace: trace, streaming: false,
+          }));
+        }
+      } catch (e) {
+        patchAgentMessage(slot.chatId, slot.messageId, (m) => ({ ...m, streaming: false }));
+        console.error("Error resuming agent run:", e);
+        toast({ title: "Agent error", description: formatUserFacingError(e, "Could not resume agent run"), variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [apiConfig, patchAgentMessage, persistAgentTurn, toast]
+  );
+
   const value: ChatContextProps = {
     chats,
     currentChatId,
@@ -1088,6 +1355,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sendMessage,
     regenerateLastResponse,
     beginEditUserMessage,
+    agentMode,
+    setAgentMode: setAgentModeAndPersist,
+    pendingAgentConfirm,
+    sendAgentMessage,
+    confirmAgentRun,
+    registerAgentProjectProvider,
     setApiConfig,
     stopStreaming,
     queuePromptInComposer,

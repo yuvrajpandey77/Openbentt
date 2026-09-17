@@ -122,6 +122,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
     webgpuModelDownloadProgress,
     isLoadingConfig,
     sendMessage,
+    sendAgentMessage,
+    agentMode,
+    setAgentMode,
     pendingComposer,
     clearPendingComposer,
     chats,
@@ -284,7 +287,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
     setAttachments([]);
 
     try {
-      await sendMessage(textToSend, toSend);
+      if (agentMode && attachments.length === 0) {
+        await sendAgentMessage(textToSend);
+      } else {
+        await sendMessage(textToSend, toSend);
+      }
     } catch {
       setMessage(textToSend);
       setAttachments(toSend);
@@ -777,6 +784,30 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     </div>
                   </PopoverContent>
                 </Popover>
+
+                {/* Agent mode: tool-using assistant via the Phase 5 boundary */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={agentMode ? "secondary" : "ghost"}
+                        size="sm"
+                        className="h-8 shrink-0 px-2 text-xs border border-border/60 md:h-9 md:px-2.5 md:text-sm"
+                        type="button"
+                        onClick={() => setAgentMode(!agentMode)}
+                        aria-pressed={agentMode}
+                        aria-label="Toggle agent mode"
+                      >
+                        <Bot size={14} className="mr-1 shrink-0" />
+                        <span className="hidden sm:inline">Agent</span>
+                        {agentMode && (
+                          <span className="ml-1 rounded bg-primary/15 px-1.5 text-[10px] text-primary">on</span>
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Agent answers with knowledge, documents, and connectors</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
 
                 {/* WebGPU: pre-cache model */}
                 {apiConfig.aiProvider === "webgpu_gemma" && (

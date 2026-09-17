@@ -234,7 +234,7 @@ describe("connector tools", () => {
       expect(items).toHaveLength(1);
       expect(items[0].externalId).toBe("10.1000/stub");
       expect(items[0].retrievedAt).toBeTruthy();
-      expect(stub.mock.calls[0][0] as string).toContain("api.crossref.org");
+      expect((stub.mock.calls[0] as unknown[])[0] as string).toContain("api.crossref.org");
     } finally {
       vi.unstubAllGlobals();
     }
@@ -303,9 +303,9 @@ describe("project isolation", () => {
 describe("audit events", () => {
   it("every execution produces a structured event", async () => {
     await seedKnowledgeFixture();
-    await executeTool("knowledge.search", { query: "x" }, { ...CTX, requestId: "req_1" });
-    await executeTool("connector.import", { items: [connectorImportFixture()] }, CTX);
-    await executeTool("nope.tool", {}, CTX);
+    await executeTool("knowledge.search", { query: "x" }, { ...CTX, requestId: "req_1" }, AUDIT);
+    await executeTool("connector.import", { items: [connectorImportFixture()] }, CTX, AUDIT);
+    await executeTool("nope.tool", {}, CTX, AUDIT);
     const events = toolAuditWebStore.list({});
     expect(events.length).toBe(3);
     const ok = events.find((e) => e.requestId === "req_1");
@@ -318,14 +318,14 @@ describe("audit events", () => {
   it("audit redacts secrets and bounds input", async () => {
     await executeTool("knowledge.search", {
       query: "x",
-    }, CTX);
+    }, CTX, AUDIT);
     await executeTool("utility.calculate", { expression: "1+1" }, {
       ...CTX, requestId: "r",
-    });
+    }, AUDIT);
     // Inject secret-shaped content through a confirm-required path summary.
     await executeTool("connector.import", {
       items: [{ ...connectorImportFixture(), title: "t api_key=SECRET123 Bearer TOKEN456" }],
-    }, CTX);
+    }, CTX, AUDIT);
     const events = toolAuditWebStore.list({ toolId: "connector.import" });
     const blob = JSON.stringify(events);
     expect(blob).not.toContain("SECRET123");

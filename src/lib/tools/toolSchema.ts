@@ -6,27 +6,37 @@ import { validateAgainstSchema } from "@/lib/tools/toolCore.mjs";
 import { ToolError } from "@/lib/tools/toolErrors";
 import type { ObjectSchema } from "@/lib/tools/toolTypes";
 
+interface CoreResult {
+  ok: boolean;
+  value?: Record<string, unknown>;
+  error?: string;
+}
+
+function runValidation(schema: ObjectSchema, value: object): CoreResult {
+  return validateAgainstSchema(schema, value) as CoreResult;
+}
+
 export function validateToolInput(schema: ObjectSchema, input: unknown, toolId: string): Record<string, unknown> {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new ToolError("invalid_input", toolId);
   }
-  const res = validateAgainstSchema(schema, input) as
-    | { ok: true; value: Record<string, unknown> }
-    | { ok: false; error: string };
+  const res = runValidation(schema, input);
   if (!res.ok) {
-    const tooLarge = /exceed/i.test(res.error);
-    throw new ToolError(tooLarge ? "input_too_large" : "invalid_input", res.error.slice(0, 200));
+    const msg = typeof res.error === "string" ? res.error : "invalid input";
+    const tooLarge = /exceed/i.test(msg);
+    throw new ToolError(tooLarge ? "input_too_large" : "invalid_input", msg.slice(0, 200));
   }
-  return res.value;
+  return (res.value ?? {}) as Record<string, unknown>;
 }
 
 export function validateToolOutput(schema: ObjectSchema, output: unknown, toolId: string): Record<string, unknown> {
   if (!output || typeof output !== "object" || Array.isArray(output)) {
     throw new ToolError("invalid_output", toolId);
   }
-  const res = validateAgainstSchema(schema, output) as
-    | { ok: true; value: Record<string, unknown> }
-    | { ok: false; error: string };
-  if (!res.ok) throw new ToolError("invalid_output", res.error.slice(0, 200));
-  return res.value;
+  const res = runValidation(schema, output);
+  if (!res.ok) {
+    const msg = typeof res.error === "string" ? res.error : "invalid output";
+    throw new ToolError("invalid_output", msg.slice(0, 200));
+  }
+  return (res.value ?? {}) as Record<string, unknown>;
 }

@@ -69,4 +69,11 @@ export const toolApi = {
     if (b) return b.tools("audit", opts ?? {}) as Promise<ToolAuditEvent[]>;
     return Promise.resolve(toolAuditWebStore.list(opts));
   },
+  /** Persist a pre-built audit event (Phase 6 run-level events reuse this ledger). */
+  record(event: ToolAuditEvent): Promise<string | void> {
+    const b = bridge();
+    if (b) return b.tools("record", { event }) as Promise<string>;
+    toolAuditWebStore.record(event);
+    return Promise.resolve();
+  },
 };
