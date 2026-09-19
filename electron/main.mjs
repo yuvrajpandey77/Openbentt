@@ -27,6 +27,7 @@ import {
   setZoteroProgressTarget,
 } from "./zoteroService.mjs";
 import { registerZoteroSecretIpc } from "./zoteroSecretStore.mjs";
+import { registerOllamaIpc } from "./ollamaService.mjs";
 import { resolveUnderDistRoot } from "./ipcValidate.mjs";
 import { getGpuSafeMode } from "./gpuSafeMode.mjs";
 import { registerNavigationPolicy } from "./navigationPolicy.mjs";
@@ -176,8 +177,8 @@ let devStartupInProgress = false;
 let devWindowRecreateCount = 0;
 const MAX_DEV_WINDOW_RECREATE = 2;
 
-/** Desktop home: projects hub (Notebook Studio entry). */
-const START_PATH = "/projects";
+/** Desktop home: chat-first workspace (Phase 9). */
+const START_PATH = "/chat";
 
 /** Must run before app.ready (Electron requirement). */
 protocol.registerSchemesAsPrivileged([
@@ -449,6 +450,9 @@ app.whenReady().then(async () => {
   registerResearchProjectIpc(ipcMain, app);
   registerZoteroSecretIpc(ipcMain, app);
   registerZoteroIpc(ipcMain, app);
+  registerOllamaIpc(ipcMain, {
+    getWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
+  });
   if (!useViteDevServer) {
     registerAppProtocolHandler();
   }

@@ -88,7 +88,7 @@ describe("toolStore (v10 audit ledger + main-process execution)", () => {
 
   it("lists/inspects the static registry (no implementation leak)", () => {
     const defs = listToolDefinitions();
-    assert.equal(defs.length, 15);
+    assert.equal(defs.length, 25); // Phase 5/7: 18 + Phase 8: 7 controlled actions
     assert.ok(defs.every((d) => d.version === "1"));
     const view = inspectToolDefinition("knowledge.search");
     assert.equal(view.permission, "READ_ONLY");
@@ -146,7 +146,8 @@ describe("toolStore (v10 audit ledger + main-process execution)", () => {
   it("connector.list/get/preview work without network", async () => {
     const l = await executeToolMain(app, "connector.list", {}, {});
     assert.equal(l.ok, true);
-    assert.deepEqual(l.data.connectors.map((c) => c.id).sort(), ["crossref", "zotero"]);
+    assert.deepEqual(l.data.connectors.map((c) => c.id).sort(),
+      ["crossref", "github", "gmail", "google-calendar", "google-drive", "notion", "slack", "zotero"]);
     const g = await executeToolMain(app, "connector.get", { connectorId: "crossref" }, {});
     assert.ok(g.data.connector.capabilities.includes("SEARCH"));
     const p = await executeToolMain(app, "connector.preview", { items: [crossrefItem()] }, {});
@@ -231,7 +232,7 @@ describe("toolStore (v10 audit ledger + main-process execution)", () => {
     await assert.rejects(ipc.invoke("research:tools", "get", {}), /Missing tool id/);
     await assert.rejects(ipc.invoke("research:tools", "execute", {}), /Missing tool id/);
     const list = await ipc.invoke("research:tools", "list");
-    assert.equal(list.length, 15);
+    assert.equal(list.length, 25); // Phase 5/7: 18 + Phase 8: 7 controlled actions
     const get = await ipc.invoke("research:tools", "get", { toolId: "utility.calculate" });
     assert.equal(get.permission, "READ_ONLY");
     await assert.rejects(ipc.invoke("research:tools", "get", { toolId: "shell.exec" }), /Tools:/);

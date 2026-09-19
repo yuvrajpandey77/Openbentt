@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PanelRightOpen } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import ChatInput from "@/components/ChatInput";
+import { CommandMenu } from "@/components/CommandMenu";
+import { TaskCenterToasts } from "@/components/TaskCenterToasts";
+import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
+import { useLocalAI } from "@/context/LocalAIContext";
 import { PrivacyAnalytics } from "@/components/PrivacyAnalytics";
 import { DesktopUpdateNotifier } from "@/components/DesktopUpdateNotifier";
 import { useChat } from "@/context/ChatContext";
@@ -30,11 +34,17 @@ const WORKSPACE_PANEL_KEY = "openbentt-workspace-panel-open";
 const AppLayout: React.FC = () => {
   const { apiConfig, isLoadingConfig, isLoading, chats, currentChatId, createNewChat, setWorkspaceRouteAssist } =
     useChat();
+  const { health: localAIHealth } = useLocalAI();
+  const navigate = useNavigate();
   const location = useLocation();
   const workspaceMeta = getWorkspaceRouteMeta(location.pathname);
   const isMobile = useIsMobile();
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+  const openSearch = () => setCommandMenuOpen(true);
+  const openSettings = () => navigate("/settings");
+  useGlobalShortcuts({ onOpenSearch: openSearch, onOpenSettings: openSettings });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
@@ -118,8 +128,11 @@ const AppLayout: React.FC = () => {
     );
   }
 
-  // Redirect to setup if no provider is configured
-  if (!canSendChat(apiConfig)) {
+  // Redirect to setup only when NEITHER cloud nor local AI can serve chat.
+  // While local AI is still being detected, render the workspace instead of
+  // bouncing the user away.
+  const localAIUsable = localAIHealth === "ready" || localAIHealth === "checking";
+  if (!canSendChat(apiConfig) && !localAIUsable) {
     return <Navigate to="/setup" replace />;
   }
 
@@ -130,9 +143,13 @@ const AppLayout: React.FC = () => {
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
+        onOpenSearch={openSearch}
+        onOpenLocalAI={() => navigate("/settings")}
       />
       <PrivacyAnalytics />
       <DesktopUpdateNotifier />
+      <CommandMenu open={commandMenuOpen} onOpenChange={setCommandMenuOpen} />
+      <TaskCenterToasts />
 
       {isMobileSidebarOpen && (
         <div

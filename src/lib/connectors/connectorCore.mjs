@@ -5,9 +5,49 @@
  * hashing with zero divergence. Mirrors the knowledgeCore.mjs precedent.
  *
  * Deterministic only. No network, no LLM, no secrets here.
+ *
+ * Phase 7 — Tier-1 enterprise connector ids are registered here alongside
+ * the Phase 4 research connectors. Registration is metadata only: a
+ * connector reports CONNECTED only after a real authenticated provider
+ * request succeeds (see connectorAuthStore + provider clients).
  */
 
-export const CONNECTOR_IDS = ["crossref", "zotero"];
+export const CONNECTOR_IDS = [
+  "crossref",
+  "zotero",
+  "google-drive",
+  "gmail",
+  "google-calendar",
+  "slack",
+  "github",
+  "notion",
+];
+
+/** Enterprise Tier-1 ids (OAuth-authenticated, READ_ONLY in Phase 7). */
+export const ENTERPRISE_CONNECTOR_IDS = [
+  "google-drive",
+  "gmail",
+  "google-calendar",
+  "slack",
+  "github",
+  "notion",
+];
+
+/** Tier-2/3 ids are known but NOT registered: they stay PLANNED (deferred). */
+export const DEFERRED_CONNECTOR_IDS = [
+  "onedrive",
+  "sharepoint",
+  "dropbox",
+  "linear",
+  "jira",
+  "confluence",
+  "gitlab",
+  "box",
+  "discord",
+  "msteams",
+  "rest-generic",
+  "webhook-generic",
+];
 
 export const CONNECTOR_META = {
   crossref: {
@@ -26,11 +66,65 @@ export const CONNECTOR_META = {
     authMode: "api-key",
     description: "Zotero library items via existing Zotero integration.",
   },
+  "google-drive": {
+    id: "google-drive",
+    name: "Google Drive",
+    version: "1.0.0",
+    sourceType: "google-drive",
+    authMode: "oauth",
+    description: "Google Drive files and folders via Drive API v3 (read-only).",
+  },
+  gmail: {
+    id: "gmail",
+    name: "Gmail",
+    version: "1.0.0",
+    sourceType: "gmail",
+    authMode: "oauth",
+    description: "Gmail threads and messages via Gmail API v1 (read-only).",
+  },
+  "google-calendar": {
+    id: "google-calendar",
+    name: "Google Calendar",
+    version: "1.0.0",
+    sourceType: "google-calendar",
+    authMode: "oauth",
+    description: "Calendars and events via Calendar API v3 (read-only).",
+  },
+  slack: {
+    id: "slack",
+    name: "Slack",
+    version: "1.0.0",
+    sourceType: "slack",
+    authMode: "oauth",
+    description: "Slack channels and messages via Web API (read-only).",
+  },
+  github: {
+    id: "github",
+    name: "GitHub",
+    version: "1.0.0",
+    sourceType: "github",
+    authMode: "oauth",
+    description: "GitHub repositories, issues, PRs, commits and files via REST API (read-only).",
+  },
+  notion: {
+    id: "notion",
+    name: "Notion",
+    version: "1.0.0",
+    sourceType: "notion",
+    authMode: "oauth",
+    description: "Notion pages, databases and blocks via API v1 (read-only).",
+  },
 };
 
 export const CONNECTOR_CAPABILITIES = {
   crossref: ["SEARCH", "FETCH_ITEM", "METADATA", "AUTHORS", "IDENTIFIERS"],
   zotero: ["FETCH_COLLECTION", "FETCH_ITEM", "METADATA", "AUTHORS", "IDENTIFIERS", "IMPORT"],
+  "google-drive": ["DISCOVER", "SEARCH", "FETCH_ITEM", "METADATA", "IMPORT", "SYNC"],
+  gmail: ["DISCOVER", "SEARCH", "FETCH_ITEM", "METADATA", "IMPORT", "SYNC"],
+  "google-calendar": ["DISCOVER", "SEARCH", "FETCH_ITEM", "METADATA", "IMPORT", "SYNC"],
+  slack: ["DISCOVER", "SEARCH", "FETCH_ITEM", "METADATA", "IMPORT", "SYNC"],
+  github: ["DISCOVER", "SEARCH", "FETCH_ITEM", "METADATA", "IDENTIFIERS", "IMPORT", "SYNC"],
+  notion: ["DISCOVER", "SEARCH", "FETCH_ITEM", "METADATA", "IMPORT", "SYNC"],
 };
 
 export const KNOWN_CAPABILITIES = [
@@ -214,4 +308,135 @@ export function itemHashFor(normalized) {
     collections: normalized.collections,
   };
   return fnv1aHex(stableStringify(slim));
+}
+
+/* ---------------- Phase 7 — connection state machine ---------------- */
+/**
+ * Connection lifecycle (metadata only — tokens live in the OS vault):
+ * DISCONNECTED → CONNECTING → CONNECTED ⇄ SYNCING → SYNCED
+ * Any state may move to AUTH_REQUIRED (expired/revoked) or ERROR.
+ * DISCONNECTING is transient toward DISCONNECTED.
+ */
+export const CONNECTION_STATES = [
+  "DISCONNECTED",
+  "CONNECTING",
+  "CONNECTED",
+  "AUTH_REQUIRED",
+  "SYNCING",
+  "SYNCED",
+  "ERROR",
+  "DISCONNECTING",
+];
+
+const CONNECTION_TRANSITIONS = {
+  DISCONNECTED: ["CONNECTING"],
+  CONNECTING: ["CONNECTED", "AUTH_REQUIRED", "ERROR", "DISCONNECTED"],
+  CONNECTED: ["SYNCING", "DISCONNECTING", "AUTH_REQUIRED", "ERROR"],
+  AUTH_REQUIRED: ["CONNECTING", "DISCONNECTING", "DISCONNECTED"],
+  SYNCING: ["SYNCED", "ERROR", "AUTH_REQUIRED", "CONNECTED"],
+  SYNCED: ["SYNCING", "DISCONNECTING", "AUTH_REQUIRED", "ERROR"],
+  ERROR: ["CONNECTING", "DISCONNECTING", "DISCONNECTED"],
+  DISCONNECTING: ["DISCONNECTED", "ERROR"],
+};
+
+export function canTransitionConnection(from, to) {
+  return (CONNECTION_TRANSITIONS[from] ?? []).includes(to);
+}
+
+export function transitionConnection(state, to, patch) {
+  if (!canTransitionConnection(state.status, to)) {
+    throw new Error(`Invalid connection transition ${state.status} -> ${to}`);
+  }
+  const now = new Date().toISOString();
+  return {
+    ...state,
+    ...(patch ?? {}),
+    status: to,
+    updatedAt: now,
+    lastError: to === "ERROR" ? (patch?.lastError ?? state.lastError ?? "unknown") : undefined,
+  };
+}
+
+export function initialConnectionState(connectorId) {
+  return {
+    connectorId,
+    status: "DISCONNECTED",
+    accountLabel: undefined,
+    scopes: [],
+    connectedAt: undefined,
+    lastSyncAt: undefined,
+    updatedAt: new Date().toISOString(),
+    lastError: undefined,
+  };
+}
+
+/* ---------------- Phase 7 — unified sync stages ---------------- */
+/** Observable stages of one connector sync run (maps onto the Phase 4 engine). */
+export const SYNC_STAGES = [
+  "DISCOVER",
+  "FETCH",
+  "NORMALIZE",
+  "IDENTITY",
+  "DEDUPLICATE",
+  "IMPORT",
+  "INDEX",
+  "ONTOLOGY",
+  "AUDIT",
+];
+
+export function isKnownSyncStage(stage) {
+  return SYNC_STAGES.includes(stage);
+}
+
+/* ---------------- Phase 7 — unified external resource ---------------- */
+/**
+ * Normalized cross-provider resource. Provider-specific payload stays in
+ * `providerMetadata` (bounded); everything the app reasons over is top-level.
+ */
+export function validateExternalResource(raw) {
+  if (!raw || typeof raw !== "object") throw new Error("invalid-resource");
+  const id = sanitizeText(raw.id, 256);
+  const connectorId = sanitizeText(raw.connectorId, 64);
+  const provider = sanitizeText(raw.provider, 64);
+  const externalId = sanitizeText(raw.externalId, 256);
+  const type = sanitizeText(raw.type, 64);
+  const title = sanitizeText(raw.title ?? "", 1000);
+  if (!id || !connectorId || !provider || !externalId || !type) {
+    throw new Error("invalid-resource");
+  }
+  if (!CONNECTOR_IDS.includes(connectorId)) throw new Error("unknown-connector");
+  let url;
+  if (typeof raw.url === "string" && raw.url.trim()) {
+    url = validateExternalUrl(raw.url.trim());
+  }
+  return {
+    id,
+    connectorId,
+    provider,
+    externalId,
+    type,
+    title,
+    mimeType: raw.mimeType ? sanitizeText(raw.mimeType, 128) : undefined,
+    url,
+    parentId: raw.parentId ? sanitizeText(raw.parentId, 256) : undefined,
+    owner: raw.owner ? sanitizeText(raw.owner, 256) : undefined,
+    createdAt: raw.createdAt ? sanitizeText(raw.createdAt, 64) : undefined,
+    updatedAt: raw.updatedAt ? sanitizeText(raw.updatedAt, 64) : undefined,
+    snippet: raw.snippet ? sanitizeText(raw.snippet, 2000) : undefined,
+    permissions: raw.permissions ? sanitizeText(JSON.stringify(raw.permissions).slice(0, 1000), 1000) : undefined,
+    providerMetadata: raw.providerMetadata ?? {},
+    provenance: {
+      connectorId,
+      externalId,
+      url,
+      retrievedAt: new Date().toISOString(),
+      syncId: raw.provenance?.syncId ? sanitizeText(raw.provenance.syncId, 128) : undefined,
+      resourceType: type,
+    },
+  };
+}
+
+export function externalResourceId(connectorId, externalId) {
+  const safe = sanitizeText(connectorId, 32).replace(/[^a-zA-Z0-9_-]/g, "") || "unknown";
+  return `xr_${safe}_${fnv1aHex(`${connectorId}:${externalId}`)}`;
 }

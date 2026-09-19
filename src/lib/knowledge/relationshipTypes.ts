@@ -32,6 +32,11 @@ const META: Record<string, { label: string; description: string }> = {
   PART_OF: { label: "Part of", description: "Entity is part of a larger entity." },
   LOCATED_IN: { label: "Located in", description: "Organization/event located in a place." },
   RELATED_TO: { label: "Related to", description: "Weak untyped association." },
+  ASSIGNED_TO: { label: "Assigned to", description: "Task/issue assigned to a person." },
+  SENT_BY: { label: "Sent by", description: "Email/message sent by a person." },
+  WORKS_ON: { label: "Works on", description: "Person works on a project." },
+  IMPLEMENTS: { label: "Implements", description: "Pull request implements an issue/task." },
+  DISCUSSED_IN: { label: "Discussed in", description: "Topic/project discussed in a meeting." },
 };
 
 const SYM = new Set(SYMMETRIC_RELATIONSHIP_IDS as string[]);

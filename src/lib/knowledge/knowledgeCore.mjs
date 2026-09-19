@@ -19,6 +19,16 @@ export const ENTITY_TYPE_IDS = [
   "location",
   "event",
   "product",
+  /* Phase 8: enterprise entities (additive only; existing ids untouched). */
+  "project",
+  "task",
+  "repository",
+  "issue",
+  "pull_request",
+  "meeting",
+  "message",
+  "email",
+  "document",
 ];
 
 export const RELATIONSHIP_TYPE_IDS = [
@@ -40,6 +50,12 @@ export const RELATIONSHIP_TYPE_IDS = [
   "PART_OF",
   "LOCATED_IN",
   "RELATED_TO",
+  /* Phase 8: enterprise relations (additive only). */
+  "ASSIGNED_TO",
+  "SENT_BY",
+  "WORKS_ON",
+  "IMPLEMENTS",
+  "DISCUSSED_IN",
 ];
 
 export const SYMMETRIC_RELATIONSHIP_IDS = ["RELATED_TO"];

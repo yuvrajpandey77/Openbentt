@@ -30,9 +30,20 @@ export const TOOL_CAPABILITIES = [
   "connector.search",
   "connector.preview",
   "connector.import",
+  "connector.unified_search",
+  "mcp.read",
+  "mcp.execute",
   "project.read",
   "export.create",
   "utility.compute",
+  /* Phase 8: controlled provider write actions (CONFIRM-gated, mutation). */
+  "gmail.draft",
+  "gmail.send",
+  "calendar.create",
+  "slack.send",
+  "github.issue",
+  "github.pr",
+  "notion.create",
 ];
 
 export const TOOL_PERMISSIONS = [
@@ -67,7 +78,9 @@ export const TOOL_LIMITS = {
 
 export const ID_RE_SRC = "^[a-zA-Z0-9_:@.\\-]{1,128}$";
 export const SAFE_ID_RE_SRC = "^[a-zA-Z0-9_-]{1,128}$";
-export const CONNECTOR_ID_RE_SRC = "^(crossref|zotero)$";
+/* Phase 7: Tier-1 enterprise connectors join the allowlist (registry-gated). */
+export const CONNECTOR_ID_RE_SRC = "^(crossref|zotero|google-drive|gmail|google-calendar|slack|github|notion)$";
+export const ENTERPRISE_CONNECTOR_ID_RE_SRC = "^(google-drive|gmail|google-calendar|slack|github|notion)$";
 
 export function fnv1aHex(input) {
   let h = 0x811c9dc5;
@@ -487,6 +500,11 @@ const SAFE_ID = { type: "string", maxLength: 128, pattern: "^[a-zA-Z0-9_-]{1,128
 const QUERY = { type: "string", maxLength: 500, minLength: 1 };
 const LIMIT = { type: "number", integer: true, minimum: 1, maximum: 100 };
 const OPT_STR = (maxLength) => ({ type: "string", maxLength });
+/* Phase 8: action input fragments (target-scope validated again in actionCore). */
+const EMAIL = { type: "string", maxLength: 320, minLength: 3 };
+const EMAIL_LIST = { type: "array", maxItems: 20, items: EMAIL };
+const IDEM_KEY = { type: "string", maxLength: 128, pattern: "^[a-zA-Z0-9_-]{8,128}$" };
+const REPO_SLUG = { type: "string", maxLength: 201, pattern: "^[a-zA-Z0-9_.-]{1,100}/[a-zA-Z0-9_.-]{1,100}$" };
 function out(fields) {
   return { fields };
 }
@@ -588,7 +606,7 @@ export const TOOL_DEFINITIONS = [
     id: "connector.get", name: "Get connector",
     description: "Get one connector definition with capabilities and sync status.",
     version: "1", category: "CONNECTOR",
-    inputSchema: { fields: { connectorId: { type: "string", required: true, maxLength: 64, pattern: "^(crossref|zotero)$" } } },
+    inputSchema: { fields: { connectorId: { type: "string", required: true, maxLength: 64, pattern: "^(crossref|zotero|google-drive|gmail|google-calendar|slack|github|notion)$" } } },
     outputSchema: out({ connector: { type: "object", required: true, freeform: true } }),
     capabilities: ["connector.read"], permission: "READ_ONLY", risk: "LOW",
     executionMode: "backend", externalNetwork: false, mutation: false,
@@ -628,6 +646,44 @@ export const TOOL_DEFINITIONS = [
     executionMode: "backend", externalNetwork: false, mutation: true,
   },
   {
+    id: "connector.unified_search", name: "Search connected sources",
+    description: "Federated read-only search across connected enterprise sources (Drive, Gmail, Calendar, Slack, GitHub, Notion) plus local documents. Bounded per-source retrieval with provenance on every hit. Sources the caller is not connected to are skipped, never fabricated.",
+    version: "1", category: "CONNECTOR",
+    inputSchema: { fields: {
+      query: { ...QUERY, required: true },
+      sources: { type: "array", maxItems: 16 },
+      projectId: SAFE_ID, limit: LIMIT,
+    } },
+    outputSchema: out({ hits: { type: "array", maxItems: 100 }, searchedSources: { type: "array", maxItems: 16 }, skippedSources: { type: "array", maxItems: 16 } }),
+    capabilities: ["connector.unified_search", "connector.search"], permission: "READ_ONLY", risk: "LOW",
+    executionMode: "backend", externalNetwork: true, mutation: false,
+  },
+  {
+    id: "mcp.resource.read", name: "Read MCP resource",
+    description: "Read a bounded MCP resource as untrusted data (prompt-injection scanned, wrapped for model use). Server must be configured, enabled, and allowlisted.",
+    version: "1", category: "CONNECTOR",
+    inputSchema: { fields: {
+      serverId: { type: "string", required: true, maxLength: 64, pattern: "^[a-zA-Z0-9_-]{1,64}$" },
+      uri: { type: "string", required: true, maxLength: 2000, minLength: 1 },
+    } },
+    outputSchema: out({ content: { type: "object", required: true, freeform: true } }),
+    capabilities: ["mcp.read"], permission: "READ_ONLY", risk: "LOW",
+    executionMode: "backend", externalNetwork: true, mutation: false,
+  },
+  {
+    id: "mcp.tool.execute", name: "Execute MCP tool",
+    description: "Execute an allowlisted MCP tool through policy. Read-only tools run directly; mutating tools require explicit user confirmation. Unknown tools are denied.",
+    version: "1", category: "CONNECTOR",
+    inputSchema: { fields: {
+      serverId: { type: "string", required: true, maxLength: 64, pattern: "^[a-zA-Z0-9_-]{1,64}$" },
+      toolName: { type: "string", required: true, maxLength: 128, minLength: 1 },
+      args: { type: "object", freeform: true },
+    } },
+    outputSchema: out({ result: { type: "object", required: true, freeform: true } }),
+    capabilities: ["mcp.execute"], permission: "USER_CONFIRMATION", risk: "MEDIUM",
+    executionMode: "backend", externalNetwork: true, mutation: true,
+  },
+  {
     id: "project.get", name: "Get project summary",
     description: "Fetch a bounded project summary (metadata + counts, no full draft or embeddings).",
     version: "1", category: "READ",
@@ -656,5 +712,122 @@ export const TOOL_DEFINITIONS = [
     outputSchema: out({ result: { type: "number", required: true } }),
     capabilities: ["utility.compute"], permission: "READ_ONLY", risk: "LOW",
     executionMode: "local", externalNetwork: false, mutation: false,
+  },
+  /* ---------------- Phase 8: controlled provider write actions ----------------
+   * Every action: USER_CONFIRMATION, mutation:true, externalNetwork:true,
+   * backend-only (tokens never leave main). Drafts are MEDIUM; direct
+   * external sends / PR creation are HIGH and fail closed. Confirmation is
+   * bound to the full action fingerprint (see actionCore.mjs), not the tool
+   * id alone. Outputs are provider-verified metadata, never raw payloads. */
+  {
+    id: "gmail.create_draft", name: "Create Gmail draft",
+    description: "Create a Gmail draft via users.drafts.create. Requires explicit user confirmation. Draft only — nothing is sent.",
+    version: "1", category: "WRITE",
+    inputSchema: { fields: {
+      to: { ...EMAIL_LIST, required: true },
+      cc: EMAIL_LIST, bcc: EMAIL_LIST,
+      subject: { type: "string", required: true, maxLength: 300, minLength: 1 },
+      body: { type: "string", required: true, maxLength: 20000, minLength: 1 },
+      idempotencyKey: IDEM_KEY,
+    } },
+    outputSchema: out({ draft: { type: "object", required: true, freeform: true } }),
+    capabilities: ["gmail.draft"], permission: "USER_CONFIRMATION", risk: "MEDIUM",
+    executionMode: "backend", externalNetwork: true, mutation: true,
+  },
+  {
+    id: "gmail.send", name: "Send Gmail message",
+    description: "Send a Gmail message via users.messages.send. HIGH risk: requires explicit user confirmation bound to exact recipients, subject, and body.",
+    version: "1", category: "WRITE",
+    inputSchema: { fields: {
+      to: { ...EMAIL_LIST, required: true },
+      cc: EMAIL_LIST, bcc: EMAIL_LIST,
+      subject: { type: "string", required: true, maxLength: 300, minLength: 1 },
+      body: { type: "string", required: true, maxLength: 20000, minLength: 1 },
+      idempotencyKey: IDEM_KEY,
+    } },
+    outputSchema: out({ message: { type: "object", required: true, freeform: true } }),
+    capabilities: ["gmail.send"], permission: "USER_CONFIRMATION", risk: "HIGH",
+    executionMode: "backend", externalNetwork: true, mutation: true,
+  },
+  {
+    id: "calendar.create_event", name: "Create calendar event",
+    description: "Create a Google Calendar event via events.insert. Requires explicit user confirmation.",
+    version: "1", category: "WRITE",
+    inputSchema: { fields: {
+      calendarId: { type: "string", maxLength: 256, pattern: "^[a-zA-Z0-9_@.\\-/#+]{1,256}$" },
+      title: { type: "string", required: true, maxLength: 500, minLength: 1 },
+      description: { type: "string", maxLength: 4000 },
+      location: { type: "string", maxLength: 500 },
+      start: { type: "string", required: true, maxLength: 64, minLength: 10 },
+      end: { type: "string", required: true, maxLength: 64, minLength: 10 },
+      attendees: EMAIL_LIST,
+      idempotencyKey: IDEM_KEY,
+    } },
+    outputSchema: out({ event: { type: "object", required: true, freeform: true } }),
+    capabilities: ["calendar.create"], permission: "USER_CONFIRMATION", risk: "MEDIUM",
+    executionMode: "backend", externalNetwork: true, mutation: true,
+  },
+  {
+    id: "slack.send_message", name: "Send Slack message",
+    description: "Post a Slack message via chat.postMessage. Requires explicit user confirmation bound to the exact channel and text.",
+    version: "1", category: "WRITE",
+    inputSchema: { fields: {
+      channel: { type: "string", required: true, maxLength: 80, minLength: 1 },
+      text: { type: "string", required: true, maxLength: 4000, minLength: 1 },
+      threadTs: { type: "string", maxLength: 64 },
+      idempotencyKey: IDEM_KEY,
+    } },
+    outputSchema: out({ message: { type: "object", required: true, freeform: true } }),
+    capabilities: ["slack.send"], permission: "USER_CONFIRMATION", risk: "MEDIUM",
+    executionMode: "backend", externalNetwork: true, mutation: true,
+  },
+  {
+    id: "github.create_issue", name: "Create GitHub issue",
+    description: "Create a GitHub issue via repos issues.create. Requires explicit user confirmation bound to the exact repository, title, and body.",
+    version: "1", category: "WRITE",
+    inputSchema: { fields: {
+      repository: { ...REPO_SLUG, required: true },
+      title: { type: "string", required: true, maxLength: 300, minLength: 1 },
+      body: { type: "string", maxLength: 8000 },
+      labels: { type: "array", maxItems: 10, items: { type: "string", maxLength: 50 } },
+      assignees: { type: "array", maxItems: 10, items: { type: "string", maxLength: 100 } },
+      idempotencyKey: IDEM_KEY,
+    } },
+    outputSchema: out({ issue: { type: "object", required: true, freeform: true } }),
+    capabilities: ["github.issue"], permission: "USER_CONFIRMATION", risk: "MEDIUM",
+    executionMode: "backend", externalNetwork: true, mutation: true,
+  },
+  {
+    id: "github.create_pull_request", name: "Create GitHub pull request",
+    description: "Create a GitHub pull request via pulls.create. HIGH risk: requires explicit user confirmation bound to the exact repository, head, and base.",
+    version: "1", category: "WRITE",
+    inputSchema: { fields: {
+      repository: { ...REPO_SLUG, required: true },
+      title: { type: "string", maxLength: 300 },
+      body: { type: "string", maxLength: 8000 },
+      head: { type: "string", required: true, maxLength: 255, minLength: 1 },
+      base: { type: "string", required: true, maxLength: 255, minLength: 1 },
+      draft: { type: "boolean" },
+      idempotencyKey: IDEM_KEY,
+    } },
+    outputSchema: out({ pullRequest: { type: "object", required: true, freeform: true } }),
+    capabilities: ["github.pr"], permission: "USER_CONFIRMATION", risk: "HIGH",
+    executionMode: "backend", externalNetwork: true, mutation: true,
+  },
+  {
+    id: "notion.create_page", name: "Create Notion page",
+    description: "Create a Notion page via pages.create under a page or database parent. Requires explicit user confirmation.",
+    version: "1", category: "WRITE",
+    inputSchema: { fields: {
+      parentPageId: { type: "string", maxLength: 64, pattern: "^[a-zA-Z0-9-]{1,64}$" },
+      parentDatabaseId: { type: "string", maxLength: 64, pattern: "^[a-zA-Z0-9-]{1,64}$" },
+      titleProperty: { type: "string", maxLength: 100 },
+      title: { type: "string", required: true, maxLength: 500, minLength: 1 },
+      content: { type: "string", maxLength: 4000 },
+      idempotencyKey: IDEM_KEY,
+    } },
+    outputSchema: out({ page: { type: "object", required: true, freeform: true } }),
+    capabilities: ["notion.create"], permission: "USER_CONFIRMATION", risk: "MEDIUM",
+    executionMode: "backend", externalNetwork: true, mutation: true,
   },
 ]

@@ -1,17 +1,18 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, PanelLeft, Info } from "lucide-react";
+import { Menu, PanelLeft, Info, Cpu, Cloud } from "lucide-react";
 import { canSendChat } from "@/types/chat";
 import { ShareLinkButton } from "@/components/ShareLinkButton";
 import { CapabilitiesSheet } from "@/components/CapabilitiesSheet";
-import { LocalModelStatusBar } from "@/components/LocalModelStatusBar";
 import { ContextMeter } from "@/components/ContextMeter";
 import { ProviderQuotaMeter } from "@/components/ProviderQuotaMeter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useChat } from "@/context/ChatContext";
+import { useLocalAI } from "@/context/LocalAIContext";
+import { friendlyModelLabel } from "@/lib/ollama/selection";
 import type { WorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -31,8 +32,16 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
   workspaceMeta,
 }) => {
   const { apiConfig, currentChatId } = useChat();
+  const { effectiveModel } = useLocalAI();
   const { pathname } = useLocation();
   const isMobile = useIsMobile();
+
+  const modelLabel = effectiveModel
+    ? `${friendlyModelLabel(effectiveModel.modelId || "")} · ${effectiveModel.location === "local" ? "Local" : "Cloud"}`
+    : "No model";
+
+  const modelIcon = effectiveModel?.location === "local" ? <Cpu size={12} className="shrink-0 text-primary" /> : <Cloud size={12} className="shrink-0 text-muted-foreground" />;
+  const modelAvailable = effectiveModel?.available ?? false;
 
   return (
     <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background/90 px-2 py-2 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 md:px-3">
@@ -79,7 +88,13 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
               </Link>
             </div>
           ) : (
-            <p className="truncate text-sm font-medium text-foreground">Chat</p>
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm font-medium text-foreground">Chat</p>
+              <Badge variant={modelAvailable ? "default" : "destructive"} className="gap-1 px-1.5 py-0 text-[10px] font-normal">
+                {modelIcon}
+                {modelLabel}
+              </Badge>
+            </div>
           )}
         </div>
       </div>

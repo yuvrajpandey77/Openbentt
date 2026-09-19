@@ -36,6 +36,43 @@ export function sanitizeConnectorText(raw: unknown, maxChars: number): string {
   return coreSanitize(raw, maxChars) as string;
 }
 
+/**
+ * Headers a provider client is explicitly allowed to send credentials in.
+ * Everything else credential-shaped is stripped (defense in depth against
+ * accidental secret exfiltration to arbitrary hosts).
+ * Phase 7 fix: Zotero-API-Key is a documented provider auth header and must
+ * NOT be stripped; Authorization/Cookie are never forwarded by this helper —
+ * OAuth bearer tokens are attached only by the main-process provider
+ * executors against allowlisted provider hosts (see providerAllowlist).
+ */
+const CREDENTIAL_HEADER_ALLOWLIST = new Set(["zotero-api-key"]);
+
+/** Provider hosts Phase 7 enterprise clients may contact (SSRF allowlist). */
+export const ENTERPRISE_PROVIDER_HOSTS = new Set([
+  "www.googleapis.com",
+  "googleapis.com",
+  "gmail.googleapis.com",
+  "drive.google.com",
+  "www.slack.com",
+  "slack.com",
+  "api.github.com",
+  "api.notion.com",
+  "accounts.google.com",
+  "oauth2.googleapis.com",
+  "slack.com",
+  "github.com",
+]);
+
+export function isEnterpriseProviderHost(host: string): boolean {
+  const h = String(host ?? "").toLowerCase().replace(/\.$/, "");
+  if (ENTERPRISE_PROVIDER_HOSTS.has(h)) return true;
+  // Allow googleapis subdomains (e.g. drive.googleapis.com is covered by
+  // www.googleapis.com patterns below).
+  if (h.endsWith(".googleapis.com")) return true;
+  if (h.endsWith(".slack.com")) return true;
+  return false;
+}
+
 /** Redact anything credential-shaped from log/error strings. */
 export function redactConnectorSecrets(text: string): string {
   return String(text ?? "")
@@ -68,6 +105,11 @@ export async function fetchConnectorJson(
   const maxRedirects = opts?.maxRedirects ?? CONNECTOR_MAX_REDIRECTS;
   const safeHeaders: Record<string, string> = {};
   for (const [k, v] of Object.entries(opts?.headers ?? {})) {
+    const lower = k.toLowerCase();
+    if (CREDENTIAL_HEADER_ALLOWLIST.has(lower)) {
+      safeHeaders[k] = v;
+      continue;
+    }
     if (/authorization|api[_-]?key|token|secret|cookie/i.test(k)) continue;
     safeHeaders[k] = v;
   }

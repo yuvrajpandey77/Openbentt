@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Moon, Sun, Plus, Trash2, Sparkles, Cpu, Search, FlaskConical, Shield } from "lucide-react";
+import { Moon, Sun, Plus, Trash2, Sparkles, Cpu, Search, FlaskConical, Shield, Plug, Bot } from "lucide-react";
 import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRouterModels";
 import { useLocalGgufRegistryModels } from "@/hooks/useLocalGgufRegistryModels";
 import { shortModelLabel } from "@/lib/openrouter";
@@ -57,6 +57,15 @@ import {
   type PrivacyPreferences,
 } from "@/lib/privacy/privacyPreferences";
 import { getSecretsApi, type VaultStatus } from "@/lib/privacy/desktopSecrets";
+import { IntegrationsHub } from "@/components/integrations/IntegrationsHub";
+import { McpManager } from "@/components/integrations/McpManager";
+import { SecurityCenter } from "@/components/integrations/SecurityCenter";
+import { AgentsPanel } from "@/components/agents/AgentsPanel";
+import { ApprovalsCenter } from "@/components/approvals/ApprovalsCenter";
+import { WorkflowsPanel } from "@/components/workflows/WorkflowsPanel";
+import { ActivityFeed } from "@/components/activity/ActivityFeed";
+import { SyncDashboard } from "@/components/sync/SyncDashboard";
+import { McpServerPanel } from "@/components/mcp/McpServerPanel";
 
 const MAX_COMPARE = 4;
 
@@ -359,7 +368,7 @@ const SettingsPanel: React.FC = () => {
     <Tabs defaultValue="ai" className="w-full">
       <TabsList
         className={`grid h-auto w-full gap-1 rounded-xl bg-muted/50 p-1 ${
-          webClient ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-5"
+          webClient ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-7"
         }`}
       >
         <TabsTrigger value="general" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
@@ -378,6 +387,16 @@ const SettingsPanel: React.FC = () => {
           <Search className="h-3.5 w-3.5 opacity-80" aria-hidden />
           Research
         </TabsTrigger>
+        <TabsTrigger value="integrations" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
+          <Plug className="h-3.5 w-3.5 opacity-80" aria-hidden />
+          Integrations
+        </TabsTrigger>
+        {!webClient && (
+          <TabsTrigger value="agents" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
+            <Bot className="h-3.5 w-3.5 opacity-80" aria-hidden />
+            Agents & actions
+          </TabsTrigger>
+        )}
         {!webClient && (
           <TabsTrigger value="experiments" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
             <FlaskConical className="h-3.5 w-3.5 opacity-80" aria-hidden />
@@ -1070,6 +1089,106 @@ const SettingsPanel: React.FC = () => {
           </CardContent>
         </Card>
       </TabsContent>
+
+      <TabsContent value="integrations" className="mt-4 space-y-4 outline-none">
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg">Integrations</CardTitle>
+            <CardDescription>
+              Connect read-only knowledge sources. OAuth runs in your browser; tokens stay in the desktop OS vault and
+              are never shown to the AI model.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <IntegrationsHub />
+          </CardContent>
+        </Card>
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg">MCP servers</CardTitle>
+            <CardDescription>
+              Approved Model Context Protocol servers. Every tool executes through Openbentt policy — never directly.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <McpManager />
+          </CardContent>
+        </Card>
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg">Security / data access</CardTitle>
+            <CardDescription>What can Openbentt access right now?</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SecurityCenter />
+          </CardContent>
+        </Card>
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg">Background sync</CardTitle>
+            <CardDescription>
+              Read-only sync per connection. Off by default; failures back off automatically.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SyncDashboard />
+          </CardContent>
+        </Card>
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg">MCP server exposure</CardTitle>
+            <CardDescription>
+              Opt-in loopback server for external MCP clients. Read-only tools only, bearer-authenticated.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <McpServerPanel />
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {!webClient && (
+      <TabsContent value="agents" className="mt-4 space-y-4 outline-none">
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg">Agents</CardTitle>
+            <CardDescription>
+              Role configurations over one controlled runtime. Roles propose; policy and your approval decide.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AgentsPanel />
+          </CardContent>
+        </Card>
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg">Approvals</CardTitle>
+            <CardDescription>Pending external actions waiting for your decision.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ApprovalsCenter />
+          </CardContent>
+        </Card>
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg">Workflows</CardTitle>
+            <CardDescription>Trigger → condition → tool → approval → action → audit.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <WorkflowsPanel />
+          </CardContent>
+        </Card>
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg">Activity</CardTitle>
+            <CardDescription>Verified actions, workflow runs, and the audit trail.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ActivityFeed />
+          </CardContent>
+        </Card>
+      </TabsContent>
+      )}
 
       {!webClient && (
       <TabsContent value="experiments" className="mt-4 space-y-4 outline-none">

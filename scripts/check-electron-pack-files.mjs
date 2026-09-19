@@ -34,6 +34,11 @@ const required = [
   "src/lib/research/corpusChunksCore.mjs",
   "src/lib/research/embedCore.mjs",
   "src/lib/knowledge/knowledgeCore.mjs",
+  "src/lib/actions/actionCore.mjs",
+  "src/lib/sync/syncSchedule.mjs",
+  "src/lib/workflows/workflowCore.mjs",
+  "src/lib/mcp/mcpServerCore.mjs",
+  "src/lib/agent/agentRolesCore.mjs",
 ];
 
 const missing = required.filter((rel) => !isCoveredByFiles(rel));

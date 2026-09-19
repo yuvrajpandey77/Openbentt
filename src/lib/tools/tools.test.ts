@@ -41,11 +41,18 @@ describe("registry", () => {
   it("registers exactly the documented inventory", () => {
     const ids = listToolDefinitions().map((d) => d.id).sort();
     expect(ids).toEqual([
+      "calendar.create_event",
       "connector.get", "connector.import", "connector.list", "connector.preview", "connector.search",
+      "connector.unified_search",
       "document.get", "document.inspect", "document.search",
       "export.create",
+      "github.create_issue", "github.create_pull_request",
+      "gmail.create_draft", "gmail.send",
       "knowledge.get_entity", "knowledge.get_evidence", "knowledge.get_relationships", "knowledge.search",
+      "mcp.resource.read", "mcp.tool.execute",
+      "notion.create_page",
       "project.get",
+      "slack.send_message",
       "utility.calculate",
     ]);
   });
@@ -206,7 +213,7 @@ describe("connector tools", () => {
     const l = await executeTool("connector.list", {}, CTX);
     expect(l.ok).toBe(true);
     expect((l.data as { connectors: { id: string }[] }).connectors.map((c) => c.id).sort())
-      .toEqual(["crossref", "zotero"]);
+      .toEqual(["crossref", "github", "gmail", "google-calendar", "google-drive", "notion", "slack", "zotero"]);
     const g = await executeTool("connector.get", { connectorId: "crossref" }, CTX);
     expect(g.ok).toBe(true);
     expect((g.data as { connector: { capabilities: string[] } }).connector.capabilities).toContain("SEARCH");

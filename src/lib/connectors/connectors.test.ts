@@ -52,13 +52,21 @@ import {
 } from "@/lib/connectors/connectorFixtures";
 
 describe("connector registry", () => {
-  it("lists crossref + zotero with metadata", () => {
+  it("lists Phase 4 research + Phase 7 Tier-1 enterprise connectors", () => {
     const defs = listConnectorDefinitions();
-    expect(defs.map((d) => d.id).sort()).toEqual(["crossref", "zotero"]);
+    expect(defs.map((d) => d.id).sort()).toEqual([
+      "crossref", "github", "gmail", "google-calendar", "google-drive", "notion", "slack", "zotero",
+    ]);
     for (const d of defs) {
       expect(d.name).toBeTruthy();
       expect(d.version).toBeTruthy();
       expect(d.capabilities.length).toBeGreaterThan(0);
+    }
+    // Tier-1 enterprise connectors are OAuth + read-only operations only.
+    for (const id of ["google-drive", "gmail", "google-calendar", "slack", "github", "notion"]) {
+      const d = defs.find((x) => x.id === id)!;
+      expect(d.authMode).toBe("oauth");
+      expect(d.supportedOperations).not.toContain("write");
     }
   });
   it("rejects unknown connector ids", () => {

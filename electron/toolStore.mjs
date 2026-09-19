@@ -27,7 +27,53 @@ import { loadProject } from "./researchDb.mjs";
 import {
   CONNECTOR_CAPABILITIES,
   CONNECTOR_META,
+  ENTERPRISE_CONNECTOR_IDS,
+  externalResourceId,
 } from "../src/lib/connectors/connectorCore.mjs";
+import {
+  authorizedFetchFor,
+  isEnterpriseConnectorId,
+  readOAuthTokenMaybe,
+} from "./connectorAuthStore.mjs";
+import {
+  getMcpServer,
+  listMcpServers,
+  readMcpTokenMaybe,
+  mcpRpc,
+  scanMcpContentForInjection,
+  wrapMcpContentForModel,
+} from "./mcpStore.mjs";
+import { driveSearch } from "../src/lib/connectors/providers/googleDrive.mjs";
+import { gmailGetMessage, gmailSearch } from "../src/lib/connectors/providers/gmail.mjs";
+import { gmailCreateDraft, gmailSendMessage } from "../src/lib/connectors/providers/gmailWrite.mjs";
+import { calendarList, calendarSearchEvents } from "../src/lib/connectors/providers/googleCalendar.mjs";
+import { calendarCreateEvent } from "../src/lib/connectors/providers/googleCalendarWrite.mjs";
+import { slackSearch } from "../src/lib/connectors/providers/slack.mjs";
+import { slackPostMessage } from "../src/lib/connectors/providers/slackWrite.mjs";
+import { githubSearchIssues } from "../src/lib/connectors/providers/github.mjs";
+import { githubCreateIssue, githubCreatePull } from "../src/lib/connectors/providers/githubWrite.mjs";
+import { notionReadBlocks, notionSearch } from "../src/lib/connectors/providers/notion.mjs";
+import { notionCreatePage } from "../src/lib/connectors/providers/notionWrite.mjs";
+import {
+  actionFingerprint,
+  buildActionPreview,
+  isActionTool,
+  isValidIdempotencyKey,
+  newIdempotencyKey,
+  validateActionTarget,
+} from "../src/lib/actions/actionCore.mjs";
+import {
+  authorizedFetchWithRefreshFor,
+  hasWriteGrant,
+} from "./connectorAuthStore.mjs";
+import {
+  consumeApprovalForExecution,
+  expireStaleApprovals,
+  findExecutionByKey,
+  listApprovals,
+  proposeAction,
+  recordExecution,
+} from "./actionStore.mjs";
 import {
   TOOL_DEFINITIONS,
   TOOL_LIMITS,
@@ -100,6 +146,10 @@ function checkContext(raw) {
   if (raw.confirmedToolId !== undefined) {
     if (typeof raw.confirmedToolId !== "string" || raw.confirmedToolId.length > 128) fail("invalid confirmed tool");
     out.confirmedToolId = raw.confirmedToolId;
+  }
+  if (raw.confirmedApprovalId !== undefined) {
+    if (typeof raw.confirmedApprovalId !== "string" || raw.confirmedApprovalId.length > 64) fail("invalid confirmed approval");
+    out.confirmedApprovalId = raw.confirmedApprovalId;
   }
   if (raw.source !== undefined) {
     if (typeof raw.source !== "string" || raw.source.length > 64) fail("invalid source");
@@ -176,7 +226,7 @@ const HANDLERS = {
   },
   "connector.get"(app, input) {
     const id = input.connectorId;
-    if (id !== "crossref" && id !== "zotero") fail("unknown connector");
+    if (!CONNECTOR_META[id]) fail("unknown connector");
     return {
       connector: {
         connectorId: id,
@@ -215,6 +265,85 @@ const HANDLERS = {
       },
     };
   },
+  async "connector.unified_search"(app, input, ctx) {
+    const query = String(input.query ?? "").trim().slice(0, 500);
+    if (!query) fail("invalid query");
+    const limit = Math.min(Number(input.limit ?? 50), 100);
+    const requested = Array.isArray(input.sources) && input.sources.length
+      ? input.sources.map((s) => String(s).slice(0, 64))
+      : [...ENTERPRISE_CONNECTOR_IDS];
+    const hits = [];
+    const searchedSources = [];
+    const skippedSources = [];
+    await Promise.all(requested.map(async (source) => {
+      if (!isEnterpriseConnectorId(source)) {
+        skippedSources.push({ source, reason: "unknown_source" });
+        return;
+      }
+      const token = await readOAuthTokenMaybe(app, source).catch(() => null);
+      if (!token?.accessToken) {
+        skippedSources.push({ source, reason: "not_connected" });
+        return;
+      }
+      try {
+        const rows = await searchEnterpriseSource(app, source, query, 10);
+        searchedSources.push(source);
+        for (const h of rows.slice(0, 10)) hits.push(h);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "search failed";
+        skippedSources.push({
+          source,
+          reason: msg.includes("authentication_failed") ? "needs_reauth" : msg.slice(0, 120),
+        });
+      }
+    }));
+    const lower = query.toLowerCase();
+    hits.sort((a, b) => {
+      const at = String(a.title ?? "").toLowerCase().includes(lower) ? 0 : 1;
+      const bt = String(b.title ?? "").toLowerCase().includes(lower) ? 0 : 1;
+      if (at !== bt) return at - bt;
+      return String(b.timestamp ?? "").localeCompare(String(a.timestamp ?? ""));
+    });
+    void ctx;
+    return {
+      hits: hits.slice(0, limit),
+      searchedSources,
+      skippedSources: skippedSources.slice(0, 16),
+    };
+  },
+  async "mcp.resource.read"(app, input) {
+    const server = getMcpServer(getDb(app), input.serverId);
+    if (!server) fail("unknown MCP server");
+    if (!server.enabled) fail("MCP server disabled");
+    const token = await readMcpTokenMaybe(app, server.id).catch(() => "");
+    const result = await mcpRpc(server, "resources/read", { uri: String(input.uri).slice(0, 2000) }, { token: token || undefined });
+    const text = JSON.stringify(result ?? {}).slice(0, 8000);
+    const scan = scanMcpContentForInjection(text);
+    if (!scan.clean) fail(`untrusted MCP content refused: ${scan.matched}`);
+    return { content: { uri: input.uri, serverId: server.id, wrapped: wrapMcpContentForModel(server.id, text) } };
+  },
+  async "mcp.tool.execute"(app, input) {
+    const server = getMcpServer(getDb(app), input.serverId);
+    if (!server) fail("unknown MCP tool");
+    if (!server.enabled) fail("MCP server disabled");
+    const toolName = String(input.toolName ?? "");
+    if (!/^[a-zA-Z0-9_.-]{1,128}$/.test(toolName)) fail("unknown MCP tool");
+    if (server.allowedTools && !server.allowedTools.includes(toolName)) fail("MCP tool not allowlisted");
+    const token = await readMcpTokenMaybe(app, server.id).catch(() => "");
+    let args = {};
+    if (input.args !== undefined) {
+      try {
+        args = JSON.parse(JSON.stringify(input.args).slice(0, 20000));
+      } catch {
+        fail("invalid MCP args");
+      }
+    }
+    const result = await mcpRpc(server, "tools/call", { name: toolName, arguments: args }, { token: token || undefined });
+    const text = JSON.stringify(result ?? {}).slice(0, 8000);
+    const scan = scanMcpContentForInjection(text);
+    if (!scan.clean) fail(`untrusted MCP result refused: ${scan.matched}`);
+    return { result: { serverId: server.id, tool: toolName, wrapped: wrapMcpContentForModel(`${server.id}:${toolName}`, text) } };
+  },
   "project.get"(app, input) {
     const project = loadProject(app, input.projectId);
     if (!project) fail("project not found");
@@ -230,6 +359,46 @@ const HANDLERS = {
         knowledgeChars: typeof project.knowledge === "string" ? project.knowledge.length : 0,
       },
     };
+  },
+  /* ---------------- Phase 8: controlled provider writes ----------------
+   * Preconditions (enforced in executeToolMain before these run):
+   * approval consumed + fingerprint-verified, idempotency key assigned,
+   * write grant present, target validated. Handlers perform the single real
+   * provider call and return VERIFIED provider metadata only. */
+  async "gmail.create_draft"(app, input) {
+    const authFetch = authorizedFetchWithRefreshFor(app, "gmail", ENTERPRISE_HOSTS.gmail);
+    const draft = await gmailCreateDraft(authFetch, input);
+    return { draft };
+  },
+  async "gmail.send"(app, input) {
+    const authFetch = authorizedFetchWithRefreshFor(app, "gmail", ENTERPRISE_HOSTS.gmail);
+    const message = await gmailSendMessage(authFetch, input);
+    return { message };
+  },
+  async "calendar.create_event"(app, input) {
+    const authFetch = authorizedFetchWithRefreshFor(app, "google-calendar", ENTERPRISE_HOSTS["google-calendar"]);
+    const event = await calendarCreateEvent(authFetch, input);
+    return { event };
+  },
+  async "slack.send_message"(app, input) {
+    const authFetch = authorizedFetchWithRefreshFor(app, "slack", ENTERPRISE_HOSTS.slack);
+    const message = await slackPostMessage(authFetch, input);
+    return { message };
+  },
+  async "github.create_issue"(app, input) {
+    const authFetch = authorizedFetchWithRefreshFor(app, "github", ENTERPRISE_HOSTS.github);
+    const issue = await githubCreateIssue(authFetch, input);
+    return { issue };
+  },
+  async "github.create_pull_request"(app, input) {
+    const authFetch = authorizedFetchWithRefreshFor(app, "github", ENTERPRISE_HOSTS.github);
+    const pullRequest = await githubCreatePull(authFetch, input);
+    return { pullRequest };
+  },
+  async "notion.create_page"(app, input) {
+    const authFetch = authorizedFetchWithRefreshFor(app, "notion", ENTERPRISE_HOSTS.notion);
+    const page = await notionCreatePage(authFetch, input);
+    return { page };
   },
   "export.create"(app, input, ctx) {
     const projectId = input.projectId ?? ctx.projectId;
@@ -276,6 +445,248 @@ const HANDLERS = {
     };
   },
 };
+
+/* ---------------- Phase 8: action gate (fail-closed, main-side only) ---------------- */
+
+const ACTION_CONNECTOR = {
+  "gmail.create_draft": "gmail",
+  "gmail.send": "gmail",
+  "calendar.create_event": "google-calendar",
+  "slack.send_message": "slack",
+  "github.create_issue": "github",
+  "github.create_pull_request": "github",
+  "notion.create_page": "notion",
+};
+
+const ACTION_PROVIDER = {
+  gmail: "Gmail",
+  "google-calendar": "Google Calendar",
+  slack: "Slack",
+  github: "GitHub",
+  notion: "Notion",
+};
+
+/** Extract the run id from agent/workflow sources for approval binding. */
+function runIdFromSource(source) {
+  if (typeof source !== "string") return undefined;
+  if (source.startsWith("agent:")) return source.slice(6, 70) || undefined;
+  if (source.startsWith("workflow:")) return source.slice(9, 73) || undefined;
+  return undefined;
+}
+
+/**
+ * Decide whether a confirmed action tool may execute. Order matters:
+ * target → write grant → idempotency check (before burning the single-use
+ * approval) → approval consume. Returns a descriptor; the caller builds
+ * audited results via finish().
+ */
+async function gateActionExecution(app, def, input, context, source) {
+  const connectorId = ACTION_CONNECTOR[def.id];
+  if (!connectorId) return { kind: "deny", error: "Tools: unknown action", errorKind: "unknown_tool" };
+  const targetErr = validateActionTarget(def.id, input);
+  if (targetErr) return { kind: "deny", error: "Tools: invalid action target", errorKind: "invalid_input" };
+  let granted = false;
+  try {
+    granted = await hasWriteGrant(app, connectorId);
+  } catch {
+    granted = false;
+  }
+  if (!granted) {
+    return {
+      kind: "deny",
+      error: `Tools: ${ACTION_PROVIDER[connectorId]} write access is not granted. Enable actions for this connection, then re-authorize.`,
+      errorKind: "authentication_failed",
+    };
+  }
+  let key = input.idempotencyKey;
+  if (!isValidIdempotencyKey(key)) {
+    key = newIdempotencyKey();
+    input.idempotencyKey = key;
+  }
+  const prior = findExecutionByKey(app, key);
+  if (prior) {
+    return { kind: "cached", prior, idempotencyKey: key };
+  }
+  /* Phase 8 resume path: agent/workflow runs resumed after trusted-UI
+   * approval may not carry the approval id (the runtime only forwards the
+   * tool binding). Discover the approved approval for this exact run +
+   * fingerprint and consume it — the fingerprint check still applies. */
+  let approvalId = context.confirmedApprovalId;
+  const runId = typeof source === "string" && (source.startsWith("agent:") || source.startsWith("workflow:"))
+    ? source.slice(source.indexOf(":") + 1, source.indexOf(":") + 71)
+    : undefined;
+  if ((typeof approvalId !== "string" || !approvalId) && runId) {
+    try {
+      const fingerprint = actionFingerprint(def.id, context.projectId, input);
+      const candidate = listApprovals(app, { status: "approved", projectId: context.projectId })
+        .find((a) => a.toolId === def.id && a.fingerprint === fingerprint && (!a.runId || a.runId === runId));
+      if (candidate) approvalId = candidate.id;
+    } catch {
+      /* fall through to confirm */
+    }
+  }
+  if (typeof approvalId !== "string" || !approvalId) {
+    return { kind: "confirm" };
+  }
+  let approval;
+  try {
+    approval = consumeApprovalForExecution(app, approvalId, {
+      toolId: def.id,
+      projectId: context.projectId,
+      runId,
+      input,
+    });
+  } catch (err) {
+    return {
+      kind: "deny",
+      error: err instanceof Error ? `Tools: approval rejected (${err.message.replace(/^Actions: /, "").slice(0, 120)})` : "Tools: approval rejected",
+      errorKind: "permission_denied",
+    };
+  }
+  return {
+    kind: "proceed",
+    gate: {
+      approvalId: approval.id,
+      fingerprint: approval.fingerprint,
+      idempotencyKey: key,
+      connectorId,
+      provider: ACTION_PROVIDER[connectorId],
+    },
+  };
+}
+
+/** Provider-verified external id per action tool (never raw payloads). */
+function actionExternalId(toolId, data) {
+  try {
+    if (toolId === "gmail.create_draft") return data.draft?.draftId;
+    if (toolId === "gmail.send") return data.message?.messageId;
+    if (toolId === "calendar.create_event") return data.event?.eventId;
+    if (toolId === "slack.send_message") {
+      const m = data.message ?? {};
+      return m.ts ? `${m.channel ?? "?"}:${m.ts}` : undefined;
+    }
+    if (toolId === "github.create_issue") return data.issue?.number ? `#${data.issue.number}` : undefined;
+    if (toolId === "github.create_pull_request") return data.pullRequest?.number ? `#${data.pullRequest.number}` : undefined;
+    if (toolId === "notion.create_page") return data.page?.pageId;
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+const ENTERPRISE_HOSTS = {
+  "google-drive": ["googleapis.com", "www.googleapis.com"],
+  gmail: ["googleapis.com", "gmail.googleapis.com"],
+  "google-calendar": ["googleapis.com", "www.googleapis.com"],
+  slack: ["slack.com"],
+  github: ["api.github.com"],
+  notion: ["api.notion.com"],
+};
+
+const ENTERPRISE_SOURCE_LABEL = {
+  "google-drive": "Google Drive",
+  gmail: "Gmail",
+  "google-calendar": "Google Calendar",
+  slack: "Slack",
+  github: "GitHub",
+  notion: "Notion",
+};
+
+function hitFor(connectorId, externalId, type, title, extra) {
+  const e = extra ?? {};
+  return {
+    source: ENTERPRISE_SOURCE_LABEL[connectorId] ?? connectorId,
+    connectorId,
+    resourceId: externalResourceId(connectorId, externalId),
+    title: String(title ?? "(untitled)").slice(0, 1000),
+    type: String(type ?? "item").slice(0, 64),
+    timestamp: e.timestamp,
+    snippet: typeof e.snippet === "string" ? e.snippet.slice(0, 400) : undefined,
+    url: typeof e.url === "string" ? e.url.slice(0, 2000) : undefined,
+    provenance: {
+      connectorId,
+      externalId,
+      url: typeof e.url === "string" ? e.url.slice(0, 2000) : undefined,
+      retrievedAt: new Date().toISOString(),
+      resourceType: String(type ?? "item").slice(0, 64),
+    },
+  };
+}
+
+/**
+ * Per-source bounded search over a connected enterprise provider.
+ * Failure isolation: throws are caught per-source by the caller.
+ * Auth tokens attach here in main only; renderer never sees them.
+ */
+async function searchEnterpriseSource(app, source, query, perSource) {
+  const authFetch = authorizedFetchFor(app, source, ENTERPRISE_HOSTS[source] ?? []);
+  switch (source) {
+    case "google-drive": {
+      const page = await driveSearch(authFetch, query, { pageSize: perSource });
+      return page.items.map((r) =>
+        hitFor(source, r.id, r.kind, r.title, { timestamp: r.updatedAt, url: r.url })
+      );
+    }
+    case "gmail": {
+      const page = await gmailSearch(authFetch, query, { pageSize: perSource });
+      const out = [];
+      for (const m of page.items.slice(0, perSource)) {
+        try {
+          const full = await gmailGetMessage(authFetch, m.id);
+          out.push(hitFor(source, full.id, "message", full.title, { timestamp: full.date, snippet: full.snippet }));
+        } catch {
+          out.push(hitFor(source, m.id, "message", `(message ${m.id.slice(0, 16)})`, {}));
+        }
+      }
+      return out;
+    }
+    case "google-calendar": {
+      const cals = await calendarList(authFetch).catch(() => []);
+      const out = [];
+      for (const cal of cals.slice(0, 5)) {
+        try {
+          const page = await calendarSearchEvents(authFetch, { calendarId: cal.id, query, pageSize: 4 });
+          for (const e of page.items) {
+            out.push(hitFor(source, e.id, "event", e.title, { timestamp: e.start, snippet: e.snippet, url: e.htmlLink }));
+          }
+        } catch {
+          /* per-calendar isolation */
+        }
+        if (out.length >= perSource) break;
+      }
+      return out.slice(0, perSource);
+    }
+    case "slack": {
+      const page = await slackSearch(authFetch, query, { count: perSource });
+      return page.items.map((m) =>
+        hitFor(source, m.id, "message", m.title, { timestamp: m.ts, snippet: m.snippet, url: m.permalink })
+      );
+    }
+    case "github": {
+      const page = await githubSearchIssues(authFetch, query, { perPage: perSource });
+      return page.items.map((i) =>
+        hitFor(source, i.id, i.kind, i.title, { timestamp: i.updatedAt, snippet: i.snippet, url: i.url })
+      );
+    }
+    case "notion": {
+      const page = await notionSearch(authFetch, query, { pageSize: perSource });
+      const out = [];
+      for (const p of page.items) {
+        let snippet;
+        try {
+          const blocks = await notionReadBlocks(authFetch, p.id, { pageSize: 5 });
+          snippet = blocks.texts.join("\n").slice(0, 400);
+        } catch {
+          snippet = undefined;
+        }
+        out.push(hitFor(source, p.id, p.kind, p.title, { snippet, url: p.url }));
+      }
+      return out;
+    }
+    default:
+      throw new Error(`unknown enterprise source: ${source}`);
+  }
+}
 
 function listConnectorSourcesSafe(app) {
   const db = getDb(app);
@@ -533,6 +944,66 @@ export async function executeToolMain(app, toolId, rawInput, rawContext, opts = 
     });
   }
   if (policy.decision === "CONFIRM") {
+    /* Phase 8: action tools auto-propose a fingerprint-bound approval so the
+     * UI can render an exact preview. Reuse a live proposal for the same
+     * fingerprint instead of spamming duplicates. */
+    if (isActionTool(def.id)) {
+      const targetErr = validateActionTarget(def.id, input);
+      if (targetErr) {
+        const event = {
+          eventId: newEventId(), toolId: def.id, toolVersion: def.version, requestId,
+          timestamp: new Date().toISOString(), source, projectId: context.projectId,
+          permission: def.permission, risk: def.risk, decision: "DENY", status: "denied",
+          durationMs: Date.now() - started, resourceSummary: { input: summarizeForAudit(input) },
+          errorCategory: "invalid_input",
+        };
+        return finish(event, {
+          ok: false, toolId: def.id, toolVersion: def.version, requestId,
+          error: `Tools: invalid action target (${targetErr})`, errorKind: "invalid_input",
+          decision: "DENY", durationMs: Date.now() - started,
+        });
+      }
+      const fingerprint = actionFingerprint(def.id, context.projectId, input);
+      expireStaleApprovals(app);
+      const existing = listApprovals(app, { status: "proposed", projectId: context.projectId }).find(
+        (a) => a.fingerprint === fingerprint && a.toolId === def.id
+      );
+      let approval = existing ?? null;
+      if (!approval) {
+        approval = proposeAction(app, {
+          toolId: def.id, projectId: context.projectId,
+          runId: runIdFromSource(source),
+          requestId, input, risk: def.risk,
+        });
+      }
+      const confirmation = {
+        ...buildToolRequest(
+          { id: def.id, name: def.name, version: def.version, risk: def.risk, permission: def.permission, capabilities: def.capabilities },
+          Object.keys(input).slice(0, 5).join(", ")
+        ),
+        approvalId: approval.id,
+        fingerprint: approval.fingerprint,
+        preview: approval.preview,
+        expiresAt: approval.expiresAt,
+      };
+      const event = {
+        eventId: newEventId(), toolId: def.id, toolVersion: def.version, requestId,
+        timestamp: new Date().toISOString(), source, projectId: context.projectId,
+        permission: def.permission, risk: def.risk, decision: "CONFIRM", status: "confirm_required",
+        durationMs: Date.now() - started,
+        resourceSummary: {
+          input: summarizeForAudit(input),
+          lifecycle: "ACTION_PROPOSED",
+          approvalId: approval.id,
+          fingerprint,
+        },
+      };
+      return finish(event, {
+        ok: false, toolId: def.id, toolVersion: def.version, requestId,
+        error: "Tools: user confirmation is required before execution", errorKind: "confirmation_required",
+        decision: "CONFIRM", durationMs: Date.now() - started, data: confirmation,
+      });
+    }
     const confirmation = buildToolRequest(
       { id: def.id, name: def.name, version: def.version, risk: def.risk, permission: def.permission, capabilities: def.capabilities },
       Object.keys(input).slice(0, 5).join(", ")
@@ -553,12 +1024,122 @@ export async function executeToolMain(app, toolId, rawInput, rawContext, opts = 
       decision: "CONFIRM", durationMs: Date.now() - started, data: confirmation,
     });
   }
+  /* Phase 8 gate: bound approval + write grant + idempotency, all fail-closed. */
+  let actionGate = null;
+  if (isActionTool(def.id)) {
+    const gated = await gateActionExecution(app, def, input, context, source);
+    if (gated.kind === "deny") {
+      const event = {
+        eventId: newEventId(), toolId: def.id, toolVersion: def.version, requestId,
+        timestamp: new Date().toISOString(), source, projectId: context.projectId,
+        permission: def.permission, risk: def.risk, decision: "DENY", status: "denied",
+        durationMs: Date.now() - started,
+        resourceSummary: { input: summarizeForAudit(input), lifecycle: "ACTION_REJECTED" },
+        errorCategory: gated.errorKind,
+      };
+      return finish(event, {
+        ok: false, toolId: def.id, toolVersion: def.version, requestId,
+        error: gated.error, errorKind: gated.errorKind,
+        decision: "DENY", durationMs: Date.now() - started,
+      });
+    }
+    if (gated.kind === "confirm") {
+      const event = {
+        eventId: newEventId(), toolId: def.id, toolVersion: def.version, requestId,
+        timestamp: new Date().toISOString(), source, projectId: context.projectId,
+        permission: def.permission, risk: def.risk, decision: "CONFIRM", status: "confirm_required",
+        durationMs: Date.now() - started,
+        resourceSummary: { input: summarizeForAudit(input), lifecycle: "ACTION_CONFIRMATION_REQUIRED" },
+      };
+      return finish(event, {
+        ok: false, toolId: def.id, toolVersion: def.version, requestId,
+        error: "Tools: a bound approval is required before execution", errorKind: "confirmation_required",
+        decision: "CONFIRM", durationMs: Date.now() - started,
+      });
+    }
+    if (gated.kind === "cached") {
+      /* Idempotent replay: never re-execute. Unknown prior state refuses
+       * blind retry and requires investigation. */
+      if (gated.prior.status === "succeeded") {
+        const event = {
+          eventId: newEventId(), toolId: def.id, toolVersion: def.version, requestId,
+          timestamp: new Date().toISOString(), source, projectId: context.projectId,
+          permission: def.permission, risk: def.risk, decision: "ALLOW", status: "ok",
+          durationMs: Date.now() - started,
+          resourceSummary: {
+            input: summarizeForAudit(input), lifecycle: "ACTION_DEDUPLICATED",
+            externalId: gated.prior.externalId,
+          },
+        };
+        return finish(event, {
+          ok: true, toolId: def.id, toolVersion: def.version, requestId,
+          data: { ...gated.prior.result, deduplicated: true, idempotencyKey: gated.idempotencyKey },
+          decision: "ALLOW", durationMs: Date.now() - started,
+        });
+      }
+      const event = {
+        eventId: newEventId(), toolId: def.id, toolVersion: def.version, requestId,
+        timestamp: new Date().toISOString(), source, projectId: context.projectId,
+        permission: def.permission, risk: def.risk, decision: "ALLOW", status: "failed",
+        durationMs: Date.now() - started,
+        resourceSummary: { input: summarizeForAudit(input), lifecycle: "ACTION_STATUS_UNKNOWN" },
+        errorCategory: "execution_failed",
+      };
+      return finish(event, {
+        ok: false, toolId: def.id, toolVersion: def.version, requestId,
+        error: "Tools: prior attempt state is unknown; investigate the provider before retrying with a new idempotency key",
+        errorKind: "execution_failed",
+        decision: "ALLOW", durationMs: Date.now() - started,
+        data: { executionStatus: "unknown", idempotencyKey: gated.idempotencyKey },
+      });
+    }
+    actionGate = gated.gate;
+  }
   const timeoutMs = Math.min(Math.max(Number(opts.timeoutMs ?? TOOL_LIMITS.defaultTimeoutMs), 1000), TOOL_LIMITS.maxTimeoutMs);
   try {
     const handler = HANDLERS[def.id];
     if (!handler) fail("unknown tool");
     const raw = await withTimeoutMain(handler(app, input, context), timeoutMs);
     const data = checkOutput(def, raw);
+    /* Phase 8: provider confirmed success BEFORE we claim it. Record the
+     * verified execution under the idempotency key. */
+    let eventExtra = {};
+    if (actionGate) {
+      const externalId = actionExternalId(def.id, data);
+      const withKey = { ...data, idempotencyKey: actionGate.idempotencyKey };
+      const stored = recordExecution(app, {
+        idempotencyKey: actionGate.idempotencyKey,
+        toolId: def.id,
+        fingerprint: actionGate.fingerprint,
+        projectId: context.projectId ?? input.projectId,
+        runId: runIdFromSource(source),
+        approvalId: actionGate.approvalId,
+        status: "succeeded",
+        provider: actionGate.provider,
+        externalId,
+        result: withKey,
+      });
+      eventExtra = {
+        lifecycle: "ACTION_SUCCEEDED",
+        approvalId: actionGate.approvalId,
+        fingerprint: actionGate.fingerprint,
+        externalId: stored.externalId,
+      };
+      const event = {
+        eventId: newEventId(), toolId: def.id, toolVersion: def.version, requestId,
+        timestamp: new Date().toISOString(), source, projectId: context.projectId ?? input.projectId,
+        permission: def.permission, risk: def.risk, decision: "ALLOW", status: "ok",
+        durationMs: Date.now() - started,
+        resourceSummary: {
+          input: summarizeForAudit(input), resourceIds: extractIds(def.id, data),
+          counts: countData(def.id, data), ...eventExtra,
+        },
+      };
+      return finish(event, {
+        ok: true, toolId: def.id, toolVersion: def.version, requestId,
+        data: withKey, decision: "ALLOW", durationMs: Date.now() - started,
+      });
+    }
     const event = {
       eventId: newEventId(), toolId: def.id, toolVersion: def.version, requestId,
       timestamp: new Date().toISOString(), source, projectId: context.projectId ?? input.projectId,
@@ -571,6 +1152,44 @@ export async function executeToolMain(app, toolId, rawInput, rawContext, opts = 
       data, decision: "ALLOW", durationMs: Date.now() - started,
     });
   } catch (err) {
+    /* Phase 8: timeouts leave provider state UNKNOWN — never claim failure.
+     * Record so the idempotency key blocks blind retries. */
+    if (actionGate) {
+      const kind = errorKindFor(err);
+      const unknown = kind === "timeout";
+      recordExecution(app, {
+        idempotencyKey: actionGate.idempotencyKey,
+        toolId: def.id,
+        fingerprint: actionGate.fingerprint,
+        projectId: context.projectId ?? input.projectId,
+        runId: runIdFromSource(source),
+        approvalId: actionGate.approvalId,
+        status: unknown ? "unknown" : "failed",
+        provider: actionGate.provider,
+        result: { idempotencyKey: actionGate.idempotencyKey },
+      });
+      const event = {
+        eventId: newEventId(), toolId: def.id, toolVersion: def.version, requestId,
+        timestamp: new Date().toISOString(), source, projectId: context.projectId ?? input.projectId,
+        permission: def.permission, risk: def.risk, decision: "ALLOW", status: "failed",
+        durationMs: Date.now() - started,
+        resourceSummary: {
+          input: summarizeForAudit(input),
+          lifecycle: unknown ? "ACTION_STATUS_UNKNOWN" : "ACTION_FAILED",
+          approvalId: actionGate.approvalId,
+        },
+        errorCategory: kind,
+      };
+      return finish(event, {
+        ok: false, toolId: def.id, toolVersion: def.version, requestId,
+        error: unknown
+          ? "Tools: execution timed out with unknown provider state; investigate before retrying with a new idempotency key"
+          : safeMessageFor(err),
+        errorKind: kind,
+        decision: "ALLOW", durationMs: Date.now() - started,
+        ...(unknown ? { data: { executionStatus: "unknown", idempotencyKey: actionGate.idempotencyKey } } : {}),
+      });
+    }
     const event = {
       eventId: newEventId(), toolId: def.id, toolVersion: def.version, requestId,
       timestamp: new Date().toISOString(), source, projectId: context.projectId ?? input.projectId,

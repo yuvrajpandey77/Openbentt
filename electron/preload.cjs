@@ -156,4 +156,33 @@ contextBridge.exposeInMainWorld("openbenttResearch", {
   knowledge: (op, payload) => ipcRenderer.invoke("research:knowledge", op, payload),
   connectors: (op, payload) => ipcRenderer.invoke("research:connectors", op, payload),
   tools: (op, payload) => ipcRenderer.invoke("research:tools", op, payload),
+  /* Phase 7: metadata-only bridges — token values never cross IPC. */
+  connectorAuth: (op, payload) => ipcRenderer.invoke("research:connectorAuth", op, payload),
+  mcp: (op, payload) => ipcRenderer.invoke("research:mcp", op, payload),
+  /* Phase 8: controlled actions + sync + workflows + agents + MCP server.
+   * Explicit allowlisted channels (no generic IPC). Approval decisions and
+   * bearer tokens for the MCP server cross here only as opaque values the
+   * main process validates; provider OAuth tokens never cross IPC. */
+  actions: (op, payload) => ipcRenderer.invoke("research:actions", op, payload),
+  sync: (op, payload) => ipcRenderer.invoke("research:sync", op, payload),
+  workflows: (op, payload) => ipcRenderer.invoke("research:workflows", op, payload),
+  agents: (op, payload) => ipcRenderer.invoke("research:agents", op, payload),
+  mcpserver: (op, payload) => ipcRenderer.invoke("research:mcpserver", op, payload),
+});
+
+/* Phase 9: Ollama local-AI lifecycle — narrow allowlisted channels only.
+ * Loopback endpoints + allowlisted model names are enforced in the main
+ * process. No shell, no binary execution, no arbitrary URLs. */
+contextBridge.exposeInMainWorld("openbenttOllama", {
+  status: (origin) => ipcRenderer.invoke("ollama:status", origin),
+  listModels: (origin) => ipcRenderer.invoke("ollama:listModels", origin),
+  pullModel: (model, origin) => ipcRenderer.invoke("ollama:pullModel", model, origin),
+  cancelPull: (model) => ipcRenderer.invoke("ollama:cancelPull", model),
+  installInfo: () => ipcRenderer.invoke("ollama:installInfo"),
+  recommendedModels: () => ipcRenderer.invoke("ollama:recommendedModels"),
+  onPullProgress: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on("ollama:pullProgress", handler);
+    return () => ipcRenderer.removeListener("ollama:pullProgress", handler);
+  },
 });

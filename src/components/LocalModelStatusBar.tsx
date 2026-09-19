@@ -1,31 +1,28 @@
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useLocalModelsOptional } from "@/context/LocalModelContext";
+import { useLocalAI } from "@/context/LocalAIContext";
 import { cn } from "@/lib/utils";
 import { CloudOff, HardDrive, Wifi, WifiOff } from "lucide-react";
 
-/** Compact connectivity + configured model status for the app chrome. */
+/** Compact connectivity + effective model status for the app chrome. */
 export function LocalModelStatusBar({ className }: { className?: string }) {
-  const lm = useLocalModelsOptional();
-  if (!lm) return null;
+  const { effectiveModel, checking } = useLocalAI();
+  if (!effectiveModel && checking) return null;
+  if (!effectiveModel) return null;
 
-  const { connectivity, connectivityLabel, configuredAvailability, snapshot, loading } = lm;
-  const avail = configuredAvailability?.state;
-  const availMsg = configuredAvailability?.message ?? "";
+  const avail = effectiveModel.available;
+  const location = effectiveModel.location;
+  const provider = effectiveModel.provider;
+  const modelId = effectiveModel.modelId;
+  const displayName = effectiveModel.displayName;
 
-  const connIcon =
-    connectivity === "online" ? (
-      <Wifi className="h-3 w-3" aria-hidden />
-    ) : (
-      <CloudOff className="h-3 w-3" aria-hidden />
-    );
+  const connIcon = location === "local" ? (
+    <Wifi className="h-3 w-3" aria-hidden />
+  ) : (
+    <CloudOff className="h-3 w-3" aria-hidden />
+  );
 
-  const modelVariant =
-    avail === "ready" || avail === "downloadable"
-      ? "secondary"
-      : avail === "blocked_offline"
-        ? "outline"
-        : "destructive";
+  const modelVariant = avail ? "secondary" : "destructive";
 
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5 text-[10px]", className)}>
@@ -33,48 +30,30 @@ export function LocalModelStatusBar({ className }: { className?: string }) {
         <TooltipTrigger asChild>
           <Badge variant="outline" className="gap-1 px-1.5 py-0 font-normal">
             {connIcon}
-            {connectivityLabel}
+            {location === "local" ? "Local" : "Cloud"}
           </Badge>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-xs text-xs">
-          {connectivity === "offline_first"
-            ? "Local-only mode is on (Privacy). Cloud calls and external research are blocked."
-            : connectivity === "offline"
-              ? "No network. Cloud providers unavailable until reconnected."
-              : "Network available. Cloud providers allowed unless offline-first is enabled."}
+          {location === "local"
+            ? "Local model active. Running on this device via Ollama."
+            : "Cloud model active. Requests routed to remote provider."}
         </TooltipContent>
       </Tooltip>
 
-      {snapshot && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="outline" className="gap-1 px-1.5 py-0 font-normal">
-              <HardDrive className="h-3 w-3" aria-hidden />
-              {snapshot.storage.formattedTotal} local
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs">
-            {snapshot.registry.gguf.length} GGUF · {snapshot.registry.webgpu.length} on-device ·{" "}
-            {snapshot.registry.ollama.length} Ollama
-            {snapshot.storage.hasLowDiskWarning ? " · Low disk space" : ""}
-          </TooltipContent>
-        </Tooltip>
-      )}
-
-      {!loading && configuredAvailability && (
+      {!checking && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Badge variant={modelVariant} className="gap-1 px-1.5 py-0 font-normal">
-              {avail === "ready" || avail === "downloadable" ? (
+              {avail ? (
                 <Wifi className="h-3 w-3" aria-hidden />
               ) : (
                 <WifiOff className="h-3 w-3" aria-hidden />
               )}
-              Model: {avail?.replace(/_/g, " ") ?? "unknown"}
+              {displayName}
             </Badge>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-xs text-xs">
-            {availMsg}
+            Provider: {provider} · {location === "local" ? "Local" : "Cloud"} · {avail ? "Available" : "Unavailable"}
           </TooltipContent>
         </Tooltip>
       )}

@@ -14,7 +14,7 @@ High-level trust boundaries for the research workspace. See also [SECURITY.md](.
 
 ## Electron IPC surface
 
-Renderer reaches main only through **`electron/preload.cjs`** (`contextBridge`). Audited surfaces (5):
+Renderer reaches main only through **`electron/preload.cjs`** (`contextBridge`). Audited surfaces (6):
 
 | Global | Purpose |
 |--------|---------|
@@ -23,6 +23,7 @@ Renderer reaches main only through **`electron/preload.cjs`** (`contextBridge`).
 | `openbenttSecrets` | Provider / Brave vault |
 | `openbenttResearch` | SQLite projects, jobs, embeddings, snapshots |
 | `openbenttZotero` | Zotero sync, BBT watch |
+| `openbenttOllama` | Phase 9: Ollama status/tags/ps/pull on loopback only; model-name allowlist; installer flow opens the official download URL and verifies — never downloads+executes binaries |
 
 **Not exposed to renderer** (main-only): `research:storePaperPdfPath` — path copy with `userData` allowlist.
 

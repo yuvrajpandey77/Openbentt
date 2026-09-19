@@ -7,7 +7,7 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 12;
 
 export function getSchemaVersion() {
   return SCHEMA_VERSION;
@@ -90,6 +90,8 @@ function runMigrations(db) {
   if (v < 8) migrateV8(db);
   if (v < 9) migrateV9(db);
   if (v < 10) migrateV10(db);
+  if (v < 11) migrateV11(db);
+  if (v < 12) migrateV12(db);
 
   if (v < SCHEMA_VERSION) {
     db.prepare("DELETE FROM schema_version").run();
@@ -506,6 +508,138 @@ export function migrateV10(db) {
     CREATE INDEX IF NOT EXISTS idx_taudit_tool ON tool_audit_events(tool_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_taudit_project ON tool_audit_events(project_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_taudit_status ON tool_audit_events(status, created_at DESC);
+  `);
+}
+
+/**
+ * v11 (Phase 7, additive only): enterprise connection metadata + cursors + MCP.
+ * NO tokens/secrets in SQLite — OAuth/MCP tokens live in OS-vault files
+ * (connectorAuthStore/mcpStore). Tables hold safe metadata + sync cursors.
+ */
+export function migrateV11(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS connector_connections (
+      connector_id TEXT PRIMARY KEY,
+      status TEXT NOT NULL DEFAULT 'DISCONNECTED',
+      account_label TEXT,
+      scopes_json TEXT NOT NULL DEFAULT '[]',
+      connected_at TEXT,
+      verified_at TEXT,
+      last_sync_at TEXT,
+      auth_required INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS connector_cursors (
+      connector_id TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT 'default',
+      cursor TEXT,
+      last_success_at TEXT,
+      item_count INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (connector_id, scope)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ccursor_connector ON connector_cursors(connector_id);
+    CREATE TABLE IF NOT EXISTS mcp_servers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      transport TEXT NOT NULL DEFAULT 'streamable-http',
+      endpoint TEXT NOT NULL DEFAULT '',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      allowed_tools_json TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+}
+
+/**
+ * v12 (Phase 8, additive only): controlled actions + sync + workflows + MCP server.
+ * - action_approvals: bound confirmations (fingerprint, expiry, single-use).
+ * - action_executions: idempotency dedupe + verified provider results.
+ * - sync_config: per-connector background sync schedule (user-controlled).
+ * - workflows / workflow_runs: minimal deterministic workflow engine.
+ * - mcp_server_config: opt-in MCP server exposure (OFF by default).
+ * No secrets in any of these tables (tokens stay in OS-vault files).
+ */
+export function migrateV12(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS action_approvals (
+      id TEXT PRIMARY KEY,
+      tool_id TEXT NOT NULL,
+      fingerprint TEXT NOT NULL,
+      project_id TEXT,
+      run_id TEXT,
+      request_id TEXT NOT NULL DEFAULT '',
+      input_json TEXT NOT NULL DEFAULT '{}',
+      preview_json TEXT NOT NULL DEFAULT '[]',
+      risk TEXT NOT NULL DEFAULT 'MEDIUM',
+      status TEXT NOT NULL DEFAULT 'proposed',
+      created_at TEXT NOT NULL,
+      decided_at TEXT,
+      consumed_at TEXT,
+      expires_at TEXT NOT NULL,
+      audit_event_id TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_aappr_status ON action_approvals(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_aappr_fp ON action_approvals(fingerprint);
+    CREATE INDEX IF NOT EXISTS idx_aappr_project ON action_approvals(project_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS action_executions (
+      idempotency_key TEXT PRIMARY KEY,
+      tool_id TEXT NOT NULL,
+      fingerprint TEXT NOT NULL,
+      project_id TEXT,
+      run_id TEXT,
+      approval_id TEXT,
+      status TEXT NOT NULL DEFAULT 'succeeded',
+      provider TEXT NOT NULL DEFAULT '',
+      external_id TEXT,
+      result_json TEXT NOT NULL DEFAULT '{}',
+      audit_event_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_aexec_fp ON action_executions(fingerprint);
+    CREATE TABLE IF NOT EXISTS sync_config (
+      connector_id TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      interval_minutes INTEGER NOT NULL DEFAULT 15,
+      last_run_at TEXT,
+      next_run_at TEXT,
+      consecutive_failures INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS workflows (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      trigger_json TEXT NOT NULL DEFAULT '{}',
+      steps_json TEXT NOT NULL DEFAULT '[]',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS workflow_runs (
+      id TEXT PRIMARY KEY,
+      workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+      trigger_kind TEXT NOT NULL DEFAULT 'manual',
+      status TEXT NOT NULL DEFAULT 'running',
+      current_step INTEGER NOT NULL DEFAULT 0,
+      state_json TEXT NOT NULL DEFAULT '{}',
+      error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_wrun_workflow ON workflow_runs(workflow_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_wrun_status ON workflow_runs(status, created_at DESC);
+    CREATE TABLE IF NOT EXISTS mcp_server_config (
+      id TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      port INTEGER NOT NULL DEFAULT 3877,
+      allowed_tools_json TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 }
 

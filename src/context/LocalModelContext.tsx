@@ -41,7 +41,7 @@ export const LocalModelProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         skipOllamaProbe: loadPrivacyPreferences().localOnlyMode && !navigatorOnline,
       });
       setSnapshot(snap);
-    } catch (e) {
+    } catch (e: unknown) {
       setLastRefreshError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);

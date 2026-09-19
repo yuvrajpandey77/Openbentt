@@ -38,8 +38,26 @@ import {
   paperIdForDoi,
 } from "../src/lib/knowledge/knowledgeCore.mjs";
 
-const KNOWN_CONNECTORS = new Set(["crossref", "zotero"]);
-const ORIGIN_FOR = { crossref: "crossref", zotero: "zotero" };
+const KNOWN_CONNECTORS = new Set([
+  "crossref",
+  "zotero",
+  "google-drive",
+  "gmail",
+  "google-calendar",
+  "slack",
+  "github",
+  "notion",
+]);
+const ORIGIN_FOR = {
+  crossref: "crossref",
+  zotero: "zotero",
+  "google-drive": "import",
+  gmail: "import",
+  "google-calendar": "import",
+  slack: "import",
+  github: "import",
+  notion: "import",
+};
 const MAX_ITEMS_PER_IMPORT = 200;
 const log = createLogger("connectors");
 
@@ -186,12 +204,101 @@ export function resetConnector(app, connectorId) {
     db.prepare("DELETE FROM connector_item_links WHERE connector_id = ?").run(connectorId);
     db.prepare("DELETE FROM connector_sync_runs WHERE connector_id = ?").run(connectorId);
     db.prepare("DELETE FROM connector_sources WHERE connector_id = ?").run(connectorId);
+    db.prepare("DELETE FROM connector_connections WHERE connector_id = ?").run(connectorId).changes;
+    db.prepare("DELETE FROM connector_cursors WHERE connector_id = ?").run(connectorId);
   } else {
     db.prepare("DELETE FROM connector_items").run();
     db.prepare("DELETE FROM connector_item_links").run();
     db.prepare("DELETE FROM connector_sync_runs").run();
     db.prepare("DELETE FROM connector_sources").run();
+    db.prepare("DELETE FROM connector_connections").run();
+    db.prepare("DELETE FROM connector_cursors").run();
   }
+  return { ok: true };
+}
+
+/* ---------------- Phase 7 — connection metadata (NO tokens; vault files only) ---------------- */
+
+const CONNECTION_STATUSES = new Set([
+  "DISCONNECTED", "CONNECTING", "CONNECTED", "AUTH_REQUIRED",
+  "SYNCING", "SYNCED", "ERROR", "DISCONNECTING",
+]);
+
+export function getConnectionMeta(app, connectorId) {
+  checkConnector(connectorId);
+  const db = getDb(app);
+  const row = db.prepare("SELECT * FROM connector_connections WHERE connector_id = ?").get(connectorId);
+  if (!row) return { connectorId, status: "DISCONNECTED" };
+  let scopes = [];
+  try {
+    scopes = JSON.parse(row.scopes_json ?? "[]");
+  } catch {
+    scopes = [];
+  }
+  return {
+    connectorId,
+    status: row.status,
+    accountLabel: row.account_label ?? undefined,
+    scopes,
+    connectedAt: row.connected_at ?? undefined,
+    verifiedAt: row.verified_at ?? undefined,
+    lastSyncAt: row.last_sync_at ?? undefined,
+    authRequired: row.auth_required === 1,
+    lastError: row.last_error ?? undefined,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function upsertConnectionMeta(app, connectorId, patch) {
+  checkConnector(connectorId);
+  const p = patch ?? {};
+  const db = getDb(app);
+  const prev = getConnectionMeta(app, connectorId);
+  const status = p.status !== undefined
+    ? (CONNECTION_STATUSES.has(p.status) ? p.status : prev.status ?? "DISCONNECTED")
+    : (prev.status ?? "DISCONNECTED");
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO connector_connections
+       (connector_id, status, account_label, scopes_json, connected_at, verified_at, last_sync_at, auth_required, last_error, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(connector_id) DO UPDATE SET status = excluded.status,
+       account_label = excluded.account_label, scopes_json = excluded.scopes_json,
+       connected_at = excluded.connected_at, verified_at = excluded.verified_at,
+       last_sync_at = excluded.last_sync_at, auth_required = excluded.auth_required,
+       last_error = excluded.last_error, updated_at = excluded.updated_at`
+  ).run(
+    connectorId,
+    status,
+    p.accountLabel !== undefined ? String(p.accountLabel).slice(0, 256) : (prev.accountLabel ?? null),
+    JSON.stringify(Array.isArray(p.scopes) ? p.scopes.map((s) => String(s).slice(0, 256)).slice(0, 32) : (prev.scopes ?? [])),
+    p.connectedAt !== undefined ? p.connectedAt : (prev.connectedAt ?? null),
+    p.verifiedAt !== undefined ? p.verifiedAt : (prev.verifiedAt ?? null),
+    p.lastSyncAt !== undefined ? p.lastSyncAt : (prev.lastSyncAt ?? null),
+    p.authRequired === true || status === "AUTH_REQUIRED" ? 1 : 0,
+    p.lastError !== undefined ? String(p.lastError).slice(0, 300) : null,
+    now
+  );
+  return getConnectionMeta(app, connectorId);
+}
+
+export function getConnectorCursor(app, connectorId, scope = "default") {
+  checkConnector(connectorId);
+  const db = getDb(app);
+  return db.prepare("SELECT * FROM connector_cursors WHERE connector_id = ? AND scope = ?").get(connectorId, scope) ?? null;
+}
+
+export function setConnectorCursor(app, connectorId, scope = "default", cursor, itemCount = 0) {
+  checkConnector(connectorId);
+  const db = getDb(app);
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO connector_cursors (connector_id, scope, cursor, last_success_at, item_count, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(connector_id, scope) DO UPDATE SET cursor = excluded.cursor,
+       last_success_at = excluded.last_success_at, item_count = excluded.item_count,
+       updated_at = excluded.updated_at`
+  ).run(connectorId, scope, cursor ? String(cursor).slice(0, 1024) : null, now, Number(itemCount) || 0, now);
   return { ok: true };
 }
 

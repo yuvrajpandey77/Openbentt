@@ -19,13 +19,24 @@ const DESCRIPTIONS: Record<string, string> = {
   location: "A geographic location.",
   event: "A conference event, release, or dated occurrence.",
   product: "A software product or service.",
+  project: "A project or initiative spanning sources.",
+  task: "A unit of work, todo, or action item.",
+  repository: "A code repository.",
+  issue: "A tracked issue or ticket.",
+  pull_request: "A proposed code change.",
+  meeting: "A meeting or calendar event.",
+  message: "A chat message or thread post.",
+  email: "An email message or thread.",
+  document: "A general document or file.",
 };
 
 const LABELS: Record<string, string> = {
   person: "Person", organization: "Organization", paper: "Paper", venue: "Venue",
   method: "Method", dataset: "Dataset", metric: "Metric", model: "Model",
   technology: "Technology", concept: "Concept", location: "Location",
-  event: "Event", product: "Product",
+  event: "Event", product: "Product", project: "Project", task: "Task",
+  repository: "Repository", issue: "Issue", pull_request: "Pull request",
+  meeting: "Meeting", message: "Message", email: "Email", document: "Document",
 };
 
 export const ENTITY_TYPES: EntityTypeDefinition[] = (ENTITY_TYPE_IDS as string[]).map((id) => ({

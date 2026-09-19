@@ -1,9 +1,11 @@
 /**
  * Phase 6 — Built-in agent definitions.
- * ONE general runtime configuration; role agents later layer on top.
- * No autonomous permissions; the allowlist mirrors the Phase 5 registry.
+ * Phase 8 — role configurations register here; the runtime is unchanged.
+ * No autonomous permissions; allowlists mirror the Phase 5/8 registry and
+ * write tools stay confirmation-gated regardless of role.
  */
 import type { AgentDefinition } from "@/lib/agent/agentTypes";
+import { AGENT_ROLES } from "@/lib/agent/agentRoles";
 
 const DEFAULT_LIMITS = {
   maxSteps: 8,
@@ -33,6 +35,9 @@ export const RESEARCH_ASSISTANT_DEFINITION: AgentDefinition = {
     "connector.preview",
     "connector.search",
     "connector.import",
+    "connector.unified_search",
+    "mcp.resource.read",
+    "mcp.tool.execute",
     "project.get",
     "export.create",
     "utility.calculate",
@@ -47,6 +52,18 @@ Say what you could not verify. Keep answers focused and skimmable.`,
 
 const DEFINITIONS = new Map<string, AgentDefinition>([
   [RESEARCH_ASSISTANT_DEFINITION.id, RESEARCH_ASSISTANT_DEFINITION],
+  /* Phase 8 roles: same AgentDefinition shape, same runtime. */
+  ...AGENT_ROLES.filter((r) => r.id !== RESEARCH_ASSISTANT_DEFINITION.id).map(
+    (r): [string, AgentDefinition] => [r.id, {
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      toolAllowlist: [...r.toolAllowlist],
+      modelTask: r.modelTask,
+      systemPolicy: r.systemPolicy,
+      limits: { ...r.limits },
+    }]
+  ),
 ]);
 
 export function getAgentDefinition(id: string): AgentDefinition {

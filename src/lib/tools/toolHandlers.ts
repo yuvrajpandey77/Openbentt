@@ -278,6 +278,94 @@ async function connectorImport(input: Record<string, unknown>, ctx: ToolExecutio
   };
 }
 
+/* ---------------- Phase 7 — unified search + MCP (renderer/web path) ---------------- */
+
+const ENTERPRISE_SOURCE_IDS = ["google-drive", "gmail", "google-calendar", "slack", "github", "notion"];
+
+async function connectorUnifiedSearch(input: Record<string, unknown>, ctx: ToolExecutionContext) {
+  // Desktop backend (toolStore.mjs) fans out to connected providers. The web
+  // fallback searches REAL local data only (documents + knowledge) and
+  // honestly reports enterprise sources as desktop_required — never faked.
+  if (hasConnectorDesktopApi()) {
+    const b = window as unknown as {
+      openbenttResearch?: { tools?: (op: string, payload?: unknown) => Promise<unknown> };
+    };
+    const res = (await b.openbenttResearch!.tools!("execute", {
+      toolId: "connector.unified_search",
+      input,
+      context: { projectId: pickProject(input, ctx), source: "agent" },
+    })) as { data?: { hits?: unknown[]; searchedSources?: string[]; skippedSources?: unknown[] } };
+    const data = (res as unknown as { hits?: unknown[]; searchedSources?: string[]; skippedSources?: unknown[] }) ?? {};
+    return {
+      hits: Array.isArray(data.hits) ? data.hits.slice(0, 100) : [],
+      searchedSources: Array.isArray(data.searchedSources) ? data.searchedSources : [],
+      skippedSources: Array.isArray(data.skippedSources) ? data.skippedSources : [],
+    };
+  }
+  const query = (input.query as string).slice(0, 500);
+  const limit = Math.min(Number(input.limit ?? 50), 100);
+  const projectId = pickProject(input, ctx);
+  const docHits = searchDocuments(query, projectId ? { projectId } : {}, 10).map((h) => ({
+    source: "Openbentt documents",
+    connectorId: "local",
+    resourceId: h.document.id,
+    title: h.document.title.slice(0, 300),
+    type: "document",
+    snippet: h.snippet.slice(0, 400),
+    provenance: { connectorId: "local", externalId: h.document.id, retrievedAt: new Date().toISOString(), resourceType: "document" },
+  }));
+  const store = hasKnowledgeDesktopApi() ? knowledgeApi : knowledgeWebStore;
+  const entities = await Promise.resolve(store.searchEntities({ projectId, query, limit: 10 })).catch(
+    () => []
+  );
+  const knHits = entities.slice(0, 10).map((e) => ({
+    source: "Openbentt knowledge",
+    connectorId: "local",
+    resourceId: e.id,
+    title: String(e.canonicalName ?? e.id).slice(0, 300),
+    type: String(e.type ?? "concept").slice(0, 64),
+    snippet: typeof e.description === "string" ? e.description.slice(0, 400) : undefined,
+    provenance: { connectorId: "local", externalId: e.id, retrievedAt: new Date().toISOString(), resourceType: "entity" },
+  }));
+  return {
+    hits: [...docHits, ...knHits].slice(0, limit),
+    searchedSources: ["Openbentt documents", "Openbentt knowledge"],
+    skippedSources: ENTERPRISE_SOURCE_IDS.map((source) => ({ source, reason: "desktop_required" })),
+  };
+}
+
+async function mcpResourceRead(input: Record<string, unknown>) {
+  // MCP executes main-side only (vault tokens + allowlists live there).
+  if (hasConnectorDesktopApi()) {
+    const b = window as unknown as {
+      openbenttResearch?: { tools?: (op: string, payload?: unknown) => Promise<unknown> };
+    };
+    const res = (await b.openbenttResearch!.tools!("execute", {
+      toolId: "mcp.resource.read",
+      input,
+      context: { source: "agent" },
+    })) as { data?: Record<string, unknown> };
+    return (res as unknown as Record<string, unknown>) ?? {};
+  }
+  throw new ToolError("execution_failed", "MCP requires the desktop app.");
+}
+
+async function mcpToolExecute(input: Record<string, unknown>) {
+  // Same routing as mcpResourceRead; policy enforces USER_CONFIRMATION first.
+  if (hasConnectorDesktopApi()) {
+    const b = window as unknown as {
+      openbenttResearch?: { tools?: (op: string, payload?: unknown) => Promise<unknown> };
+    };
+    const res = (await b.openbenttResearch!.tools!("execute", {
+      toolId: "mcp.tool.execute",
+      input,
+      context: { source: "agent" },
+    })) as { data?: Record<string, unknown> };
+    return (res as unknown as Record<string, unknown>) ?? {};
+  }
+  throw new ToolError("execution_failed", "MCP requires the desktop app.");
+}
+
 /* ---------------- project / export / utility ---------------- */
 
 async function projectGet(input: Record<string, unknown>) {
@@ -350,7 +438,24 @@ async function utilityCalculate(input: Record<string, unknown>) {
   }
 }
 
+/* ---------------- Phase 8 — controlled writes (desktop main only) ---------------- */
+
+function desktopOnlyWrite(toolId: string): ToolHandler {
+  return async () => {
+    // OAuth tokens + approval ledger live in the desktop main process.
+    // Never fake execution on web: refuse honestly.
+    throw new ToolError("execution_failed", `${toolId} requires the desktop app.`);
+  };
+}
+
 export const TOOL_HANDLERS: Record<string, ToolHandler> = {
+  "gmail.create_draft": desktopOnlyWrite("gmail.create_draft"),
+  "gmail.send": desktopOnlyWrite("gmail.send"),
+  "calendar.create_event": desktopOnlyWrite("calendar.create_event"),
+  "slack.send_message": desktopOnlyWrite("slack.send_message"),
+  "github.create_issue": desktopOnlyWrite("github.create_issue"),
+  "github.create_pull_request": desktopOnlyWrite("github.create_pull_request"),
+  "notion.create_page": desktopOnlyWrite("notion.create_page"),
   "knowledge.search": knowledgeSearch,
   "knowledge.get_entity": knowledgeGetEntity,
   "knowledge.get_relationships": knowledgeGetRelationships,
@@ -363,6 +468,9 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   "connector.preview": connectorPreview,
   "connector.search": connectorSearch,
   "connector.import": connectorImport,
+  "connector.unified_search": connectorUnifiedSearch,
+  "mcp.resource.read": mcpResourceRead,
+  "mcp.tool.execute": mcpToolExecute,
   "project.get": projectGet,
   "export.create": exportCreate,
   "utility.calculate": utilityCalculate,

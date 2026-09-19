@@ -16,6 +16,8 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
+import { useLocalAI } from "@/context/LocalAIContext";
+import { SourceFilter } from "@/components/integrations/SourceFilter";
 import {
   Tooltip,
   TooltipContent,
@@ -64,7 +66,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { v4 as uuidv4 } from "uuid";
 import { readFileAsDataUrl, extractVideoFrameDataUrl, assertImageSize } from "@/lib/media";
 import { extractTextFromPdfFile } from "@/lib/pdfText";
-import { ModelSpecDialog } from "@/components/ModelSpecDialog";
 import { ToolsPopover } from "@/components/ToolsPopover";
 import { PromptSnippetsMenu } from "@/components/PromptSnippetsMenu";
 import { ModelCapabilityBadges } from "@/components/ModelCapabilityBadges";
@@ -125,11 +126,14 @@ const ChatInput: React.FC<ChatInputProps> = ({
     sendAgentMessage,
     agentMode,
     setAgentMode,
+    sourceScope,
+    setSourceScope,
     pendingComposer,
     clearPendingComposer,
     chats,
     currentChatId,
   } = useChat();
+  const { effectiveModel } = useLocalAI();
   /** Bumps when localStorage consent changes so web /chat re-reads getLocalWeightsConsent(). */
   const [localConsentTick, setLocalConsentTick] = useState(0);
   const [plusOpen, setPlusOpen] = useState(false);
@@ -637,8 +641,16 @@ const ChatInput: React.FC<ChatInputProps> = ({
                       : "h-8 max-w-[8.5rem] flex-row items-center gap-1 px-1.5 py-0 text-xs md:min-h-9 md:max-w-[min(100%,22rem)] md:gap-1.5 md:px-2 md:py-1.5 md:text-sm"
                   )}
                 >
-                  <Bot size={isStudio ? 14 : 14} className="shrink-0" />
-                  <span className="min-w-0 truncate text-left font-medium">{shortModelLabel(apiConfig.model)}</span>
+                  {effectiveModel?.location === "local" ? (
+                    <Bot size={isStudio ? 14 : 14} className="shrink-0 text-primary" />
+                  ) : (
+                    <Bot size={isStudio ? 14 : 14} className="shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="min-w-0 truncate text-left font-medium">
+                    {effectiveModel
+                      ? `${shortModelLabel(effectiveModel.modelId || "")} · ${effectiveModel.location === "local" ? "Local" : "Cloud"}`
+                      : shortModelLabel(apiConfig.model)}
+                  </span>
                   <ChevronDown size={12} className="shrink-0" />
                 </Button>
               </DropdownMenuTrigger>
@@ -667,12 +679,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
-
-            {!isStudio && (
-              <div className="hidden md:block">
-                <ModelSpecDialog modelId={apiConfig.model} models={models} />
-              </div>
-            )}
 
             {/* Single attach button */}
             <TooltipProvider>
@@ -808,6 +814,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     <TooltipContent>Agent answers with knowledge, documents, and connectors</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+
+                {/* Phase 7: source scope (agent mode only; trusted app state) */}
+                {agentMode && (
+                  <SourceFilter value={sourceScope} onChange={setSourceScope} />
+                )}
 
                 {/* WebGPU: pre-cache model */}
                 {apiConfig.aiProvider === "webgpu_gemma" && (

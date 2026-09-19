@@ -20,6 +20,7 @@ import { buildAssistantPlainText } from "@/lib/assistantPlainText";
 import { highlightSearchInText } from "@/lib/highlightSearch";
 import { ChatThinkingIndicator } from "@/components/ChatThinkingIndicator";
 import { CompareUseInNotebook } from "@/components/research/CompareUseInNotebook";
+import { AgentRunApprovals } from "@/components/actions/AgentRunApprovals";
 
 const SCROLL_PIN_THRESHOLD_PX = 80;
 
@@ -191,6 +192,8 @@ const AssistantRoleContent: React.FC<{
           </div>
         </div>
       )}
+      {/* Phase 8: fingerprint-bound action approvals proposed by this run. */}
+      {message.agentRunId && <AgentRunApprovals runId={message.agentRunId} />}
       <AssistantMessageToolbar
         exportRef={exportRef}
         plainText={plainText}

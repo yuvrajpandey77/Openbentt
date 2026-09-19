@@ -6,6 +6,8 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { toolApi } from "@/lib/tools/toolApi";
+import { actionApi, type ActionApproval } from "@/lib/actions/actionApi";
+import { ActionApprovalCard } from "@/components/actions/ActionApprovalCard";
 import type {
   ToolAuditEvent,
   ToolDefinition,
@@ -20,6 +22,8 @@ export function ToolPanel({ projectId }: { projectId?: string }) {
   const [audit, setAudit] = useState<ToolAuditEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  /* Phase 8: bound approval proposed for action tools (exact preview). */
+  const [approval, setApproval] = useState<ActionApproval | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -39,6 +43,7 @@ export function ToolPanel({ projectId }: { projectId?: string }) {
   const run = useCallback(async () => {
     setError(null);
     setResult(null);
+    setApproval(null);
     let parsed: unknown;
     try {
       parsed = JSON.parse(inputJson);
@@ -66,6 +71,7 @@ export function ToolPanel({ projectId }: { projectId?: string }) {
   const confirmAndRun = useCallback(async () => {
     setError(null);
     setResult(null);
+    setApproval(null);
     let parsed: unknown;
     try {
       parsed = JSON.parse(inputJson);
@@ -83,6 +89,16 @@ export function ToolPanel({ projectId }: { projectId?: string }) {
         source: "tool-panel",
       });
       setResult(res);
+      // Phase 8: surface the fingerprint-bound approval for action tools.
+      const approvalId = (res.data as { approvalId?: string } | undefined)?.approvalId;
+      if (!res.ok && res.errorKind === "confirmation_required" && typeof approvalId === "string") {
+        try {
+          const a = await actionApi.get(approvalId);
+          if (a) setApproval(a);
+        } catch {
+          /* approval card optional */
+        }
+      }
       const events = await toolApi.audit({ limit: 10 });
       setAudit(events);
     } catch {
@@ -137,6 +153,12 @@ export function ToolPanel({ projectId }: { projectId?: string }) {
         </button>
       ) : null}
       {running ? <p aria-live="polite">Running…</p> : null}
+      {approval ? (
+        <div>
+          <h4>Approval (exact preview)</h4>
+          <ActionApprovalCard approval={approval} onChanged={(a) => setApproval(a)} />
+        </div>
+      ) : null}
       {result ? (
         <div aria-live="polite">
           <h4>Result</h4>
