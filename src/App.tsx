@@ -12,6 +12,7 @@ import { TaskCenterProvider } from "./context/TaskCenterContext";
 import { LocalAIProvider } from "./context/LocalAIContext";
 import { ChatProvider } from "./context/ChatContext";
 import { ResearchProjectProvider } from "./context/ResearchProjectContext";
+import { WorkspaceProvider } from "./context/WorkspaceContext";
 import { LocalModelProvider } from "./context/LocalModelContext";
 import { ZoteroProvider } from "./context/ZoteroContext";
 import AppLayout from "./layouts/AppLayout";
@@ -39,6 +40,10 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const AgentPage = lazy(() => import("./pages/AgentPage"));
 const ProjectWorkspacePage = lazy(() => import("./pages/ProjectWorkspacePage"));
 const ConversationRoutePage = lazy(() => import("./pages/ConversationRoutePage"));
+const FilesPage = lazy(() => import("./pages/FilesPage"));
+const TasksPage = lazy(() => import("./pages/TasksPage"));
+const DocumentsPage = lazy(() => import("./pages/DocumentsPage"));
+const DiagnosticsPage = lazy(() => import("./pages/DiagnosticsPage"));
 
 const queryClient = new QueryClient();
 
@@ -121,7 +126,9 @@ const App = () => (
                               <ZoteroProvider>
                                 <TaskCenterProvider>
                                   <LocalAIProvider>
-                                    <Outlet />
+                                    <WorkspaceProvider>
+                                      <Outlet />
+                                    </WorkspaceProvider>
                                   </LocalAIProvider>
                                 </TaskCenterProvider>
                               </ZoteroProvider>
@@ -150,6 +157,11 @@ const App = () => (
                             <Route path="projects/:projectId/chat/:conversationId" element={<FeatureErrorBoundary feature="project workspace"><ProjectWorkspacePage /></FeatureErrorBoundary>} />
                             {/* Hidden advanced/diagnostic execution view (not a product destination) */}
                             {isDesktopApp() && <Route path="agent" element={<FeatureErrorBoundary feature="agent"><AgentPage /></FeatureErrorBoundary>} />}
+                            {/* Unified workspace views (same shell, same conversation system) */}
+                            <Route path="files" element={<FeatureErrorBoundary feature="files"><FilesPage /></FeatureErrorBoundary>} />
+                            <Route path="tasks" element={<FeatureErrorBoundary feature="tasks"><TasksPage /></FeatureErrorBoundary>} />
+                            <Route path="documents" element={<FeatureErrorBoundary feature="documents"><DocumentsPage /></FeatureErrorBoundary>} />
+                            <Route path="diagnostics" element={<FeatureErrorBoundary feature="diagnostics"><DiagnosticsPage /></FeatureErrorBoundary>} />
                             <Route path="labs" element={<FeatureErrorBoundary feature="research labs"><ResearchLabsPage /></FeatureErrorBoundary>} />
                             <Route path="settings" element={<FeatureErrorBoundary feature="settings"><SettingsPage /></FeatureErrorBoundary>} />
                             <Route path="write" element={<FeatureErrorBoundary feature="latex workspace"><DesktopWriteRedirect /></FeatureErrorBoundary>} />

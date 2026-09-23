@@ -22,7 +22,11 @@ import { applyDiagnosticFix, applyNotebookLatexAutofix } from "@/lib/notebookLat
 import { isLatexDocumentSource } from "@/lib/notebookSourceKind";
 import { NOTEBOOK_LATEX_BOOK_TEMPLATE } from "@/lib/notebookLatexTemplate";
 import { extractTexFromAssistantReply } from "@/lib/extractTexFromAssistantReply";
-import { diffLineRows, mergeProposalLines } from "@/lib/diffLines";
+import { diffLineRows, mergeProposalLines, type LineDiffRow } from "@/lib/diffLines";
+import { useWorkspace } from "@/context/WorkspaceContext";
+import { notebookRefToRel } from "@/context/WorkspaceContext";
+import { useWorkspaceWatcher } from "@/hooks/useWorkspaceWatcher";
+import { getDesktopApi } from "@/lib/desktopApi";
 import { buildNotebookFullWorkspaceAssist } from "@/lib/notebookChatContext";
 import { buildNotebookLatexFixPrompt, type NotebookLatexFailureSource } from "@/lib/notebookLatexFixPrompt";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -158,6 +162,68 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   const [compileDiagnostics, setCompileDiagnostics] = useState<LatexCompileDiagnostic[]>([]);
   const [pdfScale, setPdfScale] = useState(ZOOM_DEFAULT);
   const [previewVariant, setPreviewVariant] = useState<PreviewVariant>("original");
+  /* Phase C: external filesystem changes (OpenCode edits) vs editor state. */
+  const { workspace: activeWs, syncNotebookRef } = useWorkspace();
+
+  /* Phase B: expose the edited file as task context ("Rewrite this"). */
+  useEffect(() => {
+    try {
+      const ref = studioCtx?.activeEditorFile;
+      if (ref) syncNotebookRef(ref, researchProject ?? null);
+    } catch {
+      /* optional */
+    }
+  }, [studioCtx?.activeEditorFile, researchProject, syncNotebookRef]);
+  const { externalChange, acknowledge: acknowledgeExternal } = useWorkspaceWatcher(
+    activeWs?.rootPath ?? null
+  );
+  const [fsConflict, setFsConflict] = useState<{ path: string; fsText: string; rows: LineDiffRow[] } | null>(null);
+  const [pdfRefresh, setPdfRefresh] = useState<string | null>(null);
+  const sourceTextRef = useRef(sourceText);
+  sourceTextRef.current = sourceText;
+
+  useEffect(() => {
+    if (!externalChange || !activeWs?.rootPath) return;
+    const api = getDesktopApi();
+    if (!api?.workspaceRead) {
+      acknowledgeExternal();
+      return;
+    }
+    const root = activeWs.rootPath;
+    const relForEditor = (() => {
+      try {
+        const ref = studioCtx?.activeEditorFile;
+        if (!ref) return "main.tex";
+        return notebookRefToRel(ref, researchProject ?? null) ?? (ref.type === "draft" ? "main.tex" : null);
+      } catch {
+        return "main.tex";
+      }
+    })();
+    let cancelled = false;
+    void (async () => {
+      // PDF outputs: offer refresh, never touch the editor.
+      const pdfHit = externalChange.changed.find((c) => c.toLowerCase().endsWith(".pdf"));
+      if (pdfHit && !cancelled) setPdfRefresh(pdfHit);
+      // Edited file changed underneath us?
+      if (relForEditor && externalChange.changed.includes(relForEditor)) {
+        try {
+          const r = await api.workspaceRead!(root, relForEditor, 256 * 1024);
+          if (cancelled) return;
+          if ((r.text ?? "") !== sourceTextRef.current) {
+            const rows = diffLineRows(r.text ?? "", sourceTextRef.current).slice(0, 400);
+            setFsConflict({ path: relForEditor, fsText: r.text ?? "", rows });
+          }
+        } catch {
+          /* unreadable — ignore */
+        }
+      }
+      acknowledgeExternal();
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalChange]);
 
   const previewRef = useRef<HTMLDivElement>(null);
   /** Scroll container for PDF preview (wheel zoom + scroll anchoring). */
@@ -1366,6 +1432,96 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
                 Compile
               </Button>
             </div>
+          </div>
+        )}
+        {(fsConflict || pdfRefresh) && (
+          <div className="shrink-0 border-b border-amber-500/40 bg-amber-500/5 px-3 py-2" role="alert">
+            {fsConflict && (
+              <div>
+                <p className="text-xs font-medium text-foreground">
+                  External changes detected in {fsConflict.path}
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  OpenCode (or another program) modified this file. Your editor has different content.
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      suppressProjectSync.current = true;
+                      setSourceText(fsConflict.fsText);
+                      setFsConflict(null);
+                    }}
+                  >
+                    Reload
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => setFsConflict(null)}
+                  >
+                    Keep my changes
+                  </Button>
+                </div>
+                <details className="mt-1.5">
+                  <summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground">
+                    Review diff ({fsConflict.rows.filter((r) => r.kind !== "equal").length} changed lines)
+                  </summary>
+                  <div className="mt-1 max-h-56 overflow-auto rounded border border-border/60 bg-background p-2 font-mono text-[10px] leading-relaxed">
+                    {fsConflict.rows.slice(0, 200).map((r, i) => (
+                      <div
+                        key={i}
+                        className={
+                          r.kind === "add"
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                            : r.kind === "remove"
+                              ? "bg-destructive/10 text-destructive"
+                              : "text-muted-foreground"
+                        }
+                      >
+                        {r.kind === "add" ? "+" : r.kind === "remove" ? "-" : " "}{r.line}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            )}
+            {pdfRefresh && !fsConflict && (
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs text-muted-foreground">
+                  PDF updated externally: <span className="font-mono">{pdfRefresh}</span>
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="ml-auto h-7 text-xs"
+                  onClick={() => {
+                    const api = getDesktopApi();
+                    if (api?.latexOpenPdf && activeWs?.rootPath) {
+                      void api.latexOpenPdf(activeWs.rootPath, pdfRefresh);
+                    }
+                    setPdfRefresh(null);
+                  }}
+                >
+                  View PDF
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() => setPdfRefresh(null)}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            )}
           </div>
         )}
         {effectiveChrome === "full" && (

@@ -73,6 +73,11 @@ interface AgentBridge {
   stopVoiceSession: (sessionId: string) => Promise<{ ok: boolean; sessionId: string }>;
   setVoiceMode: (sessionId: string, mode: string) => Promise<VoiceSessionPublic>;
   getVoiceStatus: (sessionId?: string) => Promise<VoiceStatusSnapshot | VoiceSessionPublic>;
+  getVoiceEngineStatus: () => Promise<{
+    stt: { model: string; loaded: boolean; loading: boolean; fake?: boolean };
+    tts: { backend: string; ok: boolean; error?: string };
+  }>;
+  ensureVoiceStt: (sessionId?: string) => Promise<unknown>;
   onVoiceEvent: (cb: (evt: VoiceEvent) => void) => () => void;
 }
 
@@ -179,6 +184,12 @@ export const openCodeAgentApi = {
   },
   getVoiceStatus(sessionId?: string) {
     return requireBridge().getVoiceStatus(sessionId);
+  },
+  getVoiceEngineStatus() {
+    return requireBridge().getVoiceEngineStatus();
+  },
+  ensureVoiceStt(sessionId?: string) {
+    return requireBridge().ensureVoiceStt(sessionId);
   },
   onVoiceEvent(cb: (evt: VoiceEvent) => void): () => void {
     return requireBridge().onVoiceEvent(cb);

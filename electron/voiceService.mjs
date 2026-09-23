@@ -365,13 +365,69 @@ export function startVoiceSession(app, { mode = "push-to-talk" } = {}) {
   return { ...sess, audioParts: undefined };
 }
 
-export function noteMicReady(sessionId) {
+export function noteMicReady(app, sessionId) {
+  // Overload-tolerant: IPC passes (sessionId) positionally via wrapper below.
+  if (sessionId === undefined && typeof app === "string") {
+    sessionId = app;
+    app = undefined;
+  }
   const sess = getSessionOrThrow(sessionId);
   if (!setSessionState(sess, "READY")) throw new Error(`Cannot ready voice session from ${sess.state}`);
   sess.mic = "active";
   refreshMicGrant();
   emitVoiceEvent(sess.id, "voice.mic.active", { message: "Microphone active." });
+  // Repair: warm the STT engine NOW (background) so the first utterance does
+  // not fail with "model is not loaded". Progress streams as voice events.
+  void ensureSttLoaded(app, sess.id).catch(() => {});
   return publicSession(sess);
+}
+
+/** Engine readiness snapshot for diagnostics (no side effects). */
+export function sttStatus() {
+  const eng = state.engines.stt;
+  return {
+    model: "Xenova/whisper-tiny.en",
+    loaded: Boolean(eng?.pipeline),
+    loading: Boolean(eng?.loading),
+    fake: eng instanceof FakeSttEngine,
+  };
+}
+
+export function ttsStatus() {
+  try {
+    const eng = ttsEngine();
+    return { backend: eng?.backend ?? eng?.constructor?.name ?? "unknown", ok: true };
+  } catch (err) {
+    return { backend: "none", ok: false, error: err instanceof Error ? err.message.slice(0, 200) : "unknown" };
+  }
+}
+
+/**
+ * Ensure the STT model is loaded (downloads once to userData/voice-models).
+ * Idempotent across concurrent callers; progress via voice.stt.progress.
+ */
+export async function ensureSttLoaded(app, sessionId) {
+  const eng = sttEngine(app);
+  if (eng.pipeline) return { ok: true, cached: true };
+  const emit = (payload) => {
+    try {
+      if (sessionId) emitVoiceEvent(sessionId, "voice.stt.progress", payload);
+    } catch { /* observer-safe */ }
+  };
+  emit({ message: "Loading speech model…", progress: 0 });
+  try {
+    const res = await eng.load((p) => emit({
+      message: `Loading speech model (${p?.file ?? ""})`.slice(0, 160),
+      status: p?.status,
+      file: p?.file,
+      progress: typeof p?.progress === "number" ? Math.round(p.progress) : undefined,
+    }));
+    emit({ message: "Speech model ready.", progress: 100 });
+    return res;
+  } catch (err) {
+    emit({ message: "Speech model failed to load." });
+    throw new Error(err instanceof Error ? err.message.slice(0, 200) : "STT load failed");
+  }
 }
 
 export function noteMicDenied(sessionId, reason) {
@@ -432,6 +488,10 @@ async function finalizeUtterance(app, sess) {
   let raw;
   let transcript;
   try {
+    // Last-chance load: mic-ready warming may have failed or been skipped.
+    if (!sttEngine(app).pipeline) {
+      await ensureSttLoaded(app, sess.id);
+    }
     const pcmFloat = new Float32Array(pcmBytes.length / 2);
     for (let i = 0; i < pcmFloat.length; i++) {
       pcmFloat[i] = pcmBytes.readInt16LE(i * 2) / 32768;
@@ -589,7 +649,12 @@ export function registerVoiceIpc(ipcMain, app) {
   });
   ipcMain.handle("voice:micReady", async (_e, payload) => {
     const p = assertPayload(payload, ["sessionId"]);
-    return noteMicReady(p.sessionId);
+    return noteMicReady(app, p.sessionId);
+  });
+  ipcMain.handle("voice:sttStatus", async () => ({ stt: sttStatus(), tts: ttsStatus() }));
+  ipcMain.handle("voice:ensureStt", async (_e, payload) => {
+    const p = payload ?? {};
+    return ensureSttLoaded(app, typeof p.sessionId === "string" ? p.sessionId : undefined);
   });
   ipcMain.handle("voice:micDenied", async (_e, payload) => {
     const p = assertPayload(payload, ["sessionId"]);

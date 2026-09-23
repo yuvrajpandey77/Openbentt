@@ -1166,6 +1166,51 @@ export async function respondToPermission(app, { approvalId, taskId, decision, s
   } catch { /* audit best-effort */ }
   task.status = "RUNNING";
   task.updatedAt = nowIso();
+  // Approved RUN_COMMANDS with an allowlisted command + contained cwd are
+  // executed FOR REAL here (bounded, observed). Anything else proceeds as
+  // inspection-only — never faked.
+  const approvedInput = fpInput ?? {};
+  if (approvedInput.capability === "RUN_COMMANDS" && typeof approvedInput.command === "string") {
+    try {
+      const { isCommandAllowed, executeApprovedCommand } = await import("./approvedExec.mjs");
+      const cwd = typeof approvedInput.cwd === "string" ? approvedInput.cwd : task.workspace.rootPath;
+      await assertPathInWorkspace(task.workspace.rootPath, cwd);
+      if (isCommandAllowed(approvedInput.command)) {
+        pushEvent(task.id, session?.id ?? "unknown", "agent.command.requested", {
+          command: approvedInput.command,
+          cwd,
+        });
+        const execResult = await executeApprovedCommand({
+          command: approvedInput.command,
+          cwd,
+          workspaceRoot: task.workspace.rootPath,
+          env: buildChildEnv(),
+        });
+        task.lastCommandResult = {
+          command: execResult.command,
+          code: execResult.code,
+          timedOut: execResult.timedOut,
+          durationMs: execResult.durationMs,
+        };
+        pushEvent(task.id, session?.id ?? "unknown", "agent.command.output", {
+          command: execResult.command,
+          exitCode: execResult.code,
+          timedOut: execResult.timedOut,
+          message: execResult.output.slice(0, 4000),
+        });
+      } else {
+        pushEvent(task.id, session?.id ?? "unknown", "agent.command.output", {
+          command: approvedInput.command,
+          message: "Not in the safe command allowlist — completed as inspection only.",
+        });
+      }
+    } catch (err) {
+      pushEvent(task.id, session?.id ?? "unknown", "agent.command.output", {
+        command: approvedInput.command,
+        message: `Execution failed: ${err instanceof Error ? err.message.slice(0, 300) : "unknown"}`,
+      });
+    }
+  }
   if (session) {
     session.status = "RUNNING";
     session.updatedAt = nowIso();

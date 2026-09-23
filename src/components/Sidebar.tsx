@@ -1,17 +1,30 @@
-import React from "react";
+import React, { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useChat } from "@/context/ChatContext";
+import { useResearchProject } from "@/context/ResearchProjectContext";
 import {
   Plus,
+  Home,
   MessageSquare,
   FolderKanban,
+  FolderOpen,
+  Files,
   BookOpen,
+  FileStack,
   NotebookPen,
+  ListTodo,
   FlaskConical,
   ServerCog,
   Settings,
   Menu,
   Search,
+  ChevronDown,
+  Bot,
+  Mic,
+  Cpu,
+  GitBranch,
+  Plug,
+  Stethoscope,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -20,29 +33,44 @@ import { AccountMenu } from "@/components/AccountMenu";
 import { LocalAIStatus } from "@/components/LocalAIStatus";
 
 /**
- * Unified product navigation — one Openbentt, not a map of subsystems.
- * Agent execution lives inside conversations (OpenCode underneath), so
- * "Agent" is intentionally NOT a top-level destination; /agent remains
- * only as a hidden advanced/diagnostic view.
+ * ONE persistent sidebar — the global control surface. Chat, projects,
+ * files, research, tasks, voice, and computer use are capabilities of the
+ * same workspace, not destinations in different apps. Execution lives
+ * inside conversations (OpenCode underneath); /agent stays hidden.
  *
- * Hierarchy:
- * - ACTIONS: Search, New Chat
- * - WORKSPACE: Chat, Projects, Research, Notebook
- * - MORE: Benchmark, Providers, Settings
- * - RECENT: recent conversations (global + project, same model)
- * - BOTTOM: Local AI status, Account
+ * HOME / PROJECTS / WORKSPACE / ACTIVITY, then SEE MORE for the rest.
  */
 
-const NAV_ITEMS = [
+const HOME_ITEMS = [
+  { icon: Home, label: "Home", id: "home", to: "/" },
   { icon: MessageSquare, label: "Chat", id: "chat", to: "/chat" },
-  { icon: FolderKanban, label: "Projects", id: "projects", to: "/projects" },
-  { icon: BookOpen, label: "Research", id: "research", to: "/labs" },
-  { icon: NotebookPen, label: "Notebook", id: "notebook", to: "/notebook" },
 ];
 
+const PROJECT_ITEMS = [
+  { icon: FolderKanban, label: "Projects", id: "projects", to: "/projects" },
+];
+
+const WORKSPACE_ITEMS = [
+  { icon: Files, label: "Files", id: "files", to: "/files" },
+  { icon: BookOpen, label: "Research", id: "research", to: "/labs" },
+  { icon: FileStack, label: "Documents", id: "documents", to: "/documents" },
+  { icon: NotebookPen, label: "Editor", id: "notebook", to: "/notebook" },
+];
+
+const ACTIVITY_ITEMS = [
+  { icon: ListTodo, label: "Tasks", id: "tasks", to: "/tasks" },
+];
+
+/** Same shell, expanded: capabilities, integrations, system. */
 const MORE_ITEMS = [
-  { icon: FlaskConical, label: "Benchmark", id: "benchmark", to: "/benchmark" },
+  { icon: Bot, label: "Computer Use", id: "computer", to: "/diagnostics" },
+  { icon: Mic, label: "Voice", id: "voice", to: "/diagnostics" },
+  { icon: Cpu, label: "Models", id: "models", to: "/settings" },
+  { icon: GitBranch, label: "Git", id: "git", to: "/files" },
+  { icon: Plug, label: "Integrations", id: "integrations", to: "/setup" },
+  { icon: FlaskConical, label: "Developer", id: "developer", to: "/benchmark" },
   { icon: ServerCog, label: "Providers", id: "providers", to: "/setup" },
+  { icon: Stethoscope, label: "Diagnostics", id: "diagnostics", to: "/diagnostics" },
   { icon: Settings, label: "Settings", id: "settings", to: "/settings" },
 ];
 
@@ -66,7 +94,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isMobile = useIsMobile();
   const location = useLocation();
   const navigate = useNavigate();
-  const { chats, currentChatId, createNewChat, selectChat } = useChat();
+  const { chats, currentChatId, createNewChat, selectChat, activeProjectId } = useChat();
+  const { projects } = useResearchProject();
+  const [seeMore, setSeeMore] = useState(false);
+  const activeProject = projects.find((p) => p.id === activeProjectId);
 
   const handleNewChat = () => {
     createNewChat();
@@ -238,7 +269,37 @@ const Sidebar: React.FC<SidebarProps> = ({
           {renderActionButton("new", "New chat", "⌘N", Plus, handleNewChat)}
         </nav>
 
-        {/* WORKSPACE NAVIGATION */}
+        {/* HOME */}
+        {showLabels && (
+          <>
+            <div className={cn("h-px bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
+            <nav className="flex flex-col gap-1" aria-label="Home">
+              {HOME_ITEMS.map(renderNavItem)}
+            </nav>
+          </>
+        )}
+
+        {/* PROJECTS (+ current project context, not a separate app) */}
+        {showLabels && (
+          <>
+            <div className={cn("h-px bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
+            <p className={cn("sidebar-label mb-2 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
+              Projects
+            </p>
+            <nav className="flex flex-col gap-1" aria-label="Projects">
+              {PROJECT_ITEMS.map(renderNavItem)}
+              {activeProjectId &&
+                renderNavItem({
+                  icon: FolderOpen,
+                  label: activeProject?.title ?? "Current project",
+                  id: "current-project",
+                  to: `/projects/${activeProjectId}`,
+                })}
+            </nav>
+          </>
+        )}
+
+        {/* WORKSPACE */}
         {showLabels && (
           <>
             <div className={cn("h-px bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
@@ -246,21 +307,44 @@ const Sidebar: React.FC<SidebarProps> = ({
               Workspace
             </p>
             <nav className="flex flex-col gap-1" aria-label="Workspace">
-              {NAV_ITEMS.map(renderNavItem)}
+              {WORKSPACE_ITEMS.map(renderNavItem)}
             </nav>
           </>
         )}
 
-        {/* MORE */}
+        {/* ACTIVITY */}
         {showLabels && (
           <>
             <div className={cn("h-px bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
             <p className={cn("sidebar-label mb-2 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
-              More
+              Activity
             </p>
-            <nav className="flex flex-col gap-1" aria-label="More">
-              {MORE_ITEMS.map(renderNavItem)}
+            <nav className="flex flex-col gap-1" aria-label="Activity">
+              {ACTIVITY_ITEMS.map(renderNavItem)}
             </nav>
+          </>
+        )}
+
+        {/* SEE MORE (same shell, expanded) */}
+        {showLabels && (
+          <>
+            <button
+              type="button"
+              onClick={() => setSeeMore((v) => !v)}
+              aria-expanded={seeMore}
+              className={cn(
+                "sidebar-nav-item mt-1 w-full",
+                isMobile && "sidebar-nav-item--mobile"
+              )}
+            >
+              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", seeMore && "rotate-180")} />
+              <span className="sidebar-nav-label">See more</span>
+            </button>
+            {seeMore && (
+              <nav className="flex flex-col gap-1" aria-label="More capabilities">
+                {MORE_ITEMS.map(renderNavItem)}
+              </nav>
+            )}
           </>
         )}
 

@@ -20,6 +20,32 @@ contextBridge.exposeInMainWorld("openbenttDesktop", {
   showAbout: () => ipcRenderer.invoke("desktop:showAbout"),
   openExternal: (url) => ipcRenderer.invoke("desktop:openExternal", url),
   pickWorkspaceFolder: (currentPath) => ipcRenderer.invoke("desktop:pickWorkspaceFolder", currentPath),
+  // Workspace authority (read-only + approval-gated writes; renderer never touches fs).
+  workspaceResolve: (root) => ipcRenderer.invoke("workspace:resolve", { root }),
+  workspaceList: (root, dir, depth) => ipcRenderer.invoke("workspace:list", { root, dir, depth }),
+  workspaceRead: (root, path, maxBytes) => ipcRenderer.invoke("workspace:read", { root, path, maxBytes }),
+  workspaceVerify: (root, claims) => ipcRenderer.invoke("workspace:verify", { root, claims }),
+  workspaceInstructions: (root) => ipcRenderer.invoke("workspace:instructions", { root }),
+  workspaceGit: (root) => ipcRenderer.invoke("workspace:git", { root }),
+  workspaceSnapshot: (root, taskKey, files) => ipcRenderer.invoke("workspace:snapshot", { root, taskKey, files }),
+  workspaceDiff: (taskKey) => ipcRenderer.invoke("workspace:diff", { taskKey }),
+  workspaceUndo: (taskKey, files) => ipcRenderer.invoke("workspace:undo", { taskKey, files }),
+  workspaceUndoConfirm: (approvalId, decision) => ipcRenderer.invoke("workspace:undoConfirm", { approvalId, decision }),
+  workspaceWatch: (root) => ipcRenderer.invoke("workspace:watch", { root }),
+  workspaceUnwatch: (root) => ipcRenderer.invoke("workspace:unwatch", { root }),
+  onWorkspaceFilesChanged: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on("workspace:files-changed", handler);
+    return () => ipcRenderer.removeListener("workspace:files-changed", handler);
+  },
+  latexDetect: (root) => ipcRenderer.invoke("latex:detect", { root }),
+  latexCompile: (root, engine) => ipcRenderer.invoke("latex:compile", { root, engine }),
+  latexOpenPdf: (root, path) => ipcRenderer.invoke("latex:openPdf", { root, path }),
+  computerCapabilities: () => ipcRenderer.invoke("computer:capabilities"),
+  computerScreenshot: () => ipcRenderer.invoke("computer:screenshot"),
+  computerAct: (action, params) => ipcRenderer.invoke("computer:act", { action, params }),
+  computerRequest: (action, params, taskId) => ipcRenderer.invoke("computer:request", { action, params, taskId }),
+  computerConfirm: (approvalId, decision) => ipcRenderer.invoke("computer:confirm", { approvalId, decision }),
   onMenuNavigate: (cb) => {
     const handler = (_event, path) => cb(path);
     ipcRenderer.on("desktop:menuNavigate", handler);
@@ -227,6 +253,8 @@ contextBridge.exposeInMainWorld("openbenttAgent", {
   stopVoiceSession: (sessionId) => ipcRenderer.invoke("voice:stopSession", { sessionId }),
   setVoiceMode: (sessionId, mode) => ipcRenderer.invoke("voice:setMode", { sessionId, mode }),
   getVoiceStatus: (sessionId) => ipcRenderer.invoke("voice:status", { sessionId }),
+  getVoiceEngineStatus: () => ipcRenderer.invoke("voice:sttStatus"),
+  ensureVoiceStt: (sessionId) => ipcRenderer.invoke("voice:ensureStt", { sessionId }),
   onVoiceEvent: (cb) => {
     const handler = (_event, payload) => cb(payload);
     ipcRenderer.on("voice:event", handler);

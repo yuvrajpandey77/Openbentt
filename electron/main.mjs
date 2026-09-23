@@ -29,6 +29,9 @@ import {
 import { registerZoteroSecretIpc } from "./zoteroSecretStore.mjs";
 import { registerOllamaIpc } from "./ollamaService.mjs";
 import { registerOpenCodeIpc, setOpenCodeEventTarget, cleanupOpenCodeOnQuit, reconcileAgentStateOnStartup, shutdownAgentServices } from "./opencodeService.mjs";
+import { registerWorkspaceIpc, setWorkspaceEventTarget, cleanupWorkspaceOnQuit } from "./workspaceService.mjs";
+import { registerLatexIpc } from "./latexService.mjs";
+import { registerComputerUseIpc } from "./computerUseService.mjs";
 import { setOmniRouteEventTarget, cleanupOmniRouteOnQuit } from "./omniRouteService.mjs";
 import { registerVoiceIpc, setVoiceEventTarget, cleanupVoiceOnQuit, isMicGrantActive } from "./voiceService.mjs";
 import { resolveUnderDistRoot } from "./ipcValidate.mjs";
@@ -361,6 +364,7 @@ function createWindow() {
   setOpenCodeEventTarget(win);
   setOmniRouteEventTarget(win);
   setVoiceEventTarget(win);
+  setWorkspaceEventTarget(win);
   // Phase 3: microphone granted only while a voice session is live.
   setVoiceGrantChecker(() => isMicGrantActive());
 
@@ -463,6 +467,9 @@ app.whenReady().then(async () => {
   });
   registerOpenCodeIpc(ipcMain, app);
   registerVoiceIpc(ipcMain, app);
+  registerWorkspaceIpc(ipcMain, app);
+  registerLatexIpc(ipcMain, app);
+  registerComputerUseIpc(ipcMain, app);
   // Phase 2: reconcile durable agent history (interrupted → UNKNOWN, never completed).
   void reconcileAgentStateOnStartup(app).then(({ reconciled }) => {
     if (reconciled > 0) console.info(`[electron] Reconciled ${reconciled} interrupted agent task(s).`);
@@ -488,6 +495,7 @@ app.on("before-quit", () => {
   cleanupOpenCodeOnQuit();
   cleanupOmniRouteOnQuit();
   cleanupVoiceOnQuit();
+  cleanupWorkspaceOnQuit();
   // Bounded agent shutdown (tasks → OpenCode → OmniRoute) before DB close.
   // before-quit cannot block long; best-effort async with hard timeout.
   try {

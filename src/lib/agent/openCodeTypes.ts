@@ -249,6 +249,7 @@ export type VoiceEventType =
   | "voice.interrupted"
   | "voice.stopped"
   | "voice.cancelled"
+  | "voice.stt.progress"
   | "voice.error";
 
 export interface VoiceEvent {

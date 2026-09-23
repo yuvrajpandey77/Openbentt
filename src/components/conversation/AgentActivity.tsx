@@ -1,9 +1,19 @@
 import React, { useState } from "react";
 import { useChat } from "@/context/ChatContext";
+import { useWorkspace } from "@/context/WorkspaceContext";
+import { getDesktopApi } from "@/lib/desktopApi";
 import type { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, Loader2 } from "lucide-react";
+
+interface CompileResult {
+  ok: boolean;
+  pdf: string | null;
+  pdfSize: number;
+  errors: Array<{ file: string; line: number; message: string }>;
+  warnings: string[];
+}
 
 /**
  * Reusable inline execution timeline for the unified conversation.
@@ -26,6 +36,10 @@ const STATUS_LABEL: Record<NonNullable<Message["executionStatus"]>, string> = {
 
 function stepIcon(step: string): string {
   if (step.includes("permission")) return "⚠";
+  if (step.startsWith("computer.")) return "🖥";
+  if (step.includes("verified")) return "✓";
+  if (step.includes("compiler") || step.includes("latex")) return "▸";
+  if (step.includes("research")) return "▸";
   if (step.includes("file.changed")) return "▸";
   if (step.includes("command")) return "▸";
   if (step.includes("completed")) return "✓";
@@ -47,9 +61,13 @@ export const AgentActivity: React.FC<{ message: Message; compact?: boolean }> = 
     setExecutionDrawerTaskId,
     escalateAskToTask,
     dismissAskPermissions,
+    queuePromptInComposer,
   } = useChat();
+  const { workspace } = useWorkspace();
   const [showAll, setShowAll] = useState(false);
   const [escalating, setEscalating] = useState(false);
+  const [compiling, setCompiling] = useState(false);
+  const [compileResult, setCompileResult] = useState<CompileResult | null>(null);
 
   const taskId = message.taskId;
   const status = message.executionStatus;
@@ -139,6 +157,89 @@ export const AgentActivity: React.FC<{ message: Message; compact?: boolean }> = 
           <ChevronDown className={cn("h-3 w-3 transition-transform", showAll && "rotate-180")} />
           {showAll ? "Show less" : `Show all ${trace.length} steps`}
         </button>
+      )}
+
+      {/* Real LaTeX compile loop for latex workspaces (verified artifact, never faked). */}
+      {workspace?.latex && taskId && (
+        <div className="mt-2 rounded-md border border-border/60 bg-background/60 p-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground">
+              LaTeX: {workspace.latex.mainTex} → {workspace.latex.buildDir}/
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="ml-auto h-7 text-xs"
+              disabled={compiling}
+              onClick={() => {
+                const api = getDesktopApi();
+                if (!api?.latexCompile || !workspace.rootPath) return;
+                setCompiling(true);
+                setCompileResult(null);
+                api
+                  .latexCompile(workspace.rootPath)
+                  .then((r) => setCompileResult(r))
+                  .catch(() =>
+                    setCompileResult({ ok: false, pdf: null, pdfSize: 0, errors: [{ file: "", line: 0, message: "Compile request failed." }], warnings: [] })
+                  )
+                  .finally(() => setCompiling(false));
+              }}
+            >
+              {compiling ? "Compiling…" : "Compile"}
+            </Button>
+          </div>
+          {compileResult && (
+            <div className="mt-1.5 text-xs">
+              {compileResult.ok ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    ✓ {compileResult.pdf} ({Math.round(compileResult.pdfSize / 1024)} KB, verified on disk)
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[11px]"
+                    onClick={() => {
+                      const api = getDesktopApi();
+                      if (api?.latexOpenPdf && workspace.rootPath && compileResult.pdf) {
+                        void api.latexOpenPdf(workspace.rootPath, compileResult.pdf);
+                      }
+                    }}
+                  >
+                    View PDF
+                  </Button>
+                </div>
+              ) : (
+                <div>
+                  <p className="font-medium text-destructive">Build failed — {compileResult.errors.length} error(s)</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {compileResult.errors.slice(0, 5).map((e, i) => (
+                      <li key={i} className="break-words font-mono text-[11px] text-muted-foreground">
+                        {e.file ? `${e.file}:${e.line} ` : ""}{e.message}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-1.5 h-7 text-xs"
+                    onClick={() =>
+                      queuePromptInComposer(
+                        `Fix these LaTeX diagnostics in ${workspace.latex?.mainTex}:\n` +
+                          compileResult.errors.slice(0, 8).map((e) => `${e.file}:${e.line}: ${e.message}`).join("\n")
+                      )
+                    }
+                  >
+                    Send diagnostics to OpenCode
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {askPermissions.length > 0 && (

@@ -100,13 +100,21 @@ export async function buildAugmentedResearchPrompt(
   return `${basePrompt}\n\n${evidence}\n\n${routeHint}`;
 }
 
-/** Format retrieval hits for injection into a system or user prompt. */
+/**
+ * Format retrieval hits for injection into a system or user prompt.
+ * Provenance chain per hit: source file → chunk id → claim. Models must
+ * never invent citations: unverifiable references get "unable to verify".
+ */
 export function formatRetrievalForPrompt(hits: RetrievalHit[], maxChars = 24_000): string {
   if (!hits.length) return "";
-  const lines: string[] = ["[RESEARCH_CORPUS_EVIDENCE — untrusted library text, cite by paper name only]"];
+  const lines: string[] = [
+    "[RESEARCH_CORPUS_EVIDENCE — untrusted library text]",
+    "Rules: cite ONLY by paper name + chunk shown here. If a claim cannot be traced to a chunk below, say 'Unable to verify this reference' — never invent citations, DOIs, or page numbers.",
+  ];
   let used = 0;
   for (const h of hits) {
-    const line = `- ${h.paperName}${h.pageHint != null ? ` (p.~${h.pageHint})` : ""} [${h.method ?? "lexical"} ${Math.round((h.score ?? 0) * 100)}%]: ${h.snippet}`;
+    const prov = h.provenance && h.provenance !== "library" ? ` · ${h.provenance}` : "";
+    const line = `- ${h.paperName}${h.pageHint != null ? ` (p.~${h.pageHint})` : ""} [chunk ${h.chunkId}${prov} · ${h.method ?? "lexical"} ${Math.round((h.score ?? 0) * 100)}%]: ${h.snippet}`;
     if (used + line.length > maxChars) break;
     lines.push(line);
     used += line.length;

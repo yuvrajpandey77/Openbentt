@@ -227,8 +227,12 @@ export function NotebookLeftRail() {
 
   const onBulkUpload = async (files: FileList | null) => {
     if (!files?.length) return;
+    const { canHandle } = await import("@/lib/documents/adapters");
     for (const file of Array.from(files)) {
-      if (file.type === "application/pdf") await uploadPaperPdf(file);
+      // PDF + office/text sources via the adapter registry (originals intact).
+      if (file.type === "application/pdf" || canHandle(file.name, file.type)) {
+        await uploadPaperPdf(file);
+      }
     }
   };
 
@@ -296,7 +300,7 @@ export function NotebookLeftRail() {
               <input
                 ref={uploadRef}
                 type="file"
-                accept="application/pdf"
+                accept=".pdf,.docx,.pptx,.xlsx,.md,.markdown,.txt,.text,.html,.htm,.csv,.tsv,.json,.tex,.bib,application/pdf"
                 multiple
                 className="hidden"
                 onChange={(e) => {

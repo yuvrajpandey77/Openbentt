@@ -1,7 +1,17 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useChat } from "@/context/ChatContext";
+import { getDesktopApi } from "@/lib/desktopApi";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
+
+interface FileDiff {
+  path: string;
+  added: number;
+  removed: number;
+  binary: boolean;
+  patch: string;
+}
 
 /**
  * Secondary execution inspector: conversation stays primary, execution
@@ -19,7 +29,34 @@ export const ExecutionInspector: React.FC = () => {
 
   const task = executionDrawerTaskId ? executionTasks[executionDrawerTaskId] : undefined;
   const events = executionDrawerTaskId ? (executionEvents[executionDrawerTaskId] ?? []) : [];
-  const [tab, setTab] = React.useState<"activity" | "files" | "commands" | "runtime" | "advanced">("activity");
+  const [tab, setTab] = React.useState<"activity" | "files" | "diff" | "commands" | "computer" | "runtime" | "advanced">("activity");
+  const [diffs, setDiffs] = useState<FileDiff[] | null>(null);
+  const [diffsLoading, setDiffsLoading] = useState(false);
+  const [undoApproval, setUndoApproval] = useState<{ approvalId: string; files: string[] } | null>(null);
+  const [undoBusy, setUndoBusy] = useState(false);
+  const [undoDone, setUndoDone] = useState<string | null>(null);
+
+  // Real diffs from filesystem snapshots (never fabricated from agent text).
+  useEffect(() => {
+    if (tab !== "diff" || !executionDrawerTaskId || diffs) return;
+    const api = getDesktopApi();
+    if (!api?.workspaceDiff) {
+      setDiffs([]);
+      return;
+    }
+    setDiffsLoading(true);
+    api
+      .workspaceDiff(executionDrawerTaskId)
+      .then((d) => setDiffs(d))
+      .catch(() => setDiffs([]))
+      .finally(() => setDiffsLoading(false));
+  }, [tab, executionDrawerTaskId, diffs]);
+
+  useEffect(() => {
+    setDiffs(null);
+    setUndoApproval(null);
+    setUndoDone(null);
+  }, [executionDrawerTaskId]);
 
   const files = useMemo(
     () =>
@@ -29,16 +66,54 @@ export const ExecutionInspector: React.FC = () => {
     [events]
   );
   const commands = useMemo(() => events.filter((e) => e.type.startsWith("agent.command")), [events]);
+  const computerEvents = useMemo(() => events.filter((e) => e.type.startsWith("computer.")), [events]);
 
   if (!executionDrawerTaskId || !task) return null;
 
   const tabs = [
     { id: "activity", label: "Activity" },
     { id: "files", label: `Files${files.length ? ` (${files.length})` : ""}` },
+    { id: "diff", label: "Diff" },
     { id: "commands", label: `Commands${commands.length ? ` (${commands.length})` : ""}` },
+    { id: "computer", label: `Computer${computerEvents.length ? ` (${computerEvents.length})` : ""}` },
     { id: "runtime", label: "Runtime" },
     { id: "advanced", label: "Advanced" },
   ] as const;
+
+  const requestUndo = async () => {
+    const api = getDesktopApi();
+    if (!api?.workspaceUndo || !executionDrawerTaskId) return;
+    setUndoBusy(true);
+    setUndoDone(null);
+    try {
+      const res = await api.workspaceUndo(executionDrawerTaskId);
+      setUndoApproval({ approvalId: res.approvalId, files: res.files });
+    } catch {
+      setUndoDone("Undo unavailable (no snapshot for this task).");
+    } finally {
+      setUndoBusy(false);
+    }
+  };
+
+  const confirmUndo = async (decision: "allow" | "deny") => {
+    const api = getDesktopApi();
+    if (!api?.workspaceUndoConfirm || !undoApproval) return;
+    setUndoBusy(true);
+    try {
+      const res = await api.workspaceUndoConfirm(undoApproval.approvalId, decision);
+      setUndoApproval(null);
+      setDiffs(null);
+      setUndoDone(
+        res.status === "restored"
+          ? `Restored ${res.restored?.length ?? 0} file(s) from the pre-task snapshot.`
+          : "Undo rejected — files unchanged."
+      );
+    } catch {
+      setUndoDone("Undo failed — files unchanged.");
+    } finally {
+      setUndoBusy(false);
+    }
+  };
 
   return (
     <div
@@ -124,6 +199,90 @@ export const ExecutionInspector: React.FC = () => {
                 Changed {files.length} file{files.length === 1 ? "" : "s"}. Expand diffs in your editor.
               </p>
             )}
+          </div>
+        )}
+        {tab === "diff" && (
+          <div>
+            {diffsLoading && <p className="text-xs text-muted-foreground">Computing real diffs…</p>}
+            {!diffsLoading && (!diffs || diffs.length === 0) && (
+              <p className="text-xs text-muted-foreground">No filesystem changes recorded for this task.</p>
+            )}
+            {diffs && diffs.length > 0 && (
+              <>
+                <ul className="space-y-2">
+                  {diffs.map((d) => (
+                    <li key={d.path} className="rounded border border-border/60 bg-muted/20 p-2">
+                      <p className="font-mono text-[11px] text-foreground">
+                        {d.path}{" "}
+                        <span className="text-emerald-600 dark:text-emerald-400">+{d.added}</span>{" "}
+                        <span className="text-destructive">-{d.removed}</span>
+                        {d.binary && <span className="text-muted-foreground"> (binary)</span>}
+                      </p>
+                      {d.patch && (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground">
+                            Review patch
+                          </summary>
+                          <pre className="mt-1 max-h-64 overflow-auto rounded bg-background p-2 font-mono text-[10px] leading-relaxed">
+                            {d.patch}
+                          </pre>
+                        </details>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {!undoApproval && !undoDone && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-2 h-7 text-xs"
+                    disabled={undoBusy}
+                    onClick={() => void requestUndo()}
+                  >
+                    {undoBusy ? "Preparing…" : "Undo changes"}
+                  </Button>
+                )}
+                {undoApproval && (
+                  <div role="dialog" aria-label="Confirm undo" className="mt-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-2.5">
+                    <p className="text-xs font-medium text-foreground">
+                      Restore {undoApproval.files.length} file(s) to the pre-task snapshot?
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      This is destructive and requires your explicit approval.
+                    </p>
+                    <div className="mt-2 flex gap-1.5">
+                      <Button type="button" size="sm" className="h-7 text-xs" disabled={undoBusy} onClick={() => void confirmUndo("allow")}>
+                        Allow restore
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={undoBusy} onClick={() => void confirmUndo("deny")}>
+                        Deny
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {undoDone && <p className="mt-2 text-xs text-muted-foreground">{undoDone}</p>}
+              </>
+            )}
+          </div>
+        )}
+        {tab === "computer" && (
+          <div>
+            {computerEvents.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No computer-use activity. Screenshots, clicks, and app actions appear here with verification.
+              </p>
+            )}
+            <ol className="space-y-2">
+              {computerEvents.map((e) => (
+                <li key={e.eventId} className="rounded border border-border/60 bg-muted/20 p-2">
+                  <p className="font-mono text-[11px] text-foreground">{e.type}</p>
+                  <p className="mt-0.5 break-words text-[11px] text-muted-foreground">
+                    {typeof e.payload.message === "string" ? e.payload.message.slice(0, 500) : JSON.stringify(e.payload).slice(0, 500)}
+                  </p>
+                </li>
+              ))}
+            </ol>
           </div>
         )}
         {tab === "commands" && (

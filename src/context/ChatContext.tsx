@@ -142,6 +142,8 @@ interface ChatContextProps {
   ) => Promise<void>;
   regenerateLastResponse: () => Promise<void>;
   beginEditUserMessage: (messageId: string) => void;
+  /** Project workspace context injected by WorkspaceProvider (bounded block). */
+  registerProjectContextProvider: (fn: (() => string | null) | null) => void;
   /** Phase 6: controlled agent mode (tool-using assistant via Phase 5 boundary). */
   agentMode: boolean;
   setAgentMode: (v: boolean) => void;
@@ -569,6 +571,58 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  /* Phase B/C/D: verification + before-state snapshots (disk is truth). */
+  const snapshotTaskFile = useCallback(async (taskId: string, evt: OpenCodeAgentEvent) => {
+    try {
+      const api = (await import("@/lib/desktopApi")).getDesktopApi();
+      const task = executionTasksRef.current[taskId];
+      const file = typeof evt.payload.file === "string" ? evt.payload.file : null;
+      if (!api?.workspaceSnapshot || !task?.workspace?.rootPath || !file) return;
+      await api.workspaceSnapshot(task.workspace.rootPath, taskId, [file]).catch(() => {});
+    } catch {
+      /* best effort */
+    }
+  }, []);
+
+  const verifyTaskCompletion = useCallback(
+    async (taskId: string) => {
+      try {
+        const api = (await import("@/lib/desktopApi")).getDesktopApi();
+        const task = executionTasksRef.current[taskId];
+        if (!api?.workspaceVerify || !task?.workspace?.rootPath) return;
+        const events = await openCodeAgentApi.getTask(taskId).then((r) => r.events).catch(() => []);
+        const claimed = [...new Set(
+          events
+            .filter((e) => e.type === "agent.file.changed")
+            .map((e) => String(e.payload.file ?? e.payload.target ?? ""))
+            .filter(Boolean)
+        )].slice(0, 50);
+        if (claimed.length === 0) return;
+        const verified = await api
+          .workspaceVerify(task.workspace.rootPath, claimed.map((path) => ({ path })))
+          .catch(() => []);
+        const ok = verified.filter((v) => v.exists);
+        const missing = verified.filter((v) => !v.exists).map((v) => v.path);
+        patchExecutionMessage(taskId, (m) => ({
+          ...m,
+          agentTrace: [
+            ...(m.agentTrace ?? []),
+            {
+              step: "agent.verified",
+              detail:
+                missing.length === 0
+                  ? `Verified ${ok.length} file${ok.length === 1 ? "" : "s"} on disk: ${ok.map((v) => v.path).slice(0, 8).join(", ")}${ok.length > 8 ? "…" : ""}`
+                  : `Verified ${ok.length}, unverified claims: ${missing.slice(0, 8).join(", ")}`,
+            },
+          ].slice(-120),
+        }));
+      } catch {
+        /* verification failure never breaks the conversation */
+      }
+    },
+    [patchExecutionMessage]
+  );
+
   /** Single canonical event pipeline: agent events update task state + inline activity. */
   useEffect(() => {
     if (!hasOpenCodeDesktopApi()) return;
@@ -612,8 +666,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (evt.type === "agent.permission.requested") {
           setExecutionDrawerTaskId((cur) => cur ?? evt.taskId);
         }
+        if (evt.type === "agent.file.changed") {
+          // Phase C/D: lazily capture before-state for real diffs.
+          void snapshotTaskFile(evt.taskId, evt);
+        }
         if (evt.type === "agent.completed" || evt.type === "agent.failed" || evt.type === "agent.cancelled") {
           setIsLoading(false);
+        }
+        if (evt.type === "agent.completed") {
+          // Phase B: verify claimed files against disk before reporting success.
+          void verifyTaskCompletion(evt.taskId);
         }
       });
     } catch {
@@ -626,7 +688,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         /* noop */
       }
     };
-  }, [humanizeAgentEvent, patchExecutionMessage, statusForEvent]);
+  }, [humanizeAgentEvent, patchExecutionMessage, statusForEvent, snapshotTaskFile, verifyTaskCompletion]);
 
   /**
    * Chat → OpenCode seam. Returns true when the turn was absorbed by
@@ -682,6 +744,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       try {
         const mode = args.forceBuild ? "build" : decision.mode;
+        // Phase B: bind the real project context (bounded; untrusted parts
+        // are already DATA-wrapped by the harness prompt enrichment).
+        const projectBlock = (() => {
+          try {
+            return projectContextProviderRef.current?.() ?? null;
+          } catch {
+            return null;
+          }
+        })();
         patchMessageById(args.chatId, args.assistantMessageId, (m) => ({
           ...m,
           executionStatus: "starting",
@@ -696,7 +767,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ],
         }));
         const created = await openCodeAgentApi.createTask({
-          prompt: `${args.text.slice(0, 8000)}${continuing}`,
+          prompt: `${args.text.slice(0, 8000)}${continuing}${projectBlock ? `\n\n${projectBlock.slice(0, 3000)}` : ""}`.slice(0, 12000),
           title: args.text.slice(0, 80),
           workspaceRoot,
           mode,
@@ -1960,6 +2031,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     agentProjectProviderRef.current = fn;
   }, []);
 
+  const projectContextProviderRef = useRef<(() => string | null) | null>(null);
+  const registerProjectContextProvider = useCallback((fn: (() => string | null) | null) => {
+    projectContextProviderRef.current = fn;
+  }, []);
+
   const patchAgentMessage = useCallback(
     (chatId: string, messageId: string, patch: (m: Message) => Message) => {
       setChats((prevChats) =>
@@ -2195,6 +2271,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setExecutionDrawerTaskId,
     cancelExecutionTask,
     respondToExecutionPermission,
+    registerProjectContextProvider,
     submitVoiceTranscript,
     escalateAskToTask,
     dismissAskPermissions,

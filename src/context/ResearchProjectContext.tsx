@@ -775,6 +775,30 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
           return;
         }
         const buf = await file.arrayBuffer();
+        // Phase F: non-PDF sources go through the document adapters
+        // (originals intact; derived text enters the corpus with provenance).
+        if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") {
+          const { ingestFile } = await import("@/lib/documents/adapters");
+          const bytes = new Uint8Array(buf);
+          const doc = await ingestFile({ fileName: file.name, mimeType: file.type, bytes }).catch(() => null);
+          if (!doc) {
+            toast({
+              title: "Unsupported file",
+              description: `${file.name} could not be read. Try PDF, DOCX, Markdown, or text.`,
+              variant: "destructive",
+            });
+            return;
+          }
+          const meta = inferPdfMetadata(doc.text);
+          const next = await addPaperToProject(project, file.name, doc.text, meta, undefined, [
+            `[ingested via ${doc.provenance.adapter} ${doc.provenance.version}]`,
+          ]);
+          setProject(next);
+          await refreshProjects();
+          toast({ title: "Source added", description: displayPaperTitle({ fileName: file.name, metadata: meta }) });
+          runSemanticRebuild(next.chunks, next.id);
+          return;
+        }
         const extracted = await extractNotebookSourceFromPdf(buf);
         const meta = inferPdfMetadata(extracted);
         const b64 = arrayBufferToBase64(buf);

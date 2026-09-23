@@ -233,6 +233,20 @@ describe("voiceService Phase 3", () => {
     assert.equal(engine.modelId, "Xenova/whisper-tiny.en");
   });
 
+  it("STT warms on mic-ready and reports status honestly", async () => {
+    const { ensureSttLoaded, sttStatus } = await import("./voiceService.mjs");
+    setVoiceEngines({ stt: new FakeSttEngine(), tts: new FakeTtsEngine() });
+    const before = sttStatus();
+    assert.equal(before.model, "Xenova/whisper-tiny.en");
+    const res = await ensureSttLoaded(ctx.app, undefined);
+    assert.equal(res.ok, true);
+    const ipc = mockIpcMain();
+    registerVoiceIpc(ipc, ctx.app);
+    const st = await ipc.invoke("voice:sttStatus");
+    assert.equal(typeof st.stt.loaded, "boolean");
+    assert.equal(typeof st.tts.backend, "string");
+  });
+
   it("IPC validates and bounds every input", async () => {
     const ipc = mockIpcMain();
     registerVoiceIpc(ipc, ctx.app);

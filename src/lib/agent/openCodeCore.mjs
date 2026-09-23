@@ -131,6 +131,8 @@ const CODE_SIGNALS = [
   /\bfix\b.*\b(bug|test|tests|build|error|fail)/i,
   /\b(refactor|patch|implement|build|create file|modify|edit)\b/i,
   /\b(inspect|analyze|review).{0,40}(repo|repository|project|codebase|code)\b/i,
+  /\bcompile\b.{0,40}(thesis|project|document|paper|book|repo|code|latex)/i,
+  /\b(latexmk|pdflatex|xelatex|bibtex)\b/i,
   /\bnpm (test|run|install|build)\b/i,
   /\b(git (status|diff|log)|pytest|cargo test|go test)\b/i,
   /\.(ts|tsx|js|jsx|py|rs|go)\b.*\b(fix|change|update)\b/i,

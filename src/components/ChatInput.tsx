@@ -40,6 +40,9 @@ import { useLocalGgufRegistryModels } from "@/hooks/useLocalGgufRegistryModels";
 import { shortModelLabel } from "@/lib/openrouter";
 import { dedupeModels, normalizeApiConfig, canSendChat, canSendMessage, type MessageAttachment } from "@/types/chat";
 import { isDesktopApp } from "@/lib/isDesktopApp";
+import { useWorkspace } from "@/context/WorkspaceContext";
+import { getDesktopApi } from "@/lib/desktopApi";
+import { Camera, FolderInput, FileCode2 } from "lucide-react";
 import { parseGgufRegistryId } from "@/lib/localGguf/ids";
 import { Link } from "react-router-dom";
 import { getComposerPlaceholder } from "@/lib/composerPlaceholder";
@@ -115,6 +118,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
   const [showExtras, setShowExtras] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
+  const [capturing, setCapturing] = useState(false);
   const draftsRef = useRef<Record<string, RouteDraft>>({});
   const lastPathRef = useRef<string | null>(null);
   const messageRef = useRef(message);
@@ -143,6 +148,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     setOpenCodeModel,
     unifiedChatReady,
   } = useChat();
+  const { workspace: composerWs } = useWorkspace();
   /** Universal layer: chat runs on OpenCode — OpenCode models, no keys, no maze. */
   const layerActive = openCodeLayer.available;
   const { effectiveModel } = useLocalAI();
@@ -484,6 +490,63 @@ const ChatInput: React.FC<ChatInputProps> = ({
     e.target.value = "";
   };
 
+  /** Folder attach: structured reference (names only, never dumped content). */
+  const onFolderPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+    const names = Array.from(files)
+      .map((f) => (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name)
+      .slice(0, 60);
+    const top = names[0]?.split("/")[0] ?? "folder";
+    setMessage((prev) => {
+      const block = `\n\n[Attached folder ${top} (${files.length} files):\n${names.slice(0, 60).join("\n")}]`;
+      return prev.trim() ? `${prev.trim()}${block}` : block.trim();
+    });
+    e.target.value = "";
+    toast({ title: "Folder attached", description: `${files.length} file reference(s) added as context.` });
+  };
+
+  /** Screenshot attach: computer-use observe → image attachment, same harness. */
+  const attachScreenshot = async () => {
+    const api = getDesktopApi();
+    if (!api?.computerScreenshot) {
+      toast({ title: "Screenshots need the desktop app", variant: "destructive" });
+      return;
+    }
+    setCapturing(true);
+    try {
+      const shot = await api.computerScreenshot();
+      setAttachments((a) => [
+        ...a,
+        { id: uuidv4(), kind: "image", mediaType: "image/png", name: "screenshot.png", dataUrl: shot.dataUrl },
+      ]);
+    } catch (err) {
+      toast({ title: "Screenshot failed", description: err instanceof Error ? err.message : "unknown", variant: "destructive" });
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  /** Active project file attach: real content, bounded, same harness. */
+  const attachActiveFile = async () => {
+    const api = getDesktopApi();
+    const rel = composerWs?.activeFile;
+    const root = composerWs?.rootPath;
+    if (!rel || !root || !api?.workspaceRead) {
+      toast({ title: "No active file", description: "Open a project file first.", variant: "destructive" });
+      return;
+    }
+    try {
+      const r = await api.workspaceRead(root, rel, 32768);
+      setMessage((prev) => {
+        const block = `\n\n[Active file ${rel}:\n${r.text.slice(0, 20000)}${r.truncated ? "\n…(truncated)" : ""}]`;
+        return prev.trim() ? `${prev.trim()}${block}` : block.trim();
+      });
+    } catch (err) {
+      toast({ title: "Read failed", description: err instanceof Error ? err.message : "unknown", variant: "destructive" });
+    }
+  };
+
   const removeAtt = (id: string) => {
     setAttachments((a) => a.filter((x) => x.id !== id));
   };
@@ -497,6 +560,15 @@ const ChatInput: React.FC<ChatInputProps> = ({
         accept="image/*,audio/*,video/*,.pdf,application/pdf"
         multiple
         onChange={onFilePick}
+      />
+      <input
+        ref={folderRef}
+        type="file"
+        className="hidden"
+        // @ts-expect-error webkitdirectory is DOM-supported but not in TS lib
+        webkitdirectory=""
+        multiple
+        onChange={onFolderPick}
       />
       <div className={cn("mx-auto space-y-3", isStudio ? "max-w-none" : "max-w-5xl")}>
         {/* On-device model consent bar — legacy path only; hidden on the OpenCode layer */}
@@ -781,6 +853,68 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 <TooltipContent>Attach — image, audio, video, or PDF</TooltipContent>
               </Tooltip>
             </TooltipProvider>
+
+            {/* Folder / screenshot / active-file: same composer, same harness */}
+            {!isStudio && isDesktopApp() && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 shrink-0 p-0 border border-border/60 bg-background/80 md:h-9 md:w-9"
+                      type="button"
+                      onClick={() => folderRef.current?.click()}
+                      disabled={isLoading}
+                      aria-label="Attach folder"
+                    >
+                      <FolderInput size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Attach folder (file references as context)</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {!isStudio && isDesktopApp() && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 shrink-0 p-0 border border-border/60 bg-background/80 md:h-9 md:w-9"
+                      type="button"
+                      onClick={() => void attachScreenshot()}
+                      disabled={isLoading || capturing}
+                      aria-label="Attach screenshot"
+                    >
+                      <Camera size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Attach screenshot (computer-use observe)</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {!isStudio && composerWs?.activeFile && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 shrink-0 p-0 border border-border/60 bg-background/80 md:h-9 md:w-9"
+                      type="button"
+                      onClick={() => void attachActiveFile()}
+                      disabled={isLoading}
+                      aria-label={`Attach active file ${composerWs.activeFile}`}
+                    >
+                      <FileCode2 size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Attach active file ({composerWs.activeFile})</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
 
             {/* Voice enters the same canonical conversation (text/voice = metadata) */}
             {!isStudio && <VoiceInputButton />}
