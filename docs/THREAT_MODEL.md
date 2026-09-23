@@ -14,7 +14,7 @@ High-level trust boundaries for the research workspace. See also [SECURITY.md](.
 
 ## Electron IPC surface
 
-Renderer reaches main only through **`electron/preload.cjs`** (`contextBridge`). Audited surfaces (6):
+Renderer reaches main only through **`electron/preload.cjs`** (`contextBridge`). Audited surfaces (7):
 
 | Global | Purpose |
 |--------|---------|
@@ -24,6 +24,8 @@ Renderer reaches main only through **`electron/preload.cjs`** (`contextBridge`).
 | `openbenttResearch` | SQLite projects, jobs, embeddings, snapshots |
 | `openbenttZotero` | Zotero sync, BBT watch |
 | `openbenttOllama` | Phase 9: Ollama status/tags/ps/pull on loopback only; model-name allowlist; installer flow opens the official download URL and verifies — never downloads+executes binaries |
+| `openbenttAgent` | Phase 10/11: OpenCode task/session/permission IPC + OmniRoute runtime/model IPC; capability-specific only — no `execute`/`spawn`/`readFile`/`writeFile`/`request`; every sensitive op goes through `actionStore` approvals. Phase 12 adds narrow `voice:*` methods on the same surface (sessions, PCM16 chunks ≤256 KiB, speak ≤4000 chars); transcripts are untrusted input; voice cannot approve |
+| `userData/voice-models/` | transformers cache (Whisper ONNX) | Post-consent download only; missing/corrupt → DEGRADED, never executed as code |
 
 **Not exposed to renderer** (main-only): `research:storePaperPdfPath` — path copy with `userData` allowlist.
 
@@ -51,6 +53,19 @@ CI gate: `npm run lint:electron-security` — asserts `nodeIntegration: false`, 
 - User LaTeX, PDF text, Zotero notes, and chat history are attacker-controlled.
 - Cloud calls (OpenRouter, etc.) only when **local-only off** and **cloud opt-in on** (or compatible loopback URL).
 - Share links: PDF text redacted when sharing allowed.
+
+## Voice attack surface (Phase 12)
+
+| Vector | Control |
+|--------|---------|
+| Mic eavesdropping / background listening | Default OFF; Chromium `media` granted only with live main-side voice grant, audio-only (camera/video refused); grant auto-clears; no hidden listeners |
+| Malicious transcript ("ignore permissions…") | Classified + approval-gated exactly like typed text; injection patterns extended for spoken forms |
+| Spoken "yes/allow it" as approval | No code path: `voiceService.mjs` has zero approval/execution calls (statically asserted); visual dialog remains sole authority |
+| Oversized/stale audio | ≤256 KiB chunks, ≤60 s utterances, utterance binding, state checks — all fail closed |
+| STT-injected secrets spoken aloud | TTS input secret-redacted (incl. spoken `key is X` forms); summaries event-derived and bounded (≤500 chars), never raw tool output |
+| Raw audio exfiltration/persistence | Memory-only, zeroed after use; never SQLite/events/audit/disk/network (statically asserted: no `fetch`/URLs in voiceService) |
+| STT/TTS crash → stuck mic/speech | ERROR states, deterministic stop, barge-in INTERRUPTED path, quit cleanup kills all |
+| Model supply chain (Whisper ONNX) | Post-consent HF Hub download to `userData/voice-models`, never bundled/executed as code; corrupt → DEGRADED |
 
 ## Secrets vault (desktop)
 

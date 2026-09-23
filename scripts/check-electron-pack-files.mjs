@@ -39,6 +39,8 @@ const required = [
   "src/lib/workflows/workflowCore.mjs",
   "src/lib/mcp/mcpServerCore.mjs",
   "src/lib/agent/agentRolesCore.mjs",
+  "src/lib/agent/openCodeCore.mjs",
+  "src/lib/agent/voiceCore.mjs",
 ];
 
 const missing = required.filter((rel) => !isCoveredByFiles(rel));

@@ -21,6 +21,7 @@ import { highlightSearchInText } from "@/lib/highlightSearch";
 import { ChatThinkingIndicator } from "@/components/ChatThinkingIndicator";
 import { CompareUseInNotebook } from "@/components/research/CompareUseInNotebook";
 import { AgentRunApprovals } from "@/components/actions/AgentRunApprovals";
+import { AgentActivity } from "@/components/conversation/AgentActivity";
 
 const SCROLL_PIN_THRESHOLD_PX = 80;
 
@@ -160,6 +161,8 @@ const AssistantRoleContent: React.FC<{
           compact={compact}
         />
         <MessageReferences sources={message.researchSources ?? []} />
+        {/* Unified conversation: OpenCode activity renders inline, same bubble. */}
+        <AgentActivity message={message} compact={compact} />
       </div>
       {message.metrics && <MetricsBar metrics={message.metrics} />}
       {showAgentTraces && message.agentTrace && message.agentTrace.length > 0 && (

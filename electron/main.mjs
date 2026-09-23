@@ -28,9 +28,12 @@ import {
 } from "./zoteroService.mjs";
 import { registerZoteroSecretIpc } from "./zoteroSecretStore.mjs";
 import { registerOllamaIpc } from "./ollamaService.mjs";
+import { registerOpenCodeIpc, setOpenCodeEventTarget, cleanupOpenCodeOnQuit, reconcileAgentStateOnStartup, shutdownAgentServices } from "./opencodeService.mjs";
+import { setOmniRouteEventTarget, cleanupOmniRouteOnQuit } from "./omniRouteService.mjs";
+import { registerVoiceIpc, setVoiceEventTarget, cleanupVoiceOnQuit, isMicGrantActive } from "./voiceService.mjs";
 import { resolveUnderDistRoot } from "./ipcValidate.mjs";
 import { getGpuSafeMode } from "./gpuSafeMode.mjs";
-import { registerNavigationPolicy } from "./navigationPolicy.mjs";
+import { registerNavigationPolicy, setVoiceGrantChecker } from "./navigationPolicy.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -355,6 +358,11 @@ function createWindow() {
   setLocalGgufProgressTarget(win);
   setZoteroProgressTarget(win);
   setUpdaterTargetWindow(win);
+  setOpenCodeEventTarget(win);
+  setOmniRouteEventTarget(win);
+  setVoiceEventTarget(win);
+  // Phase 3: microphone granted only while a voice session is live.
+  setVoiceGrantChecker(() => isMicGrantActive());
 
   if (gpuSafeMode.enabled) {
     win.center();
@@ -453,6 +461,12 @@ app.whenReady().then(async () => {
   registerOllamaIpc(ipcMain, {
     getWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
   });
+  registerOpenCodeIpc(ipcMain, app);
+  registerVoiceIpc(ipcMain, app);
+  // Phase 2: reconcile durable agent history (interrupted → UNKNOWN, never completed).
+  void reconcileAgentStateOnStartup(app).then(({ reconciled }) => {
+    if (reconciled > 0) console.info(`[electron] Reconciled ${reconciled} interrupted agent task(s).`);
+  }).catch(() => {});
   if (!useViteDevServer) {
     registerAppProtocolHandler();
   }
@@ -471,7 +485,19 @@ app.on("before-quit", () => {
   }
   cleanupLocalGgufOnQuit();
   cleanupZoteroOnQuit();
-  shutdownResearchServices();
+  cleanupOpenCodeOnQuit();
+  cleanupOmniRouteOnQuit();
+  cleanupVoiceOnQuit();
+  // Bounded agent shutdown (tasks → OpenCode → OmniRoute) before DB close.
+  // before-quit cannot block long; best-effort async with hard timeout.
+  try {
+    void Promise.race([
+      shutdownAgentServices(),
+      new Promise((r) => setTimeout(r, 8000)),
+    ]).catch(() => {}).finally(() => shutdownResearchServices());
+  } catch {
+    shutdownResearchServices();
+  }
 });
 
 app.on("window-all-closed", () => {

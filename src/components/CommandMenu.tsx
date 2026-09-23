@@ -67,7 +67,7 @@ export const CommandMenu: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/50 px-4 pt-[12vh]"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-start justify-center bg-black/50 px-4 pt-[12vh]"
       onClick={() => onOpenChange(false)}
       role="presentation"
     >

@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld("openbenttDesktop", {
   quitApp: () => ipcRenderer.invoke("desktop:quit"),
   showAbout: () => ipcRenderer.invoke("desktop:showAbout"),
   openExternal: (url) => ipcRenderer.invoke("desktop:openExternal", url),
+  pickWorkspaceFolder: (currentPath) => ipcRenderer.invoke("desktop:pickWorkspaceFolder", currentPath),
   onMenuNavigate: (cb) => {
     const handler = (_event, path) => cb(path);
     ipcRenderer.on("desktop:menuNavigate", handler);
@@ -184,5 +185,51 @@ contextBridge.exposeInMainWorld("openbenttOllama", {
     const handler = (_event, payload) => cb(payload);
     ipcRenderer.on("ollama:pullProgress", handler);
     return () => ipcRenderer.removeListener("ollama:pullProgress", handler);
+  },
+});
+
+/* Phase 10 (OpenCode runtime, Phase 1) + Phase 11 (OmniRoute) +
+ * Phase 12 (Voice): capability-specific agent bridge. No ipcRenderer,
+ * no child_process, no fs, no generic execute. Voice methods route through
+ * validated `voice:*` handlers in voiceService.mjs — transcripts are
+ * untrusted input, and voice can never approve permissions. */
+contextBridge.exposeInMainWorld("openbenttAgent", {
+  detectOpenCode: () => ipcRenderer.invoke("agent:detectOpenCode"),
+  getStatus: () => ipcRenderer.invoke("agent:status"),
+  createTask: (args) => ipcRenderer.invoke("agent:createTask", args),
+  startTask: (taskId) => ipcRenderer.invoke("agent:startTask", { taskId }),
+  cancelTask: (taskId) => ipcRenderer.invoke("agent:cancelTask", { taskId }),
+  getTask: (taskId) => ipcRenderer.invoke("agent:getTask", { taskId }),
+  listTasks: () => ipcRenderer.invoke("agent:listTasks"),
+  respondToPermission: (args) => ipcRenderer.invoke("agent:permission", args),
+  classify: (text) => ipcRenderer.invoke("agent:classify", { text }),
+  askOpenCode: (args) => ipcRenderer.invoke("agent:ask", args),
+  listOpenCodeModels: () => ipcRenderer.invoke("agent:opencodeModels"),
+  detectOmniRoute: () => ipcRenderer.invoke("agent:detectOmniRoute"),
+  getRuntimeStatus: () => ipcRenderer.invoke("agent:runtimeStatus"),
+  getModels: (refresh) => ipcRenderer.invoke("agent:models", { refresh: refresh !== false }),
+  ensureRuntime: () => ipcRenderer.invoke("agent:ensureRuntime"),
+  restartRuntime: () => ipcRenderer.invoke("agent:restartRuntime"),
+  onEvent: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on("agent:event", handler);
+    return () => ipcRenderer.removeListener("agent:event", handler);
+  },
+  startVoiceSession: (mode) => ipcRenderer.invoke("voice:startSession", { mode }),
+  voiceMicReady: (sessionId) => ipcRenderer.invoke("voice:micReady", { sessionId }),
+  voiceMicDenied: (sessionId, reason) => ipcRenderer.invoke("voice:micDenied", { sessionId, reason }),
+  beginVoiceUtterance: (sessionId) => ipcRenderer.invoke("voice:beginUtterance", { sessionId }),
+  sendVoiceAudio: (args) => ipcRenderer.invoke("voice:audioChunk", args),
+  cancelVoiceUtterance: (sessionId) => ipcRenderer.invoke("voice:cancelUtterance", { sessionId }),
+  voiceThinking: (sessionId) => ipcRenderer.invoke("voice:thinking", { sessionId }),
+  speakVoiceText: (sessionId, text) => ipcRenderer.invoke("voice:speak", { sessionId, text }),
+  stopVoiceSpeaking: (sessionId) => ipcRenderer.invoke("voice:stopSpeaking", { sessionId }),
+  stopVoiceSession: (sessionId) => ipcRenderer.invoke("voice:stopSession", { sessionId }),
+  setVoiceMode: (sessionId, mode) => ipcRenderer.invoke("voice:setMode", { sessionId, mode }),
+  getVoiceStatus: (sessionId) => ipcRenderer.invoke("voice:status", { sessionId }),
+  onVoiceEvent: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on("voice:event", handler);
+    return () => ipcRenderer.removeListener("voice:event", handler);
   },
 });

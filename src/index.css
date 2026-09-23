@@ -1277,3 +1277,28 @@
     }
   }
 }
+
+/* ──────────────────────────────────────────────────────────────
+   Final production pass — centralized layering tokens + app-wide
+   focus visibility. Additive only.
+   Layer order: base < sidebar < header < content < floating <
+   popover < dropdown < dialog < modal(command) < notification <
+   critical overlay. Radix portals manage their own internal stack;
+   these tokens govern app-level fixed layers only.
+   ────────────────────────────────────────────────────────────── */
+:root {
+  --z-base: 0;
+  --z-sidebar: 50;
+  --z-header: 40;
+  --z-content: 0;
+  --z-floating: 45;
+  --z-scrim: 40;
+  --z-modal: 100;
+  --z-notification: 200;
+  --z-critical: 300;
+}
+
+.app-shell :focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}

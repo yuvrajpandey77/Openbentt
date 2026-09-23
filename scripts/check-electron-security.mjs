@@ -46,7 +46,8 @@ for (const token of ["parseAllowedExternalUrl", "isAllowedAppNavigationUrl", "!=
 const preload = read("electron/preload.cjs");
 const bridgeCount = (preload.match(/contextBridge\.exposeInMainWorld/g) ?? []).length;
 // Phase 9 adds openbenttOllama (loopback-only status/pull IPC, no exec).
-if (bridgeCount !== 6) {
+// Phase 10 adds openbenttAgent (capability-specific agent:* IPC, no exec).
+if (bridgeCount !== 7) {
   errors.push(
     `${preloadPath}: expected 6 contextBridge surfaces (found ${bridgeCount}). Update docs/THREAT_MODEL.md if intentional.`
   );

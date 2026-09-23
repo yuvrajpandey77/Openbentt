@@ -15,6 +15,7 @@ import { isWebClient } from "@/config/platformSurface";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { appHomePath } from "@/lib/appHomePath";
 import { isLocalGgufDesktopAvailable } from "@/lib/localGguf/desktopApi";
+import { ExecutionSetupSection } from "@/components/conversation/ExecutionSetupSection";
 
 type Provider = "ondevice" | "openrouter" | "local" | "local_gguf";
 
@@ -63,7 +64,22 @@ const SetupPage: React.FC = () => {
   const navigate = useNavigate();
   const { apiConfig, setApiConfig } = useChat();
   const { toast } = useToast();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  /**
+   * Desktop leads with OpenCode (no keys needed); the provider maze is an
+   * opt-in advanced path. Web keeps the provider flow.
+   */
+  const [advancedProvider, setAdvancedProvider] = useState(false);
+  const desktopFirst = isDesktopApp() && !advancedProvider;
+  /** Desktop first-run continues to local-agent setup; web finishes at the model step. */
+  const finishProviderSetup = () => {
+    if (isDesktopApp()) setStep(3);
+    else navigate(appHomePath(), { replace: true });
+  };
+  const finishSetup = () => {
+    toast({ title: "Ready", description: "Your workspace is set up. Change models or keys any time in Settings." });
+    navigate(appHomePath(), { replace: true });
+  };
   const showGguf = isDesktopApp() && isLocalGgufDesktopAvailable();
   const providers = useMemo(() => {
     const cloudFirst = [
@@ -114,7 +130,7 @@ const SetupPage: React.FC = () => {
         title: "On-device model selected",
         description: "Confirm the ~400 MB Qwen 0.5B download in chat, then send a message.",
       });
-      navigate(appHomePath(), { replace: true });
+      finishProviderSetup();
       return;
     }
     setStep(2);
@@ -133,8 +149,8 @@ const SetupPage: React.FC = () => {
       });
     ensureCloudInferenceForConfig(next);
     setApiConfig(next);
-    toast({ title: "Ready", description: "Your workspace is set up. Change models or keys any time in Settings." });
-    navigate(appHomePath(), { replace: true });
+    toast({ title: "Model connected", description: "Now let's get your local agent ready." });
+    finishProviderSetup();
   });
 
   const handleLocalSubmit = form.handleSubmit((data) => {
@@ -149,7 +165,7 @@ const SetupPage: React.FC = () => {
       })
     );
     toast({ title: "Local server connected", description: `Using ${url}. Make sure your server is running.` });
-    navigate(appHomePath(), { replace: true });
+    finishProviderSetup();
   });
 
   return (
@@ -166,24 +182,55 @@ const SetupPage: React.FC = () => {
               Welcome to Openbentt
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {step === 1 ? "How do you want to run AI models?" : "Configure your connection"}
+              {desktopFirst
+                ? "Openbentt runs on OpenCode — no keys needed"
+                : step === 1
+                  ? "How do you want to run AI models?"
+                  : step === 2
+                    ? "Configure your connection"
+                    : "Set up your local agent"}
             </p>
           </div>
 
-          {/* Step indicator */}
-          <div className="flex items-center gap-2">
-            <div className={cn("flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold", step >= 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-              {step > 1 ? <Check size={10} /> : "1"}
+          {/* Step indicator (provider flow only; desktop-first is one screen) */}
+          {!desktopFirst && (
+            <div className="flex items-center gap-2">
+              <div className={cn("flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold", step >= 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+                {step > 1 ? <Check size={10} /> : "1"}
+              </div>
+              <div className="h-px w-8 bg-border" />
+              <div className={cn("flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold", step >= 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+                {step > 2 ? <Check size={10} /> : "2"}
+              </div>
+              {isDesktopApp() && (
+                <>
+                  <div className="h-px w-8 bg-border" />
+                  <div className={cn("flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold", step >= 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+                    3
+                  </div>
+                </>
+              )}
             </div>
-            <div className="h-px w-8 bg-border" />
-            <div className={cn("flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold", step >= 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-              2
-            </div>
-          </div>
+          )}
         </div>
 
+        {/* Desktop-first: OpenCode setup up front, provider maze opt-in */}
+        {desktopFirst && (
+          <div className="space-y-3">
+            <ExecutionSetupSection onContinue={finishSetup} />
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full text-xs text-muted-foreground"
+              onClick={() => setAdvancedProvider(true)}
+            >
+              Advanced: use your own model provider instead
+            </Button>
+          </div>
+        )}
+
         {/* Step 1: Choose provider */}
-        {step === 1 && (
+        {!desktopFirst && step === 1 && (
           <div className="space-y-3">
             {providers.map((p) => (
               <button
@@ -223,7 +270,7 @@ const SetupPage: React.FC = () => {
         )}
 
         {/* Step 2: Configure selected provider */}
-        {step === 2 && provider === "openrouter" && (
+        {!desktopFirst && step === 2 && provider === "openrouter" && (
           <form onSubmit={handleOpenRouterSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="apiKey" className="text-sm font-medium">
@@ -253,7 +300,12 @@ const SetupPage: React.FC = () => {
           </form>
         )}
 
-        {step === 2 && provider === "local" && (
+        {/* Step 3: local agent (desktop first-run; deterministic UI, never chat) */}
+        {!desktopFirst && step === 3 && (
+          <ExecutionSetupSection onContinue={finishSetup} />
+        )}
+
+        {!desktopFirst && step === 2 && provider === "local" && (
           <form onSubmit={handleLocalSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="localUrl" className="text-sm font-medium">

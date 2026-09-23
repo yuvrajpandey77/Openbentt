@@ -387,6 +387,20 @@ const ProjectsHubPage: React.FC = () => {
                         </span>
                         <span className="flex items-center gap-2 text-sm text-muted-foreground">
                           {formatRelative(p.createdAt)}
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/projects/${p.id}`);
+                            }}
+                            title="Open project conversation (OpenCode works here)"
+                            aria-label={`Open conversation for ${p.title}`}
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                          </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -430,7 +444,30 @@ const ProjectsHubPage: React.FC = () => {
                       )}
                       onClick={() => void openProject(p.id)}
                     >
-                      <BookOpen className="h-5 w-5 text-primary" />
+                      <span className="flex w-full items-start justify-between gap-2">
+                        <BookOpen className="h-5 w-5 text-primary" />
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          title="Open project conversation (OpenCode works here)"
+                          aria-label={`Open conversation for ${p.title}`}
+                          className="flex items-center gap-1 rounded-md border border-border/60 px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/projects/${p.id}`);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              navigate(`/projects/${p.id}`);
+                            }
+                          }}
+                        >
+                          <MessageSquare className="h-3 w-3" />
+                          Chat
+                        </span>
+                      </span>
                       <p className="mt-3 truncate font-medium">{p.title}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {p.paperCount} papers · {formatRelative(p.createdAt)}

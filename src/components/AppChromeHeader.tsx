@@ -11,6 +11,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useChat } from "@/context/ChatContext";
+import { ExecutionBadge } from "@/components/conversation/ExecutionBadge";
+import { LocalModelStatusBar } from "@/components/LocalModelStatusBar";
 import { useLocalAI } from "@/context/LocalAIContext";
 import { friendlyModelLabel } from "@/lib/ollama/selection";
 import type { WorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
@@ -31,8 +33,12 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
   onExpandSidebar,
   workspaceMeta,
 }) => {
-  const { apiConfig, currentChatId } = useChat();
+  const { apiConfig, currentChatId, activeProjectId, chats, openCodeLayer, openCodeModel } = useChat();
+  const activeChat = chats.find((c) => c.id === currentChatId);
+  const projectId = activeProjectId ?? activeChat?.projectId ?? null;
   const { effectiveModel } = useLocalAI();
+  /** Universal layer owns model selection on desktop — hide legacy badges. */
+  const layerOwnsChat = isDesktopApp() && openCodeLayer.available;
   const { pathname } = useLocation();
   const isMobile = useIsMobile();
 
@@ -88,12 +94,22 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
               </Link>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <p className="truncate text-sm font-medium text-foreground">Chat</p>
-              <Badge variant={modelAvailable ? "default" : "destructive"} className="gap-1 px-1.5 py-0 text-[10px] font-normal">
-                {modelIcon}
-                {modelLabel}
-              </Badge>
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="truncate text-sm font-medium text-foreground">
+                {projectId ? "Project conversation" : "Chat"}
+              </p>
+              {layerOwnsChat ? (
+                <Badge variant="default" className="gap-1 px-1.5 py-0 text-[10px] font-normal">
+                  <Cpu size={12} className="shrink-0" />
+                  {openCodeModel === "auto" ? "OpenCode · auto" : openCodeModel}
+                </Badge>
+              ) : (
+                <Badge variant={modelAvailable ? "default" : "destructive"} className="gap-1 px-1.5 py-0 text-[10px] font-normal">
+                  {modelIcon}
+                  {modelLabel}
+                </Badge>
+              )}
+              {isDesktopApp() && !isMobile && <ExecutionBadge />}
             </div>
           )}
         </div>

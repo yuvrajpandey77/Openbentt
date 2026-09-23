@@ -89,4 +89,20 @@ export function registerDesktopWindowIpc(ipc) {
     await shell.openExternal(url);
     return { ok: true };
   });
+
+  ipc.handle("desktop:pickWorkspaceFolder", async (event, currentPath) => {
+    // Native folder picker (Cursor/VS Code style). Main-owned dialog; the
+    // returned path is re-validated for containment on every task creation.
+    const win = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+    const opts = {
+      title: "Choose workspace folder",
+      properties: ["openDirectory", "createDirectory"],
+    };
+    if (typeof currentPath === "string" && currentPath.trim()) {
+      opts.defaultPath = currentPath.trim().slice(0, 1024);
+    }
+    const res = await dialog.showOpenDialog(win ?? null, opts);
+    if (res.canceled || !res.filePaths?.[0]) return { path: null };
+    return { path: String(res.filePaths[0]).slice(0, 4096) };
+  });
 }

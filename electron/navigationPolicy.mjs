@@ -54,11 +54,53 @@ export function classifyNavigation(url) {
  * clipboard-sanitized-write, fullscreen (not session-gated), pointerLock,
  * mediaKeySystem, bluetooth, usb, serial, hid, midi, storage-access, idle-detection.
  *
+ * Phase 3 exception: 'media' (microphone) is granted ONLY while an explicit
+ * main-side voice grant is active (see setVoiceGrantChecker). The grant
+ * exists solely between voice:startSession and voice:stopSession — both
+ * gated behind explicit user action — and never at launch.
+ *
  * @param {string} _permission
  * @returns {boolean} always false (documented default-deny)
  */
 export function decidePermission(_permission) {
   return false;
+}
+
+/** Main-side voice mic grant checker (default: no grant). */
+let voiceGrantChecker = null;
+
+/**
+ * @param {(() => boolean) | null} fn
+ */
+export function setVoiceGrantChecker(fn) {
+  voiceGrantChecker = typeof fn === "function" ? fn : null;
+}
+
+/**
+ * Voice-scoped media decision. Pure and unit-testable: microphone is
+ * allowed iff the named permission is media/mic AND the main-side grant
+ * callback confirms a live voice session AND the request is audio-only
+ * (camera/video never granted for voice).
+ *
+ * @param {unknown} permission
+ * @param {(() => boolean) | null} [grantChecker]
+ * @param {{ mediaTypes?: string[], audioRequested?: boolean, videoRequested?: boolean } | null} [details]
+ */
+export function decideVoiceMediaPermission(permission, grantChecker = voiceGrantChecker, details = null) {
+  const p = String(permission ?? "").toLowerCase();
+  if (p !== "media" && p !== "microphone" && p !== "audio-capture") return false;
+  if (details && typeof details === "object") {
+    if (details.videoRequested === true) return false;
+    if (Array.isArray(details.mediaTypes)) {
+      if (details.mediaTypes.includes("video")) return false;
+      if (!details.mediaTypes.includes("audio")) return false;
+    }
+  }
+  try {
+    return grantChecker?.() === true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -92,7 +134,13 @@ export function registerNavigationPolicy(win) {
   });
 
   const { session } = wc;
-  session.setPermissionRequestHandler((_wc, permission, callback) => {
+  session.setPermissionRequestHandler((_wc, permission, callback, details) => {
+    // Phase 3: microphone only with a live main-side voice grant; everything
+    // else stays default-deny. Camera/video never granted for voice.
+    if (decideVoiceMediaPermission(permission, voiceGrantChecker, details ?? null)) {
+      callback(true);
+      return;
+    }
     if (decidePermission(permission)) {
       callback(true);
       return;
@@ -101,7 +149,10 @@ export function registerNavigationPolicy(win) {
     callback(false);
   });
   if (typeof session.setPermissionCheckHandler === "function") {
-    session.setPermissionCheckHandler(() => false);
+    session.setPermissionCheckHandler((_wc, permission, _origin, details) => {
+      if (decideVoiceMediaPermission(permission, voiceGrantChecker, details ?? null)) return true;
+      return false;
+    });
   }
 }
 

@@ -19,6 +19,7 @@ import { SIDEBAR_COLLAPSED_KEY } from "@/lib/storageMigrate";
 import { sidebarMainMarginClass } from "@/lib/sidebarLayout";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import ChatMessages from "@/components/ChatMessages";
+import { ExecutionInspector } from "@/components/conversation/ExecutionInspector";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -32,7 +33,7 @@ const WORKSPACE_PANEL_KEY = "openbentt-workspace-panel-open";
  * opens when the user clicks the workspace toggle button.
  */
 const AppLayout: React.FC = () => {
-  const { apiConfig, isLoadingConfig, isLoading, chats, currentChatId, createNewChat, setWorkspaceRouteAssist } =
+  const { apiConfig, isLoadingConfig, isLoading, chats, currentChatId, createNewChat, setWorkspaceRouteAssist, openCodeLayer } =
     useChat();
   const { health: localAIHealth } = useLocalAI();
   const navigate = useNavigate();
@@ -128,11 +129,13 @@ const AppLayout: React.FC = () => {
     );
   }
 
-  // Redirect to setup only when NEITHER cloud nor local AI can serve chat.
-  // While local AI is still being detected, render the workspace instead of
+  // Redirect to setup only when NO layer can serve chat. The universal
+  // OpenCode layer (desktop) needs no keys — it unblocks the app on its own.
+  // While any layer is still being detected, render the workspace instead of
   // bouncing the user away.
   const localAIUsable = localAIHealth === "ready" || localAIHealth === "checking";
-  if (!canSendChat(apiConfig) && !localAIUsable) {
+  const layerUsable = openCodeLayer.available || openCodeLayer.checking;
+  if (!canSendChat(apiConfig) && !localAIUsable && !layerUsable) {
     return <Navigate to="/setup" replace />;
   }
 
@@ -153,7 +156,7 @@ const AppLayout: React.FC = () => {
 
       {isMobileSidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-[var(--z-scrim)] bg-black/20 backdrop-blur-sm md:hidden"
           onClick={() => setIsMobileSidebarOpen(false)}
           aria-hidden
         />
@@ -233,10 +236,13 @@ const AppLayout: React.FC = () => {
           )}
         </div>
 
+        {/* ONE composer everywhere: execution runs inside the conversation. */}
         <div className="shrink-0 bg-gradient-to-t from-card/90 to-background/95 backdrop-blur-sm">
           <ChatInput isLoading={isLoading} workspaceMeta={workspaceMeta} />
         </div>
       </main>
+      {/* Secondary execution inspector: conversation primary, internals secondary. */}
+      <ExecutionInspector />
     </div>
   );
 };

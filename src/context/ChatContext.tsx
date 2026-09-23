@@ -57,6 +57,35 @@ import {
   migrateLegacySecretsFromConfig,
   persistDesktopSecretsFromConfig,
 } from "@/lib/privacy/desktopSecrets";
+import { decideRoute } from "@/lib/agent/openCodeHarness";
+import { hasOpenCodeDesktopApi, openCodeAgentApi } from "@/lib/agent/openCodeAgentApi";
+import type { OpenCodeAgentEvent, OpenCodeTask } from "@/lib/agent/openCodeTypes";
+import { getExecutionRuntime } from "@/lib/agent/executionRuntime";
+import {
+  askOpenCodeLayer,
+  defaultOpenCodeModel,
+  fetchOpenCodeLayer,
+  loadStoredOpenCodeModel,
+  storeOpenCodeModel,
+  streamOpenCodeLayerChat,
+  type OpenCodeLayerSnapshot,
+} from "@/lib/agent/openCodeChat";
+
+export const AGENT_WORKSPACE_KEY = "openbentt-agent-workspace-root";
+export const projectWorkspaceKey = (projectId: string) =>
+  `openbentt-project-workspace:${projectId}`;
+
+export function resolveExecutionWorkspace(projectId?: string | null): string {
+  try {
+    if (projectId) {
+      const linked = localStorage.getItem(projectWorkspaceKey(projectId));
+      if (linked?.trim()) return linked.trim();
+    }
+    return localStorage.getItem(AGENT_WORKSPACE_KEY)?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
 
 interface ChatContextProps {
   chats: Chat[];
@@ -66,20 +95,59 @@ interface ChatContextProps {
   apiConfig: ApiKeyConfig;
   pendingComposer: { text: string; attachments: MessageAttachment[] } | null;
   clearPendingComposer: () => void;
-  createNewChat: (title?: string) => string;
+  createNewChat: (title?: string, projectId?: string | null) => string;
+  /** Active project workspace context (null = global chat). Same chat system either way. */
+  activeProjectId: string | null;
+  setActiveProjectId: (id: string | null) => void;
+  setProjectWorkspace: (projectId: string, root: string) => void;
+  /** Unified execution (OpenCode underneath): tasks + normalized events per conversation. */
+  executionTasks: Record<string, OpenCodeTask>;
+  executionEvents: Record<string, OpenCodeAgentEvent[]>;
+  workspaceNeeded: boolean;
+  setWorkspaceNeeded: (v: boolean) => void;
+  executionDrawerTaskId: string | null;
+  setExecutionDrawerTaskId: (id: string | null) => void;
+  cancelExecutionTask: (taskId: string) => Promise<void>;
+  respondToExecutionPermission: (
+    taskId: string,
+    approvalId: string,
+    decision: "allow-once" | "allow-task" | "deny"
+  ) => Promise<void>;
+  /** Voice transcripts enter the SAME pipeline as typed text (metadata only). */
+  submitVoiceTranscript: (transcript: string) => Promise<void>;
+  /**
+   * Universal OpenCode layer (desktop): every request — build, plan, ask —
+   * goes through OpenCode. No keys, no provider maze in chat.
+   */
+  openCodeLayer: OpenCodeLayerSnapshot;
+  refreshOpenCodeLayer: () => Promise<void>;
+  /** Model selection for EVERY chat panel: OpenCode models, free first. */
+  openCodeModel: string;
+  setOpenCodeModel: (id: string) => void;
+  /** True when chat can send right now (layer available OR legacy provider ready). */
+  unifiedChatReady: boolean;
+  /**
+   * Ask-path escalation: OpenCode asked for permission (auto-denied) — run
+   * the same prompt as an approval-gated task, or dismiss the prompt.
+   */
+  escalateAskToTask: (messageId: string) => Promise<void>;
+  dismissAskPermissions: (messageId: string) => void;
   selectChat: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
   clearChats: () => void;
   sendMessage: (
     content: string,
     attachments?: MessageAttachment[],
-    options?: { workspaceAssistBlock?: string }
+    options?: { workspaceAssistBlock?: string; projectId?: string | null; inputSource?: "text" | "voice" }
   ) => Promise<void>;
   regenerateLastResponse: () => Promise<void>;
   beginEditUserMessage: (messageId: string) => void;
   /** Phase 6: controlled agent mode (tool-using assistant via Phase 5 boundary). */
   agentMode: boolean;
   setAgentMode: (v: boolean) => void;
+  /** Phase 7: source scope (trusted app state; empty = all sources). */
+  sourceScope: string[];
+  setSourceScope: (v: string[]) => void;
   /** Suspended agent run awaiting user confirmation (null when none). */
   pendingAgentConfirm: { runId: string; toolId: string; summary: string } | null;
   sendAgentMessage: (content: string, opts?: { projectId?: string }) => Promise<void>;
@@ -360,7 +428,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const createNewChat = (title = "New Chat") => {
+  const createNewChat = (title = "New Chat", projectId?: string | null) => {
     const now = new Date();
     const newChat: Chat = {
       id: uuidv4(),
@@ -368,6 +436,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       messages: [],
       createdAt: now,
       updatedAt: now,
+      projectId: projectId ?? activeProjectIdRef.current ?? null,
+      taskIds: [],
     };
 
     setChats((prevChats) => [...prevChats, newChat]);
@@ -375,6 +445,690 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return newChat.id;
   };
+
+  /* ---------- Unified conversation architecture (Final Architecture Pass) ---------- */
+  const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
+  const activeProjectIdRef = useRef<string | null>(null);
+  const [workspaceNeeded, setWorkspaceNeeded] = useState(false);
+  const [executionTasks, setExecutionTasks] = useState<Record<string, OpenCodeTask>>({});
+  const [executionEvents, setExecutionEvents] = useState<Record<string, OpenCodeAgentEvent[]>>({});
+  const [executionDrawerTaskId, setExecutionDrawerTaskId] = useState<string | null>(null);
+  const executionTasksRef = useRef<Record<string, OpenCodeTask>>({});
+  executionTasksRef.current = executionTasks;
+
+  const setActiveProjectId = useCallback((id: string | null) => {
+    activeProjectIdRef.current = id;
+    setActiveProjectIdState(id);
+  }, []);
+
+  const setProjectWorkspace = useCallback((projectId: string, root: string) => {
+    try {
+      if (root.trim()) localStorage.setItem(projectWorkspaceKey(projectId), root.trim());
+      else localStorage.removeItem(projectWorkspaceKey(projectId));
+    } catch {
+      /* non-critical */
+    }
+    setWorkspaceNeeded(false);
+  }, []);
+
+  const appendTaskToChat = useCallback((chatId: string, taskId: string) => {
+    setChats((prev) =>
+      prev.map((c) =>
+        c.id === chatId
+          ? { ...c, taskIds: [...(c.taskIds ?? []), taskId], updatedAt: new Date() }
+          : c
+      )
+    );
+  }, []);
+
+  const patchExecutionMessage = useCallback(
+    (taskId: string, patch: (m: Message) => Message) => {
+      setChats((prev) =>
+        prev.map((c) => {
+          if (!c.messages.some((m) => m.taskId === taskId)) return c;
+          return {
+            ...c,
+            messages: c.messages.map((m) => (m.taskId === taskId ? patch(m) : m)),
+            updatedAt: new Date(),
+          };
+        })
+      );
+    },
+    []
+  );
+
+  const patchMessageById = useCallback(
+    (chatId: string, messageId: string, patch: (m: Message) => Message) => {
+      setChats((prev) =>
+        prev.map((c) => {
+          if (c.id !== chatId) return c;
+          return {
+            ...c,
+            messages: c.messages.map((m) => (m.id === messageId ? patch(m) : m)),
+            updatedAt: new Date(),
+          };
+        })
+      );
+    },
+    []
+  );
+
+  const humanizeAgentEvent = useCallback((e: OpenCodeAgentEvent): string => {
+    const p = e.payload as Record<string, unknown>;
+    const msg = typeof p.message === "string" ? p.message : "";
+    const file = typeof p.file === "string" ? p.file : "";
+    const target = typeof p.target === "string" ? p.target : "";
+    switch (e.type) {
+      case "agent.started":
+        return "Working on it…";
+      case "agent.thinking":
+        return msg ? `Thinking · ${msg.slice(0, 140)}` : "Thinking…";
+      case "agent.status":
+        return msg ? `Status · ${msg.slice(0, 140)}` : "Status update";
+      case "agent.tool.requested":
+        return `Tool requested · ${String(p.tool ?? p.capability ?? "tool")}`;
+      case "agent.tool.started":
+        return `Running · ${String(p.tool ?? p.command ?? "tool")}${target ? ` · ${target}` : ""}`;
+      case "agent.tool.output":
+        return msg ? `Output · ${msg.slice(0, 140)}` : "Tool output";
+      case "agent.file.changed":
+        return `Changed file · ${file || target || "file"}`;
+      case "agent.command.requested":
+        return `Command requested · ${String(p.command ?? target ?? "")}`.slice(0, 160);
+      case "agent.command.output":
+        return msg ? `Command output · ${msg.slice(0, 140)}` : "Command output";
+      case "agent.permission.requested":
+        return `Permission required · ${String(p.capability ?? "")} ${target}`.slice(0, 160);
+      case "agent.error":
+        return `Error · ${(msg || "see details").slice(0, 140)}`;
+      case "agent.completed":
+        return msg ? `Done · ${msg.slice(0, 160)}` : "Completed";
+      case "agent.failed":
+        return `Failed · ${(msg || "see details").slice(0, 160)}`;
+      case "agent.cancelled":
+        return "Cancelled";
+      default:
+        return e.type;
+    }
+  }, []);
+
+  const statusForEvent = useCallback((type: OpenCodeAgentEvent["type"]): Message["executionStatus"] => {
+    switch (type) {
+      case "agent.permission.requested":
+        return "waiting_for_permission";
+      case "agent.completed":
+        return "completed";
+      case "agent.failed":
+        return "failed";
+      case "agent.cancelled":
+        return "cancelled";
+      case "agent.started":
+        return "starting";
+      default:
+        return "running";
+    }
+  }, []);
+
+  /** Single canonical event pipeline: agent events update task state + inline activity. */
+  useEffect(() => {
+    if (!hasOpenCodeDesktopApi()) return;
+    let dispose = () => {};
+    try {
+      dispose = openCodeAgentApi.onEvent((evt) => {
+        setExecutionEvents((prev) => {
+          const list = prev[evt.taskId] ?? [];
+          if (list.some((e) => e.eventId === evt.eventId)) return prev;
+          return { ...prev, [evt.taskId]: [...list.slice(-499), evt] };
+        });
+        const status = statusForEvent(evt.type);
+        setExecutionTasks((prev) => {
+          const t = prev[evt.taskId];
+          if (!t) return prev;
+          const mapped =
+            status === "waiting_for_permission"
+              ? "WAITING_FOR_PERMISSION"
+              : status === "completed"
+                ? "COMPLETED"
+                : status === "failed"
+                  ? "FAILED"
+                  : status === "cancelled"
+                    ? "CANCELLED"
+                    : status === "starting"
+                      ? "STARTING"
+                      : "RUNNING";
+          return { ...prev, [evt.taskId]: { ...t, status: mapped, lastEvent: evt.type, updatedAt: evt.timestamp } };
+        });
+        const detail = humanizeAgentEvent(evt);
+        patchExecutionMessage(evt.taskId, (m) => ({
+          ...m,
+          executionStatus: status,
+          agentTrace: [...(m.agentTrace ?? []), { step: evt.type, detail }].slice(-120),
+          content:
+            evt.type === "agent.completed" && typeof evt.payload.message === "string" && evt.payload.message
+              ? `${m.content ? `${m.content}\n\n` : ""}${String(evt.payload.message).slice(0, 2000)}`
+              : m.content,
+          streaming: evt.type === "agent.completed" || evt.type === "agent.failed" || evt.type === "agent.cancelled" ? false : m.streaming,
+        }));
+        if (evt.type === "agent.permission.requested") {
+          setExecutionDrawerTaskId((cur) => cur ?? evt.taskId);
+        }
+        if (evt.type === "agent.completed" || evt.type === "agent.failed" || evt.type === "agent.cancelled") {
+          setIsLoading(false);
+        }
+      });
+    } catch {
+      /* bridge unavailable — normal chat continues */
+    }
+    return () => {
+      try {
+        dispose();
+      } catch {
+        /* noop */
+      }
+    };
+  }, [humanizeAgentEvent, patchExecutionMessage, statusForEvent]);
+
+  /**
+   * Chat → OpenCode seam. Returns true when the turn was absorbed by
+   * execution (same conversation UI; never redirects to /agent).
+   */
+  const tryRouteToExecution = useCallback(
+    async (args: {
+      chatId: string;
+      assistantMessageId: string;
+      text: string;
+      projectId?: string | null;
+      inputSource: "text" | "voice";
+      model?: string;
+      /** Explicit escalation (user picked run-as-task): build regardless of heuristics. */
+      forceBuild?: boolean;
+    }): Promise<boolean> => {
+      let decision: { category: string; routeToOpenCode: boolean; mode: "plan" | "build"; reason: string };
+      try {
+        decision = decideRoute(args.text);
+      } catch {
+        return false;
+      }
+      if (!decision.routeToOpenCode) return false;
+      if (getExecutionRuntime() !== "opencode") return false;
+      if (!hasOpenCodeDesktopApi()) return false;
+
+      const workspaceRoot = resolveExecutionWorkspace(args.projectId);
+      if (!workspaceRoot) {
+        // Execution needs files but no workspace is selected: contextual
+        // prompt inline (never a technical error, never Settings).
+        setWorkspaceNeeded(true);
+        patchMessageById(args.chatId, args.assistantMessageId, (m) => ({
+          ...m,
+          executionStatus: undefined,
+          content:
+            "This task needs a workspace before I can run it.\n\nChoose a project folder (or create one), then send the message again — I'll pick up right here in this conversation.",
+          streaming: false,
+        }));
+        setIsLoading(false);
+        return true;
+      }
+
+      // Task continuity: note the previous task in this conversation (if still
+      // active) so the new task carries context — but never blindly reuse a
+      // process; the harness owns session decisions.
+      const prevTasks = chatsRef.current.find((c) => c.id === args.chatId)?.taskIds ?? [];
+      const lastId = prevTasks[prevTasks.length - 1];
+      const lastStatus = lastId ? executionTasksRef.current[lastId]?.status : undefined;
+      const continuing =
+        lastId && lastStatus && ["QUEUED", "STARTING", "RUNNING", "WAITING_FOR_PERMISSION"].includes(lastStatus)
+          ? ` (continuing conversation; related in-flight task ${lastId} is ${lastStatus})`
+          : "";
+
+      try {
+        const mode = args.forceBuild ? "build" : decision.mode;
+        patchMessageById(args.chatId, args.assistantMessageId, (m) => ({
+          ...m,
+          executionStatus: "starting",
+          agentTrace: [
+            {
+              step: "agent.started",
+              detail:
+                mode === "plan"
+                  ? "Working on it… (plan · read-only — ask for changes to switch to build)"
+                  : "Working on it… (build — writes will ask for approval)",
+            },
+          ],
+        }));
+        const created = await openCodeAgentApi.createTask({
+          prompt: `${args.text.slice(0, 8000)}${continuing}`,
+          title: args.text.slice(0, 80),
+          workspaceRoot,
+          mode,
+          inputSource: args.inputSource,
+          model: args.model?.trim() ? args.model.trim() : undefined,
+        });
+        setExecutionTasks((prev) => ({ ...prev, [created.id]: created }));
+        setExecutionEvents((prev) => ({ ...prev, [created.id]: [] }));
+        // Re-link placeholder message to the real task id.
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === args.chatId
+              ? {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === args.assistantMessageId ? { ...m, taskId: created.id } : m
+                  ),
+                  updatedAt: new Date(),
+                }
+              : c
+          )
+        );
+        appendTaskToChat(args.chatId, created.id);
+        const started = await openCodeAgentApi.startTask(created.id);
+        setExecutionTasks((prev) => ({ ...prev, [created.id]: started }));
+        setExecutionDrawerTaskId((cur) => cur ?? created.id);
+        return true;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Execution failed to start.";
+        patchMessageById(args.chatId, args.assistantMessageId, (m) => ({
+          ...m,
+          executionStatus: "failed",
+          content: `I couldn't start the execution engine: ${msg}\n\nFalling back to chat — tell me more about what you need, or check Setup → Execution.`,
+          streaming: false,
+        }));
+        setIsLoading(false);
+        return true;
+      }
+    },
+    [appendTaskToChat, patchMessageById]
+  );
+
+  const cancelExecutionTask = useCallback(
+    async (taskId: string) => {
+      try {
+        const t = await openCodeAgentApi.cancelTask(taskId);
+        setExecutionTasks((prev) => ({ ...prev, [taskId]: t }));
+      } catch (e) {
+        console.error("cancelExecutionTask failed", e);
+      }
+      patchExecutionMessage(taskId, (m) => ({ ...m, executionStatus: "cancelled", streaming: false }));
+      setIsLoading(false);
+    },
+    [patchExecutionMessage]
+  );
+
+  const respondToExecutionPermission = useCallback(
+    async (taskId: string, approvalId: string, decision: "allow-once" | "allow-task" | "deny") => {
+      try {
+        const t = await openCodeAgentApi.respondToPermission({ taskId, approvalId, decision });
+        setExecutionTasks((prev) => ({ ...prev, [taskId]: t }));
+        patchExecutionMessage(taskId, (m) => ({
+          ...m,
+          executionStatus: "running",
+          agentTrace: [...(m.agentTrace ?? []), { step: "agent.permission.responded", detail: `Permission ${decision}` }],
+        }));
+      } catch (e) {
+        toast({
+          title: "Permission failed",
+          description: e instanceof Error ? e.message : "Could not respond.",
+          variant: "destructive",
+        });
+      }
+    },
+    [patchExecutionMessage, toast]
+  );
+
+  /* ---------- Universal OpenCode layer: ask + build + plan, no keys ---------- */
+  const [openCodeLayer, setOpenCodeLayer] = useState<OpenCodeLayerSnapshot>({
+    available: false,
+    checking: hasOpenCodeDesktopApi(),
+    baseUrl: null,
+    models: [],
+    status: null,
+    askReady: false,
+    opencodeInstalled: false,
+  });
+  const openCodeLayerRef = useRef(openCodeLayer);
+  openCodeLayerRef.current = openCodeLayer;
+
+  const [openCodeModel, setOpenCodeModelState] = useState<string>(() => loadStoredOpenCodeModel() ?? "auto");
+  const openCodeModelRef = useRef(openCodeModel);
+  openCodeModelRef.current = openCodeModel;
+
+  const refreshOpenCodeLayer = useCallback(async () => {
+    if (!hasOpenCodeDesktopApi()) {
+      setOpenCodeLayer({
+        available: false, checking: false, baseUrl: null, models: [], status: null,
+        askReady: false, opencodeInstalled: false,
+      });
+      return;
+    }
+    setOpenCodeLayer((prev) => ({ ...prev, checking: true }));
+    const snap = await fetchOpenCodeLayer();
+    setOpenCodeLayer({ ...snap, checking: false });
+    // Adopt stored/default model once models are known.
+    setOpenCodeModelState((prev) => {
+      if (prev && prev !== "auto" && snap.models.some((m) => m.id === prev)) return prev;
+      const stored = loadStoredOpenCodeModel();
+      if (stored && snap.models.some((m) => m.id === stored)) return stored;
+      return snap.models.length ? defaultOpenCodeModel(snap.models) : prev;
+    });
+  }, []);
+
+  useEffect(() => {
+    void refreshOpenCodeLayer();
+  }, [refreshOpenCodeLayer]);
+
+  /**
+   * Desktop first contact: bring our own runtime up automatically so chat
+   * just works (ask via the binary, stream via the gateway when ready).
+   * Once per session, fail-closed — status banners explain the rest.
+   */
+  const autoEnsureTriedRef = useRef(false);
+  useEffect(() => {
+    if (autoEnsureTriedRef.current) return;
+    if (!hasOpenCodeDesktopApi()) return;
+    if (openCodeLayer.checking) return;
+    if (openCodeLayer.available) return;
+    autoEnsureTriedRef.current = true;
+    void (async () => {
+      try {
+        await openCodeAgentApi.ensureRuntime();
+      } catch {
+        /* banner covers it */
+      } finally {
+        await refreshOpenCodeLayer();
+      }
+    })();
+  }, [openCodeLayer.checking, openCodeLayer.available, refreshOpenCodeLayer]);
+
+  const setOpenCodeModel = useCallback((id: string) => {
+    const clean = id.trim() || "auto";
+    setOpenCodeModelState(clean);
+    storeOpenCodeModel(clean);
+  }, []);
+
+  /**
+   * Ask-path through the layer: gateway streaming when the gateway is up,
+   * else the real binary (`opencode run`) chunked into the bubble.
+   * Same streaming UX either way; no keys, no provider maze.
+   */
+  const runLayerPipeline = useCallback(
+    async (
+      activeChatId: string,
+      chatMessages: Message[],
+      extras: PipelineExtras,
+      opts?: { projectId?: string | null }
+    ) => {
+      const layer = openCodeLayerRef.current;
+      if (!layer.available) throw new Error("OpenCode layer unavailable.");
+      const model = openCodeModelRef.current?.trim() || defaultOpenCodeModel(layer.models);
+      const controller = new AbortController();
+      abortControllersRef.current = [controller];
+
+      const assistantMessageId = uuidv4();
+      const assistantMessage: Message = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: "",
+        timestamp: new Date(),
+        streaming: true,
+      };
+      setChats((prevChats) =>
+        prevChats.map((chat) =>
+          chat.id === activeChatId
+            ? { ...chat, messages: [...chat.messages, assistantMessage], updatedAt: new Date() }
+            : chat
+        )
+      );
+      const batcher = createRafBatcher((chunk) => {
+        setChats((prevChats) =>
+          prevChats.map((chat) => {
+            if (chat.id !== activeChatId) return chat;
+            return {
+              ...chat,
+              messages: chat.messages.map((msg) =>
+                msg.id === assistantMessageId ? { ...msg, content: msg.content + chunk } : msg
+              ),
+              updatedAt: new Date(),
+            };
+          })
+        );
+      });
+      const patchAssistant = (patch: (m: Message) => Message) => {
+        batcher.flushPending();
+        setChats((prevChats) =>
+          prevChats.map((chat) => {
+            if (chat.id !== activeChatId) return chat;
+            return {
+              ...chat,
+              messages: chat.messages.map((msg) => (msg.id === assistantMessageId ? patch(msg) : msg)),
+              updatedAt: new Date(),
+            };
+          })
+        );
+      };
+      const finishText = (
+        text: string,
+        metrics: ResponseMetrics,
+        modelLabel: string,
+        startedAt: number
+      ) => {
+        void startedAt;
+        patchAssistant((msg) => ({
+          ...msg,
+          content: text,
+          metrics,
+          researchSources: extras.researchSources,
+          agentTrace: extras.agentTrace,
+          streaming: false,
+        }));
+        updateChatTitleFromMessages(activeChatId, [
+          ...chatMessages,
+          { ...assistantMessage, content: text, metrics },
+        ]);
+        if (chatLogPersisterRef.current) {
+          const lastUser = [...chatMessages].reverse().find((m) => m.role === "user");
+          if (lastUser && typeof lastUser.content === "string") {
+            chatLogPersisterRef.current(activeChatId, "user", lastUser.content, "");
+          }
+          chatLogPersisterRef.current(activeChatId, "assistant", text, `opencode/${modelLabel}`);
+        }
+      };
+      const startedAt = Date.now();
+      // NOTE: baseUrl is always computed from the port — it says nothing
+      // about the gateway being UP. Only READY means streamable.
+      const gatewayUp = Boolean(layer.baseUrl) && layer.status?.omniRoute?.status === "READY";
+      const shortReason = (e: unknown) => (e instanceof Error ? e.message.slice(0, 160) : "request failed");
+      try {
+        // Project conversations run with project context; global chat uses
+        // the neutral sandbox (never leaks a default folder's files).
+        const askWorkspace =
+          opts?.projectId ? resolveExecutionWorkspace(opts.projectId) || undefined : undefined;
+        if (gatewayUp && layer.baseUrl) {
+          try {
+            const { text, metrics } = await streamOpenCodeLayerChat({
+              model,
+              baseUrl: layer.baseUrl,
+              systemPrompts: extras.systemPrompts,
+              chatMessages,
+              signal: controller.signal,
+              callbacks: {
+                onDelta: (delta: string) => batcher.push(delta),
+                onUsage: (u) => {
+                  if (u.prompt_tokens != null) setStreamingPromptTokens(u.prompt_tokens);
+                },
+              },
+            });
+            batcher.flushPending();
+            const finalMetrics: ResponseMetrics = {
+              ttftMs: metrics.ttftMs,
+              totalMs: metrics.totalMs,
+              promptTokens: metrics.promptTokens,
+              completionTokens: metrics.completionTokens,
+              totalTokens: metrics.totalTokens,
+            };
+            finishText(text, finalMetrics, model, startedAt);
+            return;
+          } catch (gatewayError) {
+            // Gateway went away mid-flight: fall through to the binary
+            // instead of failing when OpenCode itself is installed.
+            if (!layer.askReady) throw gatewayError;
+          }
+        }
+        // Answer through the real binary (`opencode run`) — no gateway, no keys.
+        if (!layer.askReady) throw new Error("OpenCode is not installed. See Setup → Execution.");
+        const lastUser = [...chatMessages].reverse().find((m) => m.role === "user");
+        const askText = typeof lastUser?.content === "string" ? lastUser.content : "";
+        const startedRunAt = Date.now();
+        const res = await askOpenCodeLayer({
+          message: askText.slice(0, 8000),
+          model,
+          workspaceRoot: askWorkspace,
+          title: askText.slice(0, 80),
+          sessionId: askSessionsRef.current.get(activeChatId),
+        });
+        if (res.sessionId) askSessionsRef.current.set(activeChatId, res.sessionId);
+        const blocked = Array.isArray(res.permissionRequests) ? res.permissionRequests.slice(0, 10) : [];
+        let finalText = res.text;
+        if (blocked.length > 0) {
+          // The binary auto-denied mid-answer: never present the partial
+          // text as a complete answer. Record escalation + surface selection.
+          askEscalationsRef.current.set(assistantMessageId, { chatId: activeChatId, prompt: askText });
+          patchAssistant((msg) => ({ ...msg, askPermissionRequests: blocked }));
+          const listed = blocked.map((b) => `\n- ${b}`).join("");
+          finalText =
+            `${res.text ? `${res.text}\n\n` : ""}` +
+            `OpenCode needed permission to continue and I held it back (quick answers never auto-approve):${listed}\n\nPick below to run it as an approval-gated task, or dismiss.`;
+        }
+        await streamTextChunked(finalText, (chunk) => batcher.push(chunk), controller.signal);
+        batcher.flushPending();
+        finishText(finalText, { ttftMs: null, totalMs: Date.now() - startedRunAt }, res.model, startedRunAt);
+      } catch (error) {
+        const aborted =
+          (error instanceof Error || (typeof DOMException !== "undefined" && error instanceof DOMException)) &&
+          (error as { name?: string }).name === "AbortError";
+        batcher.flushPending();
+        setChats((prevChats) =>
+          prevChats.map((chat) => {
+            if (chat.id !== activeChatId) return chat;
+            return {
+              ...chat,
+              messages: aborted
+                ? chat.messages.filter((msg) => msg.id !== assistantMessageId)
+                : chat.messages.map((msg) =>
+                    msg.id === assistantMessageId
+                      ? {
+                          ...msg,
+                          // Plain layer copy only — never the legacy
+                          // provider formatters (no Hugging Face/key hints).
+                          content:
+                            msg.content ||
+                            `OpenCode couldn't answer that (${shortReason(error)}). Check Setup → Execution for runtime status, or retry.`,
+                          streaming: false,
+                        }
+                      : msg
+                  ),
+              updatedAt: new Date(),
+            };
+          })
+        );
+        if (!aborted) {
+          toast({
+            title: "OpenCode layer error",
+            description: shortReason(error),
+            variant: "destructive",
+          });
+        }
+      } finally {
+        setStreamingPromptTokens(null);
+        setWebgpuModelDownloadProgress(null);
+        setIsLoading(false);
+        abortControllersRef.current = [];
+      }
+    },
+    [toast]
+  );
+
+  /* Ask-path continuity + escalation (per conversation / message). */
+  const askSessionsRef = useRef(new Map<string, string>());
+  const askEscalationsRef = useRef(new Map<string, { chatId: string; prompt: string }>());
+
+  const dismissAskPermissions = useCallback((messageId: string) => {
+    askEscalationsRef.current.delete(messageId);
+    setChats((prev) =>
+      prev.map((c) => ({
+        ...c,
+        messages: c.messages.map((m) =>
+          m.id === messageId ? { ...m, askPermissionRequests: undefined } : m
+        ),
+      }))
+    );
+  }, []);
+
+  const escalateAskToTask = useCallback(
+    async (messageId: string) => {
+      const esc = askEscalationsRef.current.get(messageId);
+      if (!esc) return;
+      askEscalationsRef.current.delete(messageId);
+      const chatId = esc.chatId;
+      if (!chatsRef.current.some((c) => c.id === chatId)) return;
+      // Clear the prompt card, then run the SAME prompt as an
+      // approval-gated build task in this conversation.
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === chatId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === messageId ? { ...m, askPermissionRequests: undefined } : m
+                ),
+                updatedAt: new Date(),
+              }
+            : c
+        )
+      );
+      const assistantMessageId = uuidv4();
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === chatId
+            ? {
+                ...c,
+                messages: [
+                  ...c.messages,
+                  {
+                    id: assistantMessageId,
+                    role: "assistant",
+                    content: "",
+                    timestamp: new Date(),
+                    streaming: true,
+                  },
+                ],
+                updatedAt: new Date(),
+              }
+            : c
+        )
+      );
+      setIsLoading(true);
+      try {
+        const chatProjectId =
+          chatsRef.current.find((c) => c.id === chatId)?.projectId ?? null;
+        await tryRouteToExecution({
+          chatId,
+          assistantMessageId,
+          text: esc.prompt,
+          projectId: chatProjectId,
+          inputSource: "text",
+          model: openCodeModelRef.current,
+          forceBuild: true,
+        });
+      } catch {
+        patchMessageById(chatId, assistantMessageId, (m) => ({
+          ...m,
+          content: "Couldn't start that as a task. Try sending it again as a message.",
+          streaming: false,
+        }));
+        setIsLoading(false);
+      }
+    },
+    [patchMessageById, tryRouteToExecution]
+  );
 
   const selectChat = (chatId: string) => {
     setCurrentChatId(chatId);
@@ -514,8 +1268,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const regenerateLastResponse = async () => {
-    if (!canSendMessage(apiConfig) || isLoading || !currentChatId) return;
-    if (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
+    const layerOk = hasOpenCodeDesktopApi() && openCodeLayerRef.current.available;
+    if ((!layerOk && !canSendMessage(apiConfig)) || isLoading || !currentChatId) return;
+    if (!layerOk && apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
       toast({
         title: "On-device model not enabled",
         description:
@@ -580,6 +1335,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     cfg: ApiKeyConfig,
     extras: PipelineExtras
   ) => {
+    // Regenerate (and any direct callers) honor the universal layer too.
+    if (hasOpenCodeDesktopApi() && openCodeLayerRef.current.available) {
+      const chatProjectId = chatsRef.current.find((c) => c.id === activeChatId)?.projectId ?? null;
+      await runLayerPipeline(activeChatId, chatMessages, extras, { projectId: chatProjectId });
+      return;
+    }
     const comparisonIds = dedupeModels(cfg.comparisonModelIds).slice(0, 4);
     const useTiling =
       cfg.aiProvider !== "webgpu_gemma" &&
@@ -991,50 +1752,55 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const sendMessage = async (
     content: string,
     attachments: MessageAttachment[] = [],
-    options?: { workspaceAssistBlock?: string }
+    options?: { workspaceAssistBlock?: string; projectId?: string | null; inputSource?: "text" | "voice" }
   ) => {
     const trimmed = content.trim();
     if (!trimmed && attachments.length === 0) return;
-    if (!canSendChat(apiConfig)) {
-      toast({
-        title: "Cannot send yet",
-        description:
-          apiConfig.aiProvider === "webgpu_gemma"
-            ? "WebGPU is not available in this browser. Use Chrome/Edge or the desktop build, or switch to OpenRouter in Settings."
-            : apiConfig.aiProvider === "local_gguf"
-              ? "Use the Openbentt desktop app, install llama-server on PATH (or set a binary path), download a GGUF in Labs, and pick it in Settings."
-              : "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in Settings.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!canSendMessage(apiConfig)) {
-      toast({
-        title: "Local model not selected",
-        description: "Download a GGUF in Labs → Local model hub, then choose it in Settings → AI & models.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
-      toast({
-        title: "On-device model not enabled",
-        description:
-          "Confirm the Qwen 0.5B download in the setup banner above the composer (check the box, then Enable & chat or Download & cache).",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Universal layer: on desktop with OpenCode available, EVERY request goes
+    // through it — no keys, no provider maze, works offline (loopback).
+    const useLayer = hasOpenCodeDesktopApi() && openCodeLayerRef.current.available;
+    if (!useLayer) {
+      if (!canSendChat(apiConfig)) {
+        toast({
+          title: "Cannot send yet",
+          description:
+            apiConfig.aiProvider === "webgpu_gemma"
+              ? "WebGPU is not available in this browser. Use Chrome/Edge or the desktop build, or switch to OpenRouter in Settings."
+              : apiConfig.aiProvider === "local_gguf"
+                ? "Use the Openbentt desktop app, install llama-server on PATH (or set a binary path), download a GGUF in Labs, and pick it in Settings."
+                : "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in Settings.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!canSendMessage(apiConfig)) {
+        toast({
+          title: "Local model not selected",
+          description: "Download a GGUF in Labs → Local model hub, then choose it in Settings → AI & models.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
+        toast({
+          title: "On-device model not enabled",
+          description:
+            "Confirm the Qwen 0.5B download in the setup banner above the composer (check the box, then Enable & chat or Download & cache).",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    try {
-      assertChatProviderAllowed(apiConfig, !isNavigatorOnline());
-    } catch (e) {
-      toast({
-        title: "Offline-first mode",
-        description: e instanceof Error ? e.message : String(e),
-        variant: "destructive",
-      });
-      return;
+      try {
+        assertChatProviderAllowed(apiConfig, !isNavigatorOnline());
+      } catch (e) {
+        toast({
+          title: "Offline-first mode",
+          description: e instanceof Error ? e.message : String(e),
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     /** Stale or deleted id → no chat row matches; messages would be dropped. */
@@ -1049,12 +1815,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const mergedPdf = mergePdfIntoContent(trimmed, attachments);
     const body = substituteInlineCalc(mergedPdf) || (attachments.length ? " " : "");
 
+    const inputSource = options?.inputSource ?? "text";
+    const projectId = options?.projectId ?? activeProjectIdRef.current ?? null;
+
     const userMessage: Message = {
       id: uuidv4(),
       role: "user",
       content: body,
       timestamp: new Date(),
       attachments: attachments.length ? attachments : undefined,
+      inputSource,
     };
 
     const prior = chatsRef.current.find((c) => c.id === activeChatId);
@@ -1065,6 +1835,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (chat.id === activeChatId) {
           return {
             ...chat,
+            // Project is the workspace context boundary: stamp it once, keep it.
+            projectId: chat.projectId ?? projectId ?? null,
             messages: [...chat.messages, userMessage],
             updatedAt: new Date(),
           };
@@ -1076,6 +1848,54 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     setStreamingPromptTokens(null);
 
+    // ---- Unified Chat → OpenCode seam (same conversation, no redirect) ----
+    // Execution-class turns are absorbed by OpenCode underneath; everything
+    // else falls through to the normal assistant pipeline below.
+    if (attachments.length === 0) {
+      const seamAssistantId = uuidv4();
+      const seamPlaceholder: Message = {
+        id: seamAssistantId,
+        role: "assistant",
+        content: "",
+        timestamp: new Date(),
+        streaming: true,
+        inputSource,
+      };
+      setChats((prevChats) =>
+        prevChats.map((chat) =>
+          chat.id === activeChatId
+            ? { ...chat, messages: [...chat.messages, seamPlaceholder], updatedAt: new Date() }
+            : chat
+        )
+      );
+      let absorbed = false;
+      try {
+        absorbed = await tryRouteToExecution({
+          chatId: activeChatId,
+          assistantMessageId: seamAssistantId,
+          text: body,
+          projectId,
+          inputSource,
+          model: openCodeModelRef.current,
+        });
+      } catch {
+        absorbed = false;
+      }
+      if (absorbed) return;
+      // Not an execution turn: remove the seam placeholder, run normal chat.
+      setChats((prevChats) =>
+        prevChats.map((chat) =>
+          chat.id === activeChatId
+            ? {
+                ...chat,
+                messages: chat.messages.filter((m) => m.id !== seamAssistantId),
+                updatedAt: new Date(),
+              }
+            : chat
+        )
+      );
+    }
+
     const workspaceBlock =
       options?.workspaceAssistBlock ??
       notebookAssistSyncRef.current?.() ??
@@ -1085,6 +1905,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const extras = await buildPipelineExtras(chatMessages, apiConfig, {
         workspaceAssistBlock: workspaceBlock,
       });
+      // Universal layer: ask-turns go through OpenCode (gateway stream
+      // or the real binary) — same pipeline shape, no keys required.
+      if (useLayer) {
+        await runLayerPipeline(activeChatId, chatMessages, extras, { projectId });
+        return;
+      }
       await runAssistantPipeline(activeChatId, chatMessages, apiConfig, extras);
     } catch (e) {
       setIsLoading(false);
@@ -1096,6 +1922,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         variant: "destructive",
       });
     }
+  };
+
+  /** Voice transcripts enter the SAME canonical conversation as typed text. */
+  const submitVoiceTranscript = async (transcript: string) => {
+    const clean = transcript.trim().slice(0, 4000);
+    if (!clean) return;
+    await sendMessage(clean, [], { inputSource: "voice" });
   };
 
   /** Phase 6: agent mode + run plumbing (additive; standard pipeline untouched). */
@@ -1120,6 +1953,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       /* non-critical */
     }
   }, []);
+
+  const [sourceScope, setSourceScope] = useState<string[]>([]);
 
   const registerAgentProjectProvider = useCallback((fn: (() => string | null) | null) => {
     agentProjectProviderRef.current = fn;
@@ -1349,6 +2184,25 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     pendingComposer,
     clearPendingComposer,
     createNewChat,
+    activeProjectId,
+    setActiveProjectId,
+    setProjectWorkspace,
+    executionTasks,
+    executionEvents,
+    workspaceNeeded,
+    setWorkspaceNeeded,
+    executionDrawerTaskId,
+    setExecutionDrawerTaskId,
+    cancelExecutionTask,
+    respondToExecutionPermission,
+    submitVoiceTranscript,
+    escalateAskToTask,
+    dismissAskPermissions,
+    openCodeLayer,
+    refreshOpenCodeLayer,
+    openCodeModel,
+    setOpenCodeModel,
+    unifiedChatReady: openCodeLayer.available || canSendMessage(apiConfig),
     selectChat,
     deleteChat,
     clearChats,
@@ -1357,6 +2211,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     beginEditUserMessage,
     agentMode,
     setAgentMode: setAgentModeAndPersist,
+    sourceScope,
+    setSourceScope,
     pendingAgentConfirm,
     sendAgentMessage,
     confirmAgentRun,

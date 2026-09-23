@@ -1,5 +1,7 @@
 import React, { useState } from "react";
-import { Cpu, Download, Loader2, RefreshCw, Check } from "lucide-react";
+import { Bot, Cpu, Download, Loader2, RefreshCw, Check } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 import { useAuth } from "@/context/AuthContext";
 import { useLocalAI } from "@/context/LocalAIContext";
 import { useChat } from "@/context/ChatContext";
@@ -13,21 +15,50 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useOnboarding } from "@/context/OnboardingContext";
+import { ExecutionSetupSection } from "@/components/conversation/ExecutionSetupSection";
 
-/** Phase 9 — Settings: Account, AI & Models (Ollama-first), then full provider panels. */
+/** Phase 9 — Settings: Account, Execution readiness, AI & Models, then full provider panels. */
 const SettingsPage: React.FC = () => {
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 py-6">
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Account, local AI, providers and privacy.</p>
+      <p className="mt-1 text-sm text-muted-foreground">Account, execution, local AI, providers and privacy.</p>
       <div className="mt-5 flex flex-col gap-4 pb-10">
         <AccountCard />
+        {isDesktopApp() && <ExecutionReadinessCard />}
         <LocalAICard />
+        <AgentVoiceCard />
         <SettingsPanel />
       </div>
     </div>
   );
 };
+
+/** Canonical runtime readiness: authentication, execution, AI, workspace — one place. */
+function ExecutionReadinessCard() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Bot size={16} className="text-primary" /> Execution — OpenCode
+        </CardTitle>
+        <CardDescription>
+          OpenCode is the default execution engine underneath every conversation. Status and workspace live here.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {!open ? (
+          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+            Check execution status
+          </Button>
+        ) : (
+          <ExecutionSetupSection onContinue={() => setOpen(false)} />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function AccountCard() {
   const { status, user, signOut } = useAuth();
@@ -80,8 +111,37 @@ function AccountCard() {
   );
 }
 
-function formatBytes(bytes: number | null): string {
-  if (bytes == null) return "—";
+/** Local agent + voice live in the desktop Agent workspace, not in Settings. */
+function AgentVoiceCard() {
+  const navigate = useNavigate();
+  const desktop = isDesktopApp();
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Bot size={16} className="text-primary" /> Agent &amp; voice — local
+        </CardTitle>
+        <CardDescription>
+          Local task execution, on-device speech input/output, and the permission
+          boundary that governs them. The microphone is off until you enable it.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!desktop}
+          onClick={() => navigate("/agent")}
+          title={desktop ? "Open the Agent workspace" : "Available in the desktop app"}
+        >
+          {desktop ? "Open Agent workspace" : "Desktop app only"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatBytes(bytes: number | null): string {  if (bytes == null) return "—";
   if (bytes < 1024) return `${bytes} B`;
   const units = ["B", "KB", "MB", "GB", "TB"];
   let v = bytes;

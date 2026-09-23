@@ -80,9 +80,9 @@ describe("connectorAuthStore", () => {
   });
 });
 
-describe("connector connection metadata + cursors (v11, additive through v12)", () => {
-  it("schema is v12 with Phase 7 tables intact", () => {
-    assert.equal(getSchemaVersion(), 12);
+describe("connector connection metadata + cursors (v11, additive through v13)", () => {
+  it("schema is v13 with Phase 7 tables intact", () => {
+    assert.equal(getSchemaVersion(), 14);
     const db = getDb(app);
     for (const t of ["connector_connections", "connector_cursors", "mcp_servers"]) {
       const row = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(t);

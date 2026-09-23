@@ -86,6 +86,29 @@ export interface Message {
   agentRunId?: string;
   /** True while tokens are still streaming for this assistant message */
   streaming?: boolean;
+  /**
+   * Unified conversation model (Final Architecture Pass):
+   * - inputSource: how this turn entered the canonical conversation (text/voice).
+   * - taskId: OpenCode task spawned from this turn (conversation may own many tasks).
+   * - executionStatus: last known task lifecycle state for inline rendering.
+   */
+  inputSource?: "text" | "voice";
+  taskId?: string;
+  /**
+   * Ask-path permission prompts auto-denied by the binary, surfaced for
+   * selection in the Openbentt UI (run-as-task goes through our approval
+   * bridge instead).
+   */
+  askPermissionRequests?: string[];
+  executionStatus?:
+    | "queued"
+    | "starting"
+    | "running"
+    | "waiting_for_permission"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "crashed";
 }
 
 export interface Chat {
@@ -94,6 +117,14 @@ export interface Chat {
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
+  /**
+   * Unified conversation model: null/undefined = global chat,
+   * set = project workspace context. Same chat system + composer;
+   * only the context boundary differs.
+   */
+  projectId?: string | null;
+  /** Ordered OpenCode task ids spawned from this conversation (execution history). */
+  taskIds?: string[];
 }
 
 /**

@@ -7,7 +7,7 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 14;
 
 export function getSchemaVersion() {
   return SCHEMA_VERSION;
@@ -92,6 +92,8 @@ function runMigrations(db) {
   if (v < 10) migrateV10(db);
   if (v < 11) migrateV11(db);
   if (v < 12) migrateV12(db);
+  if (v < 13) migrateV13(db);
+  if (v < 14) migrateV14(db);
 
   if (v < SCHEMA_VERSION) {
     db.prepare("DELETE FROM schema_version").run();
@@ -641,6 +643,65 @@ export function migrateV12(db) {
       updated_at TEXT NOT NULL
     );
   `);
+}
+
+export function migrateV13(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS agent_tasks (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL DEFAULT '',
+      prompt TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT 'UNKNOWN',
+      mode TEXT NOT NULL DEFAULT 'build',
+      workspace_id TEXT NOT NULL DEFAULT '',
+      workspace_root TEXT NOT NULL DEFAULT '',
+      workspace_name TEXT NOT NULL DEFAULT '',
+      session_id TEXT,
+      status TEXT NOT NULL DEFAULT 'QUEUED',
+      provider TEXT,
+      model TEXT,
+      provider_status TEXT,
+      error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_atasks_status ON agent_tasks(status, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS agent_sessions (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL DEFAULT '',
+      task_id TEXT,
+      status TEXT NOT NULL DEFAULT 'READY',
+      opencode_session_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS agent_events (
+      event_id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      session_id TEXT NOT NULL DEFAULT 'unknown',
+      type TEXT NOT NULL,
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_aevents_task ON agent_events(task_id, created_at ASC);
+    CREATE TABLE IF NOT EXISTS agent_runtime_meta (
+      key TEXT PRIMARY KEY,
+      value_json TEXT NOT NULL DEFAULT '{}',
+      updated_at TEXT NOT NULL
+    );
+  `);
+}
+
+/**
+ * v14 (Phase 3, additive only): input modality on agent tasks.
+ * `input_source` is TEXT or VOICE metadata — voice changes nothing about
+ * routing, policy, or approvals.
+ */
+export function migrateV14(db) {
+  const cols = db.prepare("PRAGMA table_info(agent_tasks)").all().map((c) => c.name);
+  if (!cols.includes("input_source")) {
+    db.exec("ALTER TABLE agent_tasks ADD COLUMN input_source TEXT NOT NULL DEFAULT 'text';");
+  }
 }
 
 export function hasActiveRechunkJob(app, projectId) {

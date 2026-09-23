@@ -2,13 +2,29 @@
  * Desktop credential vault — Electron safeStorage when available.
  * Keys: provider_api_key, brave_search_api_key (never in renderer localStorage).
  */
-import { safeStorage } from "electron";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import { createRequire } from "node:module";
+
+/* Lazy safeStorage (Phase 2): `import { safeStorage } from "electron"` throws
+ * or yields undefined under plain node:test. Resolve lazily and degrade to
+ * the restricted-permission fallback file, mirroring connectorAuthStore. */
+const requireNode = createRequire(import.meta.url);
+let electronSafeStorage;
+try {
+  electronSafeStorage = requireNode("electron")?.safeStorage;
+} catch {
+  electronSafeStorage = undefined;
+}
+const safeStorage = {
+  isEncryptionAvailable: () => Boolean(electronSafeStorage?.isEncryptionAvailable?.()),
+  encryptString: (s) => electronSafeStorage.encryptString(s),
+  decryptString: (b) => electronSafeStorage.decryptString(b),
+};
 
 /** @type {ReadonlySet<string>} */
-export const SECRET_VAULT_KEYS = new Set(["provider_api_key", "brave_search_api_key"]);
+export const SECRET_VAULT_KEYS = new Set(["provider_api_key", "brave_search_api_key", "omniroute_local_key"]);
 
 /**
  * @param {import('electron').App} app

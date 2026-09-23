@@ -20,22 +20,23 @@ import { AccountMenu } from "@/components/AccountMenu";
 import { LocalAIStatus } from "@/components/LocalAIStatus";
 
 /**
- * Phase 9 — one persistent sidebar for the whole app. Every destination is
- * real: Chat, Projects, Library (/labs), Notebook, Benchmark, Providers
- * (/setup), Settings. Recent chats are live ChatContext data.
- * 
+ * Unified product navigation — one Openbentt, not a map of subsystems.
+ * Agent execution lives inside conversations (OpenCode underneath), so
+ * "Agent" is intentionally NOT a top-level destination; /agent remains
+ * only as a hidden advanced/diagnostic view.
+ *
  * Hierarchy:
  * - ACTIONS: Search, New Chat
- * - WORKSPACE: Chat, Projects, Library, Notebook
+ * - WORKSPACE: Chat, Projects, Research, Notebook
  * - MORE: Benchmark, Providers, Settings
- * - RECENT: recent chats
+ * - RECENT: recent conversations (global + project, same model)
  * - BOTTOM: Local AI status, Account
  */
 
 const NAV_ITEMS = [
   { icon: MessageSquare, label: "Chat", id: "chat", to: "/chat" },
   { icon: FolderKanban, label: "Projects", id: "projects", to: "/projects" },
-  { icon: BookOpen, label: "Library", id: "library", to: "/labs" },
+  { icon: BookOpen, label: "Research", id: "research", to: "/labs" },
   { icon: NotebookPen, label: "Notebook", id: "notebook", to: "/notebook" },
 ];
 
@@ -74,8 +75,12 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const handleSelectChat = (chatId: string) => {
+    // Back navigation preserves project context: project conversations
+    // reopen inside their project, global ones in chat. No duplicates.
+    const chat = chats.find((c) => c.id === chatId);
     selectChat(chatId);
-    navigate("/chat");
+    if (chat?.projectId) navigate(`/projects/${chat.projectId}/chat/${chatId}`);
+    else navigate(`/chat/${chatId}`);
     onCloseMobile();
   };
 
@@ -158,7 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-50 flex flex-col",
+        "fixed inset-y-0 left-0 z-[var(--z-sidebar)] flex flex-col",
         "bg-[#101314]",
         "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
         isMobile

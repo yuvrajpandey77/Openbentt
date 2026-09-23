@@ -39,6 +39,7 @@ import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRoute
 import { useLocalGgufRegistryModels } from "@/hooks/useLocalGgufRegistryModels";
 import { shortModelLabel } from "@/lib/openrouter";
 import { dedupeModels, normalizeApiConfig, canSendChat, canSendMessage, type MessageAttachment } from "@/types/chat";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 import { parseGgufRegistryId } from "@/lib/localGguf/ids";
 import { Link } from "react-router-dom";
 import { getComposerPlaceholder } from "@/lib/composerPlaceholder";
@@ -80,6 +81,11 @@ import {
   imageUnsupportedMessage,
   modelSupportsImages,
 } from "@/lib/attachmentModelSupport";
+import { ExecutionBadge } from "@/components/conversation/ExecutionBadge";
+import { VoiceInputButton } from "@/components/conversation/VoiceInputButton";
+import { WorkspaceNeededBanner } from "@/components/conversation/WorkspaceNeededBanner";
+import { WorkspaceSelector } from "@/components/conversation/WorkspaceSelector";
+import { LayerDownBanner } from "@/components/conversation/LayerDownBanner";
 
 
 interface ChatInputProps {
@@ -132,7 +138,13 @@ const ChatInput: React.FC<ChatInputProps> = ({
     clearPendingComposer,
     chats,
     currentChatId,
+    openCodeLayer,
+    openCodeModel,
+    setOpenCodeModel,
+    unifiedChatReady,
   } = useChat();
+  /** Universal layer: chat runs on OpenCode — OpenCode models, no keys, no maze. */
+  const layerActive = openCodeLayer.available;
   const { effectiveModel } = useLocalAI();
   /** Bumps when localStorage consent changes so web /chat re-reads getLocalWeightsConsent(). */
   const [localConsentTick, setLocalConsentTick] = useState(0);
@@ -265,7 +277,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
   }, [message, attachments, pathKey]);
 
   const handleSendMessage = async () => {
-    if (apiConfig.comparisonEnabled && dedupeModels(apiConfig.comparisonModelIds).length < 2) {
+    // Universal layer: single OpenCode model — no tiling, gateway decides vision.
+    if (!layerActive && apiConfig.comparisonEnabled && dedupeModels(apiConfig.comparisonModelIds).length < 2) {
       toast({
         title: "Pick at least two models",
         description: "Open Compare in the extras menu and select 2–4 models.",
@@ -273,14 +286,16 @@ const ChatInput: React.FC<ChatInputProps> = ({
       });
       return;
     }
-    const unsupportedVision = findUnsupportedVisionAttachments(attachments, apiConfig, currentModelMeta);
-    if (unsupportedVision.length > 0) {
-      toast({
-        title: "Images not supported",
-        description: imageUnsupportedMessage(apiConfig.model),
-        variant: "destructive",
-      });
-      return;
+    if (!layerActive) {
+      const unsupportedVision = findUnsupportedVisionAttachments(attachments, apiConfig, currentModelMeta);
+      if (unsupportedVision.length > 0) {
+        toast({
+          title: "Images not supported",
+          description: imageUnsupportedMessage(apiConfig.model),
+          variant: "destructive",
+        });
+        return;
+      }
     }
     const t = message.trim();
     if ((!t && attachments.length === 0) || isLoading) return;
@@ -484,8 +499,31 @@ const ChatInput: React.FC<ChatInputProps> = ({
         onChange={onFilePick}
       />
       <div className={cn("mx-auto space-y-3", isStudio ? "max-w-none" : "max-w-5xl")}>
-        {/* On-device model consent bar — only shown before user consents */}
-        {!isStudio && <LocalOnDeviceModelBar />}
+        {/* On-device model consent bar — legacy path only; hidden on the OpenCode layer */}
+        {!isStudio && !layerActive && <LocalOnDeviceModelBar />}
+        {/* Unified execution: workspace prompt appears inline, same composer. */}
+        {!isStudio && <WorkspaceNeededBanner />}
+        {/* Desktop layer-down: one banner, one click — never the maze. */}
+        {!isStudio && <LayerDownBanner />}
+        {/* Always-visible working folder / project control (desktop). */}
+        {!isStudio && <WorkspaceSelector />}
+
+        {/* Web-only fallback: explain why sending is blocked (desktop uses LayerDownBanner). */}
+        {!isStudio && !layerActive && !isDesktopApp() && !isLoadingConfig && !canSendMessage(apiConfig) && (
+          <Alert variant="default" className="border-primary/40 bg-primary/5 py-2">
+            <AlertTitle className="text-xs">Set up AI to send messages</AlertTitle>
+            <AlertDescription className="text-[11px]">
+              {apiConfig.aiProvider === "local_gguf"
+                ? "Download a GGUF in Labs, then pick it in Settings → AI & models."
+                : apiConfig.aiProvider === "webgpu_gemma"
+                  ? "Enable the on-device model in Settings, or switch to OpenRouter with an API key."
+                  : "Add an OpenRouter API key in Settings → AI & models (sidebar ⚙️), or use the desktop app where OpenCode answers with no key."}{" "}
+              <Link to="/setup" className="font-medium text-primary hover:underline">
+                Open setup
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {isStudio && !canSendChat(apiConfig) && !isLoadingConfig && (
           <Alert variant="default" className="border-primary/40 bg-primary/5 py-2">
@@ -505,6 +543,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         )}
 
         {!isStudio &&
+          !layerActive &&
           !isWebClient() &&
           apiConfig.aiProvider === "local_gguf" &&
           canSendChat(apiConfig) &&
@@ -590,13 +629,16 @@ const ChatInput: React.FC<ChatInputProps> = ({
             onKeyDown={handleKeyDown}
             placeholder={
               placeholderOverride ??
-              getComposerPlaceholder(apiConfig, {
-                isLoadingConfig,
-                workspacePlaceholder: workspaceMeta?.composerPlaceholder,
-                comparisonEnabled: apiConfig.comparisonEnabled,
-              })
+              (layerActive
+                ? "Ask anything, or tell OpenCode what to build, fix, or plan…"
+                : getComposerPlaceholder(apiConfig, {
+                    isLoadingConfig,
+                    workspacePlaceholder: workspaceMeta?.composerPlaceholder,
+                    comparisonEnabled: apiConfig.comparisonEnabled,
+                  }))
             }
-            disabled={isLoading || (!isStudio && (isLoadingConfig || !canSendMessage(apiConfig)))}
+            /* Universal layer: the box is always writable; send-time guards explain. */
+            disabled={isLoading}
             className={cn(
               "resize-none border-0 bg-transparent px-3 text-[15px] leading-relaxed text-foreground shadow-none outline-none placeholder:text-muted-foreground/75 focus:border-0 focus:outline-none focus-visible:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:text-base",
               isStudio
@@ -647,38 +689,79 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     <Bot size={isStudio ? 14 : 14} className="shrink-0 text-muted-foreground" />
                   )}
                   <span className="min-w-0 truncate text-left font-medium">
-                    {effectiveModel
-                      ? `${shortModelLabel(effectiveModel.modelId || "")} · ${effectiveModel.location === "local" ? "Local" : "Cloud"}`
-                      : shortModelLabel(apiConfig.model)}
+                    {layerActive
+                      ? `${shortModelLabel(openCodeModel)} · OpenCode`
+                      : effectiveModel
+                        ? `${shortModelLabel(effectiveModel.modelId || "")} · ${effectiveModel.location === "local" ? "Local" : "Cloud"}`
+                        : shortModelLabel(apiConfig.model)}
                   </span>
                   <ChevronDown size={12} className="shrink-0" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="flex max-h-[min(70vh,420px)] w-[min(100vw-2rem,28rem)] flex-col overflow-hidden">
-                <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border/60">
-                  {modelsLoading && "Loading models…"}
-                  {modelsError && "Could not load models — check key or try Settings."}
-                  {!modelsLoading && !modelsError && `${selectable.length} models available`}
-                </div>
-                <div className="max-h-80 overflow-y-auto p-1">
-                  {selectable.map((m) => (
-                    <DropdownMenuItem
-                      key={m.id}
-                      onClick={() => handleModelChange(m.id)}
-                      className="flex cursor-pointer flex-col items-stretch gap-2 py-2.5"
-                    >
-                      <div className="flex w-full items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1 text-left">
-                          <span className="font-medium leading-tight">{m.name || shortModelLabel(m.id)}</span>
-                          <span className="block break-all text-[11px] text-muted-foreground">{m.id}</span>
-                        </div>
-                        <ModelCapabilityBadges modelId={m.id} meta={m} compact className="shrink-0" />
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
-                </div>
+                {layerActive ? (
+                  <>
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border/60">
+                      {openCodeLayer.checking
+                        ? "Loading OpenCode models…"
+                        : `${openCodeLayer.models.length} OpenCode model${openCodeLayer.models.length === 1 ? "" : "s"} · free first · no key needed`}
+                    </div>
+                    <div className="max-h-80 overflow-y-auto p-1">
+                      {openCodeLayer.models.map((m) => (
+                        <DropdownMenuItem
+                          key={m.id}
+                          onClick={() => setOpenCodeModel(m.id)}
+                          className="flex cursor-pointer flex-col items-stretch gap-1 py-2.5"
+                        >
+                          <div className="flex w-full items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1 text-left">
+                              <span className="font-medium leading-tight">
+                                {m.displayName || shortModelLabel(m.id)}
+                                {openCodeModel === m.id && <span className="ml-1 text-primary">✓</span>}
+                              </span>
+                              <span className="block break-all text-[11px] text-muted-foreground">{m.id}</span>
+                            </div>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                      {openCodeLayer.models.length === 0 && !openCodeLayer.checking && (
+                        <p className="px-2 py-3 text-xs text-muted-foreground">
+                          No models reported by the local gateway. Check Setup → Execution.
+                        </p>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border/60">
+                      {modelsLoading && "Loading models…"}
+                      {modelsError && "Could not load models — check key or try Settings."}
+                      {!modelsLoading && !modelsError && `${selectable.length} models available`}
+                    </div>
+                    <div className="max-h-80 overflow-y-auto p-1">
+                      {selectable.map((m) => (
+                        <DropdownMenuItem
+                          key={m.id}
+                          onClick={() => handleModelChange(m.id)}
+                          className="flex cursor-pointer flex-col items-stretch gap-2 py-2.5"
+                        >
+                          <div className="flex w-full items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1 text-left">
+                              <span className="font-medium leading-tight">{m.name || shortModelLabel(m.id)}</span>
+                              <span className="block break-all text-[11px] text-muted-foreground">{m.id}</span>
+                            </div>
+                            <ModelCapabilityBadges modelId={m.id} meta={m} compact className="shrink-0" />
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* Execution engine indicator (default: OpenCode; informational, not a mode) */}
+            {!isStudio && <ExecutionBadge className="hidden shrink-0 sm:inline-flex" />}
 
             {/* Single attach button */}
             <TooltipProvider>
@@ -690,7 +773,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     className="h-8 w-8 shrink-0 p-0 border border-border/60 bg-background/80 md:h-9 md:w-9"
                     type="button"
                     onClick={() => fileRef.current?.click()}
-                    disabled={!canSendChat(apiConfig) || isLoading}
+                    disabled={(!unifiedChatReady) || isLoading}
                   >
                     <Paperclip size={14} />
                   </Button>
@@ -698,6 +781,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 <TooltipContent>Attach — image, audio, video, or PDF</TooltipContent>
               </Tooltip>
             </TooltipProvider>
+
+            {/* Voice enters the same canonical conversation (text/voice = metadata) */}
+            {!isStudio && <VoiceInputButton />}
 
             {/* Extras toggle ··· */}
             {!isStudio && (
@@ -862,12 +948,13 @@ const ChatInput: React.FC<ChatInputProps> = ({
                         ? false
                         : ((!message.trim() && attachments.length === 0) ||
                             isLoadingConfig ||
-                            (isStudio
-                              ? !canSendChat(apiConfig) ||
-                                (apiConfig.aiProvider === "local_gguf" && !canSendMessage(apiConfig)) ||
-                                (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())
-                              : !canSendMessage(apiConfig) ||
-                                (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())))
+                            (!layerActive &&
+                              (isStudio
+                                ? !canSendChat(apiConfig) ||
+                                  (apiConfig.aiProvider === "local_gguf" && !canSendMessage(apiConfig)) ||
+                                  (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())
+                                : !canSendMessage(apiConfig) ||
+                                  (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()))))
                     }
                     size="sm"
                     className={cn(

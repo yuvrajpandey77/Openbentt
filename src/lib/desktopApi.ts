@@ -37,6 +37,8 @@ export interface OpenbenttDesktopApi {
   quitApp?(): Promise<void>;
   showAbout?(): Promise<void>;
   openExternal?(url: string): Promise<{ ok: boolean }>;
+  /** Native folder picker (Cursor/VS Code style). Null when cancelled/unavailable. */
+  pickWorkspaceFolder?(currentPath?: string): Promise<{ path: string | null }>;
   onMenuNavigate?(cb: (path: string) => void): () => void;
   getAppVersion(): Promise<string>;
   checkForUpdates(): Promise<{ ok: boolean; updateInfo?: string | null; message?: string }>;

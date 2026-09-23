@@ -36,6 +36,9 @@ const DownloadPage = lazy(() => import("./pages/DownloadPage"));
 const HomeLandingPage = lazy(() => import("./pages/HomeLandingPage"));
 const SetupPage = lazy(() => import("./pages/SetupPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const AgentPage = lazy(() => import("./pages/AgentPage"));
+const ProjectWorkspacePage = lazy(() => import("./pages/ProjectWorkspacePage"));
+const ConversationRoutePage = lazy(() => import("./pages/ConversationRoutePage"));
 
 const queryClient = new QueryClient();
 
@@ -141,6 +144,12 @@ const App = () => (
                         <Route element={<AppLayout />}>
                           <Route element={<WebWorkspaceRouteGuard />}>
                             {isDesktopApp() && <Route path="chat" element={<FeatureErrorBoundary feature="chat"><HomeChatArea /></FeatureErrorBoundary>} />}
+                            {isDesktopApp() && <Route path="chat/:conversationId" element={<FeatureErrorBoundary feature="chat"><ConversationRoutePage /></FeatureErrorBoundary>} />}
+                            {/* Project workspace: ONE conversation model, projectId as context boundary */}
+                            <Route path="projects/:projectId" element={<FeatureErrorBoundary feature="project workspace"><ProjectWorkspacePage /></FeatureErrorBoundary>} />
+                            <Route path="projects/:projectId/chat/:conversationId" element={<FeatureErrorBoundary feature="project workspace"><ProjectWorkspacePage /></FeatureErrorBoundary>} />
+                            {/* Hidden advanced/diagnostic execution view (not a product destination) */}
+                            {isDesktopApp() && <Route path="agent" element={<FeatureErrorBoundary feature="agent"><AgentPage /></FeatureErrorBoundary>} />}
                             <Route path="labs" element={<FeatureErrorBoundary feature="research labs"><ResearchLabsPage /></FeatureErrorBoundary>} />
                             <Route path="settings" element={<FeatureErrorBoundary feature="settings"><SettingsPage /></FeatureErrorBoundary>} />
                             <Route path="write" element={<FeatureErrorBoundary feature="latex workspace"><DesktopWriteRedirect /></FeatureErrorBoundary>} />
