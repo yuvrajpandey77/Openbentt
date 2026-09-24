@@ -822,10 +822,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                   </>
                 )}
               </DropdownMenuContent>
-            </DropdownMenu>
-
-             {/* Voice enters the same canonical conversation (text/voice = metadata) */}
-             {!isStudio && <VoiceInputButton setComposerMessage={setMessage} level={voiceLevel} elapsedMs={voiceElapsedMs} />}
+             </DropdownMenu>
 
              {/* Single attach button */}
             <TooltipProvider>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useChat } from "@/context/ChatContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
@@ -121,6 +121,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const projectChats = activeProjectId
     ? chats.filter((c) => c.projectId === activeProjectId).slice(-20).reverse()
     : [];
+  const [showAllChats, setShowAllChats] = useState(false);
 
   const renderNavItem = (item: { icon: React.ElementType; label: string; id: string; to: string }) => {
     const active =
@@ -272,39 +273,9 @@ const Sidebar: React.FC<SidebarProps> = ({
             onCloseMobile();
           })}
            {renderActionButton("new", "New chat", "⌘N", Plus, handleNewChat)}
-         </nav>
+          </nav>
 
-         {/* RECENT CHATS */}
-         {showLabels && recentChats.length > 0 && (
-           <>
-             <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
-             <p className={cn("sidebar-label mb-2 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
-               Recent
-             </p>
-             <nav className="flex shrink-0 flex-col gap-0.5" aria-label="Recent chats">
-               {recentChats.slice(0, 10).map((chat) => (
-                 <button
-                   key={chat.id}
-                   type="button"
-                   onClick={() => handleSelectChat(chat.id)}
-                   title={chat.title || "Untitled chat"}
-                   className={cn(
-                     "flex w-full items-center gap-2 rounded-lg py-1 px-2 text-left text-[12px] transition-colors duration-150",
-                     currentChatId === chat.id
-                       ? "bg-accent/10 text-accent-foreground font-medium"
-                       : "text-muted-foreground hover:bg-accent/5 hover:text-foreground"
-                   )}
-                   aria-current={currentChatId === chat.id ? "true" : undefined}
-                 >
-                   <MessageSquare className="h-3 w-3 shrink-0" strokeWidth={1.5} />
-                   <span className="truncate">{chat.title || "Untitled chat"}</span>
-                 </button>
-               ))}
-             </nav>
-           </>
-         )}
-
-         {/* HOME */}
+          {/* HOME */}
         {showLabels && (
           <>
             <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
@@ -396,18 +367,18 @@ const Sidebar: React.FC<SidebarProps> = ({
           </>
         )}
 
-        {/* RECENT CHATS */}
+        {/* RECENT CHATS — 4 visible, show more/less toggle at bottom. */}
         {showLabels && (
           <>
             <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex flex-1 flex-col overflow-hidden">
               {recentChats.length > 0 ? (
                 <>
                   <p className={cn("sidebar-label mb-2 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
                     Recent
                   </p>
                   <div className={cn("flex-1 space-y-0.5 overflow-y-auto", isMobile ? "px-3" : "pr-1")}>
-                    {recentChats.map((chat) => (
+                    {recentChats.slice(0, showAllChats ? recentChats.length : 4).map((chat) => (
                       <button
                         key={chat.id}
                         type="button"
@@ -422,10 +393,20 @@ const Sidebar: React.FC<SidebarProps> = ({
                         )}
                         aria-current={currentChatId === chat.id ? "true" : undefined}
                       >
+                        <MessageSquare className="h-3 w-3 shrink-0" strokeWidth={1.5} />
                         <span className="truncate">{chat.title || "Untitled chat"}</span>
                       </button>
                     ))}
                   </div>
+                  {recentChats.length > 4 && (
+                    <button
+                      type="button"
+                      className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2"
+                      onClick={() => setShowAllChats((v) => !v)}
+                    >
+                      {showAllChats ? "Show less" : `Show all (${recentChats.length})`}
+                    </button>
+                  )}
                 </>
               ) : (
                 <p className={cn("text-xs text-[#96A0AB]/80", isMobile ? "px-5" : "px-2")}>

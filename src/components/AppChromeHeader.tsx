@@ -40,7 +40,7 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 shrink-0"
+              className="h-9 w-9 shrink-0 mr-1"
               onClick={() => navigate(-1)}
               aria-label="Go back"
             >

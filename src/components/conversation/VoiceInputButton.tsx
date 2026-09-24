@@ -85,10 +85,10 @@ const DesktopVoiceButton: React.FC<ButtonParts> = ({
           : error ?? (listening ? `Listening — click again to finish${elapsedMs ? ` (${Math.floor(elapsedMs / 1000)}s)` : ""}` : "Speak — enters the same conversation");
 
   const barClass = level < 0.3
-    ? "bg-emerald-400"
+    ? "bg-primary/60"
     : level < 0.7
-    ? "bg-amber-400"
-    : "bg-red-400";
+    ? "bg-primary/80"
+    : "bg-primary";
 
   return (
     <>
@@ -114,7 +114,7 @@ const DesktopVoiceButton: React.FC<ButtonParts> = ({
       {listening && (
         <div className="w-full rounded-md border border-border/40 bg-muted/15 px-2 py-1.5">
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-            <span className="w-2 shrink-0">{listening ? <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" /> : null}</span>
+            <span className="w-2 shrink-0">{listening ? <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-muted-foreground" /> : null}</span>
             <span>{statusText}</span>
           </div>
           <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-border">
