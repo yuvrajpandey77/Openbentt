@@ -221,6 +221,7 @@ contextBridge.exposeInMainWorld("openbenttOllama", {
  * untrusted input, and voice can never approve permissions. */
 contextBridge.exposeInMainWorld("openbenttAgent", {
   detectOpenCode: () => ipcRenderer.invoke("agent:detectOpenCode"),
+  defaultWorkspace: () => ipcRenderer.invoke("agent:defaultWorkspace"),
   getStatus: () => ipcRenderer.invoke("agent:status"),
   createTask: (args) => ipcRenderer.invoke("agent:createTask", args),
   startTask: (taskId) => ipcRenderer.invoke("agent:startTask", { taskId }),

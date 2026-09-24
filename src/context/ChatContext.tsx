@@ -728,19 +728,22 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!hasOpenCodeDesktopApi()) return false;
 
       const workspaceRoot = resolveExecutionWorkspace(args.projectId);
-      if (!workspaceRoot) {
-        // Execution needs files but no workspace is selected: contextual
-        // prompt inline (never a technical error, never Settings).
-        setWorkspaceNeeded(true);
+      const usingDefaultWorkspace = !workspaceRoot;
+      // No folder selected yet → run in the default temporary workspace
+      // (Electron falls back to its sandbox dir), but tell the user clearly
+      // so they can pick a real folder for a real codebase.
+      if (usingDefaultWorkspace) {
         patchMessageById(args.chatId, args.assistantMessageId, (m) => ({
           ...m,
-          executionStatus: undefined,
-          content:
-            "This task needs a workspace before I can run it.\n\nChoose a project folder (or create one), then send the message again — I'll pick up right here in this conversation.",
-          streaming: false,
+          executionStatus: "starting",
+          agentTrace: [
+            {
+              step: "agent.started",
+              detail:
+                "Running in the default temporary workspace — pick a folder above the input to work in your own codebase.",
+            },
+          ],
         }));
-        setIsLoading(false);
-        return true;
       }
 
       // Task continuity: note the previous task in this conversation (if still
@@ -805,7 +808,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         appendTaskToChat(args.chatId, created.id);
         const started = await openCodeAgentApi.startTask(created.id);
         setExecutionTasks((prev) => ({ ...prev, [created.id]: started }));
-        setExecutionDrawerTaskId((cur) => cur ?? created.id);
         return true;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Execution failed to start.";

@@ -570,7 +570,7 @@ export async function createTask(app, { title, prompt, workspaceRoot, displayNam
     if (!/^[\w][\w.:/@+-]*$/.test(m)) throw new Error("Invalid model");
     cleanModel = m;
   }
-  const root = await resolveWorkspaceRoot(workspaceRoot);
+  const root = workspaceRoot ? await resolveWorkspaceRoot(workspaceRoot) : askSandboxDir();
   const category = classifyTask(cleanPrompt);
   const id = newTaskId();
   const now = nowIso();
@@ -1350,6 +1350,7 @@ export function registerOpenCodeIpc(ipcMain, app) {
     }).catch(() => {});
   } catch { /* noop */ }
   ipcMain.handle("agent:detectOpenCode", async () => detectOpenCode({ refresh: true }));
+  ipcMain.handle("agent:defaultWorkspace", async () => ({ path: askSandboxDir() }));
   ipcMain.handle("agent:status", async () => ({
     runtime: getRuntimeState(),
     tasks: listTasks().length,

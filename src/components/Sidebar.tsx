@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useChat } from "@/context/ChatContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
@@ -25,6 +25,11 @@ import {
   GitBranch,
   Plug,
   Stethoscope,
+  ChevronRight,
+  ChevronDown,
+  RefreshCw,
+  FolderTree,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -114,6 +119,49 @@ const Sidebar: React.FC<SidebarProps> = ({
     onCloseMobile();
   };
 
+  const fetchFilesBrowser = async () => {
+    const { resolveExecutionWorkspace } = await import("@/context/ChatContext");
+    const { openCodeAgentApi } = await import("@/lib/agent/openCodeAgentApi");
+    const workspaceRoot = resolveExecutionWorkspace(activeProjectId);
+    let root = workspaceRoot;
+    if (!root) {
+      try {
+        const res = await openCodeAgentApi.defaultWorkspace();
+        root = res?.path;
+      } catch {
+        root = "";
+      }
+    }
+    if (!root) {
+      setFilesBrowserError("No workspace folder selected");
+      return;
+    }
+    setFilesBrowserLoading(true);
+    setFilesBrowserError(null);
+    try {
+      const api = getDesktopApi();
+      if (!api?.workspaceList) {
+        setFilesBrowserError("File listing not available");
+        return;
+      }
+      const entries = await api.workspaceList(root, ".", 2);
+      setFilesBrowserData(entries);
+    } catch (e) {
+      setFilesBrowserError(e instanceof Error ? e.message : "Failed to load files");
+    } finally {
+      setFilesBrowserLoading(false);
+    }
+  };
+
+  const toggleDir = (dirPath: string) => {
+    setExpandedDirs((prev) => {
+      const next = new Set(prev);
+      if (next.has(dirPath)) next.delete(dirPath);
+      else next.add(dirPath);
+      return next;
+    });
+  };
+
   const iconOnly = !isMobile && collapsed;
   const showLabels = isMobile || !collapsed;
 
@@ -123,6 +171,11 @@ const Sidebar: React.FC<SidebarProps> = ({
     : [];
   const [showAllChats, setShowAllChats] = useState(false);
   const [showMoreNav, setShowMoreNav] = useState(false);
+  const [showFilesBrowser, setShowFilesBrowser] = useState(false);
+  const [filesBrowserData, setFilesBrowserData] = useState<{ path: string; kind: string }[] | null>(null);
+  const [filesBrowserLoading, setFilesBrowserLoading] = useState(false);
+  const [filesBrowserError, setFilesBrowserError] = useState<string | null>(null);
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
 
   const renderNavItem = (item: { icon: React.ElementType; label: string; id: string; to: string }) => {
     const active =
@@ -380,6 +433,78 @@ const Sidebar: React.FC<SidebarProps> = ({
           </>
         )}
 
+        {/* FILES BROWSER — shows workspace files */}
+        {showLabels && (
+          <>
+            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
+            <div className="flex items-center justify-between mb-2">
+              <p className={cn("sidebar-label uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
+                Files
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowFilesBrowser((v) => !v);
+                  if (!v) fetchFilesBrowser();
+                }}
+                className={cn(
+                  "flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground p-1 rounded",
+                  showFilesBrowser && "bg-muted"
+                )}
+                aria-expanded={showFilesBrowser}
+              >
+                <ChevronRight className={cn("h-3 w-3 transition-transform", showFilesBrowser && "rotate-90")} />
+                <span className="hidden md:inline">{showFilesBrowser ? "Hide" : "Show"}</span>
+              </button>
+            </div>
+            {showFilesBrowser && (
+              <div className={cn("space-y-1 overflow-y-auto max-h-64", isMobile ? "px-3" : "pr-1")}>
+                {filesBrowserLoading ? (
+                  <div className="flex items-center justify-center py-4 text-[11px] text-muted-foreground">
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                    Loading files…
+                  </div>
+                ) : filesBrowserError ? (
+                  <div className="flex flex-col items-center gap-1.5 py-4 text-[11px] text-muted-foreground">
+                    <p>{filesBrowserError}</p>
+                    <button
+                      type="button"
+                      onClick={fetchFilesBrowser}
+                      className="text-primary hover:underline text-[10px]"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : filesBrowserData ? (
+                  <>
+                    {filesBrowserData.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground/70 py-2">Empty folder</p>
+                    ) : (
+                      filesBrowserData.map((entry) => (
+                        <FileBrowserEntry
+                          key={entry.path}
+                          entry={entry}
+                          expandedDirs={expandedDirs}
+                          onToggleDir={toggleDir}
+                          isMobile={isMobile}
+                        />
+                      ))
+                    )}
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={fetchFilesBrowser}
+                    className="w-full text-left text-[11px] text-primary hover:underline py-2"
+                  >
+                    Load workspace files
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
         {/* RECENT CHATS — 4 visible, show more/less toggle at bottom. */}
         {showLabels && (
           <>
@@ -449,3 +574,100 @@ const Sidebar: React.FC<SidebarProps> = ({
 };
 
 export default Sidebar;
+
+function FileBrowserEntry({
+  entry,
+  expandedDirs,
+  onToggleDir,
+  isMobile,
+}: {
+  entry: { path: string; kind: string };
+  expandedDirs: Set<string>;
+  onToggleDir: (path: string) => void;
+  isMobile: boolean;
+}) {
+  const isDir = entry.kind === "directory";
+  const isExpanded = expandedDirs.has(entry.path);
+  const name = entry.path.split("/").pop() || entry.path;
+
+  if (!isDir) {
+    return (
+      <div className="flex items-center gap-2 pl-6 py-0.5 text-[11px] text-muted-foreground/80">
+        <FileText className="h-3 w-3 shrink-0" />
+        <span className="truncate">{name}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col">
+      <button
+        type="button"
+        onClick={() => onToggleDir(entry.path)}
+        className="flex items-center gap-2 pl-4 py-0.5 text-left text-[11px] text-muted-foreground hover:text-foreground rounded"
+        aria-expanded={isExpanded}
+      >
+        <ChevronRight className={cn("h-3 w-3 shrink-0 transition-transform", isExpanded && "rotate-90")} />
+        <FolderTree className="h-3 w-3 shrink-0" />
+        <span className="truncate">{name}</span>
+      </button>
+      {isExpanded && (
+        <div className="pl-6">
+          <LoadDirContents path={entry.path} expandedDirs={expandedDirs} onToggleDir={onToggleDir} isMobile={isMobile} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LoadDirContents({
+  path: dirPath,
+  expandedDirs,
+  onToggleDir,
+  isMobile,
+}: {
+  path: string;
+  expandedDirs: Set<string>;
+  onToggleDir: (path: string) => void;
+  isMobile: boolean;
+}) {
+  const [entries, setEntries] = useState<{ path: string; kind: string }[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    getDesktopApi()?.workspaceList?.(dirPath, ".", 1).then((res) => {
+      if (!cancelled) {
+        setEntries(res);
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setEntries([]);
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [dirPath]);
+
+  if (loading) {
+    return <div className="flex items-center gap-2 pl-6 py-1 text-[11px] text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" /> Loading…</div>;
+  }
+  if (!entries || entries.length === 0) {
+    return <div className="pl-6 py-1 text-[11px] text-muted-foreground/70">Empty</div>;
+  }
+  return (
+    <>
+      {entries.map((entry) => (
+        <FileBrowserEntry
+          key={entry.path}
+          entry={entry}
+          expandedDirs={expandedDirs}
+          onToggleDir={onToggleDir}
+          isMobile={isMobile}
+        />
+      ))}
+    </>
+  );
+}

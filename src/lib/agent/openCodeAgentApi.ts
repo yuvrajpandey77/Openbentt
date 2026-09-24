@@ -18,6 +18,7 @@ import type {
 
 interface AgentBridge {
   detectOpenCode: () => Promise<OpenCodeDetection>;
+  defaultWorkspace: () => Promise<{ path: string }>;
   getStatus: () => Promise<{ runtime: OpenCodeRuntimeState; tasks: number; sessions: number }>;
   createTask: (args: {
     prompt: string;
@@ -104,6 +105,9 @@ function requireBridge(): AgentBridge {
 export const openCodeAgentApi = {
   detectOpenCode(): Promise<OpenCodeDetection> {
     return requireBridge().detectOpenCode();
+  },
+  defaultWorkspace(): Promise<{ path: string }> {
+    return requireBridge().defaultWorkspace();
   },
   getStatus() {
     return requireBridge().getStatus();
