@@ -79,21 +79,22 @@ export const ModelPicker: React.FC<{ align?: "start" | "end" | "center" }> = ({ 
                   type="button"
                   onClick={() => selectLocalModel(name)}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent",
-                    active && "bg-accent"
+                    "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs",
+                    "hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground",
+                    active && "bg-accent text-accent-foreground"
                   )}
                 >
-                  <Cpu size={14} className="shrink-0 text-primary" />
+                  <Cpu size={14} className="shrink-0 text-primary group-hover:text-accent-foreground" />
                   <span className="min-w-0 flex-1 truncate font-medium">{friendlyModelLabel(name)}</span>
                   {running && (
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" aria-label="Loaded" />
                   )}
                   {preferredModel === name && (
-                    <Badge variant="outline" className="shrink-0 px-1 py-0 text-[10px]">
+                    <Badge variant="outline" className="shrink-0 px-1 py-0 text-[10px] group-hover:border-accent-foreground/40">
                       Preferred
                     </Badge>
                   )}
-                  {active && <Check size={14} className="shrink-0 text-primary" />}
+                  {active && <Check size={14} className="shrink-0 text-primary group-hover:text-accent-foreground" />}
                 </button>
               );
             })}

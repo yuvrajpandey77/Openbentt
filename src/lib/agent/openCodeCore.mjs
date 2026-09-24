@@ -144,8 +144,20 @@ const RESEARCH_SIGNALS = [
 ];
 
 const DOCUMENT_SIGNALS = [
-  /\b(summarize|summarise).{0,30}(pdf|document|doc|paper|report)\b/i,
+  /\b(summarize|summarise).{0,30}(pdf|document|doc|paper|report)/i,
   /\b(pdf|docx)\b/i,
+];
+
+/**
+ * Document-edit intent: the user wants the PROJECT DOCUMENT changed
+ * (rewrite a chapter, fix/add citations, update bibliography). This must
+ * reach OpenCode (CODE) — NOT the read-only research/chat path — so edits
+ * can be written, compiled, and verified. Pure "find/survey" requests have
+ * no edit verb and still route RESEARCH.
+ */
+const DOC_EDIT_SIGNALS = [
+  /\b(add|insert|update|edit|rewrite|revise|fix|delete|remove)\b.{0,40}\b(citation|cite|citations|reference|references|bibliography|chapter|section|thesis|latex|document)\b/i,
+  /\b(citation|cite|citations|reference|references|bibliography)\b.{0,20}\b(in|to|for|of)\b.{0,30}\b(chapter|section|thesis|paper|document|main\.tex)\b/i,
 ];
 
 const SYSTEM_SIGNALS = [
@@ -185,6 +197,7 @@ export function classifyTask(text) {
     // Fall through to content classification unless nothing else matches.
   }
   if (DOCUMENT_SIGNALS.some((r) => r.test(t))) return "DOCUMENT";
+  if (DOC_EDIT_SIGNALS.some((r) => r.test(t))) return "CODE";
   if (RESEARCH_SIGNALS.some((r) => r.test(t))) return "RESEARCH";
   if (SYSTEM_SIGNALS.some((r) => r.test(t))) return "SYSTEM_TASK";
   if (CODE_SIGNALS.some((r) => r.test(t))) return "CODE";

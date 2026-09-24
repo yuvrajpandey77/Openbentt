@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
 import { closeDb } from "./researchDb.mjs";
 import { makeTempUserData } from "./test/researchTestApp.mjs";
 import {
@@ -245,6 +246,22 @@ describe("voiceService Phase 3", () => {
     const st = await ipc.invoke("voice:sttStatus");
     assert.equal(typeof st.stt.loaded, "boolean");
     assert.equal(typeof st.tts.backend, "string");
+  });
+
+  it("STT load self-heals: corrupt cache is wiped and load retried once", async () => {
+    const { LocalWhisperEngine, clearSttCache } = await import("./voiceService.mjs");
+    const engine = new LocalWhisperEngine(ctx.app);
+    // Seed a corrupt cache dir, then verify clearSttCache removes it.
+    const dir = engine.cacheDir();
+    assert.ok(dir);
+    await fs.promises.mkdir(dir, { recursive: true });
+    await fs.promises.writeFile(path.join(dir, "config.json"), "{corrupt");
+    const cleared = await clearSttCache(ctx.app);
+    assert.equal(cleared.ok, true);
+    await assert.rejects(() => fs.promises.stat(dir), /ENOENT/);
+    // clearSttCache is safe to call with no app paths.
+    const noApp = await clearSttCache({ getPath: () => { throw new Error("nope"); } });
+    assert.equal(noApp.ok, false);
   });
 
   it("IPC validates and bounds every input", async () => {

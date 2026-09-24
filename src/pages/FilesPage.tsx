@@ -4,6 +4,7 @@ import { useWorkspace } from "@/context/WorkspaceContext";
 import { getDesktopApi } from "@/lib/desktopApi";
 import { Button } from "@/components/ui/button";
 import { FileText, FolderOpen } from "lucide-react";
+import { FilterInput } from "@/components/FilterInput";
 
 /**
  * Phase J — Files view: a VIEW into the canonical ProjectWorkspace
@@ -14,6 +15,9 @@ const FilesPage: React.FC = () => {
   const [entries, setEntries] = useState<Array<{ path: string; kind: string }>>([]);
   const [preview, setPreview] = useState<{ path: string; text: string; truncated: boolean } | null>(null);
   const [cwd, setCwd] = useState(".");
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const visible = q ? entries.filter((e) => e.path.toLowerCase().includes(q)) : entries;
 
   useEffect(() => {
     setCwd(".");
@@ -79,6 +83,9 @@ const FilesPage: React.FC = () => {
         )}
       </div>
       <p className="mt-1 font-mono text-[11px] text-muted-foreground">/{cwd === "." ? "" : cwd}</p>
+      <div className="mt-2">
+        <FilterInput value={query} onChange={setQuery} placeholder="Filter files…" className="max-w-xs" />
+      </div>
       <div className="mt-3 grid min-h-0 flex-1 grid-cols-1 gap-3 md:grid-cols-2">
         <ul className="min-h-0 space-y-0.5 overflow-y-auto rounded-lg border border-border/60 p-2">
           {cwd !== "." && (
@@ -96,7 +103,7 @@ const FilesPage: React.FC = () => {
               </button>
             </li>
           )}
-          {entries.map((e) => (
+          {visible.map((e) => (
             <li key={e.path}>
               <button
                 type="button"
@@ -108,8 +115,10 @@ const FilesPage: React.FC = () => {
               </button>
             </li>
           ))}
-          {entries.length === 0 && (
-            <li className="px-2 py-3 text-xs text-muted-foreground">Empty folder.</li>
+          {visible.length === 0 && (
+            <li className="px-2 py-3 text-xs text-muted-foreground">
+              {entries.length === 0 ? "Empty folder." : `No files match “${query.trim()}”.`}
+            </li>
           )}
         </ul>
         <div className="min-h-0 overflow-y-auto rounded-lg border border-border/60 bg-muted/10 p-3">

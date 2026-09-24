@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Bot, Cpu, Download, Loader2, RefreshCw, Check } from "lucide-react";
+import { Bot, Cpu, Download, Loader2, RefreshCw, Check, Settings as SettingsIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { useAuth } from "@/context/AuthContext";
@@ -9,6 +9,7 @@ import { normalizeApiConfig } from "@/types/chat";
 import { defaultOllamaBaseUrl } from "@/lib/modelManager/ollamaProbe";
 import { friendlyModelLabel } from "@/lib/ollama/selection";
 import SettingsPanel from "@/components/SettingsPanel";
+import { FeedbackDialog } from "@/components/FeedbackDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,14 +21,31 @@ import { ExecutionSetupSection } from "@/components/conversation/ExecutionSetupS
 const SettingsPage: React.FC = () => {
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 py-6">
-      <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+          <SettingsIcon className="h-5 w-5 text-primary" /> Settings
+        </h1>
+        <span className="ml-auto">
+          <FeedbackDialog />
+        </span>
+      </div>
       <p className="mt-1 text-sm text-muted-foreground">Account, execution, local AI, providers and privacy.</p>
       <div className="mt-5 flex flex-col gap-4 pb-10">
         <AccountCard />
         {isDesktopApp() && <ExecutionReadinessCard />}
         <LocalAICard />
         <AgentVoiceCard />
-        <SettingsPanel />
+        <Card className="border-border/60 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Cpu size={16} className="text-primary" /> AI &amp; models
+            </CardTitle>
+            <CardDescription>Providers, model defaults, reasoning and research depth.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SettingsPanel />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -37,7 +55,7 @@ const SettingsPage: React.FC = () => {
 function ExecutionReadinessCard() {
   const [open, setOpen] = useState(false);
   return (
-    <Card>
+    <Card className="border-border/60 shadow-sm">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Bot size={16} className="text-primary" /> Execution — OpenCode
@@ -63,7 +81,7 @@ function AccountCard() {
   const { status, user, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
   return (
-    <Card>
+    <Card className="border-border/60 shadow-sm">
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Account</CardTitle>
         <CardDescription>
@@ -106,7 +124,7 @@ function AgentVoiceCard() {
   const navigate = useNavigate();
   const desktop = isDesktopApp();
   return (
-    <Card>
+    <Card className="border-border/60 shadow-sm">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Bot size={16} className="text-primary" /> Agent &amp; voice — local
@@ -187,7 +205,7 @@ function LocalAICard() {
     health === "ready" ? "Ready" : health === "checking" ? "Checking…" : health === "no-models" ? "No models" : health === "unsupported" ? "Desktop only" : "Unavailable";
 
   return (
-    <Card>
+    <Card className="border-border/60 shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base">AI &amp; Models — local</CardTitle>

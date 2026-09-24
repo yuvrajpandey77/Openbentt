@@ -51,6 +51,12 @@ export class ErrorBoundary extends React.Component<
             {message}
           </pre>
           <div className="flex flex-wrap gap-2">
+            <a
+              href={`mailto:support@cogerphere.com?subject=${encodeURIComponent("OpenBentt bug report")}&body=${encodeURIComponent(`${message}\n\nOr describe the issue at https://cogerphere.com/contact`)}`}
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted/50"
+            >
+              Report this bug
+            </a>
             <button
               type="button"
               onClick={this.reload}

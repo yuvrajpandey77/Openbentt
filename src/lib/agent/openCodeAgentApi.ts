@@ -78,6 +78,7 @@ interface AgentBridge {
     tts: { backend: string; ok: boolean; error?: string };
   }>;
   ensureVoiceStt: (sessionId?: string) => Promise<unknown>;
+  clearVoiceSttCache: () => Promise<{ ok: boolean; reason?: string }>;
   onVoiceEvent: (cb: (evt: VoiceEvent) => void) => () => void;
 }
 
@@ -190,6 +191,9 @@ export const openCodeAgentApi = {
   },
   ensureVoiceStt(sessionId?: string) {
     return requireBridge().ensureVoiceStt(sessionId);
+  },
+  clearVoiceSttCache() {
+    return requireBridge().clearVoiceSttCache();
   },
   onVoiceEvent(cb: (evt: VoiceEvent) => void): () => void {
     return requireBridge().onVoiceEvent(cb);

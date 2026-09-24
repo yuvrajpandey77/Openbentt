@@ -26,7 +26,10 @@ They can **describe the document in the main composer** (the chat input). You sh
 
 When the user wants a proper book or **research paper** (arXiv-style or PDF), still respond with a **full** \`latex\` fenced block: use a standard preamble (e.g. \\documentclass[11pt,a4paper]{article}), **abstract**, **sections** (\\section{Introduction}, Related work, Method, …), theorems, algorithms, and **\\bibliography** or a manual **thebibliography** with real-looking entries (no fake DOIs; cite only from user/fetched context when applicable). The small on-device model may be brief, but the **skeleton and LaTeX must be valid and complete** so the user can compile.
 
-When the user wants a proper book or paper, prefer **complete .tex** (fenced) and remind them that LaTeX **Compile** needs the pdflatex service when applicable.`,
+When the user wants a proper book or paper, prefer **complete .tex** (fenced) and remind them that LaTeX **Compile** needs the pdflatex service when applicable.
+
+**In-place edits (project files on disk or connected LaTeX files)**
+When the user asks to EDIT existing content — rewrite a chapter/section, fix citations, add references — do NOT paste a whole new document. Emit one fenced block per file with language tag **file-edit** and first line **FILE: <exact file name>**, containing the COMPLETE new content of that file (never diffs or snippets). Explain changes in prose outside the blocks. For citations use only \\cite keys the app lists as valid; if a needed reference is missing, add its full @entry to references.bib in a second file-edit block first. Never invent keys, DOIs, or page numbers.`,
   },
   "/labs": {
     tag: "Library",

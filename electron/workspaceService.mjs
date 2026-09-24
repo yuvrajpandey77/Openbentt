@@ -373,6 +373,85 @@ export function cleanupWorkspaceOnQuit() {
 /* ---------------- undo via the ONE approval authority ---------------- */
 
 const UNDO_TOOL_ID = "workspace.undo";
+const WRITE_TOOL_ID = "workspace.writeFiles";
+const MAX_WRITE_FILES = 10;
+const MAX_WRITE_BYTES = 256 * 1024;
+const WRITE_ALLOWED_EXTS = new Set([".tex", ".bib"]);
+
+/** Validate + snapshot + write chat-approved file edits. Caller must hold a WRITE grant. */
+export async function writeWorkspaceFiles(root, taskKey, files) {
+  const rootReal = await resolveWorkspaceRoot(root);
+  if (!Array.isArray(files) || files.length === 0) throw new Error("No files to write");
+  if (files.length > MAX_WRITE_FILES) throw new Error("Too many files");
+  const plan = [];
+  for (const f of files) {
+    const rel = String(f?.path ?? "");
+    const text = String(f?.text ?? "");
+    if (!rel || rel.length > 512 || rel.includes("\0")) throw new Error("Invalid path");
+    if (text.length > MAX_WRITE_BYTES) throw new Error(`File too large: ${rel.slice(0, 80)}`);
+    const ext = rel.slice(rel.lastIndexOf(".")).toLowerCase();
+    if (!WRITE_ALLOWED_EXTS.has(ext)) throw new Error(`Blocked extension: ${rel.slice(0, 80)}`);
+    const { abs, rel: canon } = await resolveInWorkspace(rootReal, rel);
+    plan.push({ rel: canon, abs, text });
+  }
+  // Snapshot before-state first so every chat write is undoable.
+  await snapshotWorkspace(rootReal, taskKey, plan.map((p) => p.rel));
+  const written = [];
+  for (const p of plan) {
+    await fsp.mkdir(path.dirname(p.abs), { recursive: true });
+    await fsp.writeFile(p.abs, p.text, "utf8");
+    written.push({ path: p.rel, bytes: p.text.length });
+  }
+  log.info("chat write", { files: written.length, taskKey: String(taskKey).slice(0, 40) });
+  return { written };
+}
+
+async function proposeWrite(app, root, taskKey, files) {
+  const { proposeAction, listApprovals } = await import("./actionStore.mjs");
+  const { actionFingerprint, newIdempotencyKey } = await import("../src/lib/actions/actionCore.mjs");
+  const rootReal = await resolveWorkspaceRoot(root);
+  // Validate eagerly so the approval describes exactly what will be written.
+  if (!Array.isArray(files) || files.length === 0) throw new Error("No files to write");
+  if (files.length > MAX_WRITE_FILES) throw new Error("Too many files");
+  for (const f of files) {
+    const rel = String(f?.path ?? "");
+    const text = String(f?.text ?? "");
+    if (!rel || rel.length > 512 || rel.includes("\0")) throw new Error("Invalid path");
+    if (text.length > MAX_WRITE_BYTES) throw new Error("File too large");
+    const ext = rel.slice(rel.lastIndexOf(".")).toLowerCase();
+    if (!WRITE_ALLOWED_EXTS.has(ext)) throw new Error("Blocked extension");
+    await statFile(rootReal, rel); // containment check via resolveInWorkspace
+  }
+  const targets = files.map((f) => String(f.path));
+  const contentHash = crypto
+    .createHash("sha256")
+    .update(files.map((f) => `${f.path}\n${String(f.text ?? "")}`).join("\n"), "utf8")
+    .digest("hex")
+    .slice(0, 32);
+  const fingerprint = actionFingerprint(WRITE_TOOL_ID, undefined, {
+    workspace: rootReal,
+    files: [...targets].sort(),
+    contentHash,
+  });
+  const existing = listApprovals(app, { status: "proposed" }).find(
+    (a) => a.fingerprint === fingerprint && a.toolId === WRITE_TOOL_ID
+  );
+  const approval = existing ?? proposeAction(app, {
+    toolId: WRITE_TOOL_ID,
+    projectId: undefined,
+    runId: String(taskKey),
+    requestId: `write_${Date.now()}`,
+    input: {
+      workspace: rootReal,
+      files: [...targets].sort(),
+      contentHash,
+      contents: files.map((f) => ({ path: String(f.path), text: String(f.text ?? "").slice(0, MAX_WRITE_BYTES) })),
+      idempotencyKey: newIdempotencyKey(),
+    },
+    risk: "HIGH",
+  });
+  return { approval, targets, root: rootReal };
+}
 
 async function proposeUndo(app, taskKey, files) {
   const { proposeAction, listApprovals } = await import("./actionStore.mjs");
@@ -484,6 +563,50 @@ export function registerWorkspaceIpc(ipcMain, app) {
     void consumed;
     const restored = await undoWorkspace(approval.runId, snap ? [...snap.files.keys()] : []);
     return { status: "restored", ...restored };
+  });
+  // Chat-approved writes = propose (HIGH risk) then confirm. Same
+  // actionStore authority as undo/OpenCode permissions — no second system.
+  // Every confirmed write snapshots first, so it is undoable.
+  ipcMain.handle("workspace:write", async (_e, payload) => {
+    const p = assertPayload(payload);
+    if (typeof p.taskKey !== "string" || !p.taskKey) throw new Error("Invalid task");
+    if (!Array.isArray(p.files)) throw new Error("Invalid files");
+    const { approval, targets } = await proposeWrite(app, p.root, p.taskKey, p.files);
+    return {
+      approvalId: approval.id,
+      fingerprint: approval.fingerprint,
+      files: targets,
+      status: "needs-approval",
+    };
+  });
+  ipcMain.handle("workspace:writeConfirm", async (_e, payload) => {
+    const p = assertPayload(payload);
+    if (typeof p.approvalId !== "string" || !p.approvalId) throw new Error("Invalid approval");
+    const { approveAction, rejectAction, consumeApprovalForExecution, getApproval } =
+      await import("./actionStore.mjs");
+    if (p.decision !== "allow") {
+      try {
+        rejectAction(app, p.approvalId);
+      } catch { /* already settled */ }
+      return { status: "rejected" };
+    }
+    const approval = getApproval(app, p.approvalId);
+    if (!approval) throw new Error("Approval not found");
+    approveAction(app, p.approvalId);
+    const contents = Array.isArray(approval.input?.contents) ? approval.input.contents : [];
+    const consumed = consumeApprovalForExecution(app, p.approvalId, {
+      toolId: WRITE_TOOL_ID,
+      projectId: approval.projectId,
+      runId: approval.runId,
+      input: approval.input,
+    });
+    void consumed;
+    const out = await writeWorkspaceFiles(
+      approval.input.workspace,
+      approval.runId,
+      contents.map((c) => ({ path: c.path, text: c.text }))
+    );
+    return { status: "written", ...out };
   });
   ipcMain.handle("workspace:watch", async (_e, payload) => {
     const p = assertPayload(payload);

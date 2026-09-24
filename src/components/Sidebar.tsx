@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useChat } from "@/context/ChatContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
+import { FeatureErrorBoundary } from "@/components/FeatureErrorBoundary";
 import {
   Plus,
   Home,
@@ -18,7 +19,6 @@ import {
   Settings,
   Menu,
   Search,
-  ChevronDown,
   Bot,
   Mic,
   Cpu,
@@ -96,7 +96,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   const navigate = useNavigate();
   const { chats, currentChatId, createNewChat, selectChat, activeProjectId } = useChat();
   const { projects } = useResearchProject();
-  const [seeMore, setSeeMore] = useState(false);
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
   const handleNewChat = () => {
@@ -119,6 +118,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   const showLabels = isMobile || !collapsed;
 
   const recentChats = chats.slice(-30).reverse();
+  const projectChats = activeProjectId
+    ? chats.filter((c) => c.projectId === activeProjectId).slice(-5).reverse()
+    : [];
 
   const renderNavItem = (item: { icon: React.ElementType; label: string; id: string; to: string }) => {
     const active =
@@ -139,7 +141,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             )}
           >
             <Icon className={cn("shrink-0", collapsed ? "h-6 w-6" : "h-5 w-5")} strokeWidth={1.5} />
-            {showLabels && <span className="sidebar-nav-label">{item.label}</span>}
+            {showLabels && <span className="sidebar-nav-label truncate">{item.label}</span>}
           </NavLink>
         </TooltipTrigger>
         {iconOnly && (
@@ -260,8 +262,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
+        {/* SCROLLABLE NAV — sections scroll, bottom bar never overlaps. */}
+        <div className={cn("flex min-h-0 flex-1 flex-col", !isMobile && "overflow-y-auto")}>
+        <FeatureErrorBoundary feature="sidebar-nav">
         {/* ACTIONS */}
-        <nav className={cn("flex flex-col", isMobile ? "mb-6 gap-2" : "mb-4 gap-1")} aria-label="Actions">
+        <nav className={cn("flex shrink-0 flex-col", isMobile ? "mb-6 gap-2" : "mb-4 gap-1")} aria-label="Actions">
           {renderActionButton("search", "Search", "⌘K", Search, () => {
             onOpenSearch();
             onCloseMobile();
@@ -272,8 +277,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* HOME */}
         {showLabels && (
           <>
-            <div className={cn("h-px bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
-            <nav className="flex flex-col gap-1" aria-label="Home">
+            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
+            <nav className="flex shrink-0 flex-col gap-1" aria-label="Home">
               {HOME_ITEMS.map(renderNavItem)}
             </nav>
           </>
@@ -282,11 +287,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* PROJECTS (+ current project context, not a separate app) */}
         {showLabels && (
           <>
-            <div className={cn("h-px bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
+            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
             <p className={cn("sidebar-label mb-2 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
               Projects
             </p>
-            <nav className="flex flex-col gap-1" aria-label="Projects">
+            <nav className="flex shrink-0 flex-col gap-1" aria-label="Projects">
               {PROJECT_ITEMS.map(renderNavItem)}
               {activeProjectId &&
                 renderNavItem({
@@ -295,6 +300,25 @@ const Sidebar: React.FC<SidebarProps> = ({
                   id: "current-project",
                   to: `/projects/${activeProjectId}`,
                 })}
+              {/* Project chats: clickable conversation options inside the project. */}
+              {projectChats.map((chat) => (
+                <button
+                  key={chat.id}
+                  type="button"
+                  onClick={() => handleSelectChat(chat.id)}
+                  title={chat.title}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-lg py-1.5 pl-9 pr-2 text-left text-[13px] transition-colors duration-200",
+                    currentChatId === chat.id
+                      ? "bg-[#a3c987]/10 text-[#a3c987]"
+                      : "text-[#96A0AB] hover:bg-[#a3c987]/10 hover:text-[#E8F1F6]"
+                  )}
+                  aria-current={currentChatId === chat.id ? "true" : undefined}
+                >
+                  <MessageSquare className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+                  <span className="truncate">{chat.title || "Untitled chat"}</span>
+                </button>
+              ))}
             </nav>
           </>
         )}
@@ -302,11 +326,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* WORKSPACE */}
         {showLabels && (
           <>
-            <div className={cn("h-px bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
+            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
             <p className={cn("sidebar-label mb-2 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
               Workspace
             </p>
-            <nav className="flex flex-col gap-1" aria-label="Workspace">
+            <nav className="flex shrink-0 flex-col gap-1" aria-label="Workspace">
               {WORKSPACE_ITEMS.map(renderNavItem)}
             </nav>
           </>
@@ -315,43 +339,33 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* ACTIVITY */}
         {showLabels && (
           <>
-            <div className={cn("h-px bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
+            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
             <p className={cn("sidebar-label mb-2 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
               Activity
             </p>
-            <nav className="flex flex-col gap-1" aria-label="Activity">
+            <nav className="flex shrink-0 flex-col gap-1" aria-label="Activity">
               {ACTIVITY_ITEMS.map(renderNavItem)}
             </nav>
           </>
         )}
 
-        {/* SEE MORE (same shell, expanded) */}
+        {/* MORE — all features visible, no hidden gate. */}
         {showLabels && (
           <>
-            <button
-              type="button"
-              onClick={() => setSeeMore((v) => !v)}
-              aria-expanded={seeMore}
-              className={cn(
-                "sidebar-nav-item mt-1 w-full",
-                isMobile && "sidebar-nav-item--mobile"
-              )}
-            >
-              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", seeMore && "rotate-180")} />
-              <span className="sidebar-nav-label">See more</span>
-            </button>
-            {seeMore && (
-              <nav className="flex flex-col gap-1" aria-label="More capabilities">
-                {MORE_ITEMS.map(renderNavItem)}
-              </nav>
-            )}
+            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
+            <p className={cn("sidebar-label mb-2 shrink-0 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
+              More
+            </p>
+            <nav className="flex shrink-0 flex-col gap-1" aria-label="More capabilities">
+              {MORE_ITEMS.map(renderNavItem)}
+            </nav>
           </>
         )}
 
         {/* RECENT CHATS */}
         {showLabels && (
           <>
-            <div className={cn("h-px bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
+            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               {recentChats.length > 0 ? (
                 <>
@@ -388,8 +402,10 @@ const Sidebar: React.FC<SidebarProps> = ({
           </>
         )}
 
-        {/* BOTTOM: Local AI Status + Account */}
-        <div className={cn("mt-auto flex flex-col gap-1 pt-3", collapsed ? "items-center" : isMobile ? "px-3" : "")}>
+        {/* BOTTOM: Local AI Status + Account (pinned, never overlapped). */}
+        </FeatureErrorBoundary>
+        </div>
+        <div className={cn("mt-auto flex shrink-0 flex-col gap-1 pt-3", collapsed ? "items-center" : isMobile ? "px-3" : "")}>
           {showLabels && <LocalAIStatus onOpen={onOpenLocalAI} />}
           <AccountMenu
             collapsed={!showLabels}

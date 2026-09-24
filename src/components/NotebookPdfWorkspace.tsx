@@ -23,6 +23,7 @@ import { isLatexDocumentSource } from "@/lib/notebookSourceKind";
 import { NOTEBOOK_LATEX_BOOK_TEMPLATE } from "@/lib/notebookLatexTemplate";
 import { extractTexFromAssistantReply } from "@/lib/extractTexFromAssistantReply";
 import { diffLineRows, mergeProposalLines, type LineDiffRow } from "@/lib/diffLines";
+import { buildLatexEditContract, extractBibKeysFromBibliography } from "@/lib/assistantFileEdits";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { notebookRefToRel } from "@/context/WorkspaceContext";
 import { useWorkspaceWatcher } from "@/hooks/useWorkspaceWatcher";
@@ -368,6 +369,28 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     return { connectedTexFiles, connectedPdfContext };
   }, [isStudio, studioCtx, researchProject]);
 
+  /* File-edit contract for in-chat replies: connected files are editable,
+   * bib keys are grounded — same language as the OpenCode project block. */
+  const buildNotebookEditContract = useCallback((): string | undefined => {
+    try {
+      const files = (connectedAssistExtras.connectedTexFiles ?? []).map((f) => f.label).filter(Boolean);
+      const allowed = files.length > 0 ? files : isLatexSource || fileName ? ["main.tex", "references.bib"] : [];
+      if (allowed.length === 0) return undefined;
+      if (!allowed.includes("references.bib")) allowed.push("references.bib");
+      const keys = researchProject?.bibliography
+        ? extractBibKeysFromBibliography(researchProject.bibliography)
+        : [];
+      return buildLatexEditContract({
+        allowedFiles: [...new Set(allowed)],
+        citeKeys: keys,
+        mainTex: "main.tex",
+        buildDir: "build",
+      });
+    } catch {
+      return undefined;
+    }
+  }, [connectedAssistExtras, researchProject?.bibliography, isLatexSource, fileName]);
+
   const notebookAssistParams = useMemo(
     () => ({
       fileName,
@@ -398,10 +421,11 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   useEffect(() => {
     const block = buildNotebookFullWorkspaceAssist(notebookAssistParams, {
       knowledge: researchProject?.knowledge,
+      editContract: buildNotebookEditContract(),
     });
     setWorkspaceRouteAssist(block);
     setWorkspaceAssistTokenEstimate(estimateTokensFromText(block));
-  }, [notebookAssistParams, researchProject?.knowledge, setWorkspaceRouteAssist, setWorkspaceAssistTokenEstimate]);
+  }, [notebookAssistParams, researchProject?.knowledge, researchProject?.bibliography, setWorkspaceRouteAssist, setWorkspaceAssistTokenEstimate]);
 
   useEffect(() => {
     return () => setWorkspaceAssistTokenEstimate(0);
@@ -438,8 +462,9 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     () =>
       buildNotebookFullWorkspaceAssist(notebookAssistParamsLive, {
         knowledge: researchProject?.knowledge,
+        editContract: buildNotebookEditContract(),
       }),
-    [notebookAssistParamsLive, researchProject?.knowledge]
+    [notebookAssistParamsLive, researchProject?.knowledge, buildNotebookEditContract]
   );
 
   useEffect(() => {

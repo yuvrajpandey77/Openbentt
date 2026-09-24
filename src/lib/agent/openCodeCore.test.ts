@@ -26,6 +26,15 @@ describe("openCodeCore classifier", () => {
     expect(classifyTask("Summarize this PDF report.")).toBe("DOCUMENT");
     expect(classifyTask("Search the literature on RAG.")).toBe("RESEARCH");
   });
+  it("routes document-edit + citation requests to CODE (not read-only RESEARCH)", () => {
+    expect(classifyTask("Add citations to chapter 3 from the papers.")).toBe("CODE");
+    expect(classifyTask("Rewrite section 2 and fix the references.")).toBe("CODE");
+    expect(classifyTask("Update the bibliography in my thesis.")).toBe("CODE");
+    expect(classifyTask("Add references for chapter 1 of the paper.")).toBe("CODE");
+    // Pure research without an edit verb stays RESEARCH.
+    expect(classifyTask("Find papers about citation graphs.")).toBe("RESEARCH");
+    expect(classifyTask("Survey recent literature on RAG.")).toBe("RESEARCH");
+  });
   it("returns UNKNOWN on low confidence", () => {
     expect(classifyTask("Hmm, maybe later")).toBe("UNKNOWN");
   });

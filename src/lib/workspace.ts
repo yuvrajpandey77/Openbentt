@@ -21,7 +21,14 @@ export interface ProjectWorkspace {
   activeConversationId?: string | null;
   projectInstructions?: string | null;
   detectedProjectType: DetectedProjectType;
-  latex?: { mainTex: string; buildDir: string } | null;
+  latex?: {
+    mainTex: string;
+    buildDir: string;
+    /** Other .tex files in the workspace (editable chapters). */
+    chapters?: string[];
+    /** .bib files in the workspace (editable bibliography). */
+    bibliography?: string[];
+  } | null;
   /** Present when root is inside a git work tree. */
   git?: { branch: string; modified: string[]; untracked: string[] } | null;
 }

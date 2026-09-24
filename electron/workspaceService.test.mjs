@@ -18,6 +18,7 @@ import {
   statFile,
   undoWorkspace,
   verifyFiles,
+  writeWorkspaceFiles,
 } from "./workspaceService.mjs";
 
 describe("workspaceService authority", () => {
@@ -85,6 +86,83 @@ describe("workspaceService authority", () => {
     const s = await statFile(dir, "notes.md");
     assert.equal(s.exists, true);
     assert.match(s.hash, /^[0-9a-f]{64}$/);
+  });
+
+  it("chat writes validate, snapshot first, and undo restores", async () => {
+    const out = await writeWorkspaceFiles(dir, "chat-t1", [
+      { path: "chapter3.tex", text: "\\section{New}\n" },
+      { path: "main.tex", text: "\\documentclass{article}\nUpdated\n" },
+    ]);
+    assert.equal(out.written.length, 2);
+    assert.equal(await fs.promises.readFile(path.join(dir, "chapter3.tex"), "utf8"), "\\section{New}\n");
+    // Snapshot-before-write captured the before-state: undo restores it.
+    const undone = await undoWorkspace("chat-t1", ["main.tex", "chapter3.tex"]);
+    assert.deepEqual([...undone.restored].sort(), ["chapter3.tex", "main.tex"]);
+    assert.equal(
+      await fs.promises.readFile(path.join(dir, "main.tex"), "utf8"),
+      "\\documentclass{article}\n\\begin{document}\nHi\n\\end{document}\n"
+    );
+    await assert.rejects(() => fs.promises.stat(path.join(dir, "chapter3.tex")), /ENOENT/);
+  });
+
+  it("chat writes reject traversal, bad extensions, oversize content", async () => {
+    await assert.rejects(() => writeWorkspaceFiles(dir, "chat-t1b", [{ path: "../evil.tex", text: "x" }]), /escapes/);
+    await assert.rejects(
+      () => writeWorkspaceFiles(dir, "chat-t1b", [{ path: "/abs.tex", text: "x" }]),
+      /escapes|Invalid/
+    );
+    await assert.rejects(() => writeWorkspaceFiles(dir, "chat-t1b", [{ path: "run.sh", text: "x" }]), /extension/);
+    await assert.rejects(
+      () => writeWorkspaceFiles(dir, "chat-t1b", [{ path: "big.tex", text: "x".repeat(257 * 1024) }]),
+      /too large/i
+    );
+    await assert.rejects(() => writeWorkspaceFiles(dir, "chat-t1b", []), /No files/);
+  });
+
+  it("write proposes HIGH-risk approval; deny leaves files unchanged, allow writes", async () => {
+    const ctx = await makeTempUserData();
+    try {
+      const { registerWorkspaceIpc } = await import("./workspaceService.mjs");
+      const handlers = new Map();
+      const ipc = { handle: (c, fn) => handlers.set(c, fn) };
+      registerWorkspaceIpc(ipc, ctx.app);
+      const invoke = (c, ...a) => handlers.get(c)({}, ...a);
+      const before = await fs.promises.readFile(path.join(dir, "main.tex"), "utf8");
+      // Deny path.
+      const prop = await invoke("workspace:write", {
+        root: dir,
+        taskKey: "chat-t3",
+        files: [{ path: "main.tex", text: "CHANGED\n" }],
+      });
+      assert.equal(prop.status, "needs-approval");
+      assert.ok(prop.approvalId);
+      const denied = await invoke("workspace:writeConfirm", { approvalId: prop.approvalId, decision: "deny" });
+      assert.equal(denied.status, "rejected");
+      assert.equal(await fs.promises.readFile(path.join(dir, "main.tex"), "utf8"), before);
+      // Allow path writes the FROZEN proposed content.
+      const prop2 = await invoke("workspace:write", {
+        root: dir,
+        taskKey: "chat-t3",
+        files: [{ path: "main.tex", text: "CHANGED\n" }],
+      });
+      const done = await invoke("workspace:writeConfirm", { approvalId: prop2.approvalId, decision: "allow" });
+      assert.equal(done.status, "written");
+      assert.equal(done.written[0].path, "main.tex");
+      assert.equal(await fs.promises.readFile(path.join(dir, "main.tex"), "utf8"), "CHANGED\n");
+      // Replay of a consumed approval fails closed.
+      await assert.rejects(
+        invoke("workspace:writeConfirm", { approvalId: prop2.approvalId, decision: "allow" }),
+        /not found|consumed|approved|Invalid|failed/i
+      );
+      // Malicious propose is rejected before any approval exists.
+      await assert.rejects(
+        invoke("workspace:write", { root: dir, taskKey: "chat-t4", files: [{ path: "../x.tex", text: "x" }] }),
+        /escapes/
+      );
+    } finally {
+      closeDb();
+      await ctx.cleanup();
+    }
   });
 
   it("undo proposes HIGH-risk approval and restores only on allow", async () => {

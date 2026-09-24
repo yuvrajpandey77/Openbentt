@@ -47,6 +47,8 @@ export interface OpenbenttDesktopApi {
   workspaceDiff?(taskKey: string): Promise<Array<{ path: string; added: number; removed: number; binary: boolean; patch: string }>>;
   workspaceUndo?(taskKey: string, files?: string[]): Promise<{ approvalId: string; fingerprint: string; files: string[]; status: string }>;
   workspaceUndoConfirm?(approvalId: string, decision: "allow" | "deny"): Promise<{ status: string; restored?: string[] }>;
+  workspaceWrite?(root: string, taskKey: string, files: Array<{ path: string; text: string }>): Promise<{ approvalId: string; fingerprint: string; files: string[]; status: string }>;
+  workspaceWriteConfirm?(approvalId: string, decision: "allow" | "deny"): Promise<{ status: string; written?: Array<{ path: string; bytes: number }> }>;
   workspaceWatch?(root: string): Promise<{ watching: boolean; root: string }>;
   workspaceUnwatch?(root: string): Promise<{ watching: boolean }>;
   onWorkspaceFilesChanged?(cb: (payload: { root: string; changed: string[]; at: string }) => void): () => void;

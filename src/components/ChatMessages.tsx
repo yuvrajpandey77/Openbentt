@@ -13,6 +13,7 @@ import { shortModelLabel } from "@/lib/openrouter";
 import { AssistantContent } from "@/components/AssistantContent";
 import { Button } from "@/components/ui/button";
 import { useChat } from "@/context/ChatContext";
+import { useWorkspace } from "@/context/WorkspaceContext";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MessageReferences } from "@/components/MessageReferences";
 import { AssistantMessageToolbar } from "@/components/AssistantMessageToolbar";
@@ -68,7 +69,25 @@ const AssistantRoleContent: React.FC<{
 }> = ({ message, idx, messages, isLoading, showAgentTraces, highlightQuery, compact }) => {
   const exportRef = useRef<HTMLDivElement>(null);
   const plainText = useMemo(() => buildAssistantPlainText(message), [message]);
-  const { pendingAgentConfirm, confirmAgentRun } = useChat();
+  const { pendingAgentConfirm, confirmAgentRun, currentChatId } = useChat();
+  // Chat-to-file apply context (disk-bound projects): workspace root + the
+  // LaTeX files OpenCode may rewrite. Safe no-op outside WorkspaceProvider.
+  let applyWorkspaceRoot: string | null = null;
+  let applyAllowedFiles: string[] | null = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { workspace } = useWorkspace();
+    applyWorkspaceRoot = workspace?.rootPath ?? null;
+    const lx = workspace?.latex;
+    if (lx) {
+      const list = [lx.mainTex, ...(lx.chapters ?? []), ...(lx.bibliography ?? []), "references.bib"].filter(
+        Boolean
+      ) as string[];
+      applyAllowedFiles = [...new Set(list)];
+    }
+  } catch {
+    /* not in a workspace-bound context — Apply hidden by the toolbar */
+  }
   const awaitingConfirm =
     pendingAgentConfirm && message.agentRunId === pendingAgentConfirm.runId
       ? pendingAgentConfirm
@@ -202,6 +221,9 @@ const AssistantRoleContent: React.FC<{
         plainText={plainText}
         fileBaseName={`msg-${message.id.slice(0, 8)}`}
         disabled={toolsDisabled}
+        workspaceRoot={applyWorkspaceRoot}
+        applyTaskKey={currentChatId ? `chat_${currentChatId}` : undefined}
+        allowedFiles={applyAllowedFiles}
       />
     </>
   );

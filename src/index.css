@@ -147,6 +147,25 @@
     --chart-5: 353 57% 65%; /* #d97580 */
   }
 
+  /*
+   * Readable text selection + native controls everywhere, including Radix
+   * portals and native <select>/<option> popups (prevents dark-on-dark or
+   * light-on-light text in menus, model pickers, and highlighted text).
+   */
+  html.app-shell-route ::selection,
+  .app-shell ::selection {
+    background: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
+  }
+  html.app-shell-route [data-radix-popper-content-wrapper],
+  html.app-shell-route [data-radix-portal] {
+    color-scheme: dark;
+  }
+  html.app-shell-route.light [data-radix-popper-content-wrapper],
+  html.app-shell-route.light [data-radix-portal] {
+    color-scheme: light;
+  }
+
   /* Light flip — .app-shell.light (Gothic Dark light variant) */
   html.app-shell-route.light,
   .app-shell.light {

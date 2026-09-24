@@ -165,13 +165,29 @@ export class LocalWhisperEngine {
           env.cacheDir = dir;
         } catch { /* use default cache */ }
       }
-      this.pipeline = await pipeline("automatic-speech-recognition", this.modelId, {
+      const opts = {
         progress_callback: (p) => {
           try {
             onProgress?.({ status: p?.status ?? "downloading", file: p?.file ?? "", progress: p?.progress });
           } catch { /* observer must not break load */ }
         },
-      });
+      };
+      try {
+        this.pipeline = await pipeline("automatic-speech-recognition", this.modelId, opts);
+      } catch (err) {
+        // "Unsupported model type" (and similar) almost always means a
+        // stale/partial model cache: a previous interrupted download left
+        // files the loader can't map. Wipe and retry once before failing.
+        const msg = err instanceof Error ? err.message : String(err ?? "");
+        if (/unsupported model type|config\.json|unexpected|invalid/i.test(msg)) {
+          log.info("STT load failed — clearing voice-models cache and retrying once", { msg: msg.slice(0, 160) });
+          await clearSttCache(this.app).catch(() => {});
+          onProgress?.({ status: "retrying", file: "", progress: 0 });
+          this.pipeline = await pipeline("automatic-speech-recognition", this.modelId, opts);
+        } else {
+          throw err;
+        }
+      }
       return { ok: true, model: this.modelId };
     })();
     try {
@@ -400,6 +416,24 @@ export function ttsStatus() {
   } catch (err) {
     return { backend: "none", ok: false, error: err instanceof Error ? err.message.slice(0, 200) : "unknown" };
   }
+}
+
+/**
+ * Wipe the downloaded STT model cache (userData/voice-models). Used for
+ * self-healing after a corrupt/partial download, and exposed to
+ * Diagnostics as a manual "clear + retry" action.
+ */
+export async function clearSttCache(app) {
+  let dir = null;
+  try {
+    dir = path.join(app.getPath("userData"), "voice-models");
+  } catch {
+    return { ok: false, reason: "no-user-data" };
+  }
+  const { default: fsp } = await import("node:fs/promises");
+  await fsp.rm(dir, { recursive: true, force: true });
+  log.info("cleared STT model cache", { dir });
+  return { ok: true };
 }
 
 /**
@@ -655,6 +689,10 @@ export function registerVoiceIpc(ipcMain, app) {
   ipcMain.handle("voice:ensureStt", async (_e, payload) => {
     const p = payload ?? {};
     return ensureSttLoaded(app, typeof p.sessionId === "string" ? p.sessionId : undefined);
+  });
+  ipcMain.handle("voice:clearSttCache", async () => {
+    await sttEngine(app).unload().catch(() => {});
+    return clearSttCache(app);
   });
   ipcMain.handle("voice:micDenied", async (_e, payload) => {
     const p = assertPayload(payload, ["sessionId"]);

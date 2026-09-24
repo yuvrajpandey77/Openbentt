@@ -126,12 +126,18 @@ export function buildNotebookFullWorkspaceAssist(
   projectContext?: {
     knowledge?: string;
     corpusEvidence?: string;
+    /** file-edit contract so in-chat replies can express applicable edits. */
+    editContract?: string;
   }
 ): string {
   const base = getNotebookBaseWorkspaceAssist();
   const snap = buildNotebookLiveSnapshot(snapshotParams);
 
   const parts: string[] = [base, "---", snap];
+
+  if (projectContext?.editContract?.trim()) {
+    parts.push("---", projectContext.editContract.trim());
+  }
 
   if (projectContext?.knowledge?.trim()) {
     parts.push(

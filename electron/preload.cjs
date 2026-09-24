@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld("openbenttDesktop", {
   workspaceDiff: (taskKey) => ipcRenderer.invoke("workspace:diff", { taskKey }),
   workspaceUndo: (taskKey, files) => ipcRenderer.invoke("workspace:undo", { taskKey, files }),
   workspaceUndoConfirm: (approvalId, decision) => ipcRenderer.invoke("workspace:undoConfirm", { approvalId, decision }),
+  workspaceWrite: (root, taskKey, files) => ipcRenderer.invoke("workspace:write", { root, taskKey, files }),
+  workspaceWriteConfirm: (approvalId, decision) => ipcRenderer.invoke("workspace:writeConfirm", { approvalId, decision }),
   workspaceWatch: (root) => ipcRenderer.invoke("workspace:watch", { root }),
   workspaceUnwatch: (root) => ipcRenderer.invoke("workspace:unwatch", { root }),
   onWorkspaceFilesChanged: (cb) => {
@@ -252,6 +254,7 @@ contextBridge.exposeInMainWorld("openbenttAgent", {
   getVoiceStatus: (sessionId) => ipcRenderer.invoke("voice:status", { sessionId }),
   getVoiceEngineStatus: () => ipcRenderer.invoke("voice:sttStatus"),
   ensureVoiceStt: (sessionId) => ipcRenderer.invoke("voice:ensureStt", { sessionId }),
+  clearVoiceSttCache: () => ipcRenderer.invoke("voice:clearSttCache"),
   onVoiceEvent: (cb) => {
     const handler = (_event, payload) => cb(payload);
     ipcRenderer.on("voice:event", handler);

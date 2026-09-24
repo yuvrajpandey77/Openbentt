@@ -1,7 +1,7 @@
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, PanelLeft, Info, Cpu, Cloud } from "lucide-react";
+import { ArrowLeft, Menu, PanelLeft, Info, Cpu, Cloud } from "lucide-react";
 import { canSendChat } from "@/types/chat";
 import { ShareLinkButton } from "@/components/ShareLinkButton";
 import { CapabilitiesSheet } from "@/components/CapabilitiesSheet";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useChat } from "@/context/ChatContext";
 import { ExecutionBadge } from "@/components/conversation/ExecutionBadge";
+import { FeedbackDialog } from "@/components/FeedbackDialog";
 import { LocalModelStatusBar } from "@/components/LocalModelStatusBar";
 import { useLocalAI } from "@/context/LocalAIContext";
 import { friendlyModelLabel } from "@/lib/ollama/selection";
@@ -40,6 +41,7 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
   /** Universal layer owns model selection on desktop — hide legacy badges. */
   const layerOwnsChat = isDesktopApp() && openCodeLayer.available;
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
 
   const modelLabel = effectiveModel
@@ -52,6 +54,21 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
   return (
     <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background/90 px-2 py-2 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 md:px-3">
       <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
+        {/* Global back: mistaken taps always have a way out. */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              onClick={() => navigate(-1)}
+              aria-label="Go back"
+            >
+              <ArrowLeft size={18} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Back</TooltipContent>
+        </Tooltip>
         <Button
           variant="ghost"
           size="icon"
@@ -116,6 +133,7 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5 md:gap-1.5">
+        <FeedbackDialog compact />
         <ShareLinkButton />
 
         {canSendChat(apiConfig) && (

@@ -232,6 +232,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [webgpuModelDownloadProgress, setWebgpuModelDownloadProgress] = useState<number | null>(null);
   const [workspaceAssistTokenEstimate, setWorkspaceAssistTokenEstimate] = useState(0);
   const { toast } = useToast();
+  // "Cannot send yet" fires on EVERY send attempt without a key — throttle
+  // it so a missing key never spams the screen.
+  const lastKeyToastRef = useRef(0);
+  const toastKeyMissing = useCallback(
+    (description: string) => {
+      const now = Date.now();
+      if (now - lastKeyToastRef.current < 60_000) return;
+      lastKeyToastRef.current = now;
+      toast({ title: "Cannot send yet", description, variant: "destructive" });
+    },
+    [toast]
+  );
 
   const abortControllersRef = useRef<AbortController[]>([]);
   /** Latest workspace assist from route (Notebook, Labs, …); merged into send + regenerate pipelines. */
@@ -1832,16 +1844,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const useLayer = hasOpenCodeDesktopApi() && openCodeLayerRef.current.available;
     if (!useLayer) {
       if (!canSendChat(apiConfig)) {
-        toast({
-          title: "Cannot send yet",
-          description:
-            apiConfig.aiProvider === "webgpu_gemma"
-              ? "WebGPU is not available in this browser. Use Chrome/Edge or the desktop build, or switch to OpenRouter in Settings."
-              : apiConfig.aiProvider === "local_gguf"
-                ? "Use the Openbentt desktop app, install llama-server on PATH (or set a binary path), download a GGUF in Labs, and pick it in Settings."
-                : "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in Settings.",
-          variant: "destructive",
-        });
+        toastKeyMissing(
+          apiConfig.aiProvider === "webgpu_gemma"
+            ? "WebGPU is not available in this browser. Use Chrome/Edge or the desktop build, or switch to OpenRouter in Settings."
+            : apiConfig.aiProvider === "local_gguf"
+              ? "Use the Openbentt desktop app, install llama-server on PATH (or set a binary path), download a GGUF in Labs, and pick it in Settings."
+              : "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in Settings."
+        );
         return;
       }
       if (!canSendMessage(apiConfig)) {
@@ -2073,11 +2082,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const trimmed = content.trim();
       if (!trimmed) return;
       if (!canSendChat(apiConfig)) {
-        toast({
-          title: "Cannot send yet",
-          description: "Add an OpenRouter API key or set an OpenAI-compatible base URL in Settings.",
-          variant: "destructive",
-        });
+        toastKeyMissing("Add an OpenRouter API key or set an OpenAI-compatible base URL in Settings.");
         return;
       }
       let activeChatId = currentChatId;

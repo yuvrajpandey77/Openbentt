@@ -552,7 +552,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   return (
-    <div className={cn("border-t border-border/70 bg-gradient-to-t from-card/80 via-card/50 to-transparent backdrop-blur-md", isStudio ? "px-2 pb-2 pt-2" : "px-2 pb-2 pt-2 md:px-3 md:pb-4 md:pt-3")}>
+    <div className={cn("border-t border-border/70 bg-background", isStudio ? "px-2 pb-2 pt-2" : "px-2 pb-2 pt-2 md:px-3 md:pb-4 md:pt-3")}>
       <input
         ref={fileRef}
         type="file"
@@ -783,15 +783,15 @@ const ChatInput: React.FC<ChatInputProps> = ({
                         <DropdownMenuItem
                           key={m.id}
                           onClick={() => setOpenCodeModel(m.id)}
-                          className="flex cursor-pointer flex-col items-stretch gap-1 py-2.5"
+                          className="group flex cursor-pointer flex-col items-stretch gap-1 py-2.5"
                         >
                           <div className="flex w-full items-start justify-between gap-2">
                             <div className="min-w-0 flex-1 text-left">
                               <span className="font-medium leading-tight">
                                 {m.displayName || shortModelLabel(m.id)}
-                                {openCodeModel === m.id && <span className="ml-1 text-primary">✓</span>}
+                                {openCodeModel === m.id && <span className="ml-1 text-primary group-hover:text-accent-foreground group-focus:text-accent-foreground">✓</span>}
                               </span>
-                              <span className="block break-all text-[11px] text-muted-foreground">{m.id}</span>
+                              <span className="block break-all text-[11px] text-muted-foreground group-hover:text-accent-foreground/75 group-focus:text-accent-foreground/75">{m.id}</span>
                             </div>
                           </div>
                         </DropdownMenuItem>
@@ -815,12 +815,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
                         <DropdownMenuItem
                           key={m.id}
                           onClick={() => handleModelChange(m.id)}
-                          className="flex cursor-pointer flex-col items-stretch gap-2 py-2.5"
+                          className="group flex cursor-pointer flex-col items-stretch gap-2 py-2.5"
                         >
                           <div className="flex w-full items-start justify-between gap-2">
                             <div className="min-w-0 flex-1 text-left">
                               <span className="font-medium leading-tight">{m.name || shortModelLabel(m.id)}</span>
-                              <span className="block break-all text-[11px] text-muted-foreground">{m.id}</span>
+                              <span className="block break-all text-[11px] text-muted-foreground group-hover:text-accent-foreground/75 group-focus:text-accent-foreground/75">{m.id}</span>
                             </div>
                             <ModelCapabilityBadges modelId={m.id} meta={m} compact className="shrink-0" />
                           </div>

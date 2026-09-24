@@ -103,6 +103,21 @@ export const VoiceDiagnostics: React.FC = () => {
     }
   };
 
+  const clearCacheAndReload = async () => {
+    setBusy(true);
+    setNote(null);
+    try {
+      await openCodeAgentApi.clearVoiceSttCache();
+      await openCodeAgentApi.ensureVoiceStt();
+      setNote("Cache cleared and speech model reloaded.");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Reload failed.");
+    } finally {
+      await refreshEngines();
+      setBusy(false);
+    }
+  };
+
   if (!available) {
     return <p className="text-xs text-muted-foreground">Voice diagnostics need the desktop app.</p>;
   }
@@ -154,6 +169,9 @@ export const VoiceDiagnostics: React.FC = () => {
       <div className="mt-2 flex flex-wrap gap-1.5">
         <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => void ensureStt()}>
           {busy ? "Loading…" : "Download / load speech model"}
+        </Button>
+        <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => void clearCacheAndReload()}>
+          Clear cache & retry
         </Button>
         <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => void refreshEngines()}>
           Refresh

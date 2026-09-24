@@ -28,6 +28,7 @@ export const WorkspaceSelector: React.FC<{ className?: string }> = ({ className 
   if (!isDesktopApp()) return null;
 
   const current = resolveExecutionWorkspace(activeProjectId);
+  const shortName = current ? current.replace(/\\/g, "/").replace(/\/+$/, "").split("/").pop() || current : "";
 
   const save = () => {
     const v = root.trim();
@@ -43,19 +44,37 @@ export const WorkspaceSelector: React.FC<{ className?: string }> = ({ className 
 
   return (
     <div className={cn("w-full", className)}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2 py-1 text-left text-[11px] text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-      >
-        <FolderGit2 className="h-3.5 w-3.5 shrink-0 text-primary" />
-        <span className="min-w-0 truncate">
-          {activeProjectId ? "Project workspace" : "Workspace"}:{" "}
-          <span className="font-mono">{current || "not set"}</span>
-        </span>
-        <ChevronDown className={cn("ml-auto h-3 w-3 shrink-0 transition-transform", open && "rotate-180")} />
-      </button>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          title={current || "No workspace selected"}
+          className={cn(
+            "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors",
+            current
+              ? "border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+              : "border-primary/50 bg-primary/10 text-foreground hover:bg-primary/15"
+          )}
+        >
+          <FolderGit2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+          <span className="min-w-0 truncate">
+            {current ? (
+              <>
+                <span className="font-mono">{shortName}</span>
+              </>
+            ) : (
+              <span className="font-medium">Set workspace</span>
+            )}
+          </span>
+          <ChevronDown className={cn("h-3 w-3 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+        </button>
+        {activeProjectId && (
+          <span className="shrink-0 rounded-full border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground">
+            project
+          </span>
+        )}
+      </div>
       {open && (
         <div className="mt-1.5 rounded-md border border-border/60 bg-card p-2 shadow-sm">
           <label className="grid gap-1.5 text-[11px] text-muted-foreground">

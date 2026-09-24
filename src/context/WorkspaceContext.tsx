@@ -4,6 +4,7 @@ import { useResearchProject } from "@/context/ResearchProjectContext";
 import { getDesktopApi } from "@/lib/desktopApi";
 import { detectProjectType, type ProjectWorkspace } from "@/lib/workspace";
 import { isDesktopApp } from "@/lib/isDesktopApp";
+import { buildLatexEditContract, extractBibKeysFromBibliography } from "@/lib/assistantFileEdits";
 import type { NotebookStudioFileRef } from "@/context/NotebookStudioContext";
 import type { ResearchProjectData } from "@/types/researchProject";
 
@@ -40,12 +41,17 @@ export function notebookRefToRel(
 
 export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { activeProjectId, chats, currentChatId, registerProjectContextProvider } = useChat();
-  const { projects } = useResearchProject();
+  const { project: activeResearchProject } = useResearchProject();
   const [workspace, setWorkspace] = useState<ProjectWorkspace | null>(null);
   const [resolving, setResolving] = useState(false);
   const seqRef = useRef(0);
   const workspaceRef = useRef<ProjectWorkspace | null>(null);
   workspaceRef.current = workspace;
+  const projectsRef = useRef(activeResearchProject);
+  projectsRef.current = activeResearchProject;
+  // Scalar deps for refresh (object identity churns on every project update).
+  const activeResearchId = activeResearchProject?.id;
+  const activeResearchTitle = activeResearchProject?.title;
 
   /* Phase B: bounded project context for OpenCode task prompts. */
   useEffect(() => {
@@ -69,6 +75,32 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         lines.push(
           `latex project: main file ${ws.latex.mainTex}; after editing .tex/.bib, compile (latexmk -pdf or pdflatex+bibtex passes) into ${ws.latex.buildDir}/ and verify the PDF exists — never claim success without the artifact.`
         );
+        // Edit contract: which files the model may rewrite + valid cite keys,
+        // so "rewrite chapter 3 and fix citations" actually lands as edits
+        // the app can apply (file-edit blocks) instead of prose.
+        try {
+          const proj = projectsRef.current;
+          const allowed = [
+            ws.latex.mainTex,
+            ...(ws.latex.chapters ?? []).slice(0, 20),
+            ...(ws.latex.bibliography ?? []).slice(0, 5),
+          ].filter(Boolean);
+          if (!allowed.includes("references.bib")) allowed.push("references.bib");
+          const keys =
+            proj && proj.id === ws.projectId && proj.bibliography
+              ? extractBibKeysFromBibliography(proj.bibliography)
+              : [];
+          lines.push(
+            buildLatexEditContract({
+              allowedFiles: [...new Set(allowed)],
+              citeKeys: keys,
+              mainTex: ws.latex.mainTex,
+              buildDir: ws.latex.buildDir,
+            })
+          );
+        } catch {
+          /* contract is advisory — never break task creation */
+        }
       }
       if (ws.projectInstructions) {
         lines.push(`project instructions:\n${ws.projectInstructions.slice(0, 1500)}`);
@@ -87,8 +119,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     setResolving(true);
     try {
-      const project = projects.find((p) => p.id === projectId);
-      const displayName = project?.title ?? "Project";
+      const displayName =
+        activeResearchId === projectId && activeResearchTitle ? activeResearchTitle : "Project";
       const folder = resolveExecutionWorkspace(projectId);
       const api = isDesktopApp() ? getDesktopApi() : undefined;
       if (!folder || !api?.workspaceResolve) {
@@ -121,7 +153,16 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (type === "latex" || type === "mixed") {
         try {
           const det = await api.latexDetect?.(root).catch(() => null);
-          if (det?.isLatex && det.mainTex) latex = { mainTex: det.mainTex, buildDir: det.buildDir ?? "build" };
+          if (det?.isLatex && det.mainTex) {
+            latex = {
+              mainTex: det.mainTex,
+              buildDir: det.buildDir ?? "build",
+              chapters: Array.isArray(det.chapters) ? det.chapters.filter((c) => typeof c === "string").slice(0, 40) : [],
+              bibliography: Array.isArray(det.bibliography)
+                ? det.bibliography.filter((b) => typeof b === "string").slice(0, 10)
+                : [],
+            };
+          }
         } catch {
           /* optional */
         }
@@ -146,7 +187,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } finally {
       if (seq === seqRef.current) setResolving(false);
     }
-  }, [activeProjectId, projects, currentChatId]);
+  }, [activeProjectId, activeResearchId, activeResearchTitle, currentChatId]);
 
   useEffect(() => {
     void refresh();

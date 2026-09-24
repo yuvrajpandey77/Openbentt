@@ -904,7 +904,7 @@ async function simulateExecution(app, task, session) {
   // falling through.
   task.checkpoint ??= 0;
   const wantsTest = /test|failing|broken|fix/i.test(task.prompt);
-  const wantsWrite = /fix|patch|refactor|modify|create|implement|build/i.test(task.prompt);
+  const wantsWrite = /fix|patch|refactor|modify|create|implement|build|edit|rewrite|update/i.test(task.prompt);
   const wantsDelete = /delete|remove|destroy|wipe/i.test(task.prompt);
   if (wantsDelete && task.checkpoint <= 0) {
     task.checkpoint = 1;

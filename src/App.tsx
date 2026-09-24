@@ -21,6 +21,7 @@ import NotFound from "./pages/NotFound";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { FeatureErrorBoundary } from "./components/FeatureErrorBoundary";
 import { WebWorkspaceRouteGuard } from "@/components/WebWorkspaceRouteGuard";
+import { DesktopLandingRedirect } from "@/components/DesktopRouteGuard";
 
 const NotebookStudioPage = lazy(() => import("./pages/NotebookStudioPage"));
 const ProjectsHubPage = lazy(() => import("./pages/ProjectsHubPage"));
@@ -55,6 +56,7 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <DesktopAppFrame>
+              <DesktopLandingRedirect />
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   {/* Public / marketing routes */}
