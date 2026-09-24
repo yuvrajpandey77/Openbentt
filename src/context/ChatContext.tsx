@@ -857,6 +857,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const t = await openCodeAgentApi.respondToPermission({ taskId, approvalId, decision });
         setExecutionTasks((prev) => ({ ...prev, [taskId]: t }));
+        // Remove the permission request event from the events array so the UI clears the permission dialog
+        setExecutionEvents((prev) => {
+          const events = prev[taskId];
+          if (!events) return prev;
+          return {
+            ...prev,
+            [taskId]: events.filter((e) => e.type !== "agent.permission.requested" || e.payload.approvalId !== approvalId),
+          };
+        });
         patchExecutionMessage(taskId, (m) => ({
           ...m,
           executionStatus: "running",
