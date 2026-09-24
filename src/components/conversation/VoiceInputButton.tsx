@@ -96,7 +96,7 @@ const DesktopVoiceButton: React.FC<ButtonParts> = ({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant={listening ? "secondary" : "ghost"}
+              variant="ghost"
               size="sm"
               className="h-8 w-8 shrink-0 border border-border/60 bg-background/80 p-0 md:h-9 md:w-9"
               type="button"
@@ -259,7 +259,7 @@ const WebSpeechButton: React.FC<ButtonParts> = ({ preview, setPreview, isLoading
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant={listening ? "secondary" : "ghost"}
+              variant="ghost"
               size="sm"
               className="h-8 w-8 shrink-0 border border-border/60 bg-background/80 p-0 md:h-9 md:w-9"
               type="button"

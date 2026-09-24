@@ -752,9 +752,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
                   size="sm"
                   className={cn(
                     "h-auto shrink-0 border border-border/50 bg-background/90 shadow-sm backdrop-blur hover:bg-muted/90",
-                    isStudio
-                      ? "min-h-8 max-w-[11rem] flex-row items-center gap-1 px-2 py-1 text-xs"
-                      : "h-8 max-w-[8.5rem] flex-row items-center gap-1 px-1.5 py-0 text-xs md:min-h-9 md:max-w-[min(100%,22rem)] md:gap-1.5 md:px-2 md:py-1.5 md:text-sm"
+                     isStudio
+                       ? "min-h-8 max-w-[7rem] flex-row items-center gap-1 px-2 py-1 text-xs"
+                       : "h-8 max-w-[6rem] flex-row items-center gap-1 px-1.5 py-0 text-xs md:min-h-9 md:max-w-[min(100%,12rem)] md:gap-1.5 md:px-2 md:py-1.5 md:text-sm"
                   )}
                 >
                   {effectiveModel?.location === "local" ? (

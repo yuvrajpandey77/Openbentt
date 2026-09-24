@@ -55,6 +55,16 @@ if (process.platform === "linux") {
   applyLinuxOzonePlatform();
 }
 
+/** Disable GPU entirely so the app runs on any device regardless of GPU state. */
+function disableGPU() {
+  app.commandLine.appendSwitch("disable-gpu");
+  app.commandLine.appendSwitch("disable-gpu-compositing");
+  app.commandLine.appendSwitch("disable-gpu-rasterization");
+  app.commandLine.appendSwitch("disable-webgl");
+  app.commandLine.appendSwitch("disable-webgpu");
+  app.disableHardwareAcceleration();
+}
+
 /** Linux display backend — must run before app.ready. */
 function applyLinuxOzonePlatform() {
   const ozoneOverride = process.env.OPENBENTT_OZONE_PLATFORM?.trim();
@@ -127,6 +137,9 @@ function registerAppProtocolHandler() {
 
 /** App shell background — matches `.app-shell { --background: 0 0% 12% }` → #1f1f1f */
 const APP_SHELL_BG = "#1f1f1f";
+
+/** Must run before app.ready (Electron requirement). */
+disableGPU();
 /** Compact caption strip (native overlay height on Windows; in-app bar elsewhere). */
 const TITLE_BAR_HEIGHT = 28;
 

@@ -119,7 +119,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const recentChats = chats.slice(-30).reverse();
   const projectChats = activeProjectId
-    ? chats.filter((c) => c.projectId === activeProjectId).slice(-5).reverse()
+    ? chats.filter((c) => c.projectId === activeProjectId).slice(-20).reverse()
     : [];
 
   const renderNavItem = (item: { icon: React.ElementType; label: string; id: string; to: string }) => {
@@ -301,24 +301,28 @@ const Sidebar: React.FC<SidebarProps> = ({
                   to: `/projects/${activeProjectId}`,
                 })}
               {/* Project chats: clickable conversation options inside the project. */}
-              {projectChats.map((chat) => (
-                <button
-                  key={chat.id}
-                  type="button"
-                  onClick={() => handleSelectChat(chat.id)}
-                  title={chat.title}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-lg py-1.5 pl-9 pr-2 text-left text-[13px] transition-colors duration-200",
-                    currentChatId === chat.id
-                      ? "bg-[#a3c987]/10 text-[#a3c987]"
-                      : "text-[#96A0AB] hover:bg-[#a3c987]/10 hover:text-[#E8F1F6]"
-                  )}
-                  aria-current={currentChatId === chat.id ? "true" : undefined}
-                >
-                  <MessageSquare className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-                  <span className="truncate">{chat.title || "Untitled chat"}</span>
-                </button>
-              ))}
+              {projectChats.length > 0 && (
+                <nav className="flex shrink-0 flex-col gap-0.5" aria-label="Project chats">
+                  {projectChats.map((chat) => (
+                    <button
+                      key={chat.id}
+                      type="button"
+                      onClick={() => handleSelectChat(chat.id)}
+                      title={chat.title}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-lg py-1.5 pl-8 pr-2 text-left text-[12px] transition-colors duration-150",
+                        currentChatId === chat.id
+                          ? "bg-accent/10 text-accent-foreground font-medium"
+                          : "text-muted-foreground hover:bg-accent/5 hover:text-foreground"
+                      )}
+                      aria-current={currentChatId === chat.id ? "true" : undefined}
+                    >
+                      <MessageSquare className="h-3 w-3 shrink-0" strokeWidth={1.5} />
+                      <span className="truncate">{chat.title || "Untitled chat"}</span>
+                    </button>
+                  ))}
+                </nav>
+              )}
             </nav>
           </>
         )}
