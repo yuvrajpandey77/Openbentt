@@ -5,7 +5,7 @@ import { getDesktopApi } from "@/lib/desktopApi";
 import type { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, Loader2, FolderOpen, FileCode, ExternalLink } from "lucide-react";
 
 interface CompileResult {
   ok: boolean;
@@ -158,6 +158,47 @@ export const AgentActivity: React.FC<{ message: Message; compact?: boolean }> = 
           {showAll ? "Show less" : `Show all ${trace.length} steps`}
         </button>
       )}
+
+      {/* Open created files/folders directly from the chat. */}
+      {taskId && (() => {
+        const fileEvents = (executionEvents[taskId] ?? []).filter(
+          (e) => e.type === "agent.file.changed" && e.payload?.path
+        );
+        const filePaths = fileEvents.map((e) => String(e.payload.path));
+        if (!filePaths.length) return null;
+        const api = getDesktopApi();
+        return (
+          <div className="mt-2 rounded-md border border-border/60 bg-background/40 p-2">
+            <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">Created files</p>
+            <div className="flex flex-wrap gap-1.5">
+              {filePaths.map((p, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="flex items-center gap-1 rounded-md border border-border/60 px-2 py-1 text-[11px] text-foreground hover:bg-muted hover:text-foreground"
+                  onClick={() => {
+                    if (api?.openPath) void api.openPath(p);
+                  }}
+                >
+                  <FileCode size={12} />
+                  <span className="truncate max-w-[200px]">{p}</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                className="flex items-center gap-1 rounded-md border border-border/60 px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={() => {
+                  const dir = filePaths[0]?.split("/").slice(0, -1).join("/");
+                  if (dir && api?.openPath) void api.openPath(dir);
+                }}
+              >
+                <FolderOpen size={12} />
+                <span>Open folder</span>
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Real LaTeX compile loop for latex workspaces (verified artifact, never faked). */}
       {workspace?.latex && taskId && (

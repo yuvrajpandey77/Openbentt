@@ -90,6 +90,14 @@ export function registerDesktopWindowIpc(ipc) {
     return { ok: true };
   });
 
+  ipc.handle("desktop:openPath", async (_event, path) => {
+    // Open a file or folder in the system file manager / associated app.
+    if (typeof path !== "string" || !path.trim()) return { ok: false };
+    const { shell } = await import("electron");
+    await shell.openPath(path.trim());
+    return { ok: true };
+  });
+
   ipc.handle("desktop:pickWorkspaceFolder", async (event, currentPath) => {
     // Native folder picker (Cursor/VS Code style). Main-owned dialog; the
     // returned path is re-validated for containment on every task creation.

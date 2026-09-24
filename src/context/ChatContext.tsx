@@ -1101,9 +1101,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                           ...msg,
                           // Plain layer copy only — never the legacy
                           // provider formatters (no Hugging Face/key hints).
-                          content:
-                            msg.content ||
-                            `OpenCode couldn't answer that (${shortReason(error)}). Check Setup → Execution for runtime status, or retry.`,
+                           content:
+                             msg.content ||
+                             `OpenCode didn't respond — the runtime may be busy or offline. Check Setup → Execution, then click Retry below.`,
                           streaming: false,
                         }
                       : msg

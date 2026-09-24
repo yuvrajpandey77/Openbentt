@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("openbenttDesktop", {
   quitApp: () => ipcRenderer.invoke("desktop:quit"),
   showAbout: () => ipcRenderer.invoke("desktop:showAbout"),
   openExternal: (url) => ipcRenderer.invoke("desktop:openExternal", url),
+  openPath: (path) => ipcRenderer.invoke("desktop:openPath", path),
   pickWorkspaceFolder: (currentPath) => ipcRenderer.invoke("desktop:pickWorkspaceFolder", currentPath),
   // Workspace authority (read-only + approval-gated writes; renderer never touches fs).
   workspaceResolve: (root) => ipcRenderer.invoke("workspace:resolve", { root }),

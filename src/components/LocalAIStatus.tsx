@@ -1,5 +1,5 @@
 import React from "react";
-import { Cpu, Loader2, AlertTriangle, Download, Cloud } from "lucide-react";
+import { Cpu, Loader2, AlertTriangle, Download } from "lucide-react";
 import { useLocalAI } from "@/context/LocalAIContext";
 import { friendlyModelLabel } from "@/lib/ollama/selection";
 import { cn } from "@/lib/utils";
@@ -31,7 +31,7 @@ export const LocalAIStatus: React.FC<{ compact?: boolean; onOpen?: () => void }>
     downloading && downloading.percent != null
       ? `Downloading ${friendlyModelLabel(downloading.model)} ${downloading.percent}%`
       : effectiveModel
-        ? `${friendlyModelLabel(effectiveModel.modelId || "")} ${effectiveModel.location === "local" ? "· Local" : "· Cloud"}`
+        ? friendlyModelLabel(effectiveModel.modelId || "")
         : health === "checking" || checking
           ? "Checking local AI…"
           : health === "no-models"
@@ -45,8 +45,6 @@ export const LocalAIStatus: React.FC<{ compact?: boolean; onOpen?: () => void }>
       <Loader2 size={14} className="animate-spin" />
     ) : downloading ? (
       <Download size={14} />
-    ) : effectiveModel?.location === "cloud" ? (
-      <Cloud size={14} />
     ) : health !== "ready" ? (
       <AlertTriangle size={14} />
     ) : (

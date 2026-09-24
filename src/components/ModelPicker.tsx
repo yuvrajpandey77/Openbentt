@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Check, ChevronDown, Cpu, Cloud, Loader2 } from "lucide-react";
+import { Check, ChevronDown, Cpu, Loader2 } from "lucide-react";
+
 import { useChat } from "@/context/ChatContext";
 import { useLocalAI } from "@/context/LocalAIContext";
 import { normalizeApiConfig } from "@/types/chat";
@@ -48,10 +49,10 @@ export const ModelPicker: React.FC<{ align?: "start" | "end" | "center" }> = ({ 
           className="h-8 max-w-[16rem] gap-1.5 px-2 text-xs font-medium"
           aria-label={`Model: ${currentLabel}. Change model`}
         >
-          {isLocalActive ? <Cpu size={14} className="shrink-0 text-primary" /> : <Cloud size={14} className="shrink-0 text-muted-foreground" />}
+          {isLocalActive ? <Cpu size={14} className="shrink-0 text-primary" /> : <Cpu size={14} className="shrink-0 text-muted-foreground" />}
           <span className="truncate">{currentLabel}</span>
           <Badge variant="secondary" className="hidden shrink-0 px-1 py-0 text-[10px] font-normal sm:inline">
-            {isLocalActive ? "Local" : "Cloud"}
+            Local
           </Badge>
           <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
         </Button>
@@ -109,16 +110,16 @@ export const ModelPicker: React.FC<{ align?: "start" | "end" | "center" }> = ({ 
         )}
         <div className="mt-1 border-t border-border pt-1">
           <p className="px-2 pb-1 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Current cloud model
+            Active model
           </p>
           <div className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground">
-            <Cloud size={14} className="shrink-0" />
+            <Cpu size={14} className="shrink-0" />
             <span className="min-w-0 flex-1 truncate">
               {isLocalActive ? "— (using local model)" : apiConfig.model || "—"}
             </span>
           </div>
           <p className="px-2 py-1 text-[11px] text-muted-foreground/80">
-            Cloud and advanced provider settings live in Settings → Providers.
+            Provider settings live in Settings → Providers.
           </p>
         </div>
       </PopoverContent>

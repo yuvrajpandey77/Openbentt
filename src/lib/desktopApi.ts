@@ -34,6 +34,8 @@ export interface OpenbenttDesktopApi {
   quitApp?(): Promise<void>;
   showAbout?(): Promise<void>;
   openExternal?(url: string): Promise<{ ok: boolean }>;
+  /** Open a file or folder path in the system file manager / associated app. */
+  openPath?(path: string): Promise<{ ok: boolean }>;
   /** Native folder picker (Cursor/VS Code style). Null when cancelled/unavailable. */
   pickWorkspaceFolder?(currentPath?: string): Promise<{ path: string | null }>;
   /* Workspace authority (main-owned fs; renderer never touches paths directly). */

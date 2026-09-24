@@ -772,30 +772,25 @@ const ChatInput: React.FC<ChatInputProps> = ({
                   <ChevronDown size={12} className="shrink-0" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="flex max-h-[min(70vh,420px)] w-[min(100vw-2rem,28rem)] flex-col overflow-hidden">
+              <DropdownMenuContent align="start" className="flex max-h-[min(50vh,320px)] w-[min(100vw-2rem,22rem)] flex-col overflow-hidden">
                 {layerActive ? (
                   <>
                     <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border/60">
                       {openCodeLayer.checking
                         ? "Loading OpenCode models…"
-                        : `${openCodeLayer.models.length} OpenCode model${openCodeLayer.models.length === 1 ? "" : "s"} · free first · no key needed`}
+                        : `${openCodeLayer.models.length} OpenCode model${openCodeLayer.models.length === 1 ? "" : "s"} · no key needed`}
                     </div>
-                    <div className="max-h-80 overflow-y-auto p-1">
+                    <div className="max-h-60 overflow-y-auto p-1">
                       {openCodeLayer.models.map((m) => (
                         <DropdownMenuItem
                           key={m.id}
                           onClick={() => setOpenCodeModel(m.id)}
-                          className="group flex cursor-pointer flex-col items-stretch gap-1 py-2.5"
+                          className="group flex cursor-pointer items-center gap-2 py-1.5 px-2 text-sm"
                         >
-                          <div className="flex w-full items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1 text-left">
-                              <span className="font-medium leading-tight">
-                                {m.displayName || shortModelLabel(m.id)}
-                                {openCodeModel === m.id && <span className="ml-1 text-primary group-hover:text-accent-foreground group-focus:text-accent-foreground">✓</span>}
-                              </span>
-                              <span className="block break-all text-[11px] text-muted-foreground group-hover:text-accent-foreground/75 group-focus:text-accent-foreground/75">{m.id}</span>
-                            </div>
-                          </div>
+                          <span className="flex-1 truncate text-sm group-hover:text-accent-foreground group-focus:text-accent-foreground">
+                            {m.displayName || shortModelLabel(m.id)}
+                          </span>
+                          {openCodeModel === m.id && <span className="shrink-0 text-primary">✓</span>}
                         </DropdownMenuItem>
                       ))}
                       {openCodeLayer.models.length === 0 && !openCodeLayer.checking && (
@@ -812,20 +807,15 @@ const ChatInput: React.FC<ChatInputProps> = ({
                       {modelsError && "Could not load models — check key or try Settings."}
                       {!modelsLoading && !modelsError && `${selectable.length} models available`}
                     </div>
-                    <div className="max-h-80 overflow-y-auto p-1">
+                    <div className="max-h-60 overflow-y-auto p-1">
                       {selectable.map((m) => (
                         <DropdownMenuItem
                           key={m.id}
                           onClick={() => handleModelChange(m.id)}
-                          className="group flex cursor-pointer flex-col items-stretch gap-2 py-2.5"
+                          className="group flex cursor-pointer items-center gap-2 py-1.5 px-2 text-sm"
                         >
-                          <div className="flex w-full items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1 text-left">
-                              <span className="font-medium leading-tight">{m.name || shortModelLabel(m.id)}</span>
-                              <span className="block break-all text-[11px] text-muted-foreground group-hover:text-accent-foreground/75 group-focus:text-accent-foreground/75">{m.id}</span>
-                            </div>
-                            <ModelCapabilityBadges modelId={m.id} meta={m} compact className="shrink-0" />
-                          </div>
+                          <span className="flex-1 truncate text-sm group-hover:text-accent-foreground group-focus:text-accent-foreground">{m.name || shortModelLabel(m.id)}</span>
+                          <ModelCapabilityBadges modelId={m.id} meta={m} compact className="shrink-0" />
                         </DropdownMenuItem>
                       ))}
                     </div>
@@ -834,10 +824,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Execution engine indicator (default: OpenCode; informational, not a mode) */}
-            {!isStudio && <ExecutionBadge className="hidden shrink-0 sm:inline-flex" />}
+             {/* Voice enters the same canonical conversation (text/voice = metadata) */}
+             {!isStudio && <VoiceInputButton setComposerMessage={setMessage} level={voiceLevel} elapsedMs={voiceElapsedMs} />}
 
-            {/* Single attach button */}
+             {/* Single attach button */}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -917,9 +907,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 </Tooltip>
               </TooltipProvider>
             )}
-
-            {/* Voice enters the same canonical conversation (text/voice = metadata) */}
-            {!isStudio && <VoiceInputButton setComposerMessage={setMessage} level={voiceLevel} elapsedMs={voiceElapsedMs} />}
 
             {/* Extras toggle ··· */}
             {!isStudio && (
@@ -1108,6 +1095,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            {!isStudio && (
+              <div className="mt-1.5 flex justify-center">
+                <VoiceInputButton setComposerMessage={setMessage} level={voiceLevel} elapsedMs={voiceElapsedMs} />
+              </div>
+            )}
           </div>
           </div>
         </div>
