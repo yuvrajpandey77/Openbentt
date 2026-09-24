@@ -136,23 +136,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     [chats]
   );
 
-  // Project chats grouped by project
-  const projectChatsByProject = useMemo(() => {
-    const grouped: Record<string, typeof chats> = {};
-    chats
-      .filter(c => c.projectId)
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-      .forEach(chat => {
-        if (!grouped[chat.projectId]) grouped[chat.projectId] = [];
-        grouped[chat.projectId].push(chat);
-      });
-    return grouped;
-  }, [chats]);
-
   const recentChats = chats.slice(-30).reverse();
   const [showAllChats, setShowAllChats] = useState(false);
   const [showMoreNav, setShowMoreNav] = useState(false);
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [showFilesBrowser, setShowFilesBrowser] = useState(false);
   const [filesBrowserData, setFilesBrowserData] = useState<{ path: string; kind: string }[] | null>(null);
   const [filesBrowserLoading, setFilesBrowserLoading] = useState(false);
@@ -284,39 +270,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </button>
     );
-  };
-
-  const renderProjectChat = (chat: { id: string; title: string; projectId: string }) => {
-    const active = currentChatId === chat.id;
-    return (
-      <button
-        key={chat.id}
-        type="button"
-        onClick={() => handleSelectChat(chat.id)}
-        title={chat.title}
-        className={cn(
-          "sidebar-nav-item",
-          collapsed && "sidebar-nav-item--icon-only",
-          isMobile && "sidebar-nav-item--mobile",
-          active && "sidebar-nav-item--active"
-        )}
-        aria-current={active ? "page" : undefined}
-      >
-        <MessageSquare className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")} strokeWidth={1.5} />
-        {showLabels && (
-          <span className="sidebar-nav-label truncate">{chat.title || "Untitled chat"}</span>
-        )}
-      </button>
-    );
-  };
-
-  const toggleProject = (projectId: string) => {
-    setExpandedProjects((prev) => {
-      const next = new Set(prev);
-      if (next.has(projectId)) next.delete(projectId);
-      else next.add(projectId);
-      return next;
-    });
   };
 
   const toggleFilesBrowser = () => {
@@ -506,79 +459,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                   <nav className="flex shrink-0 flex-col gap-0.5 mb-4" aria-label="Recent conversations">
                     {recentGlobalChats.map(renderRecentChat)}
-                  </nav>
-                </>
-              )}
-
-              {/* PROJECTS SECTION — expandable */}
-              {showLabels && (
-                <>
-                  <div className="flex shrink-0 items-center gap-2 mb-2 px-1">
-                    <FolderKanban className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="text-[12px] leading-[16px] text-muted-foreground font-medium">Projects</span>
-                  </div>
-                  <nav className="flex shrink-0 flex-col gap-0.5 mb-4" aria-label="Projects">
-                    {researchProjects.map((project) => {
-                      const projectChats = projectChatsByProject[project.id] || [];
-                      const isExpanded = expandedProjects.has(project.id);
-                      const hasChats = projectChats.length > 0;
-                      
-                      return (
-                        <div key={project.id} className="flex flex-col">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (hasChats) toggleProject(project.id);
-                              else navigate(`/projects/${project.id}`);
-                              onCloseMobile();
-                            }}
-                            className={cn(
-                              "sidebar-nav-item",
-                              collapsed && "sidebar-nav-item--icon-only",
-                              isMobile && "sidebar-nav-item--mobile"
-                            )}
-                            aria-expanded={hasChats ? isExpanded : undefined}
-                          >
-                            <FolderKanban className="shrink-0 h-4 w-4" strokeWidth={1.5} />
-                            {showLabels && (
-                              <span className="sidebar-nav-label truncate flex-1 font-medium">{project.title}</span>
-                            )}
-                            {showLabels && hasChats && (
-                              <ChevronRight className={cn(
-                                "h-3 w-3 shrink-0 text-muted-foreground transition-transform",
-                                isExpanded && "rotate-90"
-                              )} />
-                            )}
-                          </button>
-                          {showLabels && isExpanded && hasChats && (
-                            <nav className="flex flex-col gap-0.5 pl-6" aria-label={`${project.title} conversations`}>
-                              {projectChats.slice(0, 10).map(renderProjectChat)}
-                              {projectChats.length > 10 && (
-                                <button
-                                  type="button"
-                                  onClick={() => navigate(`/projects/${project.id}`)}
-                                  className="text-[12px] leading-[16px] text-muted-foreground hover:text-foreground px-2 py-1"
-                                >
-                                  View all ({projectChats.length})
-                                </button>
-                              )}
-                            </nav>
-                          )}
-                        </div>
-                      );
-                    })}
-                    <NavLink
-                      to="/projects"
-                      onClick={onCloseMobile}
-                      className={cn(
-                        "sidebar-nav-item",
-                        collapsed && "sidebar-nav-item--icon-only",
-                        isMobile && "sidebar-nav-item--mobile"
-                      )}
-                    >
-                      <Plus className="shrink-0 h-4 w-4" strokeWidth={1.5} />
-                      {showLabels && <span className="sidebar-nav-label">New project</span>}
-                    </NavLink>
                   </nav>
                 </>
               )}
