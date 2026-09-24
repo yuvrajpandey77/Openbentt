@@ -736,7 +736,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
             /* Universal layer: the box is always writable; send-time guards explain. */
             disabled={isLoading}
             className={cn(
-              "resize-none border-0 bg-transparent px-3 text-[15px] leading-relaxed text-foreground shadow-none outline-none placeholder:text-muted-foreground/75 focus:border-0 focus:outline-none focus-visible:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:text-base",
+              "resize-none border-0 bg-muted/30 px-3 text-[15px] leading-relaxed text-foreground shadow-sm outline-none placeholder:text-muted-foreground/75 focus:border-primary/40 focus:outline-none focus-visible:border-primary/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30 sm:text-base",
               isStudio
                 ? "min-h-[2.25rem] max-h-24 py-2 pb-9 text-sm"
                 : isCompact

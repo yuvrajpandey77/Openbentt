@@ -397,10 +397,15 @@ function FileBrowserEntry({
 
   if (!isDir) {
     return (
-      <div className="flex items-center gap-2 pl-6 py-0.5 text-[11px] text-muted-foreground">
+      <button
+        type="button"
+        onClick={() => getDesktopApi()?.openPath?.(entry.path)}
+        className="flex items-center gap-2 pl-6 py-0.5 text-left text-[11px] text-muted-foreground hover:text-foreground rounded w-full"
+        title={`Open ${name}`}
+      >
         <FileText className="h-3 w-3 shrink-0" />
         <span className="truncate">{name}</span>
-      </div>
+      </button>
     );
   }
 
