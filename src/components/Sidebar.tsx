@@ -39,6 +39,7 @@ import {
   Compass,
   ChevronLeft,
   X,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
@@ -203,24 +204,29 @@ const Sidebar: React.FC<SidebarProps> = ({
   const renderRecentChat = (chat: { id: string; title: string; projectId?: string | null }) => {
     const active = currentChatId === chat.id;
     return (
-      <button
-        key={chat.id}
-        type="button"
-        onClick={() => handleSelectChat(chat.id)}
-        title={chat.title || "Untitled chat"}
-        className={cn(
-          "sidebar-nav-item",
-          collapsed && "sidebar-nav-item--icon-only",
-          isMobile && "sidebar-nav-item--mobile",
-          active && "sidebar-nav-item--active"
-        )}
-        aria-current={active ? "page" : undefined}
-      >
-        <Pin className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")} strokeWidth={1.5} />
-        {showLabels && (
-          <span className="sidebar-nav-label truncate">{chat.title || "Untitled chat"}</span>
-        )}
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            key={chat.id}
+            type="button"
+            onClick={() => handleSelectChat(chat.id)}
+            title={chat.title || "Untitled chat"}
+            className={cn(
+              "sidebar-nav-item",
+              collapsed && "sidebar-nav-item--icon-only",
+              isMobile && "sidebar-nav-item--mobile",
+              active && "sidebar-nav-item--active"
+            )}
+            aria-current={active ? "page" : undefined}
+          >
+            <MessageSquare className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")} strokeWidth={1.5} />
+            {showLabels && (
+              <span className="sidebar-nav-label truncate">{chat.title || "Untitled chat"}</span>
+            )}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Open conversation</TooltipContent>
+      </Tooltip>
     );
   };
 
@@ -395,11 +401,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                 {PRIMARY_NAV_ITEMS.map(renderNavItem)}
               </nav>
 
-              {/* PINNED SECTION */}
+              {/* RECENT SECTION */}
               {showLabels && recentGlobalChats.length > 0 && (
                 <>
                   <div className="flex shrink-0 items-center gap-2 mb-2 px-1">
-                    <Pin className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <History className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span className="text-[12px] leading-[16px] text-muted-foreground font-medium">Recent</span>
                   </div>
                   <nav className="flex shrink-0 flex-col gap-0.5 mb-4" aria-label="Recent conversations">
