@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, PanelLeft } from "lucide-react";
+import { Menu, PanelLeft, PanelRight, FolderKanban } from "lucide-react";
 import { ShareLinkButton } from "@/components/ShareLinkButton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,8 @@ interface AppChromeHeaderProps {
   sidebarCollapsed: boolean;
   onExpandSidebar: () => void;
   workspaceMeta?: WorkspaceRouteMeta;
+  rightSidebarOpen: boolean;
+  onToggleRightSidebar: () => void;
 }
 
 export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
@@ -24,6 +26,8 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
   sidebarCollapsed,
   onExpandSidebar,
   workspaceMeta,
+  rightSidebarOpen,
+  onToggleRightSidebar,
 }) => {
   const { currentChatId, chats, activeProjectId } = useChat();
   const activeChat = chats.find((c) => c.id === currentChatId);
@@ -69,18 +73,45 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
                 {workspaceMeta.tag}
               </Badge>
               <span className="text-xs font-medium text-foreground md:text-sm">{workspaceMeta.title}</span>
-              <Link
-                to={isDesktopApp() ? "/projects" : "/"}
-                className="hidden text-[10px] text-muted-foreground/70 hover:text-foreground hover:underline sm:inline"
-              >
-                ← Projects
-              </Link>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="hidden gap-1.5 text-xs text-muted-foreground hover:text-foreground md:inline-flex"
+                    onClick={() => window.dispatchEvent(new CustomEvent("navigate", { detail: "/projects" }))}
+                    aria-label="Go to Projects panel"
+                  >
+                    <FolderKanban className="h-3 w-3" />
+                    <span>Projects</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Go to Projects panel</TooltipContent>
+              </Tooltip>
             </div>
           ) : null}
         </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5 md:gap-1.5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-9 w-9 shrink-0 rounded-lg transition-colors",
+                rightSidebarOpen && "bg-muted"
+              )}
+              onClick={onToggleRightSidebar}
+              aria-label={rightSidebarOpen ? "Close right sidebar" : "Open right sidebar (⌘J)"}
+              aria-pressed={rightSidebarOpen}
+            >
+              <PanelRight className={cn("h-4 w-4", rightSidebarOpen && "text-primary")} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{rightSidebarOpen ? "Close right sidebar" : "Open right sidebar (⌘J)"}</TooltipContent>
+        </Tooltip>
         <FeedbackDialog compact />
         <ShareLinkButton />
       </div>

@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { PanelRightOpen } from "lucide-react";
+import { PanelRightOpen, PanelRightClose } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
+import RightSidebar from "@/components/RightSidebar";
 import ChatInput from "@/components/ChatInput";
 import { CommandMenu } from "@/components/CommandMenu";
 import { TaskCenterToasts } from "@/components/TaskCenterToasts";
@@ -42,10 +43,11 @@ const AppLayout: React.FC = () => {
   const isMobile = useIsMobile();
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const openSearch = () => setCommandMenuOpen(true);
   const openSettings = () => navigate("/settings");
-  useGlobalShortcuts({ onOpenSearch: openSearch, onOpenSettings: openSettings });
+  useGlobalShortcuts({ onOpenSearch: openSearch, onOpenSettings: openSettings, onToggleRightSidebar: toggleRightSidebar });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
@@ -62,6 +64,10 @@ const AppLayout: React.FC = () => {
       return false;
     }
   });
+
+  const toggleRightSidebar = useCallback(() => {
+    setRightSidebarOpen((prev) => !prev);
+  }, []);
 
   useEffect(() => {
     try {
@@ -95,6 +101,14 @@ const AppLayout: React.FC = () => {
       setWorkspacePanelOpen(true);
     }
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    const handleNavigate = (e: CustomEvent<string>) => {
+      navigate(e.detail);
+    };
+    window.addEventListener("navigate", handleNavigate as EventListener);
+    return () => window.removeEventListener("navigate", handleNavigate as EventListener);
+  }, [navigate]);
 
   useEffect(() => {
     setIsMobileSidebarOpen(false);
@@ -174,6 +188,8 @@ const AppLayout: React.FC = () => {
           sidebarCollapsed={sidebarCollapsed}
           onExpandSidebar={() => setSidebarCollapsed(false)}
           workspaceMeta={workspaceMeta}
+          rightSidebarOpen={rightSidebarOpen}
+          onToggleRightSidebar={toggleRightSidebar}
         />
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -242,6 +258,8 @@ const AppLayout: React.FC = () => {
           <ChatInput isLoading={isLoading} workspaceMeta={workspaceMeta} />
         </div>
       </main>
+      {/* Right sidebar: Files, Activity, Tools, Settings */}
+      <RightSidebar isOpen={rightSidebarOpen} onClose={() => setRightSidebarOpen(false)} />
       {/* Secondary execution inspector: conversation primary, internals secondary. */}
       <ExecutionInspector />
     </div>

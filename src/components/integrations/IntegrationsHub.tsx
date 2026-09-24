@@ -9,6 +9,8 @@ import { connectorAuthApi, type ConnectionStatusView } from "@/lib/connectors/co
 import { listEnterpriseMeta } from "@/lib/connectors/enterpriseConnectors";
 import { ConnectorDetail } from "@/components/integrations/ConnectorDetail";
 import { ConnectionWizard } from "@/components/integrations/ConnectionWizard";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 const TIER_1 = ["google-drive", "gmail", "google-calendar", "slack", "github", "notion"];
 
@@ -24,15 +26,25 @@ export function IntegrationsHub() {
   const [wizardFor, setWizardFor] = useState<string | null>(null);
   const [wizardMode, setWizardMode] = useState<"read" | "actions">("read");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setError(null);
     const next: Record<string, ConnectionStatusView> = {};
     for (const id of TIER_1) {
       try {
         next[id] = await connectorAuthApi.status(id);
-      } catch {
-        next[id] = { connectorId: id, hasToken: false, scopes: [], connected: false, needsReauth: false };
+      } catch (e) {
+        console.error(`Failed to get status for ${id}:`, e);
+        next[id] = { 
+          connectorId: id, 
+          hasToken: false, 
+          scopes: [], 
+          connected: false, 
+          needsReauth: false, 
+          lastError: e instanceof Error ? e.message : "Failed to check status" 
+        };
       }
     }
     setStatuses(next);
@@ -87,6 +99,17 @@ export function IntegrationsHub() {
           }}
         />
       </>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive" className="border-destructive/50">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Failed to load integrations: {error}
+        </AlertDescription>
+      </Alert>
     );
   }
 

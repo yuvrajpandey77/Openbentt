@@ -9,6 +9,7 @@ import { useChat } from "@/context/ChatContext";
 export function useGlobalShortcuts(options: {
   onOpenSearch: () => void;
   onOpenSettings: () => void;
+  onToggleRightSidebar: () => void;
 }) {
   const { onOpenSearch, onOpenSettings } = options;
   const navigate = useNavigate();
@@ -38,6 +39,11 @@ export function useGlobalShortcuts(options: {
       if (mod && e.key === ",") {
         e.preventDefault();
         onOpenSettings();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "j" && !inTextInput) {
+        e.preventDefault();
+        onToggleRightSidebar();
         return;
       }
       if (e.key === "Escape" && !inTextInput) {

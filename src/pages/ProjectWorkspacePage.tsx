@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useWorkspaceFolderPicker } from "@/hooks/useWorkspaceFolderPicker";
 import { ExecutionBadge } from "@/components/conversation/ExecutionBadge";
-import { Plus, FolderOpen, FolderKanban, Files, BookOpen, FileStack, NotebookPen, ListTodo, MoreHorizontal, ChevronRight, ChevronDown, Search } from "lucide-react";
+import { Plus, FolderOpen, FolderKanban, Files, BookOpen, FileStack, NotebookPen, ListTodo, MoreHorizontal, ChevronRight, ChevronDown, Search, MessageSquare, Mic, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
@@ -120,6 +120,11 @@ const ProjectWorkspacePage: React.FC = () => {
     setShowProjectDropdown(false);
   };
 
+  const handleSelectChat = (chatId: string) => {
+    selectChat(chatId);
+    navigate(`/projects/${projectId}/chat/${chatId}`);
+  };
+
   if (!projectId) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
@@ -196,6 +201,43 @@ const ProjectWorkspacePage: React.FC = () => {
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* Project sidebar — matches main sidebar design */}
           <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-muted/20 md:flex" aria-label="Project workspace">
+            {/* Navigation: Chat, Research, Voice */}
+            <nav className="flex shrink-0 flex-col gap-0.5 mb-4 px-1" aria-label="Project navigation">
+              <NavLink
+                to={`/projects/${projectId}`}
+                onClick={onCloseMobile}
+                className={cn(
+                  "sidebar-nav-item",
+                  location.pathname === `/projects/${projectId}` && "sidebar-nav-item--active"
+                )}
+              >
+                <MessageSquare className="shrink-0 h-4 w-4" strokeWidth={1.5} />
+                <span className="sidebar-nav-label truncate">Chat</span>
+              </NavLink>
+              <NavLink
+                to={`/projects/${projectId}/research`}
+                onClick={onCloseMobile}
+                className={cn(
+                  "sidebar-nav-item",
+                  location.pathname.startsWith(`/projects/${projectId}/research`) && "sidebar-nav-item--active"
+                )}
+              >
+                <Brain className="shrink-0 h-4 w-4" strokeWidth={1.5} />
+                <span className="sidebar-nav-label truncate">Research</span>
+              </NavLink>
+              <NavLink
+                to={`/projects/${projectId}/voice`}
+                onClick={onCloseMobile}
+                className={cn(
+                  "sidebar-nav-item",
+                  location.pathname.startsWith(`/projects/${projectId}/voice`) && "sidebar-nav-item--active"
+                )}
+              >
+                <Mic className="shrink-0 h-4 w-4" strokeWidth={1.5} />
+                <span className="sidebar-nav-label truncate">Voice</span>
+              </NavLink>
+            </nav>
+
             {/* Conversations section */}
             <div className="flex shrink-0 flex-col">
               <div className="flex items-center gap-2 mb-2 px-1">
@@ -207,7 +249,7 @@ const ProjectWorkspacePage: React.FC = () => {
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => navigate(`/projects/${projectId}/chat/${c.id}`)}
+                    onClick={() => handleSelectChat(c.id)}
                     className={cn(
                       "sidebar-nav-item",
                       currentChatId === c.id && "sidebar-nav-item--active"
@@ -222,7 +264,7 @@ const ProjectWorkspacePage: React.FC = () => {
                 )}
               </nav>
 
-              {/* Workspace files section */}
+              {/* Files browser */}
               <div className="flex shrink-0 items-center justify-between mb-2 px-1">
                 <div className="flex items-center gap-2">
                   <Files className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -350,8 +392,6 @@ const ProjectWorkspacePage: React.FC = () => {
   );
 };
 
-export default ProjectWorkspacePage;
-
 // File browser entry component
 function FileBrowserEntry({
   entry,
@@ -389,7 +429,7 @@ function FileBrowserEntry({
       </button>
       {isExpanded && (
         <div className="pl-6">
-          <LoadDirContents path={entry.path} expandedDirs={expandedDirs} onToggleDir={toggleDir} />
+          <LoadDirContents path={entry.path} expandedDirs={expandedDirs} onToggleDir={onToggleDir} />
         </div>
       )}
     </div>
@@ -407,8 +447,6 @@ function LoadDirContents({
 }) {
   const [entries, setEntries] = useState<{ path: string; kind: string }[] | null>(null);
   const [loading, setLoading] = useState(false);
-  const { getDesktopApi } = require("@/lib/desktopApi");
-  const { toggleDir } = require("@/components/Sidebar").toggleDir; // Not accessible, we'll use a local version
 
   useEffect(() => {
     let cancelled = false;
@@ -446,3 +484,5 @@ function LoadDirContents({
     </>
   );
 }
+
+export default ProjectWorkspacePage;
