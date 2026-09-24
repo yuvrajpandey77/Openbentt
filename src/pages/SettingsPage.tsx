@@ -14,7 +14,6 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { useOnboarding } from "@/context/OnboardingContext";
 import { ExecutionSetupSection } from "@/components/conversation/ExecutionSetupSection";
 
 /** Phase 9 — Settings: Account, Execution readiness, AI & Models, then full provider panels. */
@@ -62,7 +61,6 @@ function ExecutionReadinessCard() {
 
 function AccountCard() {
   const { status, user, signOut } = useAuth();
-  const { reset } = useOnboarding();
   const [signingOut, setSigningOut] = useState(false);
   return (
     <Card>
@@ -95,17 +93,9 @@ function AccountCard() {
           </Button>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Sign in from the welcome screen to attach an account. Restart onboarding to revisit it.
+            No sign-in required. Use Openbentt locally with OpenCode and Ollama.
           </p>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={reset}
-          title="Show the first-run flow again (account, local AI setup)"
-        >
-          Replay onboarding
-        </Button>
       </CardContent>
     </Card>
   );

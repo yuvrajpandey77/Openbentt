@@ -282,7 +282,7 @@ const LocalGgufHub: React.FC = () => {
     return (
       <Card className="border-dashed border-primary/40 p-6 text-sm text-muted-foreground">
         Local GGUF runs in the <strong className="text-foreground">Openbentt desktop</strong> app only. Launch via{" "}
-        <code className="rounded bg-muted px-1 py-0.5 text-[11px]">npm run electron:dev:safe</code> or the installed app.
+        <code className="rounded bg-muted px-1 py-0.5 text-[11px]">npm run electron:dev</code> or the installed app.
       </Card>
     );
   }
@@ -366,12 +366,11 @@ const LocalGgufHub: React.FC = () => {
                     and ensure <code className="rounded bg-muted px-1">llama-server</code> is on your PATH.
                   </li>
                   <li>Or set a custom binary path in Settings → AI provider → Local file model.</li>
-                  {isDesktopApp() && desktopPlatform === "linux" ? (
-                    <li>
-                      On Linux, if GPU inference fails, try{" "}
-                      <code className="rounded bg-muted px-1">npm run electron:dev:safe</code> (software rendering).
-                    </li>
-                  ) : null}
+{isDesktopApp() && desktopPlatform === "linux" ? (
+                     <li>
+                       On Linux, use the desktop app directly — software rendering is always available.
+                     </li>
+                   ) : null}
                 </ol>
               </div>
             ) : null}

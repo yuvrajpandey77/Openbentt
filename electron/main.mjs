@@ -35,21 +35,12 @@ import { registerComputerUseIpc } from "./computerUseService.mjs";
 import { setOmniRouteEventTarget, cleanupOmniRouteOnQuit } from "./omniRouteService.mjs";
 import { registerVoiceIpc, setVoiceEventTarget, cleanupVoiceOnQuit, isMicGrantActive } from "./voiceService.mjs";
 import { resolveUnderDistRoot } from "./ipcValidate.mjs";
-import { getGpuSafeMode } from "./gpuSafeMode.mjs";
 import { registerNavigationPolicy, setVoiceGrantChecker } from "./navigationPolicy.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const gpuSafeMode = getGpuSafeMode();
-if (gpuSafeMode.enabled) {
-  process.env.OPENBENTT_SOFTWARE_RENDERING = "1";
-  console.info(
-    `[electron] Software rendering enabled (${gpuSafeMode.reason ?? "safe-mode"}). WebGPU UI flags skipped.`
-  );
-  app.disableHardwareAcceleration();
-  app.commandLine.appendSwitch("disable-gpu");
-  app.commandLine.appendSwitch("disable-gpu-compositing");
-}
+/** GPU is always available via software rendering — no safe mode needed. */
+const gpuSafeMode = { enabled: false };
 
 /** One app instance — second launch focuses the existing window.
  *  Dev mode skips this so restarts never get blocked by a stale lock. */
@@ -59,15 +50,7 @@ if (!singleInstanceLock) {
   app.quit();
 }
 
-/**
- * Linux display: on **Wayland**, Chromium logs `--ozone-platform=wayland is not compatible with Vulkan`
- * and `Failed to create vulkan surface` (often alongside GBM / `driver (null)` lines), which breaks GPU
- * compositing and can destabilize WebGPU/WASM (showing up as opaque WASM traps in the chat).
- *
- * Since we *want* Vulkan for WebGPU on Linux (see flags below), default Ozone to **x11** when the
- * session is Wayland. Override with `OPENBENTT_OZONE_PLATFORM=wayland` (force Wayland) or
- * `OPENBENTT_OZONE_PLATFORM=auto` (let Chromium decide).
- */
+/** Linux display: default Ozone to x11 on Wayland sessions. */
 if (process.platform === "linux") {
   applyLinuxOzonePlatform();
 }
@@ -83,96 +66,11 @@ function applyLinuxOzonePlatform() {
     return;
   }
 
-  if (gpuSafeMode.enabled) {
-    /**
-     * On Wayland, native ozone=wayland + software rasterizer paints reliably.
-     * ozone=x11 (XWayland) + software triggers invisible windows on many NVIDIA setups.
-     */
-    const platform = isWaylandSession ? "wayland" : "x11";
-    app.commandLine.appendSwitch("ozone-platform", platform);
-    app.commandLine.appendSwitch("disable-gpu-sandbox");
-    app.commandLine.appendSwitch("enable-software-rasterizer");
-    app.commandLine.appendSwitch(
-      "disable-features",
-      "Vulkan,VulkanFromANGLE,DefaultANGLEVulkan,UseSkiaRenderer"
-    );
-    console.info(
-      `[electron] Software rendering: ozone-platform=${platform} (native, not XWayland). Override with OPENBENTT_OZONE_PLATFORM=x11|wayland.`
-    );
-    return;
-  }
-
   if (isWaylandSession) {
     app.commandLine.appendSwitch("ozone-platform", "x11");
-    console.info(
-      "[electron] Wayland session detected; forcing --ozone-platform=x11 for Vulkan/WebGPU stability. Override with OPENBENTT_OZONE_PLATFORM=wayland or =auto."
-    );
   }
 }
 
-/**
- * WebGPU for on-device Gemma — only when hardware rendering is available.
- * Set OPENBENTT_DISABLE_WEBGPU_FLAGS=1 to opt out for debugging.
- */
-if (!gpuSafeMode.enabled && !process.env.OPENBENTT_DISABLE_WEBGPU_FLAGS) {
-  app.commandLine.appendSwitch("enable-unsafe-webgpu");
-  if (process.platform === "linux") {
-    /** Many integrated / Mesa drivers are blocklisted for WebGPU until this is set. */
-    app.commandLine.appendSwitch("ignore-gpu-blocklist");
-    /**
-     * Forcing Skia/ANGLE onto Vulkan (`Vulkan,VulkanFromANGLE,DefaultANGLEVulkan`) is what was
-     * triggering `Failed to create vulkan surface` on Wayland and on NVIDIA + X11/XWayland here
-     * (`GetGeometry failed for window 1`, `XGetWindowAttributes failed`). That breaks the GPU
-     * process and surfaces in the chat as opaque WASM traps (`table index is out of bounds`,
-     * `unaligned access`, etc.).
-     *
-     * WebGPU (Dawn) does not require those features; we leave it on with `enable-unsafe-webgpu`.
-     * Set OPENBENTT_LINUX_FORCE_VULKAN_FEATURES=1 to opt back in if your driver actually likes them.
-     */
-    if (process.env.OPENBENTT_LINUX_FORCE_VULKAN_FEATURES === "1") {
-      app.commandLine.appendSwitch(
-        "enable-features",
-        "Vulkan,VulkanFromANGLE,DefaultANGLEVulkan"
-      );
-    }
-  }
-}
-
-/** Manual override after auto-detection (must still run before app.ready). */
-if (!gpuSafeMode.enabled && process.env.OPENBENTT_DISABLE_GPU === "1") {
-  app.disableHardwareAcceleration();
-}
-
-
-const gpuRecoveryAttempted = process.env.OPENBENTT_GPU_RECOVERY_ONCE === "1";
-let gpuCrashBurstCount = 0;
-let gpuCrashBurstWindowStart = 0;
-
-function noteGpuCrashBurst() {
-  const now = Date.now();
-  const windowMs = 20_000;
-  if (!gpuCrashBurstWindowStart || now - gpuCrashBurstWindowStart > windowMs) {
-    gpuCrashBurstWindowStart = now;
-    gpuCrashBurstCount = 0;
-  }
-  gpuCrashBurstCount += 1;
-  return gpuCrashBurstCount;
-}
-
-function relaunchInGpuSafeMode(reason) {
-  if (gpuSafeMode.enabled || gpuRecoveryAttempted) return false;
-  console.error(`[electron] ${reason}. Relaunching once with OPENBENTT_DISABLE_GPU=1 for compatibility.`);
-  app.relaunch({
-    args: process.argv.slice(1),
-    env: {
-      ...process.env,
-      OPENBENTT_DISABLE_GPU: "1",
-      OPENBENTT_GPU_RECOVERY_ONCE: "1",
-    },
-  });
-  app.exit(0);
-  return true;
-}
 
 const VITE_DEV_URL = process.env.VITE_DEV_SERVER_URL || "http://127.0.0.1:8080";
 /** When true, load the Vite dev server (use `npm run electron:dev`). Otherwise load built `dist/` via app:// */
@@ -245,16 +143,14 @@ function ensureWindowVisible(win) {
 }
 
 function buildBrowserWindowOptions(icon) {
-  /** Framed Linux (safe mode): native menu bar + window icon; no in-app title strip. */
-  const linuxNativeChrome = process.platform === "linux" && gpuSafeMode.enabled;
   const base = {
     width: 1280,
     height: 840,
     minWidth: 900,
     minHeight: 600,
-    show: gpuSafeMode.enabled,
+    show: true,
     title: "Openbentt",
-    autoHideMenuBar: !linuxNativeChrome,
+    autoHideMenuBar: process.platform === "linux",
     backgroundColor: APP_SHELL_BG,
     ...(icon ? { icon } : {}),
   };
@@ -279,10 +175,10 @@ function buildBrowserWindowOptions(icon) {
     };
   }
 
-  /** Linux: framed window in safe mode — frameless + software rendering often never maps on screen. */
+  /** Linux: always framed window. */
   return {
     ...base,
-    frame: gpuSafeMode.enabled,
+    frame: true,
   };
 }
 
@@ -368,14 +264,6 @@ function createWindow() {
   // Phase 3: microphone granted only while a voice session is live.
   setVoiceGrantChecker(() => isMicGrantActive());
 
-  if (gpuSafeMode.enabled) {
-    win.center();
-    ensureWindowVisible(win);
-    if (process.platform === "linux") {
-      win.setMenuBarVisibility(true);
-    }
-  }
-
   if (useViteDevServer) {
     /** Show immediately — don't wait for page load so the window is always visible. */
     win.show();
@@ -425,29 +313,6 @@ if (singleInstanceLock) {
     if (win) {
       if (win.isMinimized()) win.restore();
       win.focus();
-    }
-  });
-}
-
-
-if (!gpuSafeMode.enabled) {
-  app.on("child-process-gone", (_event, details) => {
-    if (details?.type !== "GPU") return;
-    const exitCode = Number.isFinite(details.exitCode) ? details.exitCode : -1;
-    const burst = noteGpuCrashBurst();
-    console.error(
-      `[electron] GPU process crashed (reason=${details.reason ?? "unknown"}, exitCode=${exitCode}, burst=${burst}).`
-    );
-    if (burst >= 2) {
-      relaunchInGpuSafeMode("Repeated GPU process crashes detected");
-    }
-  });
-
-  app.on("gpu-process-crashed", (_event, killed) => {
-    const burst = noteGpuCrashBurst();
-    console.error(`[electron] gpu-process-crashed (killed=${Boolean(killed)} burst=${burst}).`);
-    if (burst >= 2) {
-      relaunchInGpuSafeMode("Legacy gpu-process-crashed signal received repeatedly");
     }
   });
 }
