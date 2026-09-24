@@ -183,11 +183,18 @@ const ProjectsHubPage: React.FC = () => {
           <nav className="flex flex-1 flex-col gap-0.5 px-2">
             <button
               type="button"
-              className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-left text-sm font-medium text-primary"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-primary bg-primary/10"
             >
               <FolderOpen className="h-4 w-4 shrink-0" />
               All projects
             </button>
+            <Link
+              to="/chat"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            >
+              <MessageSquare className="h-4 w-4 shrink-0" />
+              Chat
+            </Link>
             <button
               type="button"
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
