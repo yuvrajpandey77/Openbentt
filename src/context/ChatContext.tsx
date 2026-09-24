@@ -105,6 +105,9 @@ interface ChatContextProps {
   executionEvents: Record<string, OpenCodeAgentEvent[]>;
   workspaceNeeded: boolean;
   setWorkspaceNeeded: (v: boolean) => void;
+  /** Full Access permission: when true, OpenCode permission requests are auto-approved. */
+  fullAccessGranted: boolean;
+  setFullAccessGranted: (v: boolean) => void;
   executionDrawerTaskId: string | null;
   setExecutionDrawerTaskId: (id: string | null) => void;
   cancelExecutionTask: (taskId: string) => Promise<void>;
@@ -464,6 +467,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
   const activeProjectIdRef = useRef<string | null>(null);
   const [workspaceNeeded, setWorkspaceNeeded] = useState(false);
+  const [fullAccessGranted, setFullAccessGranted] = useState(false);
   const [executionTasks, setExecutionTasks] = useState<Record<string, OpenCodeTask>>({});
   const [executionEvents, setExecutionEvents] = useState<Record<string, OpenCodeAgentEvent[]>>({});
   const [executionDrawerTaskId, setExecutionDrawerTaskId] = useState<string | null>(null);
@@ -676,7 +680,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           streaming: evt.type === "agent.completed" || evt.type === "agent.failed" || evt.type === "agent.cancelled" ? false : m.streaming,
         }));
         if (evt.type === "agent.permission.requested") {
-          setExecutionDrawerTaskId((cur) => cur ?? evt.taskId);
+          if (fullAccessGranted) {
+            void openCodeAgentApi.respondToPermission({
+              taskId: evt.taskId,
+              approvalId: evt.payload.approvalId,
+              decision: "allow-task",
+            });
+          } else {
+            setExecutionDrawerTaskId((cur) => cur ?? evt.taskId);
+          }
         }
         if (evt.type === "agent.file.changed") {
           // Phase C/D: lazily capture before-state for real diffs.
@@ -2274,6 +2286,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     executionEvents,
     workspaceNeeded,
     setWorkspaceNeeded,
+    fullAccessGranted,
+    setFullAccessGranted,
     executionDrawerTaskId,
     setExecutionDrawerTaskId,
     cancelExecutionTask,

@@ -1,26 +1,18 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { ShieldAlert, ShieldCheck, X, Check } from "lucide-react";
+import { ShieldAlert, ShieldCheck, X, Check, Shield } from "lucide-react";
 import { FileText, Terminal, Globe } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useChat } from "@/context/ChatContext";
 import { cn } from "@/lib/utils";
 
-type PermissionState = "idle" | "requested" | "approved" | "auto-approving";
-
-export const PermissionPill: React.FC<{
-  onApprove: () => void;
-  onDismiss: () => void;
-}> = ({ onApprove, onDismiss }) => {
-  const [state, setState] = useState<PermissionState>("idle");
+export const PermissionPill: React.FC = () => {
+  const { fullAccessGranted, setFullAccessGranted } = useChat();
   const [showDetails, setShowDetails] = useState(false);
   const autoApproveRef = useRef<number | null>(null);
 
   const startAutoApprove = () => {
-    setState("auto-approving");
-    autoApproveRef.current = window.setTimeout(() => {
-      setState("approved");
-      onApprove();
-    }, 5000);
+    setFullAccessGranted(true);
   };
 
   const cancelAutoApprove = () => {
@@ -28,20 +20,12 @@ export const PermissionPill: React.FC<{
       clearTimeout(autoApproveRef.current);
       autoApproveRef.current = null;
     }
-    setState("idle");
-  };
-
-  const handleApprove = () => {
-    cancelAutoApprove();
-    setState("approved");
-    onApprove();
+    setFullAccessGranted(false);
   };
 
   const handleDismiss = () => {
     cancelAutoApprove();
-    setState("idle");
     setShowDetails(false);
-    onDismiss();
   };
 
   useEffect(() => {
@@ -49,10 +33,6 @@ export const PermissionPill: React.FC<{
       if (autoApproveRef.current) clearTimeout(autoApproveRef.current);
     };
   }, []);
-
-  if (state === "approved") return null;
-
-  const isAuto = state === "auto-approving";
 
   return (
     <div className="relative">
@@ -64,19 +44,23 @@ export const PermissionPill: React.FC<{
               onClick={() => setShowDetails((v) => !v)}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors",
-                showDetails
+                fullAccessGranted
                   ? "border-primary/50 bg-primary/10 text-primary hover:bg-primary/15"
                   : "border-muted-foreground/20 bg-muted/30 text-muted-foreground/80 hover:bg-muted/40 hover:text-muted-foreground"
               )}
               aria-expanded={showDetails}
               aria-label={showDetails ? "Hide permission details" : "Show permission details"}
             >
-              <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+              {fullAccessGranted ? (
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+              ) : (
+                <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+              )}
               <span className="min-w-0 truncate font-medium">Full Access</span>
-              {isAuto && (
-                <span className="flex items-center gap-1 text-[10px] opacity-70 animate-pulse">
+              {fullAccessGranted && (
+                <span className="flex items-center gap-1 text-[10px] opacity-70">
                   <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  Auto-approving in 5s
+                  Active
                 </span>
               )}
               <X className="h-3 w-3 shrink-0 opacity-50 hover:opacity-100" />
@@ -91,13 +75,17 @@ export const PermissionPill: React.FC<{
       </TooltipProvider>
 
       {showDetails && (
-        <div className="absolute left-0 top-full mt-1.5 z-50 w-80 rounded-lg border border-border bg-card p-3 shadow-lg animate-fade-in-up">
+        <div className="absolute left-0 bottom-full mb-1.5 z-50 w-80 rounded-lg border border-border bg-card p-3 shadow-lg animate-fade-in-up">
           <div className="flex items-start gap-2">
-            <ShieldAlert className="h-5 w-5 shrink-0 text-primary mt-0.5" />
+            {fullAccessGranted ? (
+              <ShieldCheck className="h-5 w-5 shrink-0 text-primary mt-0.5" />
+            ) : (
+              <ShieldAlert className="h-5 w-5 shrink-0 text-primary mt-0.5" />
+            )}
             <div className="flex-1 min-w-0">
               <h4 className="font-medium text-sm text-foreground">Turn on Full Access?</h4>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Codex will be able to run commands, use the internet, and create and edit files anywhere on this computer without your permission.
+                Openbentt will be able to run commands, use the internet, and create and edit files anywhere on this computer without your permission.
               </p>
             </div>
           </div>
@@ -135,7 +123,7 @@ export const PermissionPill: React.FC<{
             <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
               <input
                 type="checkbox"
-                defaultChecked
+                checked={fullAccessGranted}
                 onChange={(e) => {
                   if (e.target.checked) startAutoApprove();
                   else cancelAutoApprove();
@@ -159,13 +147,18 @@ export const PermissionPill: React.FC<{
             <Button
               size="sm"
               className="flex-1 h-8 text-xs"
-              onClick={handleApprove}
-              disabled={isAuto}
+              onClick={() => {
+                if (fullAccessGranted) {
+                  cancelAutoApprove();
+                } else {
+                  startAutoApprove();
+                }
+              }}
             >
-              {isAuto ? (
+              {fullAccessGranted ? (
                 <>
-                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent mr-1" />
-                  Approving…
+                  <X className="h-3 w-3 mr-1" />
+                  Turn Off
                 </>
               ) : (
                 <>
@@ -180,3 +173,7 @@ export const PermissionPill: React.FC<{
     </div>
   );
 };
+
+import { useState } from "react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { FileText, Terminal, Globe } from "lucide-react";
