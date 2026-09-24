@@ -17,12 +17,28 @@ import { useVoiceCapture } from "@/hooks/useVoiceCapture";
  * Browser fallback: Web Speech API when available.
  * Voice is metadata — it can never approve permissions.
  */
-export const VoiceInputButton: React.FC = () => {
+interface VoiceInputButtonProps {
+  setComposerMessage?: (t: string) => void;
+  level?: number;
+  elapsedMs?: number;
+}
+
+export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({ setComposerMessage, level = 0, elapsedMs = 0 }) => {
   const { submitVoiceTranscript, isLoading } = useChat();
   const [preview, setPreview] = useState<string | null>(null);
 
   if (hasOpenCodeDesktopApi()) {
-    return <DesktopVoiceButton preview={preview} setPreview={setPreview} isLoading={isLoading} submit={submitVoiceTranscript} />;
+    return (
+      <DesktopVoiceButton
+        preview={preview}
+        setPreview={setPreview}
+        isLoading={isLoading}
+        submit={submitVoiceTranscript}
+        setComposerMessage={setComposerMessage}
+        level={level}
+        elapsedMs={elapsedMs}
+      />
+    );
   }
   return <WebSpeechButton preview={preview} setPreview={setPreview} isLoading={isLoading} submit={submitVoiceTranscript} />;
 };
@@ -32,9 +48,14 @@ interface ButtonParts {
   setPreview: (t: string | null) => void;
   isLoading: boolean;
   submit: (t: string) => Promise<void>;
+  setComposerMessage?: (t: string) => void;
+  level?: number;
+  elapsedMs?: number;
 }
 
-const DesktopVoiceButton: React.FC<ButtonParts> = ({ preview, setPreview, isLoading, submit }) => {
+const DesktopVoiceButton: React.FC<ButtonParts> = ({
+  preview, setPreview, isLoading, submit, setComposerMessage, level = 0, elapsedMs = 0,
+}) => {
   const { state, progress, error, start, stop, cancel, clearError } = useVoiceCapture();
   const busy = state === "loading-model" || state === "requesting-mic" || state === "transcribing";
   const listening = state === "listening";
@@ -42,14 +63,17 @@ const DesktopVoiceButton: React.FC<ButtonParts> = ({ preview, setPreview, isLoad
   const toggle = useCallback(() => {
     if (listening) {
       void stop().then((t) => {
-        if (t) setPreview(t);
+        if (t) {
+          setComposerMessage?.(t);
+          setPreview(null);
+        }
       });
     } else if (state === "idle" || state === "error") {
       clearError();
       setPreview(null);
       void start().catch(() => {});
     }
-  }, [listening, state, stop, start, setPreview, clearError]);
+  }, [listening, state, stop, start, setPreview, setComposerMessage, clearError]);
 
   const statusText =
     state === "loading-model"
@@ -58,7 +82,13 @@ const DesktopVoiceButton: React.FC<ButtonParts> = ({ preview, setPreview, isLoad
         ? "Requesting microphone…"
         : state === "transcribing"
           ? "Transcribing…"
-          : error ?? (listening ? "Listening — click again to finish" : "Speak — enters the same conversation");
+          : error ?? (listening ? `Listening — click again to finish${elapsedMs ? ` (${Math.floor(elapsedMs / 1000)}s)` : ""}` : "Speak — enters the same conversation");
+
+  const barClass = level < 0.3
+    ? "bg-emerald-400"
+    : level < 0.7
+    ? "bg-amber-400"
+    : "bg-red-400";
 
   return (
     <>
@@ -81,6 +111,20 @@ const DesktopVoiceButton: React.FC<ButtonParts> = ({ preview, setPreview, isLoad
           <TooltipContent>{statusText}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
+      {listening && (
+        <div className="w-full rounded-md border border-border/40 bg-muted/15 px-2 py-1.5">
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            <span className="w-2 shrink-0">{listening ? <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" /> : null}</span>
+            <span>{statusText}</span>
+          </div>
+          <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-border">
+            <div
+              className={`h-full rounded-full transition-all duration-100 ${barClass}`}
+              style={{ width: `${Math.round(level * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
       {(preview || error) && (
         <div className="w-full rounded-md border border-border/60 bg-muted/20 p-2 text-xs" role="status">
           {error ? (

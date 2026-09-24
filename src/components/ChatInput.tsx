@@ -116,6 +116,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
+  const [voiceLevel, setVoiceLevel] = useState(0);
+  const [voiceElapsedMs, setVoiceElapsedMs] = useState(0);
   const [showExtras, setShowExtras] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
@@ -917,7 +919,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
             )}
 
             {/* Voice enters the same canonical conversation (text/voice = metadata) */}
-            {!isStudio && <VoiceInputButton />}
+            {!isStudio && <VoiceInputButton setComposerMessage={setMessage} level={voiceLevel} elapsedMs={voiceElapsedMs} />}
 
             {/* Extras toggle ··· */}
             {!isStudio && (
