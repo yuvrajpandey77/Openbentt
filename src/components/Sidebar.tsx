@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useChat } from "@/context/ChatContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
@@ -30,29 +30,46 @@ import {
   RefreshCw,
   FolderTree,
   FileText,
+  Bell,
+  ChevronUp,
+  User,
+  LogOut,
+  HelpCircle,
+  Pin,
+  PinOff,
+  MoreHorizontal,
+  Image,
+  Calendar,
+  Zap,
+  Compass,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AccountMenu } from "@/components/AccountMenu";
 import { LocalAIStatus } from "@/components/LocalAIStatus";
+import { getDesktopApi } from "@/lib/desktopApi";
+import { resolveExecutionWorkspace } from "@/context/ChatContext";
+import { openCodeAgentApi } from "@/lib/agent/openCodeAgentApi";
 
 /**
- * ONE persistent sidebar — the global control surface. Chat, projects,
- * files, research, tasks, voice, and computer use are capabilities of the
- * same workspace, not destinations in different apps. Execution lives
- * inside conversations (OpenCode underneath); /agent stays hidden.
- *
- * HOME / PROJECTS / WORKSPACE / ACTIVITY, then SEE MORE for the rest.
+ * ChatGPT-style sidebar — compact, dark, professional AI workspace.
+ * 
+ * Structure:
+ * - Header: App name + dropdown, Search, Notifications
+ * - Primary Navigation: New Chat, Images, Scheduled, Plugins, Explore
+ * - Pinned section: Pinned conversations
+ * - Projects section: Projects with nested conversations
+ * - Flexible content area (Files browser, etc.)
+ * - Bottom account area: Avatar, name, settings
  */
 
-const HOME_ITEMS = [
-  { icon: Home, label: "Home", id: "home", to: "/" },
-  { icon: MessageSquare, label: "Chat", id: "chat", to: "/chat" },
-];
-
-const PROJECT_ITEMS = [
-  { icon: FolderKanban, label: "Projects", id: "projects", to: "/projects" },
+const PRIMARY_NAV_ITEMS = [
+  { icon: Plus, label: "New chat", id: "new-chat", shortcut: "⌘N", action: "new-chat" },
+  { icon: Image, label: "Images", id: "images", shortcut: null, to: "/images" },
+  { icon: Calendar, label: "Scheduled", id: "scheduled", shortcut: null, to: "/scheduled" },
+  { icon: Zap, label: "Plugins", id: "plugins", shortcut: null, to: "/plugins" },
+  { icon: Compass, label: "Explore", id: "explore", shortcut: null, to: "/explore" },
 ];
 
 const WORKSPACE_ITEMS = [
@@ -66,7 +83,6 @@ const ACTIVITY_ITEMS = [
   { icon: ListTodo, label: "Tasks", id: "tasks", to: "/tasks" },
 ];
 
-/** Same shell, expanded: capabilities, integrations, system. */
 const MORE_ITEMS = [
   { icon: Bot, label: "Computer Use", id: "computer", to: "/diagnostics" },
   { icon: Mic, label: "Voice", id: "voice", to: "/diagnostics" },
@@ -99,9 +115,15 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isMobile = useIsMobile();
   const location = useLocation();
   const navigate = useNavigate();
-  const { chats, currentChatId, createNewChat, selectChat, activeProjectId } = useChat();
-  const { projects } = useResearchProject();
-  const activeProject = projects.find((p) => p.id === activeProjectId);
+  const { 
+    chats, 
+    currentChatId, 
+    createNewChat, 
+    selectChat, 
+    activeProjectId 
+  } = useChat();
+  const { projects: researchProjects } = useResearchProject();
+  const activeProject = researchProjects.find((p) => p.id === activeProjectId);
 
   const handleNewChat = () => {
     createNewChat();
@@ -110,8 +132,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const handleSelectChat = (chatId: string) => {
-    // Back navigation preserves project context: project conversations
-    // reopen inside their project, global ones in chat. No duplicates.
     const chat = chats.find((c) => c.id === chatId);
     selectChat(chatId);
     if (chat?.projectId) navigate(`/projects/${chat.projectId}/chat/${chatId}`);
@@ -119,9 +139,36 @@ const Sidebar: React.FC<SidebarProps> = ({
     onCloseMobile();
   };
 
-  const fetchFilesBrowser = async () => {
-    const { resolveExecutionWorkspace } = await import("@/context/ChatContext");
-    const { openCodeAgentApi } = await import("@/lib/agent/openCodeAgentApi");
+  // Pinned chats (recent + manually pinned)
+  const pinnedChats = useMemo(() => 
+    chats.slice(-5).reverse().filter(c => !c.projectId), 
+    [chats]
+  );
+
+  // Project chats grouped by project
+  const projectChatsByProject = useMemo(() => {
+    const grouped: Record<string, typeof chats> = {};
+    chats
+      .filter(c => c.projectId)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .forEach(chat => {
+        if (!grouped[chat.projectId]) grouped[chat.projectId] = [];
+        grouped[chat.projectId].push(chat);
+      });
+    return grouped;
+  }, [chats]);
+
+  const recentChats = chats.slice(-30).reverse();
+  const [showAllChats, setShowAllChats] = useState(false);
+  const [showMoreNav, setShowMoreNav] = useState(false);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [showFilesBrowser, setShowFilesBrowser] = useState(false);
+  const [filesBrowserData, setFilesBrowserData] = useState<{ path: string; kind: string }[] | null>(null);
+  const [filesBrowserLoading, setFilesBrowserLoading] = useState(false);
+  const [filesBrowserError, setFilesBrowserError] = useState<string | null>(null);
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+
+  const fetchFilesBrowser = useCallback(async () => {
     const workspaceRoot = resolveExecutionWorkspace(activeProjectId);
     let root = workspaceRoot;
     if (!root) {
@@ -151,7 +198,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     } finally {
       setFilesBrowserLoading(false);
     }
-  };
+  }, [activeProjectId]);
 
   const toggleDir = (dirPath: string) => {
     setExpandedDirs((prev) => {
@@ -165,28 +212,34 @@ const Sidebar: React.FC<SidebarProps> = ({
   const iconOnly = !isMobile && collapsed;
   const showLabels = isMobile || !collapsed;
 
-  const recentChats = chats.slice(-30).reverse();
-  const projectChats = activeProjectId
-    ? chats.filter((c) => c.projectId === activeProjectId).slice(-20).reverse()
-    : [];
-  const [showAllChats, setShowAllChats] = useState(false);
-  const [showMoreNav, setShowMoreNav] = useState(false);
-  const [showFilesBrowser, setShowFilesBrowser] = useState(false);
-  const [filesBrowserData, setFilesBrowserData] = useState<{ path: string; kind: string }[] | null>(null);
-  const [filesBrowserLoading, setFilesBrowserLoading] = useState(false);
-  const [filesBrowserError, setFilesBrowserError] = useState<string | null>(null);
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
-
-  const renderNavItem = (item: { icon: React.ElementType; label: string; id: string; to: string }) => {
-    const active =
-      location.pathname === item.to || location.pathname.startsWith(item.to + "/");
+  const renderNavItem = (item: { 
+    icon: React.ElementType; 
+    label: string; 
+    id: string; 
+    to?: string; 
+    shortcut?: string | null;
+    action?: string;
+  }) => {
+    const isActive = item.to && (location.pathname === item.to || location.pathname.startsWith(item.to + "/"));
+    const isNewChatActive = item.action === "new-chat" && location.pathname === "/chat";
+    const active = isActive || isNewChatActive;
     const Icon = item.icon;
+
+    const handleClick = () => {
+      if (item.action === "new-chat") {
+        handleNewChat();
+      } else if (item.to) {
+        navigate(item.to);
+        onCloseMobile();
+      }
+    };
+
     return (
       <Tooltip key={item.id}>
         <TooltipTrigger asChild>
-          <NavLink
-            to={item.to}
-            onClick={onCloseMobile}
+          <button
+            type="button"
+            onClick={handleClick}
             aria-current={active ? "page" : undefined}
             className={cn(
               "sidebar-nav-item",
@@ -195,12 +248,21 @@ const Sidebar: React.FC<SidebarProps> = ({
               active && "sidebar-nav-item--active"
             )}
           >
-            <Icon className={cn("shrink-0", collapsed ? "h-6 w-6" : "h-5 w-5")} strokeWidth={1.5} />
-            {showLabels && <span className="sidebar-nav-label truncate">{item.label}</span>}
-          </NavLink>
+            <Icon className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")} strokeWidth={1.5} />
+            {showLabels && (
+              <>
+                <span className="sidebar-nav-label truncate">{item.label}</span>
+                {item.shortcut && !collapsed && (
+                  <kbd className="ml-auto rounded border border-border bg-muted px-1.5 text-[10px] text-muted-foreground">
+                    {item.shortcut}
+                  </kbd>
+                )}
+              </>
+            )}
+          </button>
         </TooltipTrigger>
         {iconOnly && (
-          <TooltipContent side="right" className="border-[#495056] bg-[#24292D] text-xs text-[#E8F1F6]">
+          <TooltipContent side="right" className="border-border bg-popover text-xs text-popover-foreground">
             {item.label}
           </TooltipContent>
         )}
@@ -208,373 +270,438 @@ const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
-  const renderActionButton = (
-    key: string,
-    label: string,
-    hint: string | undefined,
-    Icon: React.ElementType,
-    onClick: () => void
-  ) => (
-    <Tooltip key={key}>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={onClick}
-          className={cn(
-            "sidebar-nav-item",
-            collapsed && "sidebar-nav-item--icon-only",
-            isMobile && "sidebar-nav-item--mobile"
-          )}
-          aria-label={hint ? `${label} (${hint})` : label}
-        >
-          <Icon className={cn("shrink-0", collapsed ? "h-6 w-6" : "h-5 w-5")} strokeWidth={1.5} />
-          {showLabels && (
-            <span className="sidebar-nav-label flex flex-1 items-center justify-between">
-              {label}
-              {hint && (
-                <kbd className="rounded border border-border bg-muted px-1 text-[10px] text-muted-foreground">
-                  {hint}
-                </kbd>
-              )}
-            </span>
-          )}
-        </button>
-      </TooltipTrigger>
-      {iconOnly && (
-        <TooltipContent side="right" className="border-[#495056] bg-[#24292D] text-xs text-[#E8F1F6]">
-          {hint ? `${label} (${hint})` : label}
-        </TooltipContent>
-      )}
-    </Tooltip>
-  );
+  const renderPinnedChat = (chat: { id: string; title: string; projectId?: string | null }) => {
+    const active = currentChatId === chat.id;
+    return (
+      <button
+        key={chat.id}
+        type="button"
+        onClick={() => handleSelectChat(chat.id)}
+        title={chat.title || "Untitled chat"}
+        className={cn(
+          "sidebar-nav-item",
+          collapsed && "sidebar-nav-item--icon-only",
+          isMobile && "sidebar-nav-item--mobile",
+          active && "sidebar-nav-item--active"
+        )}
+        aria-current={active ? "page" : undefined}
+      >
+        <Pin className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")} strokeWidth={1.5} />
+        {showLabels && (
+          <span className="sidebar-nav-label truncate">{chat.title || "Untitled chat"}</span>
+        )}
+      </button>
+    );
+  };
+
+  const renderProjectChat = (chat: { id: string; title: string; projectId: string }) => {
+    const active = currentChatId === chat.id;
+    return (
+      <button
+        key={chat.id}
+        type="button"
+        onClick={() => handleSelectChat(chat.id)}
+        title={chat.title}
+        className={cn(
+          "sidebar-nav-item",
+          collapsed && "sidebar-nav-item--icon-only",
+          isMobile && "sidebar-nav-item--mobile",
+          active && "sidebar-nav-item--active"
+        )}
+        aria-current={active ? "page" : undefined}
+      >
+        <MessageSquare className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")} strokeWidth={1.5} />
+        {showLabels && (
+          <span className="sidebar-nav-label truncate">{chat.title || "Untitled chat"}</span>
+        )}
+      </button>
+    );
+  };
+
+  const toggleProject = (projectId: string) => {
+    setExpandedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  };
+
+  const toggleFilesBrowser = () => {
+    setShowFilesBrowser((v) => {
+      if (!v) fetchFilesBrowser();
+      return !v;
+    });
+  };
 
   return (
-    <aside
-      className={cn(
-        "fixed inset-y-0 left-0 z-[var(--z-sidebar)] flex flex-col",
-        "bg-[#101314]",
-        "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
-        isMobile
-          ? "w-full border-0"
-          : collapsed
-            ? "w-[56px] border-r border-[#24292D]"
-            : "w-[240px] border-r border-[#24292D]",
-        isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      )}
-      aria-label="Primary"
-    >
-      {isMobileOpen && isMobile && (
-        <button
-          type="button"
-          onClick={onCloseMobile}
-          aria-label="Close menu"
-          className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      )}
-
-      <div className={cn("flex h-full flex-col", collapsed ? "px-2 py-4" : isMobile ? "overflow-y-auto px-5 py-6" : "px-3 py-4")}>
-        {/* Header: Logo + Collapse Toggle */}
-        <div
-          className={cn(
-            "flex items-center",
-            collapsed ? "mb-6 justify-center" : isMobile ? "mb-8 justify-between" : "mb-6 justify-between px-1"
-          )}
-        >
-          <div className={cn("sidebar-logo-area flex items-center gap-3", collapsed && "h-11 w-11")}>
-            <img
-              src="/openbentt-logo.svg"
-              alt="Openbentt"
-              className={cn(
-                "sidebar-logo-img shrink-0 object-contain transition-opacity duration-200",
-                collapsed ? "h-9 w-9" : isMobile ? "h-12 w-12" : "h-11 w-11"
-              )}
-            />
-            {showLabels && (
-              <span className={cn("font-semibold text-white", isMobile ? "text-base" : "text-sm")}>Openbentt</span>
-            )}
-            {!isMobile && collapsed && (
-              <button
-                type="button"
-                onClick={onToggleCollapsed}
-                className="sidebar-collapsed-toggle"
-                aria-label="Expand sidebar"
-              >
-                <Menu className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-          {!isMobile && !collapsed && (
-            <button
-              type="button"
-              onClick={onToggleCollapsed}
-              className="sidebar-toggle-btn h-8 w-8"
-              aria-label="Collapse sidebar"
-            >
-              <Menu className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-
-        {/* SCROLLABLE NAV — sections scroll, bottom bar never overlaps. */}
-        <div className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-hide", !isMobile && "")}>
-        <FeatureErrorBoundary feature="sidebar-nav">
-        {/* ACTIONS */}
-        <nav className={cn("flex shrink-0 flex-col", isMobile ? "mb-6 gap-2" : "mb-4 gap-1")} aria-label="Actions">
-          {renderActionButton("search", "Search", "⌘K", Search, () => {
-            onOpenSearch();
-            onCloseMobile();
-          })}
-           {renderActionButton("new", "New chat", "⌘N", Plus, handleNewChat)}
-          </nav>
-
-          {/* HOME */}
-        {showLabels && (
-          <>
-            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
-            <nav className="flex shrink-0 flex-col gap-1" aria-label="Home">
-              {HOME_ITEMS.map(renderNavItem)}
-            </nav>
-          </>
+    <TooltipProvider>
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-[var(--z-sidebar)] flex flex-col",
+          "bg-background border-r border-border",
+          "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          isMobile
+            ? "w-full border-0"
+            : collapsed
+              ? "w-[56px] border-r border-border"
+              : "w-[260px] border-r border-border",
+          isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        )}
+        aria-label="Primary navigation"
+      >
+        {isMobileOpen && isMobile && (
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            aria-label="Close menu"
+            className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         )}
 
-        {/* PROJECTS (+ current project context, not a separate app) */}
-        {showLabels && (
-          <>
-            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
-            <p className={cn("sidebar-label mb-2 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
-              Projects
-            </p>
-            <nav className="flex shrink-0 flex-col gap-1" aria-label="Projects">
-              {PROJECT_ITEMS.map(renderNavItem)}
-              {activeProjectId &&
-                renderNavItem({
-                  icon: FolderOpen,
-                  label: activeProject?.title ?? "Current project",
-                  id: "current-project",
-                  to: `/projects/${activeProjectId}`,
-                })}
-              {/* Project chats: clickable conversation options inside the project. */}
-              {projectChats.length > 0 && (
-                <nav className="flex shrink-0 flex-col gap-0.5" aria-label="Project chats">
-                  {projectChats.map((chat) => (
-                    <button
-                      key={chat.id}
-                      type="button"
-                      onClick={() => handleSelectChat(chat.id)}
-                      title={chat.title}
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-lg py-1.5 pl-8 pr-2 text-left text-[12px] transition-colors duration-150",
-                        currentChatId === chat.id
-                          ? "bg-primary/10 text-primary font-medium"
-                          : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
-                      )}
-                      aria-current={currentChatId === chat.id ? "true" : undefined}
-                    >
-                      <MessageSquare className="h-3 w-3 shrink-0" strokeWidth={1.5} />
-                      <span className="truncate">{chat.title || "Untitled chat"}</span>
-                    </button>
-                  ))}
-                </nav>
-              )}
-            </nav>
-          </>
-        )}
-
-        {/* WORKSPACE */}
-        {showLabels && (
-          <>
-            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
-            <p className={cn("sidebar-label mb-2 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
-              Workspace
-            </p>
-            <nav className="flex shrink-0 flex-col gap-1" aria-label="Workspace">
-              {WORKSPACE_ITEMS.map(renderNavItem)}
-            </nav>
-          </>
-        )}
-
-        {/* ACTIVITY */}
-        {showLabels && (
-          <>
-            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
-            <p className={cn("sidebar-label mb-2 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
-              Activity
-            </p>
-            <nav className="flex shrink-0 flex-col gap-1" aria-label="Activity">
-              {ACTIVITY_ITEMS.map(renderNavItem)}
-            </nav>
-          </>
-        )}
-
-        {/* MORE — all features visible, no hidden gate. */}
-        {showLabels && (
-          <>
-            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
-            <p className={cn("sidebar-label mb-2 shrink-0 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
-              More
-            </p>
-            <nav className="flex shrink-0 flex-col gap-1" aria-label="More capabilities">
-              {(showMoreNav ? MORE_ITEMS : MORE_ITEMS.slice(0, 4)).map(renderNavItem)}
-            </nav>
-            {MORE_ITEMS.length > 4 && (
-              <button
-                type="button"
-                onClick={() => setShowMoreNav((v) => !v)}
+        <div className={cn("flex h-full flex-col", collapsed ? "px-2" : "px-3")}>
+          {/* HEADER */}
+          <div className={cn(
+            "flex shrink-0 items-center justify-between gap-2",
+            collapsed ? "py-3 justify-center" : "py-3 px-1"
+          )}>
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <img
+                src="/openbentt-logo.svg"
+                alt="Openbentt"
                 className={cn(
-                  "mt-1 flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground",
-                  isMobile ? "px-5" : "px-2"
+                  "shrink-0 object-contain transition-all duration-200",
+                  collapsed ? "h-8 w-8" : "h-7 w-7"
                 )}
-              >
-                {showMoreNav ? "Show less" : `Show more (${MORE_ITEMS.length - 4})`}
-              </button>
-            )}
-          </>
-        )}
-
-        {/* FILES BROWSER — shows workspace files */}
-        {showLabels && (
-          <>
-            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
-            <div className="flex items-center justify-between mb-2">
-              <p className={cn("sidebar-label uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
-                Files
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowFilesBrowser((v) => !v);
-                  if (!v) fetchFilesBrowser();
-                }}
-                className={cn(
-                  "flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground p-1 rounded",
-                  showFilesBrowser && "bg-muted"
-                )}
-                aria-expanded={showFilesBrowser}
-              >
-                <ChevronRight className={cn("h-3 w-3 transition-transform", showFilesBrowser && "rotate-90")} />
-                <span className="hidden md:inline">{showFilesBrowser ? "Hide" : "Show"}</span>
-              </button>
+              />
+              {showLabels && (
+                <span className={cn("font-semibold text-foreground truncate", isMobile ? "text-sm" : "text-base")}>
+                  Openbentt
+                </span>
+              )}
             </div>
-            {showFilesBrowser && (
-              <div className={cn("space-y-1 overflow-y-auto max-h-64", isMobile ? "px-3" : "pr-1")}>
-                {filesBrowserLoading ? (
-                  <div className="flex items-center justify-center py-4 text-[11px] text-muted-foreground">
-                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                    Loading files…
-                  </div>
-                ) : filesBrowserError ? (
-                  <div className="flex flex-col items-center gap-1.5 py-4 text-[11px] text-muted-foreground">
-                    <p>{filesBrowserError}</p>
+            
+            {!isMobile && !collapsed && (
+              <div className="flex items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
                     <button
                       type="button"
-                      onClick={fetchFilesBrowser}
-                      className="text-primary hover:underline text-[10px]"
+                      onClick={onOpenSearch}
+                      className="sidebar-nav-item p-1.5 rounded-lg"
+                      aria-label="Search (⌘K)"
                     >
-                      Retry
+                      <Search className="h-4 w-4" />
                     </button>
-                  </div>
-                ) : filesBrowserData ? (
-                  <>
-                    {filesBrowserData.length === 0 ? (
-                      <p className="text-[11px] text-muted-foreground/70 py-2">Empty folder</p>
-                    ) : (
-                      filesBrowserData.map((entry) => (
-                        <FileBrowserEntry
-                          key={entry.path}
-                          entry={entry}
-                          expandedDirs={expandedDirs}
-                          onToggleDir={toggleDir}
-                          isMobile={isMobile}
-                        />
-                      ))
-                    )}
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={fetchFilesBrowser}
-                    className="w-full text-left text-[11px] text-primary hover:underline py-2"
-                  >
-                    Load workspace files
-                  </button>
-                )}
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Search</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="sidebar-nav-item p-1.5 rounded-lg"
+                      aria-label="Notifications"
+                    >
+                      <Bell className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Notifications</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={onToggleCollapsed}
+                      className="sidebar-nav-item p-1.5 rounded-lg"
+                      aria-label="Collapse sidebar"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Collapse sidebar</TooltipContent>
+                </Tooltip>
               </div>
             )}
-          </>
-        )}
+            
+            {collapsed && !isMobile && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={onToggleCollapsed}
+                    className="sidebar-nav-item p-1.5 rounded-lg"
+                    aria-label="Expand sidebar"
+                  >
+                    <Menu className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Expand sidebar</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
 
-        {/* RECENT CHATS — 4 visible, show more/less toggle at bottom. */}
-        {showLabels && (
-          <>
-            <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
-            <div className="flex flex-1 flex-col overflow-hidden">
-              {recentChats.length > 0 ? (
+          {/* SCROLLABLE CONTENT */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-hide">
+            <FeatureErrorBoundary feature="sidebar-nav">
+              
+              {/* PRIMARY NAVIGATION */}
+              <nav className="flex shrink-0 flex-col gap-0.5 mb-4" aria-label="Primary navigation">
+                {PRIMARY_NAV_ITEMS.map(renderNavItem)}
+              </nav>
+
+              {/* PINNED SECTION */}
+              {showLabels && pinnedChats.length > 0 && (
                 <>
-                  <p className={cn("sidebar-label mb-2 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
-                    Recent
-                  </p>
-                  <div className={cn("flex-1 space-y-0.5 overflow-y-auto", isMobile ? "px-3" : "pr-1")}>
-                    {recentChats.slice(0, showAllChats ? recentChats.length : 4).map((chat) => (
-                      <button
-                        key={chat.id}
-                        type="button"
-                        onClick={() => handleSelectChat(chat.id)}
-                        title={chat.title}
-                        className={cn(
-                          "flex w-full items-center gap-2 rounded-lg text-left text-sm transition-colors duration-200",
-                          isMobile ? "px-4 py-2.5" : "px-2 py-1.5",
-                          currentChatId === chat.id
-                            ? "bg-primary/10 text-primary"
-                            : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
-                        )}
-                        aria-current={currentChatId === chat.id ? "true" : undefined}
-                      >
-                        <MessageSquare className="h-3 w-3 shrink-0" strokeWidth={1.5} />
-                        <span className="truncate">{chat.title || "Untitled chat"}</span>
-                      </button>
-                    ))}
+                  <div className="flex shrink-0 items-center gap-2 mb-2 px-1">
+                    <Pin className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="sidebar-label">Pinned</span>
                   </div>
-                  {recentChats.length > 4 && (
+                  <nav className="flex shrink-0 flex-col gap-0.5 mb-4" aria-label="Pinned conversations">
+                    {pinnedChats.map(renderPinnedChat)}
+                  </nav>
+                </>
+              )}
+
+              {/* PROJECTS SECTION */}
+              {showLabels && (
+                <>
+                  <div className="flex shrink-0 items-center gap-2 mb-2 px-1">
+                    <FolderKanban className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="sidebar-label">Projects</span>
+                  </div>
+                  <nav className="flex shrink-0 flex-col gap-0.5 mb-4" aria-label="Projects">
+                    {researchProjects.map((project) => {
+                      const projectChats = projectChatsByProject[project.id] || [];
+                      const isExpanded = expandedProjects.has(project.id);
+                      const hasChats = projectChats.length > 0;
+                      
+                      return (
+                        <div key={project.id} className="flex flex-col">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (hasChats) toggleProject(project.id);
+                              else navigate(`/projects/${project.id}`);
+                              onCloseMobile();
+                            }}
+                            className={cn(
+                              "sidebar-nav-item",
+                              collapsed && "sidebar-nav-item--icon-only",
+                              isMobile && "sidebar-nav-item--mobile"
+                            )}
+                            aria-expanded={hasChats ? isExpanded : undefined}
+                          >
+                            <FolderKanban className="shrink-0 h-4 w-4" strokeWidth={1.5} />
+                            {showLabels && (
+                              <span className="sidebar-nav-label truncate flex-1">{project.title}</span>
+                            )}
+                            {showLabels && hasChats && (
+                              <ChevronRight className={cn(
+                                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                                isExpanded && "rotate-90"
+                              )} />
+                            )}
+                          </button>
+                          {showLabels && isExpanded && hasChats && (
+                            <nav className="flex flex-col gap-0.5 pl-6" aria-label={`${project.title} conversations`}>
+                              {projectChats.slice(0, 10).map(renderProjectChat)}
+                              {projectChats.length > 10 && (
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`/projects/${project.id}`)}
+                                  className="text-[11px] text-muted-foreground hover:text-foreground px-2 py-1"
+                                >
+                                  View all ({projectChats.length})
+                                </button>
+                              )}
+                            </nav>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <NavLink
+                      to="/projects"
+                      onClick={onCloseMobile}
+                      className={cn(
+                        "sidebar-nav-item",
+                        collapsed && "sidebar-nav-item--icon-only",
+                        isMobile && "sidebar-nav-item--mobile"
+                      )}
+                    >
+                      <Plus className="shrink-0 h-4 w-4" strokeWidth={1.5} />
+                      {showLabels && <span className="sidebar-nav-label">New project</span>}
+                    </NavLink>
+                  </nav>
+                </>
+              )}
+
+              {/* WORKSPACE SECTION */}
+              {showLabels && (
+                <>
+                  <div className="flex shrink-0 items-center gap-2 mb-2 px-1">
+                    <Files className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="sidebar-label">Workspace</span>
+                  </div>
+                  <nav className="flex shrink-0 flex-col gap-0.5 mb-4" aria-label="Workspace">
+                    {WORKSPACE_ITEMS.map(renderNavItem)}
+                  </nav>
+                </>
+              )}
+
+              {/* ACTIVITY SECTION */}
+              {showLabels && (
+                <>
+                  <div className="flex shrink-0 items-center gap-2 mb-2 px-1">
+                    <ListTodo className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="sidebar-label">Activity</span>
+                  </div>
+                  <nav className="flex shrink-0 flex-col gap-0.5 mb-4" aria-label="Activity">
+                    {ACTIVITY_ITEMS.map(renderNavItem)}
+                  </nav>
+                </>
+              )}
+
+              {/* MORE SECTION — collapsible */}
+              {showLabels && (
+                <>
+                  <div className="flex shrink-0 items-center justify-between mb-2 px-1">
+                    <div className="flex items-center gap-2">
+                      <MoreHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="sidebar-label">More</span>
+                    </div>
+                    {MORE_ITEMS.length > 4 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowMoreNav((v) => !v)}
+                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground p-1 rounded"
+                        aria-expanded={showMoreNav}
+                      >
+                        <ChevronRight className={cn("h-3 w-3 transition-transform", showMoreNav && "rotate-90")} />
+                        <span className="hidden md:inline">{showMoreNav ? "Show less" : `Show more (${MORE_ITEMS.length - 4})`}</span>
+                      </button>
+                    )}
+                  </div>
+                  <nav className="flex shrink-0 flex-col gap-0.5 mb-4" aria-label="More capabilities">
+                    {(showMoreNav ? MORE_ITEMS : MORE_ITEMS.slice(0, 4)).map(renderNavItem)}
+                  </nav>
+                </>
+              )}
+
+              {/* FILES BROWSER */}
+              {showLabels && (
+                <>
+                  <div className="flex shrink-0 items-center justify-between mb-2 px-1">
+                    <div className="flex items-center gap-2">
+                      <FolderTree className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="sidebar-label">Files</span>
+                    </div>
                     <button
                       type="button"
-                      className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2"
-                      onClick={() => setShowAllChats((v) => !v)}
+                      onClick={toggleFilesBrowser}
+                      className={cn(
+                        "flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground p-1 rounded",
+                        showFilesBrowser && "bg-muted"
+                      )}
+                      aria-expanded={showFilesBrowser}
                     >
-                      {showAllChats ? "Show less" : `Show all (${recentChats.length})`}
+                      <ChevronRight className={cn("h-3 w-3 transition-transform", showFilesBrowser && "rotate-90")} />
+                      <span className="hidden md:inline">{showFilesBrowser ? "Hide" : "Show"}</span>
                     </button>
+                  </div>
+                  {showFilesBrowser && (
+                    <div className={cn("space-y-1 overflow-y-auto max-h-64 mb-4", isMobile ? "px-3" : "pr-1")}>
+                      {filesBrowserLoading ? (
+                        <div className="flex items-center justify-center py-4 text-[11px] text-muted-foreground">
+                          <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                          Loading files…
+                        </div>
+                      ) : filesBrowserError ? (
+                        <div className="flex flex-col items-center gap-1.5 py-4 text-[11px] text-muted-foreground">
+                          <p>{filesBrowserError}</p>
+                          <button
+                            type="button"
+                            onClick={fetchFilesBrowser}
+                            className="text-primary hover:underline text-[10px]"
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      ) : filesBrowserData ? (
+                        <>
+                          {filesBrowserData.length === 0 ? (
+                            <p className="text-[11px] text-muted-foreground/70 py-2">Empty folder</p>
+                          ) : (
+                            filesBrowserData.map((entry) => (
+                              <FileBrowserEntry
+                                key={entry.path}
+                                entry={entry}
+                                expandedDirs={expandedDirs}
+                                onToggleDir={toggleDir}
+                                isMobile={isMobile}
+                              />
+                            ))
+                          )}
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={fetchFilesBrowser}
+                          className="w-full text-left text-[11px] text-primary hover:underline py-2"
+                        >
+                          Load workspace files
+                        </button>
+                      )}
+                    </div>
                   )}
                 </>
-              ) : (
-                <p className={cn("text-xs text-[#96A0AB]/80", isMobile ? "px-5" : "px-2")}>
-                  No chats yet — start a new chat above.
-                </p>
               )}
-            </div>
-          </>
-        )}
 
-        {/* BOTTOM: Local AI Status + Account (pinned, never overlapped). */}
-        </FeatureErrorBoundary>
+            </FeatureErrorBoundary>
+          </div>
+
+          {/* BOTTOM ACCOUNT AREA */}
+          <div className={cn("mt-auto flex shrink-0 flex-col gap-2 pt-3 border-t border-border", collapsed ? "items-center" : "")}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={onOpenLocalAI}
+                  className={cn(
+                    "sidebar-nav-item w-full justify-start",
+                    collapsed && "sidebar-nav-item--icon-only"
+                  )}
+                  aria-label="Local AI Status"
+                >
+                  <Cpu className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")} strokeWidth={1.5} />
+                  {showLabels && <LocalAIStatus onOpen={onOpenLocalAI} />}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="w-64">Local AI status and settings</TooltipContent>
+            </Tooltip>
+            
+            <AccountMenu
+              collapsed={!showLabels}
+              onOpenSettings={() => {
+                navigate("/settings");
+                onCloseMobile();
+              }}
+            />
+          </div>
         </div>
-        <div className={cn("mt-auto flex shrink-0 flex-col gap-1 pt-3", collapsed ? "items-center" : isMobile ? "px-3" : "")}>
-          {showLabels && <LocalAIStatus onOpen={onOpenLocalAI} />}
-          <AccountMenu
-            collapsed={!showLabels}
-            onOpenSettings={() => {
-              navigate("/settings");
-              onCloseMobile();
-            }}
-          />
-        </div>
-      </div>
-    </aside>
+      </aside>
+    </TooltipProvider>
   );
 };
 
 export default Sidebar;
 
+// File browser entry component (kept from original)
 function FileBrowserEntry({
   entry,
   expandedDirs,

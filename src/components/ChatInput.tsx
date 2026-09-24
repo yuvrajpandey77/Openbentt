@@ -584,14 +584,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         {!isStudio && (
           <div className="flex items-center gap-1.5">
             <WorkspaceSelector />
-            <PermissionPill
-              onApprove={() => {
-                // Permission approved - execution will proceed
-              }}
-              onDismiss={() => {
-                // Permission dismissed
-              }}
-            />
+            <PermissionPill />
           </div>
         )}
 
