@@ -88,6 +88,7 @@ import { ExecutionBadge } from "@/components/conversation/ExecutionBadge";
 import { VoiceInputButton } from "@/components/conversation/VoiceInputButton";
 import { WorkspaceNeededBanner } from "@/components/conversation/WorkspaceNeededBanner";
 import { WorkspaceSelector } from "@/components/conversation/WorkspaceSelector";
+import { PermissionPill } from "@/components/conversation/PermissionPill";
 import { LayerDownBanner } from "@/components/conversation/LayerDownBanner";
 
 
@@ -554,7 +555,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   return (
-    <div className={cn("border-t border-border/70 bg-background", isStudio ? "px-2 pb-2 pt-2" : "px-2 pb-2 pt-2 md:px-3 md:pb-4 md:pt-3")}>
+    <div className={cn("bg-background", isStudio ? "px-2 pb-2 pt-2" : "px-2 pb-2 pt-2 md:px-3 md:pb-4 md:pt-3")}>
       <input
         ref={fileRef}
         type="file"
@@ -580,7 +581,19 @@ const ChatInput: React.FC<ChatInputProps> = ({
         {/* Desktop layer-down: one banner, one click — never the maze. */}
         {!isStudio && <LayerDownBanner />}
         {/* Always-visible working folder / project control (desktop). */}
-        {!isStudio && <WorkspaceSelector />}
+        {!isStudio && (
+          <div className="flex items-center gap-1.5">
+            <WorkspaceSelector />
+            <PermissionPill
+              onApprove={() => {
+                // Permission approved - execution will proceed
+              }}
+              onDismiss={() => {
+                // Permission dismissed
+              }}
+            />
+          </div>
+        )}
 
         {/* Web-only fallback: explain why sending is blocked (desktop uses LayerDownBanner). */}
         {!isStudio && !layerActive && !isDesktopApp() && !isLoadingConfig && !canSendMessage(apiConfig) && (

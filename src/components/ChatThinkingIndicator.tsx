@@ -14,28 +14,21 @@ export function ChatThinkingIndicator({ className, compact }: ChatThinkingIndica
       aria-live="polite"
       aria-label="Generating response"
     >
-      <ActivityBar />
-      <span className="text-xs text-muted-foreground">Working…</span>
+      <ShimmerText />
     </div>
   );
 }
 
-function ActivityBar() {
+function ShimmerText() {
   return (
-    <div className="flex items-end gap-[2px] h-4">
-      {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-        <div
-          key={i}
-          className="bg-primary/60 rounded-sm"
-          style={{
-            height: `${8 + (i % 4) * 4}px`,
-            width: "3px",
-            animation: `activity-bounce 1.2s ease-in-out ${i * 0.12}s infinite`,
-            animationDelay: `${i * 0.12}s`,
-          }}
-        />
-      ))}
-    </div>
+    <span className="relative inline-block text-xs font-medium">
+      <span className="text-muted-foreground/30">Thinking</span>
+      <span className="absolute inset-0 overflow-hidden">
+        <span className="relative inline-block bg-gradient-to-r from-transparent via-muted-foreground/60 to-transparent bg-[length:200%_100%] animate-shimmer-wave text-transparent bg-clip-text">
+          Thinking
+        </span>
+      </span>
+    </span>
   );
 }
 

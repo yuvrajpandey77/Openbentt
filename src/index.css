@@ -1252,6 +1252,7 @@
   .animate-fade-in-up { animation: gdFadeInUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-slide-in-right { animation: gdSlideInRight 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-shimmer { background-size: 200% 100%; animation: gdShimmer 1.6s linear infinite; }
+  .animate-shimmer-wave { background-size: 200% 100%; animation: shimmer-wave 1.8s ease-in-out infinite; }
   .animate-glow-pulse { animation: gdGlowPulse 2.4s ease-in-out infinite; }
   .animate-marquee { animation: gdMarquee 24s linear infinite; }
   .animate-falling-star { animation: gdFallingStar 3.5s linear infinite; }
@@ -1272,6 +1273,11 @@
   }
 
   @keyframes gdShimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  @keyframes shimmer-wave {
     0% { background-position: 200% 0; }
     100% { background-position: -200% 0; }
   }

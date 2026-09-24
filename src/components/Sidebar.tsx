@@ -257,8 +257,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         isMobile
           ? "w-full border-0"
           : collapsed
-            ? "w-[60px] border-r border-[#24292D]"
-            : "w-[220px] border-r border-[#24292D]",
+            ? "w-[56px] border-r border-[#24292D]"
+            : "w-[240px] border-r border-[#24292D]",
         isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}
       aria-label="Primary"
@@ -268,7 +268,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           type="button"
           onClick={onCloseMobile}
           aria-label="Close menu"
-          className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-[#a3c987] text-[#101314]"
+          className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
@@ -367,8 +367,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                       className={cn(
                         "flex w-full items-center gap-2 rounded-lg py-1.5 pl-8 pr-2 text-left text-[12px] transition-colors duration-150",
                         currentChatId === chat.id
-                          ? "bg-accent/10 text-accent-foreground font-medium"
-                          : "text-muted-foreground hover:bg-accent/5 hover:text-foreground"
+                          ? "bg-primary/10 text-primary font-medium"
+                          : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
                       )}
                       aria-current={currentChatId === chat.id ? "true" : undefined}
                     >
@@ -526,8 +526,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                           "flex w-full items-center gap-2 rounded-lg text-left text-sm transition-colors duration-200",
                           isMobile ? "px-4 py-2.5" : "px-2 py-1.5",
                           currentChatId === chat.id
-                            ? "bg-[#a3c987]/10 text-[#a3c987]"
-                            : "text-[#96A0AB] hover:bg-[#a3c987]/10 hover:text-[#E8F1F6]"
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
                         )}
                         aria-current={currentChatId === chat.id ? "true" : undefined}
                       >

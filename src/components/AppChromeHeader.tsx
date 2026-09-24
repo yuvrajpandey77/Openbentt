@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Menu, PanelLeft } from "lucide-react";
+import { Menu, PanelLeft } from "lucide-react";
 import { ShareLinkButton } from "@/components/ShareLinkButton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
@@ -33,22 +33,8 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
   const isMobile = useIsMobile();
 
   return (
-    <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background/90 px-2 py-2 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 md:px-3">
+    <header className="flex shrink-0 items-center justify-between gap-2 bg-background/90 px-2 py-2 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 md:px-3">
       <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 shrink-0 mr-1"
-              onClick={() => navigate(-1)}
-              aria-label="Go back"
-            >
-              <ArrowLeft size={18} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Back</TooltipContent>
-        </Tooltip>
         <Button
           variant="ghost"
           size="icon"
@@ -90,11 +76,7 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
                 ← Projects
               </Link>
             </div>
-          ) : (
-            <p className="truncate text-sm font-medium text-foreground">
-              {projectId ? "Project conversation" : "Chat"}
-            </p>
-          )}
+          ) : null}
         </div>
       </div>
 
