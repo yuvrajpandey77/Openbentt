@@ -30,7 +30,6 @@ import {
   RefreshCw,
   FolderTree,
   FileText,
-  Bell,
   ChevronUp,
   User,
   LogOut,
@@ -399,18 +398,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">Search</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="sidebar-nav-item p-1.5 rounded-lg"
-                      aria-label="Notifications"
-                    >
-                      <Bell className="h-4 w-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">Notifications</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
