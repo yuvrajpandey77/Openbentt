@@ -45,6 +45,11 @@ const AppLayout: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+
+  const toggleRightSidebar = useCallback(() => {
+    setRightSidebarOpen((prev) => !prev);
+  }, []);
+
   const openSearch = () => setCommandMenuOpen(true);
   const openSettings = () => navigate("/settings");
   useGlobalShortcuts({ onOpenSearch: openSearch, onOpenSettings: openSettings, onToggleRightSidebar: toggleRightSidebar });
@@ -64,10 +69,6 @@ const AppLayout: React.FC = () => {
       return false;
     }
   });
-
-  const toggleRightSidebar = useCallback(() => {
-    setRightSidebarOpen((prev) => !prev);
-  }, []);
 
   useEffect(() => {
     try {
