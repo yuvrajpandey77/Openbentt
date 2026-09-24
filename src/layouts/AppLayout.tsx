@@ -20,7 +20,6 @@ import { sidebarMainMarginClass } from "@/lib/sidebarLayout";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import ChatMessages from "@/components/ChatMessages";
 import { ExecutionInspector } from "@/components/conversation/ExecutionInspector";
-import { VoiceCommandFab } from "@/components/conversation/VoiceCommandFab";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -245,8 +244,6 @@ const AppLayout: React.FC = () => {
       </main>
       {/* Secondary execution inspector: conversation primary, internals secondary. */}
       <ExecutionInspector />
-      {/* Central floating voice commander: open tabs or run any task by voice. */}
-      <VoiceCommandFab />
     </div>
   );
 };

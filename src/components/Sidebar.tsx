@@ -122,6 +122,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     ? chats.filter((c) => c.projectId === activeProjectId).slice(-20).reverse()
     : [];
   const [showAllChats, setShowAllChats] = useState(false);
+  const [showMoreNav, setShowMoreNav] = useState(false);
 
   const renderNavItem = (item: { icon: React.ElementType; label: string; id: string; to: string }) => {
     const active =
@@ -362,8 +363,20 @@ const Sidebar: React.FC<SidebarProps> = ({
               More
             </p>
             <nav className="flex shrink-0 flex-col gap-1" aria-label="More capabilities">
-              {MORE_ITEMS.map(renderNavItem)}
+              {(showMoreNav ? MORE_ITEMS : MORE_ITEMS.slice(0, 4)).map(renderNavItem)}
             </nav>
+            {MORE_ITEMS.length > 4 && (
+              <button
+                type="button"
+                onClick={() => setShowMoreNav((v) => !v)}
+                className={cn(
+                  "mt-1 flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground",
+                  isMobile ? "px-5" : "px-2"
+                )}
+              >
+                {showMoreNav ? "Show less" : `Show more (${MORE_ITEMS.length - 4})`}
+              </button>
+            )}
           </>
         )}
 
