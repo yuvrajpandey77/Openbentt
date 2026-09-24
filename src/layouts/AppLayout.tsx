@@ -117,6 +117,7 @@ const AppLayout: React.FC = () => {
 
   const currentChat = chats.find((c) => c.id === currentChatId);
   const messages = currentChat?.messages ?? [];
+  const activeTaskId = currentChat?.taskIds?.length ? currentChat.taskIds[currentChat.taskIds.length - 1] : undefined;
 
   if (isLoadingConfig) {
     return (
@@ -185,7 +186,7 @@ const AppLayout: React.FC = () => {
               </TabsList>
               <TabsContent value="chat" className="mt-0 min-h-0 flex-1 overflow-hidden focus-visible:outline-none">
                 <div className="flex h-full min-h-0 flex-col border-t border-border/60">
-                  <ChatMessages messages={messages} isLoading={isLoading} />
+                  <ChatMessages messages={messages} isLoading={isLoading} activeTaskId={activeTaskId} />
                 </div>
               </TabsContent>
               <TabsContent value="workspace" className="mt-0 min-h-0 flex-1 overflow-hidden focus-visible:outline-none">
@@ -202,7 +203,7 @@ const AppLayout: React.FC = () => {
             >
               <ResizablePanel defaultSize={45} minSize={22} maxSize={72} className="min-h-0 min-w-0">
                 <div className="flex h-full min-h-0 flex-col border-r border-border/70">
-                  <ChatMessages messages={messages} isLoading={isLoading} />
+                  <ChatMessages messages={messages} isLoading={isLoading} activeTaskId={activeTaskId} />
                 </div>
               </ResizablePanel>
               <ResizableHandle withHandle className="w-px shrink-0 bg-muted/40" />
@@ -214,7 +215,7 @@ const AppLayout: React.FC = () => {
             </ResizablePanelGroup>
           ) : workspaceMeta && !workspacePanelOpen ? (
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <ChatMessages messages={messages} isLoading={isLoading} />
+              <ChatMessages messages={messages} isLoading={isLoading} activeTaskId={activeTaskId} />
               <div className="shrink-0 border-t border-border/50 px-3 py-1.5 text-center">
                 <Tooltip>
                   <TooltipTrigger asChild>

@@ -1,77 +1,40 @@
-import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
-const loadingMessages = [
-  "Thinking...",
-  "Generating...",
-  "Working on it...",
-  "Almost there...",
-  "Composing a reply...",
-  "Running on-device...",
-];
-
-const cloudLoadingMessages = [
-  "Thinking...",
-  "Reasoning...",
-  "Synthesizing...",
-  "Orchestrating...",
-  "Routing your request...",
-  "Coordinating models...",
-  "Searching the semantic space...",
-  "Encoding context...",
-  "Streaming inference...",
-  "Aggregating intelligences...",
-  "Parsing the epistemic field...",
-  "Routing through Meridian...",
-];
 
 type ChatThinkingIndicatorProps = {
   className?: string;
   compact?: boolean;
-  /** Prefer short on-device copy when local inference is active. */
   localOnDevice?: boolean;
 };
 
-export function ChatThinkingIndicator({ className, compact, localOnDevice }: ChatThinkingIndicatorProps) {
-  const pool = localOnDevice ? loadingMessages : cloudLoadingMessages;
-  const [msg, setMsg] = useState(pool[0]);
-
-  useEffect(() => {
-    const pick = () => {
-      const next = pool[Math.floor(Math.random() * pool.length)];
-      setMsg(next);
-    };
-    pick();
-    let timeoutId: ReturnType<typeof setTimeout>;
-    const schedule = () => {
-      const ms = 800 + Math.floor(Math.random() * 400);
-      timeoutId = setTimeout(() => {
-        pick();
-        schedule();
-      }, ms);
-    };
-    schedule();
-    return () => clearTimeout(timeoutId);
-  }, [pool]);
-
+export function ChatThinkingIndicator({ className, compact }: ChatThinkingIndicatorProps) {
   return (
     <div
-      className={cn("flex items-center", className)}
+      className={cn("flex items-center gap-2", className)}
       role="status"
       aria-live="polite"
       aria-label="Generating response"
     >
-      <Avatar
-        className={cn(
-          "rounded-2xl shadow-sm ring-1 ring-border/40 animate-pulse",
-          compact ? "h-8 w-8" : "h-10 w-10"
-        )}
-      >
-        <AvatarImage src="/openbentt-logo.svg" alt="" />
-        <AvatarFallback className="font-display text-xs">OB</AvatarFallback>
-      </Avatar>
-      {msg}
+      <ActivityBar />
+      <span className="text-xs text-muted-foreground">Working…</span>
+    </div>
+  );
+}
+
+function ActivityBar() {
+  return (
+    <div className="flex items-end gap-[2px] h-4">
+      {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+        <div
+          key={i}
+          className="bg-primary/60 rounded-sm"
+          style={{
+            height: `${8 + (i % 4) * 4}px`,
+            width: "3px",
+            animation: `activity-bounce 1.2s ease-in-out ${i * 0.12}s infinite`,
+            animationDelay: `${i * 0.12}s`,
+          }}
+        />
+      ))}
     </div>
   );
 }

@@ -30,6 +30,7 @@ const LatexWorkspacePage = lazy(() => import("./pages/LatexWorkspacePage"));
 const BenchmarkPage = lazy(() => import("./pages/BenchmarkPage"));
 const ShareViewPage = lazy(() => import("./pages/ShareViewPage"));
 const DownloadPage = lazy(() => import("./pages/DownloadPage"));
+const HomeLandingPage = lazy(() => import("./pages/HomeLandingPage"));
 const SetupPage = lazy(() => import("./pages/SetupPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const AgentPage = lazy(() => import("./pages/AgentPage"));
@@ -60,7 +61,7 @@ const App = () => (
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   {/* Public / marketing routes */}
-                  <Route path="/" element={<FeatureErrorBoundary feature="home"><DownloadPage /></FeatureErrorBoundary>} />
+                  <Route path="/" element={<FeatureErrorBoundary feature="home"><HomeLandingPage /></FeatureErrorBoundary>} />
                   <Route path="/download" element={<FeatureErrorBoundary feature="download"><DownloadPage /></FeatureErrorBoundary>} />
                   <Route path="/share" element={<FeatureErrorBoundary feature="shared run"><ShareViewPage /></FeatureErrorBoundary>} />
 

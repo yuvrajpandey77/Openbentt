@@ -19,6 +19,7 @@ const HomeChatArea: React.FC = () => {
 
   const currentChat = chats.find((c) => c.id === currentChatId);
   const messages = currentChat?.messages ?? [];
+  const activeTaskId = currentChat?.taskIds?.length ? currentChat.taskIds[currentChat.taskIds.length - 1] : undefined;
   const showOnDeviceDownload =
     isLoading &&
     apiConfig.aiProvider === "webgpu_gemma" &&
@@ -114,7 +115,7 @@ const HomeChatArea: React.FC = () => {
       {messages.length === 0 && !isLoading && !normalizedError ? (
         <ChatHome />
       ) : (
-        <ChatMessages messages={messages} isLoading={isLoading} />
+        <ChatMessages messages={messages} isLoading={isLoading} activeTaskId={activeTaskId} />
       )}
     </div>
   );

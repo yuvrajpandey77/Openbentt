@@ -263,7 +263,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* SCROLLABLE NAV — sections scroll, bottom bar never overlaps. */}
-        <div className={cn("flex min-h-0 flex-1 flex-col", !isMobile && "overflow-y-auto")}>
+        <div className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-hide", !isMobile && "")}>
         <FeatureErrorBoundary feature="sidebar-nav">
         {/* ACTIONS */}
         <nav className={cn("flex shrink-0 flex-col", isMobile ? "mb-6 gap-2" : "mb-4 gap-1")} aria-label="Actions">

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useChat } from "@/context/ChatContext";
 import { useTheme } from "../context/ThemeContext";
@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Moon, Sun, Plus, Trash2, Sparkles, Cpu, Search, FlaskConical, Shield, Plug, Bot } from "lucide-react";
+import { Moon, Sun, Plus, Trash2, Sparkles, Cpu, Search, FlaskConical, Shield, Plug, Bot, Wrench } from "lucide-react";
 import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRouterModels";
 import { useLocalGgufRegistryModels } from "@/hooks/useLocalGgufRegistryModels";
 import { shortModelLabel } from "@/lib/openrouter";
@@ -51,13 +51,9 @@ import DesktopUpdateCard from "@/components/DesktopUpdateCard";
 import { LocalModelManagerPanel } from "@/components/LocalModelManagerPanel";
 import { isWebClient } from "@/config/platformSurface";
 import { isDesktopApp } from "@/lib/isDesktopApp";
-import {
-  loadPrivacyPreferences,
-  savePrivacyPreferences,
-  type PrivacyPreferences,
-} from "@/lib/privacy/privacyPreferences";
+import { hasOpenCodeDesktopApi, openCodeAgentApi } from "@/lib/agent/openCodeAgentApi";
+import { loadPrivacyPreferences, savePrivacyPreferences, type PrivacyPreferences } from "@/lib/privacy/privacyPreferences";
 import { getSecretsApi, type VaultStatus } from "@/lib/privacy/desktopSecrets";
-import { IntegrationsHub } from "@/components/integrations/IntegrationsHub";
 import { McpManager } from "@/components/integrations/McpManager";
 import { SecurityCenter } from "@/components/integrations/SecurityCenter";
 import { AgentsPanel } from "@/components/agents/AgentsPanel";
@@ -105,6 +101,10 @@ const SettingsPanel: React.FC = () => {
   const [presetName, setPresetName] = useState("");
   const [presets, setPresets] = useState<ExperimentPreset[]>(() => listExperimentPresets());
   const [privacy, setPrivacy] = useState<PrivacyPreferences>(() => loadPrivacyPreferences());
+  const [openCodeBaseUrl, setOpenCodeBaseUrl] = useState("");
+  const { openCodeModel: storedModel, setOpenCodeModel: setStoredModel } = useChat();
+  const [openCodeModels, setOpenCodeModels] = useState<{ id: string; name: string }[]>([]);
+  const isDesktop = isDesktopApp();
 
   const { data: models, isLoading: modelsLoading } = useOpenRouterModels(
     localApiKey,
@@ -123,6 +123,28 @@ const SettingsPanel: React.FC = () => {
     enabled: localAiProvider === "local_gguf" && Boolean(getLocalGgufApi()),
     staleTime: 15_000,
   });
+
+  // OpenCode execution settings (desktop only)
+  const refreshOpenCodeSettings = useCallback(async () => {
+    if (!isDesktop || !hasOpenCodeDesktopApi()) return;
+    try {
+      const st = await openCodeAgentApi.getStatus();
+      const runtimeInfo = st as { runtime: { omniRoute?: { baseUrl?: string } }; tasks: number; sessions: number };
+      setOpenCodeBaseUrl(runtimeInfo.runtime.omniRoute?.baseUrl ?? "");
+    } catch {
+      /* ignore */
+    }
+    try {
+      const { models } = await openCodeAgentApi.listOpenCodeModels();
+      setOpenCodeModels(models.map((m) => ({ id: m.id, name: m.displayName ?? m.id })));
+    } catch {
+      /* ignore */
+    }
+  }, [isDesktop]);
+
+  useEffect(() => {
+    void refreshOpenCodeSettings();
+  }, []);
 
   // Phase 1: OS-vault status for provider/Brave keys (desktop only) — surfaces
   // plaintext-fallback storage so users can tell encrypted from fallback.
@@ -160,6 +182,22 @@ const SettingsPanel: React.FC = () => {
     setLocalGgufBinaryPath(apiConfig.localGgufBinaryPath);
     setLocalGgufMaxParamB(apiConfig.localGgufMaxParamB);
     setLocalHuggingFaceToken(apiConfig.huggingFaceToken);
+    if (isDesktop && hasOpenCodeDesktopApi()) {
+      void (async () => {
+        try {
+          const status = await openCodeAgentApi.getStatus() as { runtime: { omniRoute?: { baseUrl?: string } }; tasks: number; sessions: number };
+          setOpenCodeBaseUrl(status.runtime.omniRoute?.baseUrl ?? "");
+        } catch {
+          /* ignore */
+        }
+        try {
+          const { models } = await openCodeAgentApi.listOpenCodeModels();
+          setOpenCodeModels(models.map((m) => ({ id: m.id, name: m.displayName ?? m.id })));
+        } catch {
+          /* ignore */
+        }
+      })();
+    }
   }, [apiConfig]);
 
   useEffect(() => {
@@ -371,11 +409,17 @@ const SettingsPanel: React.FC = () => {
           webClient ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-7"
         }`}
       >
-        <TabsTrigger value="general" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
-          <Sparkles className="h-3.5 w-3.5 opacity-80" aria-hidden />
-          General
-        </TabsTrigger>
-        <TabsTrigger value="privacy" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
+         <TabsTrigger value="general" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
+           <Sparkles className="h-3.5 w-3.5 opacity-80" aria-hidden />
+           General
+         </TabsTrigger>
+         {isDesktop && (
+           <TabsTrigger value="execution" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
+             <Wrench className="h-3.5 w-3.5 opacity-80" aria-hidden />
+             Execution
+           </TabsTrigger>
+         )}
+         <TabsTrigger value="privacy" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
           <Shield className="h-3.5 w-3.5 opacity-80" aria-hidden />
           Privacy
         </TabsTrigger>
@@ -541,6 +585,59 @@ const SettingsPanel: React.FC = () => {
         </Card>
         <DesktopUpdateCard />
       </TabsContent>
+
+      {isDesktop && (
+        <TabsContent value="execution" className="mt-4 space-y-4 outline-none">
+          <Card className="border-border/70 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Wrench className="h-4 w-4 text-primary" /> OpenCode execution
+              </CardTitle>
+              <CardDescription>
+                Configure the local agent that performs coding and computer tasks underneath every conversation.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border border-border/60 bg-muted/15 p-3">
+                <p className="text-xs font-medium text-foreground">OpenCode status</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {hasOpenCodeDesktopApi() ? "Installed and running locally" : "Not available (desktop only)"}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="oc-baseurl" className="text-sm font-medium">OmniRoute base URL</Label>
+                <Input
+                  id="oc-baseurl"
+                  value={openCodeBaseUrl}
+                  onChange={(e) => setOpenCodeBaseUrl(e.target.value)}
+                  placeholder="http://127.0.0.1:8080"
+                  className="font-mono text-xs"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  The local gateway URL OpenCode uses for chat streaming. Leave blank for the default.
+                </p>
+              </div>
+              <div className="space-y-2">
+                 <Label htmlFor="oc-model" className="text-sm font-medium">Default model</Label>
+                 <Select value={storedModel} onValueChange={setStoredModel}>
+                   <SelectTrigger id="oc-model" className="font-mono text-xs">
+                     <SelectValue placeholder="auto" />
+                   </SelectTrigger>
+                   <SelectContent>
+                     <SelectItem value="auto">auto</SelectItem>
+                     {openCodeModels.map((m) => (
+                       <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  The model OpenCode uses for agent tasks. Change here or pick per-message in the composer.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      )}
 
       <TabsContent value="ai" className="mt-4 space-y-4 outline-none">
         <Card className="border-border/70 shadow-sm">

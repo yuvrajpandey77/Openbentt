@@ -23,6 +23,7 @@ import { ChatThinkingIndicator } from "@/components/ChatThinkingIndicator";
 import { CompareUseInNotebook } from "@/components/research/CompareUseInNotebook";
 import { AgentRunApprovals } from "@/components/actions/AgentRunApprovals";
 import { AgentActivity } from "@/components/conversation/AgentActivity";
+import { OpenCodeActivityTerminal } from "@/components/conversation/OpenCodeActivityTerminal";
 
 const SCROLL_PIN_THRESHOLD_PX = 80;
 
@@ -41,6 +42,7 @@ interface ChatMessagesProps {
   isLoading: boolean;
   searchQuery?: string;
   emptyVariant?: "home" | "studio";
+  activeTaskId?: string | null;
 }
 
 function MetricsBar({ metrics }: { metrics: NonNullable<Message["metrics"]> }) {
@@ -234,6 +236,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
   isLoading,
   searchQuery = "",
   emptyVariant = "home",
+  activeTaskId,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -555,6 +558,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
                 compact={emptyVariant === "studio"}
                 localOnDevice={localOnDevice}
               />
+              {activeTaskId && <OpenCodeActivityTerminal taskId={activeTaskId} />}
             </div>
           </div>
         )}

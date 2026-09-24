@@ -31,14 +31,15 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
     apiConfig,
   } = useChat();
 
+  const currentChat = chats.find(chat => chat.id === currentChatId);
+  const messages = currentChat?.messages || [];
+  const activeTaskId = currentChat?.taskIds?.length ? currentChat.taskIds[currentChat.taskIds.length - 1] : undefined;
+
   useEffect(() => {
     if (!currentChatId && canSendChat(apiConfig)) {
       createNewChat();
     }
   }, [currentChatId, createNewChat, apiConfig]);
-
-  const currentChat = chats.find(chat => chat.id === currentChatId);
-  const messages = currentChat?.messages || [];
 
   return (
     <div className="flex h-full flex-col">
@@ -92,7 +93,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
         </div>
       </header>
 
-      <ChatMessages messages={messages} isLoading={isLoading} />
+      <ChatMessages messages={messages} isLoading={isLoading} activeTaskId={activeTaskId} />
       
       <ChatInput isLoading={isLoading} />
     </div>
