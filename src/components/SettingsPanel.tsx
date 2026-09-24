@@ -587,40 +587,40 @@ const SettingsPanel: React.FC = () => {
       </TabsContent>
 
       {isDesktop && (
-        <TabsContent value="execution" className="mt-4 space-y-4 outline-none">
+<TabsContent value="execution" className="mt-4 space-y-4 outline-none">
           <Card className="border-border/70 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Wrench className="h-4 w-4 text-primary" /> OpenCode execution
+                <Wrench className="h-4 w-4 text-primary" /> Execution Engine
               </CardTitle>
               <CardDescription>
-                Configure the local agent that performs coding and computer tasks underneath every conversation.
+                Configure the local execution engine that performs coding and computer tasks underneath every conversation.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-lg border border-border/60 bg-muted/15 p-3">
-                <p className="text-xs font-medium text-foreground">OpenCode status</p>
+                <p className="text-xs font-medium text-foreground">Execution Engine Status</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {hasOpenCodeDesktopApi() ? "Installed and running locally" : "Not available (desktop only)"}
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="oc-baseurl" className="text-sm font-medium">OmniRoute base URL</Label>
+                <Label htmlFor="exec-baseurl" className="text-sm font-medium">OmniRoute Base URL</Label>
                 <Input
-                  id="oc-baseurl"
+                  id="exec-baseurl"
                   value={openCodeBaseUrl}
                   onChange={(e) => setOpenCodeBaseUrl(e.target.value)}
                   placeholder="http://127.0.0.1:8080"
                   className="font-mono text-xs"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  The local gateway URL OpenCode uses for chat streaming. Leave blank for the default.
+                  The local gateway URL the execution engine uses for chat streaming. Leave blank for the default.
                 </p>
               </div>
               <div className="space-y-2">
-                 <Label htmlFor="oc-model" className="text-sm font-medium">Default model</Label>
+                 <Label htmlFor="exec-model" className="text-sm font-medium">Default Model</Label>
                  <Select value={storedModel} onValueChange={setStoredModel}>
-                   <SelectTrigger id="oc-model" className="font-mono text-xs">
+                   <SelectTrigger id="exec-model" className="font-mono text-xs">
                      <SelectValue placeholder="auto" />
                    </SelectTrigger>
                    <SelectContent>
@@ -630,12 +630,12 @@ const SettingsPanel: React.FC = () => {
                      ))}
                    </SelectContent>
                  </Select>
-                <p className="text-[11px] text-muted-foreground">
-                  The model OpenCode uses for agent tasks. Change here or pick per-message in the composer.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+               <p className="text-[11px] text-muted-foreground">
+                 The model the execution engine uses for agent tasks. Change here or pick per-message in the composer.
+               </p>
+             </div>
+           </CardContent>
+         </Card>
         </TabsContent>
       )}
 

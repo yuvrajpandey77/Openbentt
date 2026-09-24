@@ -1467,7 +1467,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
                   External changes detected in {fsConflict.path}
                 </p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  OpenCode (or another program) modified this file. Your editor has different content.
+                  The Execution Engine (or another program) modified this file. Your editor has different content.
                 </p>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   <Button

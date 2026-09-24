@@ -153,7 +153,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     unifiedChatReady,
   } = useChat();
   const { workspace: composerWs } = useWorkspace();
-  /** Universal layer: chat runs on OpenCode — OpenCode models, no keys, no maze. */
+  /** Universal layer: chat runs on the Execution Engine — local models, no keys, no maze. */
   const layerActive = openCodeLayer.available;
   const { effectiveModel } = useLocalAI();
   /** Bumps when localStorage consent changes so web /chat re-reads getLocalWeightsConsent(). */
@@ -287,7 +287,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   }, [message, attachments, pathKey]);
 
   const handleSendMessage = async () => {
-    // Universal layer: single OpenCode model — no tiling, gateway decides vision.
+    // Universal layer: single Execution Engine model — no tiling, gateway decides vision.
     if (!layerActive && apiConfig.comparisonEnabled && dedupeModels(apiConfig.comparisonModelIds).length < 2) {
       toast({
         title: "Pick at least two models",
@@ -575,7 +575,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         onChange={onFolderPick}
       />
       <div className={cn("mx-auto space-y-3", isStudio ? "max-w-none" : "max-w-[min(100%,58rem)]")}>
-        {/* On-device model consent bar — legacy path only; hidden on the OpenCode layer */}
+        {/* On-device model consent bar — legacy path only; hidden on the Execution Engine layer */}
         {!isStudio && !layerActive && <LocalOnDeviceModelBar />}
         {/* Unified execution: workspace prompt appears inline, same composer. */}
         {!isStudio && <WorkspaceNeededBanner />}
@@ -613,7 +613,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 ? "Download a GGUF in Labs, then pick it in Settings → AI & models."
                 : apiConfig.aiProvider === "webgpu_gemma"
                   ? "Enable the on-device model in Settings, or switch to OpenRouter with an API key."
-                  : "Add an OpenRouter API key in Settings → AI & models (sidebar ⚙️), or use the desktop app where OpenCode answers with no key."}{" "}
+                  : "Add an OpenRouter API key in Settings → AI & models (sidebar ⚙️), or use the desktop app where the Execution Engine answers with no key."}{" "}
               <Link to="/setup" className="font-medium text-primary hover:underline">
                 Open setup
               </Link>
@@ -726,7 +726,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
             placeholder={
               placeholderOverride ??
               (layerActive
-                ? "Ask anything, or tell OpenCode what to build, fix, or plan…"
+                ? "Ask anything, or tell the Execution Engine what to build, fix, or plan…"
                 : getComposerPlaceholder(apiConfig, {
                     isLoadingConfig,
                     workspacePlaceholder: workspaceMeta?.composerPlaceholder,
@@ -736,7 +736,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
             /* Universal layer: the box is always writable; send-time guards explain. */
             disabled={isLoading}
             className={cn(
-              "resize-none border-0 bg-muted/30 px-3 text-[15px] leading-relaxed text-foreground shadow-sm outline-none placeholder:text-muted-foreground/75 focus:border-primary/40 focus:outline-none focus-visible:border-primary/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30 sm:text-base",
+              "resize-none border-0 bg-muted/30 px-3 text-[15px] leading-relaxed text-foreground shadow-sm outline-none placeholder:text-muted-foreground/75 focus:border-text-primary/50 focus:outline-none focus-visible:border-text-primary/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-text-primary/20 sm:text-base",
               isStudio
                 ? "min-h-[2.25rem] max-h-24 py-2 pb-9 text-sm"
                 : isCompact
@@ -786,7 +786,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                   )}
                   <span className="min-w-0 truncate text-left font-medium">
                     {layerActive
-                      ? `${shortModelLabel(openCodeModel)} · OpenCode`
+                      ? `${shortModelLabel(openCodeModel)} · Execution Engine`
                       : effectiveModel
                         ? `${shortModelLabel(effectiveModel.modelId || "")} · ${effectiveModel.location === "local" ? "Local" : "Cloud"}`
                         : shortModelLabel(apiConfig.model)}
@@ -799,8 +799,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
                   <>
                     <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border/60">
                       {openCodeLayer.checking
-                        ? "Loading OpenCode models…"
-                        : `${openCodeLayer.models.length} OpenCode model${openCodeLayer.models.length === 1 ? "" : "s"} · no key needed`}
+                        ? "Loading Execution Engine models…"
+                        : `${openCodeLayer.models.length} Execution Engine model${openCodeLayer.models.length === 1 ? "" : "s"} · no key needed`}
                     </div>
                     <div className="max-h-60 overflow-y-auto p-1">
                       {openCodeLayer.models.map((m) => (
