@@ -147,6 +147,8 @@ interface ChatContextProps {
   beginEditUserMessage: (messageId: string) => void;
   /** Project workspace context injected by WorkspaceProvider (bounded block). */
   registerProjectContextProvider: (fn: (() => string | null) | null) => void;
+  /** Thread context: messages from other chats in the same project. */
+  registerThreadContextProvider: (fn: (() => string | null) | null) => void;
   /** Phase 6: controlled agent mode (tool-using assistant via Phase 5 boundary). */
   agentMode: boolean;
   setAgentMode: (v: boolean) => void;
@@ -1276,6 +1278,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     pipelineOpts?: { workspaceAssistBlock?: string }
   ): Promise<PipelineExtras> => {
     let ws = pipelineOpts?.workspaceAssistBlock;
+    // Include project context (workspace, latex, active file, etc.) for OpenCode
+    const projectCtx = projectContextProviderRef.current?.();
+    if (projectCtx) {
+      ws = ws ? `${ws}\n\n${projectCtx}` : projectCtx;
+    }
+    // Include thread context (other chats in the same project)
+    const threadCtx = threadContextProviderRef.current?.();
+    if (threadCtx) {
+      ws = ws ? `${ws}\n\n${threadCtx}` : threadCtx;
+    }
 
     // Auto-RAG: if a research corpus provider is registered, fetch top hits for
     // the last user message and append them to the workspace assist block.
@@ -2059,6 +2071,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     projectContextProviderRef.current = fn;
   }, []);
 
+  const threadContextProviderRef = useRef<(() => string | null) | null>(null);
+  const registerThreadContextProvider = useCallback((fn: (() => string | null) | null) => {
+    threadContextProviderRef.current = fn;
+  }, []);
+
   const patchAgentMessage = useCallback(
     (chatId: string, messageId: string, patch: (m: Message) => Message) => {
       setChats((prevChats) =>
@@ -2292,8 +2309,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setExecutionDrawerTaskId,
     cancelExecutionTask,
     respondToExecutionPermission,
-    registerProjectContextProvider,
-    submitVoiceTranscript,
+registerProjectContextProvider,
+  registerThreadContextProvider,
+  submitVoiceTranscript,
     escalateAskToTask,
     dismissAskPermissions,
     openCodeLayer,

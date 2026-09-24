@@ -332,14 +332,14 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
       className={cn(
         "w-full streaming-message group/msg",
         isActiveStream && "streaming-message-active",
-        message.role === "user" ? "flex justify-end mb-5" : "flex justify-start mb-5"
+        message.role === "user" ? "flex justify-end mb-6" : "flex justify-start mb-6"
       )}
     >
       <div
         className={cn(
-          "flex items-start gap-3 w-full",
+          "flex items-start gap-4 w-full",
           !isActiveStream && "animate-fade-in",
-          message.role === "user" ? "flex-row-reverse max-w-[min(100%,42rem)]" : ""
+          message.role === "user" ? "flex-row-reverse max-w-[min(100%,58rem)]" : ""
         )}
       >
         <div
@@ -435,7 +435,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
           : cn("flex-1", isWebClient() ? "px-0 py-3 sm:px-4 sm:py-3" : "p-4")
       )}
     >
-      <div ref={scrollRef} className={cn("mx-auto max-w-3xl", isWebClient() && "web-chat-messages-inner w-full")}>
+      <div ref={scrollRef} className={cn("mx-auto max-w-[min(100%,58rem)]", isWebClient() && "web-chat-messages-inner w-full")}>
         {useVirtual && visibleMessages.length > 0 && (
           <p className="mb-4 text-center text-[11px] text-muted-foreground">
             Virtualized thread ({visibleMessages.length} messages) — scroll stays responsive.
@@ -551,7 +551,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
             <div
               className={cn(
                 "openbentt-card w-full border border-border/80 bg-card p-4 shadow-sm",
-                emptyVariant === "studio" ? "max-w-full" : "max-w-[min(100%,42rem)]"
+                emptyVariant === "studio" ? "max-w-full" : "max-w-[min(100%,58rem)]"
               )}
             >
               <ChatThinkingIndicator

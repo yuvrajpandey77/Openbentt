@@ -17,6 +17,7 @@ import { ZoteroProvider } from "./context/ZoteroContext";
 import AppLayout from "./layouts/AppLayout";
 import { AppShell } from "@/components/AppShell";
 import HomeChatArea from "./components/HomeChatArea";
+import { ThreadContextProvider } from "@/components/conversation/ThreadContextProvider";
 import NotFound from "./pages/NotFound";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { FeatureErrorBoundary } from "./components/FeatureErrorBoundary";
@@ -95,7 +96,7 @@ const App = () => (
                       {/* Main app shell */}
                       <Route element={<AppLayout />}>
                         <Route element={<WebWorkspaceRouteGuard />}>
-                          <Route path="chat" element={<FeatureErrorBoundary feature="chat"><HomeChatArea /></FeatureErrorBoundary>} />
+                          <Route path="chat" element={<FeatureErrorBoundary feature="chat"><ThreadContextProvider><HomeChatArea /></ThreadContextProvider></FeatureErrorBoundary>} />
                           <Route path="chat/:conversationId" element={<FeatureErrorBoundary feature="chat"><ConversationRoutePage /></FeatureErrorBoundary>} />
                           {/* Project workspace: ONE conversation model, projectId as context boundary */}
                           <Route path="projects/:projectId" element={<FeatureErrorBoundary feature="project workspace"><ProjectWorkspacePage /></FeatureErrorBoundary>} />

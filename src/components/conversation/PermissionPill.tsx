@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { ShieldAlert, ShieldCheck, X, Check, Shield } from "lucide-react";
+import { ShieldAlert, ShieldCheck, X, Check } from "lucide-react";
 import { FileText, Terminal, Globe } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useChat } from "@/context/ChatContext";
@@ -17,7 +17,7 @@ export const PermissionPill: React.FC = () => {
 
   const cancelAutoApprove = () => {
     if (autoApproveRef.current) {
-      clearTimeout(autoApproveRef.current);
+      clearTimeout(autoAppproveRef.current);
       autoApproveRef.current = null;
     }
     setFullAccessGranted(false);
@@ -125,8 +125,8 @@ export const PermissionPill: React.FC = () => {
                 type="checkbox"
                 checked={fullAccessGranted}
                 onChange={(e) => {
-                  if (e.target.checked) startAutoApprove();
-                  else cancelAutoApprove();
+                  if (e.target.checked) setFullAccessGranted(true);
+                  else setFullAccessGranted(false);
                 }}
                 className="h-3 w-3 rounded border-border bg-background text-primary focus:ring-primary"
               />
@@ -149,9 +149,9 @@ export const PermissionPill: React.FC = () => {
               className="flex-1 h-8 text-xs"
               onClick={() => {
                 if (fullAccessGranted) {
-                  cancelAutoApprove();
+                  setFullAccessGranted(false);
                 } else {
-                  startAutoApprove();
+                  setFullAccessGranted(true);
                 }
               }}
             >
@@ -173,7 +173,3 @@ export const PermissionPill: React.FC = () => {
     </div>
   );
 };
-
-import { useState } from "react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { FileText, Terminal, Globe } from "lucide-react";

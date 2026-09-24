@@ -573,7 +573,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         multiple
         onChange={onFolderPick}
       />
-      <div className={cn("mx-auto space-y-3", isStudio ? "max-w-none" : "max-w-5xl")}>
+      <div className={cn("mx-auto space-y-3", isStudio ? "max-w-none" : "max-w-[min(100%,58rem)]")}>
         {/* On-device model consent bar — legacy path only; hidden on the OpenCode layer */}
         {!isStudio && !layerActive && <LocalOnDeviceModelBar />}
         {/* Unified execution: workspace prompt appears inline, same composer. */}

@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import HomeChatArea from "@/components/HomeChatArea";
 import { useChat } from "@/context/ChatContext";
+import { ThreadContextProvider } from "@/components/conversation/ThreadContextProvider";
 
 /**
  * Deep-linkable global conversation: /chat/:conversationId selects the
@@ -26,7 +27,11 @@ const ConversationRoutePage: React.FC = () => {
     }
   }, [conversationId, chats, selectChat, navigate]);
 
-  return <HomeChatArea />;
+  return (
+    <ThreadContextProvider>
+      <HomeChatArea />
+    </ThreadContextProvider>
+  );
 };
 
 export default ConversationRoutePage;
