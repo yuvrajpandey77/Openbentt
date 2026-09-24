@@ -14,6 +14,7 @@ import {
   FileText,
   Mic,
   MoreHorizontal,
+  FolderKanban,
 } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import { useLocalAI } from "@/context/LocalAIContext";
@@ -585,6 +586,21 @@ const ChatInput: React.FC<ChatInputProps> = ({
           <div className="flex items-center gap-1.5">
             <WorkspaceSelector />
             <PermissionPill />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="hidden gap-1.5 text-xs text-muted-foreground hover:text-foreground md:inline-flex"
+                  onClick={() => window.dispatchEvent(new CustomEvent("navigate", { detail: "/projects" }))}
+                  aria-label="Go to Projects panel"
+                >
+                  <FolderKanban className="h-3 w-3" />
+                  <span>Projects</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Go to Projects panel</TooltipContent>
+            </Tooltip>
           </div>
         )}
 
