@@ -271,10 +271,40 @@ const Sidebar: React.FC<SidebarProps> = ({
             onOpenSearch();
             onCloseMobile();
           })}
-          {renderActionButton("new", "New chat", "⌘N", Plus, handleNewChat)}
-        </nav>
+           {renderActionButton("new", "New chat", "⌘N", Plus, handleNewChat)}
+         </nav>
 
-        {/* HOME */}
+         {/* RECENT CHATS */}
+         {showLabels && recentChats.length > 0 && (
+           <>
+             <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
+             <p className={cn("sidebar-label mb-2 uppercase tracking-wider", isMobile ? "px-5" : "px-2")}>
+               Recent
+             </p>
+             <nav className="flex shrink-0 flex-col gap-0.5" aria-label="Recent chats">
+               {recentChats.slice(0, 10).map((chat) => (
+                 <button
+                   key={chat.id}
+                   type="button"
+                   onClick={() => handleSelectChat(chat.id)}
+                   title={chat.title || "Untitled chat"}
+                   className={cn(
+                     "flex w-full items-center gap-2 rounded-lg py-1 px-2 text-left text-[12px] transition-colors duration-150",
+                     currentChatId === chat.id
+                       ? "bg-accent/10 text-accent-foreground font-medium"
+                       : "text-muted-foreground hover:bg-accent/5 hover:text-foreground"
+                   )}
+                   aria-current={currentChatId === chat.id ? "true" : undefined}
+                 >
+                   <MessageSquare className="h-3 w-3 shrink-0" strokeWidth={1.5} />
+                   <span className="truncate">{chat.title || "Untitled chat"}</span>
+                 </button>
+               ))}
+             </nav>
+           </>
+         )}
+
+         {/* HOME */}
         {showLabels && (
           <>
             <div className={cn("h-px shrink-0 bg-[#24292D]", isMobile ? "mx-5 mb-4" : "mx-2 mb-3")} />
