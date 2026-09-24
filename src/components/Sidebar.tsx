@@ -60,10 +60,9 @@ import { openCodeAgentApi } from "@/lib/agent/openCodeAgentApi";
 
 const PRIMARY_NAV_ITEMS = [
   { icon: Plus, label: "New chat", id: "new-chat", shortcut: "⌘N", action: "new-chat" },
-  { icon: Image, label: "Images", id: "images", shortcut: null, to: "/images" },
   { icon: Calendar, label: "Scheduled", id: "scheduled", shortcut: null, to: "/scheduled" },
-  { icon: Zap, label: "Plugins", id: "plugins", shortcut: null, to: "/plugins" },
-  { icon: Compass, label: "Explore", id: "explore", shortcut: null, to: "/explore" },
+  { icon: BookOpen, label: "Research", id: "research", shortcut: null, to: "/labs" },
+  { icon: Mic, label: "Voice", id: "voice", shortcut: null, to: "/voice" },
 ];
 
 const WORKSPACE_ITEMS = [
@@ -79,7 +78,6 @@ const ACTIVITY_ITEMS = [
 
 const MORE_ITEMS = [
   { icon: Bot, label: "Computer Use", id: "computer", to: "/diagnostics" },
-  { icon: Mic, label: "Voice", id: "voice", to: "/diagnostics" },
   { icon: Cpu, label: "Models", id: "models", to: "/settings" },
   { icon: GitBranch, label: "Git", id: "git", to: "/files" },
   { icon: Plug, label: "Integrations", id: "integrations", to: "/setup" },
@@ -133,8 +131,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     onCloseMobile();
   };
 
-  // Pinned chats (recent + manually pinned)
-  const pinnedChats = useMemo(() => 
+  // Recent chats (no project)
+  const recentGlobalChats = useMemo(() => 
     chats.slice(-5).reverse().filter(c => !c.projectId), 
     [chats]
   );
@@ -265,7 +263,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
-  const renderPinnedChat = (chat: { id: string; title: string; projectId?: string | null }) => {
+  const renderRecentChat = (chat: { id: string; title: string; projectId?: string | null }) => {
     const active = currentChatId === chat.id;
     return (
       <button
@@ -513,14 +511,14 @@ const Sidebar: React.FC<SidebarProps> = ({
               </nav>
 
               {/* PINNED SECTION */}
-              {showLabels && pinnedChats.length > 0 && (
+              {showLabels && recentGlobalChats.length > 0 && (
                 <>
                   <div className="flex shrink-0 items-center gap-2 mb-2 px-1">
                     <Pin className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="text-[12px] leading-[16px] text-muted-foreground font-medium">Pinned</span>
+                    <span className="text-[12px] leading-[16px] text-muted-foreground font-medium">Recent</span>
                   </div>
-                  <nav className="flex shrink-0 flex-col gap-0.5 mb-4" aria-label="Pinned conversations">
-                    {pinnedChats.map(renderPinnedChat)}
+                  <nav className="flex shrink-0 flex-col gap-0.5 mb-4" aria-label="Recent conversations">
+                    {recentGlobalChats.map(renderRecentChat)}
                   </nav>
                 </>
               )}
