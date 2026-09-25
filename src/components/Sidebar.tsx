@@ -124,16 +124,17 @@ const Sidebar: React.FC<SidebarProps> = ({
     onCloseMobile();
   };
 
-  // Recent chats (no project) - lazy loaded
+  // Recent chats (no project) - lazy loaded with load more
   const [recentGlobalChats, setRecentGlobalChats] = useState<typeof chats>([]);
-  const [showAllChats, setShowAllChats] = useState(false);
-  const [showMoreNav, setShowMoreNav] = useState(false);
   const [recentChatsLoaded, setRecentChatsLoaded] = useState(false);
+  const [showAllRecentChats, setShowAllRecentChats] = useState(false);
+  const RECENT_CHATS_PER_PAGE = 10;
 
   useEffect(() => {
     // Lazy load recent chats after initial render
     const timer = setTimeout(() => {
-      setRecentGlobalChats(chats.slice(-5).reverse().filter(c => !c.projectId));
+      const filtered = chats.filter(c => !c.projectId).reverse();
+      setRecentGlobalChats(filtered.slice(0, RECENT_CHATS_PER_PAGE));
       setRecentChatsLoaded(true);
     }, 100);
     return () => clearTimeout(timer);
@@ -408,9 +409,26 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <History className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span className="text-[12px] leading-[16px] text-muted-foreground font-medium">Recent</span>
                   </div>
-                  <nav className="flex shrink-0 flex-col gap-0.5 mb-4" aria-label="Recent conversations">
+                  <nav className="flex shrink-0 flex-col gap-0.5 mb-2" aria-label="Recent conversations">
                     {recentGlobalChats.map(renderRecentChat)}
                   </nav>
+                  {recentChatsLoaded && chats.filter(c => !c.projectId).length > recentGlobalChats.length && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const filtered = chats.filter(c => !c.projectId).reverse();
+                        setRecentGlobalChats(prev => {
+                          const next = filtered.slice(prev.length, prev.length + RECENT_CHATS_PER_PAGE);
+                          return [...prev, ...next];
+                        });
+                        setShowAllRecentChats(prev => prev || filtered.length > prev.length + RECENT_CHATS_PER_PAGE);
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-2 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg transition-colors"
+                    >
+                      <History className="h-4 w-4 shrink-0" />
+                      <span className="truncate">Load more ({chats.filter(c => !c.projectId).length - recentGlobalChats.length} remaining)</span>
+                    </button>
+                  )}
                 </>
               )}
 
