@@ -38,6 +38,22 @@ describe("openCodeCore classifier", () => {
   it("returns UNKNOWN on low confidence", () => {
     expect(classifyTask("Hmm, maybe later")).toBe("UNKNOWN");
   });
+  it("routes creation intent (verb + software artifact) to CODE", () => {
+    expect(
+      classifyTask(
+        "Create a full-stack task management application with authentication, database, dashboard, API, tests, and deployment configuration."
+      )
+    ).toBe("CODE");
+    expect(classifyTask("Create a file hello.txt containing HELLO")).toBe("CODE");
+    expect(classifyTask("Add a login page to my app")).toBe("CODE");
+    expect(classifyTask("Write a todo app")).toBe("CODE");
+    expect(classifyTask("Make me a dashboard")).toBe("CODE");
+  });
+  it("keeps non-software creation out of CODE", () => {
+    expect(classifyTask("Write me a poem about the sea")).toBe("UNKNOWN");
+    expect(classifyTask("Make it better")).toBe("UNKNOWN");
+    expect(classifyTask("What tool should I use for notes?")).toBe("UNKNOWN");
+  });
   it("shouldRouteToOpenCode only for CODE", () => {
     expect(shouldRouteToOpenCode("CODE")).toBe(true);
     expect(shouldRouteToOpenCode("CHAT")).toBe(false);

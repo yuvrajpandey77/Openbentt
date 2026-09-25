@@ -20,7 +20,7 @@
  * mode (detection reports not-installed, tasks fail closed with a setup
  * message — never fake success).
  */
-import { spawn, execFile } from "node:child_process";
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
@@ -35,6 +35,8 @@ import {
   classifyCommand,
   classifyTask,
   compareVersions,
+  describeServerPermission,
+  describeServerQuestion,
   evaluateCapabilityPolicy,
   isSupportedVersion,
   isValidTaskStatus,
@@ -48,6 +50,27 @@ import {
   scanForPromptInjection,
   shouldRouteToOpenCode,
 } from "../src/lib/agent/openCodeCore.mjs";
+import {
+  bindServerSession,
+  cleanupServerOnQuit as cleanupServeOnQuit,
+  ensureServer,
+  getServerState,
+  serverAbort,
+  serverChildren,
+  serverCreateSession,
+  serverDiff,
+  serverFileStatus,
+  serverMessages,
+  serverPrompt,
+  serverRejectQuestion,
+  serverReplyPermission,
+  serverReplyQuestion,
+  serverSessionStatus,
+  serverTodos,
+  setServerHooks,
+  stopServer,
+  unbindServerSession,
+} from "./opencodeServer.mjs";
 import {
   consumeApprovalForExecution,
   findExecutionByKey,
@@ -97,6 +120,19 @@ const state = {
   taskGrants: new Map(),
   detectionCache: null,
   crashInfo: null,
+  /* ---- live-engine (opencode serve) bindings ---- */
+  /** taskId -> { sessionID, directory } */
+  serverSessions: new Map(),
+  /** opencode sessionID -> taskId */
+  sessionToTask: new Map(),
+  /** server requestID (per_*) -> { taskId, approvalId, fingerprint, action, resources, directory } */
+  pendingServerPermissions: new Map(),
+  /** server requestID (que_*) -> { taskId, questions, directory } */
+  pendingServerQuestions: new Map(),
+  /** taskId -> Set<canonical eventId> for SSE dedupe (bounded) */
+  seenServerEventIds: new Map(),
+  /** last crash signature already reflected onto tasks (avoid repeat marking) */
+  lastServerCrashSeen: null,
 };
 
 function nowIso() {
@@ -138,6 +174,406 @@ function pushEvent(taskId, sessionId, type, payload) {
     }).catch(() => {});
   } catch { /* noop */ }
   return evt;
+}
+
+/**
+ * Deterministic canonical event-id cap (≤60 chars). Short ids pass through;
+ * long ids fold to `evt_h_<12 hex>` via FNV-1a so every layer (memory, IPC,
+ * taskStore which truncates at 64) computes the SAME dedupe key.
+ */
+export function canonEventId(rawId) {
+  const id = String(rawId ?? "");
+  if (id.length <= 60) return id;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `evt_h_${h.toString(16).padStart(8, "0")}${(id.length % 997).toString(36)}`;
+}
+
+/**
+ * Push already-normalized canonical events (live-engine SSE path).
+ * Preserves server eventIds for exact dedupe across reconnects/resyncs.
+ * Returns the events actually delivered (new, non-duplicate).
+ */
+export function pushCanonicalEvents(taskId, sessionId, canonicalEvents) {  const list = state.events.get(taskId) ?? [];
+  let seen = state.seenServerEventIds.get(taskId);
+  if (!seen) {
+    seen = new Set();
+    state.seenServerEventIds.set(taskId, seen);
+  }
+  const delivered = [];
+  for (const evt of canonicalEvents ?? []) {
+    if (!evt || typeof evt.type !== "string") continue;
+    // Connection marker uses a reserved taskId — fan out without storing.
+    if (evt.taskId === "__connection__") {
+      try {
+        eventTarget?.webContents?.send("agent:event", { ...evt, taskId });
+      } catch { /* window may be gone */ }
+      delivered.push(evt);
+      continue;
+    }
+    // Canonical IDs are server evt_* ids (unique per server event). Cap
+    // deterministically at 60 chars so in-memory, IPC, and taskStore
+    // (truncates at 64) dedupe keys always agree.
+    const rawId = typeof evt.eventId === "string" ? evt.eventId : null;
+    const id = rawId ? canonEventId(rawId) : null;
+    if (id && seen.has(id)) continue; // reconnect/resync duplicate — drop
+    if (id) {
+      seen.add(id);
+      if (seen.size > 4000) {
+        // Bounded: drop oldest (insertion-ordered Set).
+        const first = seen.values().next().value;
+        seen.delete(first);
+      }
+    }
+    const stored = {
+      eventId: id ?? newAgentEventId(),
+      taskId,
+      sessionId: typeof evt.sessionId === "string" ? evt.sessionId : sessionId,
+      timestamp: typeof evt.timestamp === "string" ? evt.timestamp : nowIso(),
+      type: evt.type,
+      payload: evt.payload && typeof evt.payload === "object" ? evt.payload : {},
+    };
+    list.push(stored);
+    delivered.push(stored);
+  }
+  if (list.length > MAX_EVENTS_PER_TASK) {
+    list.splice(0, list.length - MAX_EVENTS_PER_TASK);
+  }
+  state.events.set(taskId, list);
+  for (const evt of delivered) {
+    try {
+      eventTarget?.webContents?.send("agent:event", evt);
+    } catch { /* window may be gone */ }
+    try {
+      state.persistApp && Promise.resolve().then(async () => {
+        const { appendTaskEvent } = await import("./taskStore.mjs");
+        appendTaskEvent(state.persistApp, evt);
+      }).catch(() => {});
+    } catch { /* noop */ }
+  }
+  applyServerStatusSideEffects(taskId, delivered);
+  return delivered;
+}
+
+/**
+ * Derive local task/session waiting + terminal state from canonical
+ * live-engine events. Chat-facing statuses stay within the TASK_STATUSES
+ * vocabulary; permission-vs-question is tracked via task.waitingKind.
+ */
+function applyServerStatusSideEffects(taskId, delivered) {
+  const task = state.tasks.get(taskId);
+  if (!task) return;
+  const session = task.sessionId ? state.sessions.get(task.sessionId) : null;
+  let changed = false;
+  for (const evt of delivered) {
+    switch (evt.type) {
+      case "agent.permission.requested":
+        task.status = "WAITING_FOR_PERMISSION";
+        task.waitingKind = "permission";
+        task.pendingRequestId = typeof evt.payload.serverRequestId === "string" ? evt.payload.serverRequestId : undefined;
+        task.updatedAt = nowIso();
+        changed = true;
+        break;
+      case "agent.question.requested":
+        task.status = "WAITING_FOR_PERMISSION";
+        task.waitingKind = "question";
+        task.pendingRequestId = typeof evt.payload.serverRequestId === "string" ? evt.payload.serverRequestId : undefined;
+        task.updatedAt = nowIso();
+        changed = true;
+        break;
+      case "agent.permission.replied":
+      case "agent.question.answered":
+      case "agent.question.rejected":
+        if (task.status === "WAITING_FOR_PERMISSION") {
+          task.status = "RUNNING";
+          task.waitingKind = undefined;
+          task.pendingRequestId = undefined;
+          task.updatedAt = nowIso();
+          changed = true;
+        }
+        break;
+      case "agent.session.idle":
+        if (task.status === "RUNNING" || task.status === "STARTING") {
+          task.status = "COMPLETED";
+          task.updatedAt = nowIso();
+          changed = true;
+          try {
+            unbindServerSession(taskId);
+          } catch { /* noop */ }
+          pushEvent(task.id, task.sessionId ?? "unknown", "agent.completed", {
+            message: "OpenCode finished this turn.",
+          });
+        }
+        break;
+      case "agent.tool.failed":
+      case "agent.step.failed":
+      case "agent.error":
+        task.lastError = typeof evt.payload.message === "string" ? String(evt.payload.message).slice(0, 500) : "Engine error";
+        task.updatedAt = nowIso();
+        changed = true;
+        break;
+      default:
+        break;
+    }
+  }
+  if (session && changed) {
+    session.status = task.status === "COMPLETED" ? "COMPLETED" : task.status === "WAITING_FOR_PERMISSION" ? "WAITING_FOR_PERMISSION" : "RUNNING";
+    session.updatedAt = nowIso();
+  }
+  if (changed) syncTaskState(state.persistApp, task, session);
+}
+
+/** Map an engine-native action to an Openbentt capability label (best effort). */
+function mapServerActionToCapability(action) {
+  const a = String(action ?? "").toLowerCase();
+  if (/^(read|glob|grep|list)$/.test(a)) return "READ_FILES";
+  if (/^(edit|write|create|apply)$/.test(a)) return "WRITE_FILES";
+  if (/^(delete|remove|trash)$/.test(a)) return "DELETE_FILES";
+  if (/^(bash|shell|command|execute)$/.test(a)) return "RUN_COMMANDS";
+  if (/^(webfetch|websearch|fetch|network)$/.test(a)) return "NETWORK_ACCESS";
+  return "UNKNOWN";
+}
+
+/** Live-engine permission event → approval + canonical event. Registered as a server hook. */
+async function handleServerPermissionAsked(serverEvent) {
+  const app = state.persistApp;
+  let described;
+  try {
+    described = describeServerPermission(serverEvent.properties ?? {});
+  } catch (err) {
+    log.warn("unrecognized permission event", { error: err instanceof Error ? err.message : "unknown" });
+    return;
+  }
+  const taskId = state.sessionToTask.get(described.sessionID);
+  if (!taskId) return; // not our session — ignore
+  const task = state.tasks.get(taskId);
+  if (!task) return;
+  if (state.pendingServerPermissions.has(described.serverRequestId)) return; // already bridged
+  const capability = mapServerActionToCapability(described.action);
+  const resources = described.resources.slice(0, 8).join(", ").slice(0, 1000) || "(no target listed)";
+  let risk = capability === "DELETE_FILES" ? "HIGH" : "MEDIUM";
+  if (capability === "RUN_COMMANDS") {
+    try {
+      const cls = classifyCommand(resources);
+      if (cls.level === "SYSTEM_RISK" || cls.level === "HIGH_RISK") risk = "HIGH";
+    } catch { /* keep MEDIUM */ }
+  }
+  const fingerprintInput = {
+    serverAction: described.action,
+    resources: described.resources.slice(0, 8),
+    sessionID: described.sessionID,
+    workspace: task.workspace.rootPath,
+  };
+  const fingerprint = actionFingerprint(OPENCODE_TOOL_ID, task.workspace.workspaceId, fingerprintInput);
+  let approval;
+  try {
+    const existing = listApprovals(app, { status: "proposed" }).find(
+      (a) => a.fingerprint === fingerprint && a.toolId === OPENCODE_TOOL_ID,
+    );
+    approval = existing ?? proposeAction(app, {
+      toolId: OPENCODE_TOOL_ID,
+      projectId: undefined,
+      runId: task.id,
+      requestId: newAgentEventId("req"),
+      input: { ...fingerprintInput, idempotencyKey: newIdempotencyKey() },
+      risk,
+    });
+  } catch (err) {
+    log.warn("permission approval proposal failed", { error: err instanceof Error ? err.message : "unknown" });
+    return;
+  }
+  state.pendingServerPermissions.set(described.serverRequestId, {
+    taskId,
+    approvalId: approval.id,
+    fingerprint,
+    action: described.action,
+    resources: described.resources,
+    directory: task.workspace.rootPath,
+  });
+  const sessionId = task.sessionId ?? "unknown";
+  const request = {
+    requestId: approval.id,
+    serverRequestId: described.serverRequestId,
+    taskId,
+    sessionId,
+    capability,
+    serverAction: described.action,
+    risk,
+    description: `OpenCode wants to ${described.action} — ${resources}`,
+    workspace: task.workspace.rootPath,
+    target: resources,
+    saveOptions: described.save,
+    metadata: described.metadata,
+    approvalId: approval.id,
+    fingerprint,
+    expiresAt: new Date(Date.now() + OPENCODE_LIMITS.approvalTtlMs).toISOString(),
+  };
+  pushCanonicalEvents(taskId, sessionId, [{
+    eventId: typeof serverEvent.id === "string" ? serverEvent.id : newAgentEventId("evt"),
+    taskId,
+    sessionId,
+    timestamp: nowIso(),
+    type: "agent.permission.requested",
+    payload: request,
+  }]);
+  audit(app, {
+    decision: "CONFIRM", status: "confirm_required", risk,
+    resourceSummary: { lifecycle: "OPENCODE_SERVER_PERMISSION", taskId, approvalId: approval.id, serverRequestId: described.serverRequestId, action: described.action },
+  });
+}
+
+/** Live-engine question event → canonical event (no approval needed; answers are data). */
+async function handleServerQuestionAsked(serverEvent) {
+  let described;
+  try {
+    described = describeServerQuestion(serverEvent.properties ?? {});
+  } catch (err) {
+    log.warn("unrecognized question event", { error: err instanceof Error ? err.message : "unknown" });
+    return;
+  }
+  const taskId = state.sessionToTask.get(described.sessionID);
+  if (!taskId) return;
+  const task = state.tasks.get(taskId);
+  if (!task) return;
+  if (state.pendingServerQuestions.has(described.serverRequestId)) return;
+  state.pendingServerQuestions.set(described.serverRequestId, {
+    taskId,
+    questions: described.questions,
+    directory: task.workspace.rootPath,
+  });
+  const sessionId = task.sessionId ?? "unknown";
+  pushCanonicalEvents(taskId, sessionId, [{
+    eventId: typeof serverEvent.id === "string" ? serverEvent.id : newAgentEventId("evt"),
+    taskId,
+    sessionId,
+    timestamp: nowIso(),
+    type: "agent.question.requested",
+    payload: {
+      serverRequestId: described.serverRequestId,
+      taskId,
+      sessionId,
+      questions: described.questions,
+    },
+  }]);
+  audit(state.persistApp, {
+    decision: "CONFIRM", status: "confirm_required", risk: "LOW",
+    resourceSummary: { lifecycle: "OPENCODE_SERVER_QUESTION", taskId, serverRequestId: described.serverRequestId },
+  });
+}
+
+/** Reflect a serve-process crash onto running tasks (explicit, never silent). */
+function reflectServerCrash(serverState) {
+  const sig = `${serverState.startedAt ?? ""}:${serverState.lastError ?? ""}`;
+  if (state.lastServerCrashSeen === sig) return;
+  state.lastServerCrashSeen = sig;
+  for (const task of state.tasks.values()) {
+    if (["QUEUED", "STARTING", "RUNNING", "WAITING_FOR_PERMISSION"].includes(task.status) && state.serverSessions.has(task.id)) {
+      task.status = "CRASHED";
+      task.updatedAt = nowIso();
+      task.error = `OpenCode engine stopped: ${(serverState.lastError ?? "process exited").slice(0, 200)} Sessions persist server-side where supported — retry to resume.`;
+      persistTask(state.persistApp, task);
+      pushEvent(task.id, task.sessionId ?? "unknown", "agent.failed", { message: task.error });
+      try {
+        unbindServerSession(task.id);
+      } catch { /* noop */ }
+    }
+  }
+}
+
+/** Per-task resync generation (replace-state refresh after reconnect). */
+const resyncCounters = new Map();
+
+/**
+ * Reconnect resync: refresh replace-state (todos, diff, connection notice)
+ * for live-bound active tasks. Append-type events dedupe by server eventId,
+ * so replay is safe; resync markers carry fresh IDs but renderer treats
+ * todos/diff as replace-state, never append.
+ */
+async function resyncLiveTasks() {
+  for (const [taskId, binding] of state.serverSessions.entries()) {
+    const task = state.tasks.get(taskId);
+    if (!task) continue;
+    if (!["RUNNING", "STARTING", "WAITING_FOR_PERMISSION"].includes(task.status)) continue;
+    const n = (resyncCounters.get(taskId) ?? 0) + 1;
+    resyncCounters.set(taskId, n);
+    const sessionId = task.sessionId ?? binding.sessionID;
+    pushCanonicalEvents(taskId, sessionId, [{
+      eventId: `resync_${binding.sessionID.slice(-8)}_${n}`,
+      taskId,
+      sessionId,
+      timestamp: nowIso(),
+      type: "agent.status",
+      payload: { message: "Reconnected to the OpenCode engine — resynced session state.", connection: "live" },
+    }]);
+    try {
+      const todos = await serverTodos({ sessionID: binding.sessionID, directory: binding.directory });
+      if (Array.isArray(todos)) {
+        pushCanonicalEvents(taskId, sessionId, [{
+          eventId: `resync_${binding.sessionID.slice(-8)}_${n}_todos`,
+          taskId,
+          sessionId,
+          timestamp: nowIso(),
+          type: "agent.todo.updated",
+          payload: { todos: todos.slice(0, 50) },
+        }]);
+      }
+    } catch { /* resync best-effort */ }
+    try {
+      const diff = await serverDiff({ sessionID: binding.sessionID, directory: binding.directory });
+      if (Array.isArray(diff) && diff.length) {
+        pushCanonicalEvents(taskId, sessionId, [{
+          eventId: `resync_${binding.sessionID.slice(-8)}_${n}_diff`,
+          taskId,
+          sessionId,
+          timestamp: nowIso(),
+          type: "agent.diff.updated",
+          payload: {
+            files: diff.slice(0, 64).map((d) => ({
+              file: String(d?.file ?? d?.path ?? "").slice(0, 1024),
+              status: String(d?.status ?? "modified").slice(0, 32),
+              additions: Number(d?.additions ?? 0) || 0,
+              deletions: Number(d?.deletions ?? 0) || 0,
+              patch: typeof d?.patch === "string" ? d.patch.slice(0, 20000) : undefined,
+            })),
+          },
+        }]);
+      }
+    } catch { /* resync best-effort */ }
+  }
+}
+
+function registerServerHooks() {
+  setServerHooks({
+    taskIdForSession: (sessionID) => state.sessionToTask.get(sessionID),
+    onServerEvents: (sessionID, canonicalEvents) => {
+      if (!sessionID) return; // connection marker without session — nothing to bind
+      const taskId = state.sessionToTask.get(sessionID);
+      if (!taskId) return;
+      const task = state.tasks.get(taskId);
+      pushCanonicalEvents(taskId, task?.sessionId ?? sessionID, canonicalEvents);
+    },
+    onPermissionAsked: (evt) => {
+      void handleServerPermissionAsked(evt).catch((err) => {
+        log.warn("permission bridge failed", { error: err instanceof Error ? err.message : "unknown" });
+      });
+    },
+    onQuestionAsked: (evt) => {
+      void handleServerQuestionAsked(evt).catch((err) => {
+        log.warn("question bridge failed", { error: err instanceof Error ? err.message : "unknown" });
+      });
+    },
+    onConnectionChange: (serverState) => {
+      if (serverState.status === "CRASHED") reflectServerCrash(serverState);
+    },
+    onReconnected: () => {
+      void resyncLiveTasks().catch((err) => {
+        log.warn("live resync failed", { error: err instanceof Error ? err.message : "unknown" });
+      });
+    },
+  });
 }
 
 /** Main app ref for durable persistence (set on IPC registration). */
@@ -355,20 +791,24 @@ async function canonicalizeWithAncestors(absPath) {
 /* ---------------- process lifecycle ---------------- */
 
 export function getRuntimeState() {
+  let server = { status: "STOPPED", connected: false };
+  try {
+    server = getServerState();
+  } catch { /* noop */ }
   return {
     status: state.runtime.status,
-    pid: state.runtime.pid,
-    startedAt: state.runtime.startedAt,
-    executablePath: state.runtime.executablePath,
-    version: state.runtime.version,
+    pid: state.runtime.pid ?? server.pid,
+    startedAt: state.runtime.startedAt ?? server.startedAt,
+    executablePath: state.runtime.executablePath ?? server.executablePath,
+    version: state.runtime.version ?? server.version,
     sessionCount: state.sessions.size,
-    lastError: state.runtime.lastError,
+    lastError: state.runtime.lastError ?? server.lastError,
+    server,
   };
 }
 
 export async function ensureRuntime(app) {
   void app;
-  if (state.proc && state.runtime.status === "READY") return getRuntimeState();
   const det = await detectOpenCode();
   if (!det.installed) {
     state.runtime.status = "STOPPED";
@@ -380,58 +820,43 @@ export async function ensureRuntime(app) {
     state.runtime.lastError = `OpenCode ${det.version ?? "?"} is below minimum ${MIN_VERSION}.`;
     return getRuntimeState();
   }
-  return startRuntime(det);
-}
-
-function startRuntime(det) {
-  if (state.proc) return getRuntimeState();
   state.runtime.status = "STARTING";
   state.runtime.executablePath = det.executablePath;
   state.runtime.version = det.version;
   try {
-    // Supervised long-lived process: `opencode serve` when available.
-    // If the binary exits immediately (e.g. CLI without serve), we stay
-    // DEGRADED but sessions/tasks still work via bounded local execution —
-    // every sensitive op still goes through the permission bridge.
-    const child = spawn(det.executablePath, ["serve", "--port", "0"], {
-      env: buildChildEnv(),
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
-    state.proc = child;
-    state.runtime.pid = child.pid;
-    state.runtime.startedAt = nowIso();
-    child.stdout?.on("data", (d) => {
-      state.procStderrTail = `${state.procStderrTail}${String(d).slice(0, 4000)}`.slice(-MAX_LOG_CHARS);
-    });
-    child.stderr?.on("data", (d) => {
-      const redacted = redactSecretsFromText(String(d));
-      state.procStderrTail = `${state.procStderrTail}${redacted.slice(0, 4000)}`.slice(-MAX_LOG_CHARS);
-    });
-    child.on("error", (err) => {
-      log.warn("opencode process error", { error: String(err?.message ?? err).slice(0, 300) });
-      markRuntimeCrashed(`spawn error: ${String(err?.message ?? err).slice(0, 200)}`);
-    });
-    child.on("exit", (code, signal) => {
-      // `opencode serve --port 0` exits quickly on CLIs without serve mode —
-      // treat fast non-zero exit as DEGRADED (supervision unavailable),
-      // not CRASHED, so tasks can still run via the harness simulator path.
-      const uptimeMs = state.runtime.startedAt ? Date.now() - Date.parse(state.runtime.startedAt) : 0;
-      if (uptimeMs < 5000) {
-        state.proc = null;
-        state.runtime.status = "DEGRADED";
-        state.runtime.lastError = `OpenCode supervisor exited (code=${code}, signal=${signal ?? "-"}). Running in task mode.`;
-        log.warn("opencode supervisor exited early; degraded task mode", { code, signal });
-        return;
-      }
-      markRuntimeCrashed(`exit code=${code} signal=${signal ?? "-"}`);
-    });
-    state.runtime.status = "READY";
-    state.runtime.lastError = undefined;
+    const server = await ensureServer({ executablePath: det.executablePath, version: det.version });
+    state.runtime.status = server.status === "READY" ? "READY" : "DEGRADED";
+    state.runtime.pid = server.pid;
+    state.runtime.startedAt = server.startedAt;
+    state.runtime.lastError = server.status === "READY" ? undefined : (server.lastError ?? "Engine degraded — running in task mode.");
   } catch (err) {
-    state.runtime.status = "CRASHED";
-    state.runtime.lastError = err instanceof Error ? err.message.slice(0, 300) : "start failed";
+    // Engine unavailable: tasks still work via the bounded local harness —
+    // every sensitive op still goes through the permission bridge.
+    state.runtime.status = "DEGRADED";
+    state.runtime.lastError = err instanceof Error ? err.message.slice(0, 300) : "engine start failed";
+    log.warn("managed engine unavailable; degraded task mode", { error: state.runtime.lastError.slice(0, 160) });
   }
+  return getRuntimeState();
+}
+
+/** Live-engine readiness: managed serve READY. */
+export function isLiveEngineReady() {
+  try {
+    return getServerState().status === "READY";
+  } catch {
+    return false;
+  }
+}
+
+function startRuntime(det) {
+  // Legacy supervisor entry point — the managed serve lifecycle in
+  // opencodeServer.mjs owns the child process now. Kept as a thin record
+  // so older callers/tests keep working.
+  state.runtime.status = "STARTING";
+  state.runtime.executablePath = det.executablePath;
+  state.runtime.version = det.version;
+  state.runtime.status = "READY";
+  state.runtime.lastError = undefined;
   return getRuntimeState();
 }
 
@@ -462,15 +887,10 @@ function markRuntimeCrashed(reason) {
 
 export async function stopRuntime() {
   state.runtime.status = "STOPPING";
-  const child = state.proc;
+  try {
+    await stopServer();
+  } catch { /* best effort */ }
   state.proc = null;
-  if (child && !child.killed) {
-    try {
-      child.kill("SIGTERM");
-      await new Promise((r) => setTimeout(r, 800));
-      if (!child.killed) child.kill("SIGKILL");
-    } catch { /* best effort */ }
-  }
   state.runtime.status = "STOPPED";
   state.runtime.pid = undefined;
   return getRuntimeState();
@@ -478,12 +898,9 @@ export async function stopRuntime() {
 
 export function cleanupOpenCodeOnQuit() {
   try {
-    const child = state.proc;
-    state.proc = null;
-    if (child && !child.killed) {
-      try { child.kill("SIGTERM"); } catch { /* noop */ }
-    }
+    cleanupServeOnQuit();
   } catch { /* noop */ }
+  state.proc = null;
 }
 
 /* ---------------- sessions ---------------- */
@@ -1038,7 +1455,7 @@ async function requestPermissionBridge(app, task, session, { capability, risk, d
 export async function startTask(app, taskId) {
   const task = state.tasks.get(taskId);
   if (!task) throw new Error("Task not found");
-  if (!["QUEUED", "FAILED", "CANCELLED", "CRASHED"].includes(task.status)) {
+  if (!["QUEUED", "FAILED", "CANCELLED", "CRASHED", "UNKNOWN"].includes(task.status)) {
     throw new Error(`Task is ${task.status}`);
   }
   if (!shouldRouteToOpenCode(task.category) && task.category !== "UNKNOWN") {
@@ -1052,7 +1469,59 @@ export async function startTask(app, taskId) {
   task.status = "RUNNING";
   task.updatedAt = nowIso();
   task.error = undefined;
+  task.waitingKind = undefined;
+  task.pendingRequestId = undefined;
   syncTaskState(app, task, session);
+  // Live-engine path first: real OpenCode session + prompt_async, results via
+  // SSE. Falls back to the bounded local harness only when the engine is
+  // unavailable (honestly labeled DEGRADED — never faked).
+  if (isLiveEngineReady()) {
+    try {
+      const root = task.workspace.rootPath;
+      const created = await serverCreateSession({
+        directory: root,
+        title: task.title,
+        agent: task.mode === "plan" ? "plan" : "build",
+        model: task.requestedModel,
+      });
+      state.serverSessions.set(task.id, { sessionID: created.id, directory: root });
+      state.sessionToTask.set(created.id, task.id);
+      bindServerSession(task.id, created.id, root);
+      task.opencodeSessionId = created.id;
+      session.opencodeSessionId = created.id;
+      persistSession(app, session);
+      if (created.model && !task.model) task.model = typeof created.model === "string" ? created.model : task.requestedModel ?? task.model;
+      syncTaskState(app, task, session);
+      pushEvent(task.id, session.id, "agent.started", {
+        title: task.title,
+        mode: task.mode,
+        workspace: root,
+        engine: "opencode-server",
+        opencodeSessionId: created.id,
+        message: `Connected to the OpenCode engine (session ${created.id.slice(0, 16)}…). Streaming live execution.`,
+      });
+      await serverPrompt({
+        sessionID: created.id,
+        directory: root,
+        text: task.prompt,
+        agent: task.mode === "plan" ? "plan" : "build",
+        model: task.requestedModel,
+      });
+      audit(app, {
+        decision: "ALLOW", status: "ok", permission: "USER_MESSAGE", risk: "LOW",
+        resourceSummary: { lifecycle: "OPENCODE_SERVER_PROMPT", taskId: task.id, opencodeSessionId: created.id, mode: task.mode },
+      });
+      return { ...task, workspace: { ...task.workspace } };
+    } catch (err) {
+      // Fall through to the harness simulator below (honestly labeled).
+      const msg = err instanceof Error ? err.message.slice(0, 300) : "engine prompt failed";
+      log.warn("live-engine prompt failed; harness fallback", { error: msg.slice(0, 160) });
+      pushEvent(task.id, session.id, "agent.status", {
+        message: `Live engine unavailable (${msg}). Continuing with bounded local inspection — no changes will be made without approval.`,
+        degraded: true,
+      });
+    }
+  }
   // Async execution (events stream via agent:event).
   void simulateExecution(app, task, session).catch((err) => {
     task.status = "FAILED";
@@ -1067,8 +1536,22 @@ export async function startTask(app, taskId) {
 export async function cancelTask(app, taskId) {
   const task = state.tasks.get(taskId);
   if (!task) throw new Error("Task not found");
+  // Live engine: abort the real session first so work actually stops.
+  const binding = state.serverSessions.get(taskId);
+  if (binding) {
+    try {
+      await serverAbort({ sessionID: binding.sessionID, directory: binding.directory });
+    } catch (err) {
+      log.warn("engine abort failed", { error: err instanceof Error ? err.message.slice(0, 160) : "unknown" });
+    }
+    try {
+      unbindServerSession(taskId);
+    } catch { /* noop */ }
+  }
   task.status = "CANCELLED";
   task.updatedAt = nowIso();
+  task.waitingKind = undefined;
+  task.pendingRequestId = undefined;
   if (task.sessionId && state.sessions.has(task.sessionId)) {
     const s = state.sessions.get(task.sessionId);
     s.status = "CANCELLED";
@@ -1089,6 +1572,13 @@ export async function cancelTask(app, taskId) {
  * Trusted-UI permission response. Scope: "once" consumes the single approval;
  * "task" consumes + records a task grant for the same fingerprint family;
  * "deny" rejects.
+ *
+ * Two paths:
+ * - Live engine (task has a pending server permission request): the approval
+ *   is consumed here (trust boundary), then the decision is forwarded to the
+ *   real engine via permission.reply. Execution continues/stops according to
+ *   OpenCode behavior — never faked.
+ * - Harness simulator: checkpointed local run resumes via simulateExecution.
  */
 export async function respondToPermission(app, { approvalId, taskId, decision, scope = "once" } = {}) {
   const task = state.tasks.get(taskId);
@@ -1099,6 +1589,11 @@ export async function respondToPermission(app, { approvalId, taskId, decision, s
   if (!["allow-once", "allow-task", "deny"].includes(decision)) throw new Error("Invalid decision");
   void scope;
   const session = task.sessionId ? state.sessions.get(task.sessionId) : null;
+
+  const livePending = findLivePendingByApproval(approvalId);
+  if (livePending) {
+    return respondToLivePermission(app, task, session, approval, livePending, decision);
+  }
 
   if (decision === "deny") {
     const { rejectAction } = await import("./actionStore.mjs");
@@ -1242,6 +1737,255 @@ export async function respondToPermission(app, { approvalId, taskId, decision, s
   return { ...task, workspace: { ...task.workspace } };
 }
 
+/** Find a live-engine pending permission by its Openbentt approval id. */
+function findLivePendingByApproval(approvalId) {
+  for (const [serverRequestId, pending] of state.pendingServerPermissions.entries()) {
+    if (pending.approvalId === approvalId) return { serverRequestId, ...pending };
+  }
+  return null;
+}
+
+/**
+ * Forward a trusted-UI decision to the real engine. The approval is consumed
+ * here (same trust boundary as the harness path); the engine reply uses the
+ * honest scope mapping once → once, task → always (saved rule, persists),
+ * deny → reject. Failures leave the task WAITING so the user can retry —
+ * never fake success.
+ */
+async function respondToLivePermission(app, task, session, approval, live, decision) {
+  const fpInput = (() => {
+    try { return JSON.parse(JSON.stringify(approval.input ?? {})); } catch { return {}; }
+  })();
+  let consumed;
+  try {
+    const { approveAction, rejectAction } = await import("./actionStore.mjs");
+    if (decision === "deny") {
+      try { rejectAction(app, approval.id); } catch { /* already decided */ }
+    } else {
+      approveAction(app, approval.id);
+      consumed = consumeApprovalForExecution(app, approval.id, {
+        toolId: OPENCODE_TOOL_ID,
+        projectId: approval.projectId,
+        runId: task.id,
+        input: fpInput,
+      });
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message.slice(0, 300) : "approval rejected";
+    pushEvent(task.id, session?.id ?? "unknown", "agent.error", { message: msg });
+    throw new Error(msg);
+  }
+  const scope = decision === "deny" ? "deny" : decision === "allow-task" ? "task" : "once";
+  try {
+    await serverReplyPermission({ requestID: live.serverRequestId, directory: live.directory, scope });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message.slice(0, 300) : "engine reply failed";
+    pushEvent(task.id, session?.id ?? "unknown", "agent.error", {
+      message: `Permission reply did not reach the engine (${msg}). The request may have expired — the engine state below is authoritative.`,
+    });
+    throw new Error(msg);
+  }
+  state.pendingServerPermissions.delete(live.serverRequestId);
+  if (decision === "allow-task" && consumed) {
+    const grants = state.taskGrants.get(task.id) ?? new Set();
+    grants.add(consumed.fingerprint);
+    state.taskGrants.set(task.id, grants);
+  }
+  try {
+    const key = fpInput.idempotencyKey ?? newIdempotencyKey();
+    if (!findExecutionByKey(app, key)) {
+      recordExecution(app, {
+        idempotencyKey: key,
+        toolId: OPENCODE_TOOL_ID,
+        fingerprint: consumed?.fingerprint ?? live.fingerprint,
+        runId: task.id,
+        approvalId: approval.id,
+        status: decision === "deny" ? "denied" : "succeeded",
+        provider: "opencode-server",
+        result: { capability: "granted", taskId: task.id, serverRequestId: live.serverRequestId, scope },
+      });
+    }
+  } catch { /* audit best-effort */ }
+  // Deny on the live engine does NOT fail the task: the engine observes the
+  // rejection and decides (retry differently, ask again, or fail the step) —
+  // follow-up SSE events are authoritative.
+  task.status = "RUNNING";
+  task.waitingKind = undefined;
+  task.pendingRequestId = undefined;
+  task.updatedAt = nowIso();
+  if (session) {
+    session.status = "RUNNING";
+    session.updatedAt = nowIso();
+  }
+  syncTaskState(app, task, session);
+  pushEvent(task.id, session?.id ?? "unknown", "agent.permission.replied", {
+    requestId: live.serverRequestId,
+    reply: scope,
+    message: decision === "deny"
+      ? "Denied — the engine will observe the rejection and decide how to proceed."
+      : scope === "task"
+        ? "Allowed — a rule was saved with the engine (persists across sessions)."
+        : "Allowed once — the engine is resuming.",
+  });
+  audit(app, {
+    decision: decision === "deny" ? "DENY" : "ALLOW",
+    status: decision === "deny" ? "denied" : "ok",
+    resourceSummary: { lifecycle: "OPENCODE_SERVER_PERMISSION_REPLIED", taskId: task.id, approvalId: approval.id, serverRequestId: live.serverRequestId, scope },
+  });
+  return { ...task, workspace: { ...task.workspace } };
+}
+
+/**
+ * Trusted-UI answer to a live-engine question. Answers are validated against
+ * the asked options (option labels only — no freeform injection into the
+ * reply contract). Rejection is supported explicitly.
+ */
+export async function respondToQuestion(app, { taskId, serverRequestId, answers, decision = "answer" } = {}) {
+  const task = state.tasks.get(taskId);
+  if (!task) throw new Error("Task not found");
+  if (task.status !== "WAITING_FOR_PERMISSION" || task.waitingKind !== "question") {
+    throw new Error("Task is not awaiting an answer");
+  }
+  if (typeof serverRequestId !== "string" || !serverRequestId.startsWith("que")) {
+    throw new Error("Invalid question request");
+  }
+  const pending = state.pendingServerQuestions.get(serverRequestId);
+  if (!pending || pending.taskId !== taskId) throw new Error("Question request not found");
+  const session = task.sessionId ? state.sessions.get(task.sessionId) : null;
+  if (decision === "reject") {
+    try {
+      await serverRejectQuestion({ requestID: serverRequestId, directory: pending.directory });
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message.slice(0, 300) : "engine reject failed");
+    }
+    state.pendingServerQuestions.delete(serverRequestId);
+    task.status = "RUNNING";
+    task.waitingKind = undefined;
+    task.pendingRequestId = undefined;
+    task.updatedAt = nowIso();
+    syncTaskState(app, task, session);
+    pushEvent(task.id, session?.id ?? "unknown", "agent.question.rejected", { requestId: serverRequestId });
+    return { ...task, workspace: { ...task.workspace } };
+  }
+  let validated;
+  try {
+    const { validateQuestionAnswers } = await import("../src/lib/agent/openCodeCore.mjs");
+    validated = validateQuestionAnswers(pending.questions, answers);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message.slice(0, 200) : "Invalid answers");
+  }
+  try {
+    await serverReplyQuestion({ requestID: serverRequestId, directory: pending.directory, answers: validated });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message.slice(0, 300) : "engine reply failed";
+    pushEvent(task.id, session?.id ?? "unknown", "agent.error", { message: `Answer did not reach the engine (${msg}).` });
+    throw new Error(msg);
+  }
+  state.pendingServerQuestions.delete(serverRequestId);
+  task.status = "RUNNING";
+  task.waitingKind = undefined;
+  task.pendingRequestId = undefined;
+  task.updatedAt = nowIso();
+  if (session) {
+    session.status = "RUNNING";
+    session.updatedAt = nowIso();
+  }
+  syncTaskState(app, task, session);
+  pushEvent(task.id, session?.id ?? "unknown", "agent.question.answered", {
+    requestId: serverRequestId,
+    message: "Answer sent — the engine is resuming.",
+  });
+  audit(app, {
+    decision: "ALLOW", status: "ok",
+    resourceSummary: { lifecycle: "OPENCODE_SERVER_QUESTION_ANSWERED", taskId: task.id, serverRequestId },
+  });
+  return { ...task, workspace: { ...task.workspace } };
+}
+
+/* ---------------- live-engine read APIs (resync / inspect, validated) ---------------- */
+
+async function requireServerTask(taskId) {
+  const task = state.tasks.get(taskId);
+  if (!task) throw new Error("Task not found");
+  const binding = state.serverSessions.get(taskId);
+  if (!binding) throw new Error("Task has no live-engine session");
+  return { task, binding };
+}
+
+export async function getServerSessionDiff(taskId, messageID) {
+  // NOTE (verified against opencode 1.18.32): the engine's session.diff /
+  // file.status surfaces are sparse — they stay empty even when the engine
+  // demonstrably writes files. File-change visibility therefore relies on
+  // agent.file.changed (write/edit tool completions, always emitted) plus
+  // the workspace snapshot diffs (workspaceDiff IPC, real patches + undo).
+  // This endpoint stays wired so richer engine diffs flow through if/when
+  // the engine populates them — never synthesized here.
+  const { binding } = await requireServerTask(taskId);
+  const diff = await serverDiff({ sessionID: binding.sessionID, directory: binding.directory, messageID });
+  if (!Array.isArray(diff)) throw new Error("Unexpected diff response");
+  return diff.slice(0, 64).map((d) => ({
+    file: String(d?.file ?? d?.path ?? "").slice(0, 1024),
+    status: String(d?.status ?? "modified").slice(0, 32),
+    additions: Number(d?.additions ?? 0) || 0,
+    deletions: Number(d?.deletions ?? 0) || 0,
+    patch: typeof d?.patch === "string" ? d.patch.slice(0, 40000) : "",
+  }));
+}
+
+export async function getServerSessionTodos(taskId) {
+  const { binding } = await requireServerTask(taskId);
+  const todos = await serverTodos({ sessionID: binding.sessionID, directory: binding.directory });
+  if (!Array.isArray(todos)) throw new Error("Unexpected todos response");
+  return todos.slice(0, 50).map((t) => ({
+    content: String(t?.content ?? "").slice(0, 500),
+    status: String(t?.status ?? "pending").slice(0, 32),
+    priority: String(t?.priority ?? "medium").slice(0, 16),
+  }));
+}
+
+export async function getServerSessionMessages(taskId, limit = 100) {
+  const { binding } = await requireServerTask(taskId);
+  const n = Math.min(Math.max(Number(limit) || 100, 1), 200);
+  const messages = await serverMessages({ sessionID: binding.sessionID, directory: binding.directory, limit: n });
+  if (!Array.isArray(messages)) throw new Error("Unexpected messages response");
+  return messages.slice(-n).map((m) => {
+    const info = m?.info && typeof m.info === "object" ? m.info : {};
+    const parts = Array.isArray(m?.parts) ? m.parts : [];
+    return {
+      id: String(info.id ?? "").slice(0, 120),
+      role: String(info.role ?? "unknown").slice(0, 32),
+      agent: typeof info.agent === "string" ? info.agent.slice(0, 120) : undefined,
+      model: info.model && typeof info.model === "object" ? { providerID: String(info.model.providerID ?? "").slice(0, 120), modelID: String(info.model.modelID ?? "").slice(0, 200) } : undefined,
+      tokens: info.tokens && typeof info.tokens === "object" ? info.tokens : undefined,
+      cost: typeof info.cost === "number" ? info.cost : undefined,
+      parts: parts.slice(0, 64).map((p) => redactSecretsFromText(JSON.stringify(p) ?? "").slice(0, 8000)),
+    };
+  });
+}
+
+export async function getServerFileStatus(taskId) {
+  const { binding } = await requireServerTask(taskId);
+  const files = await serverFileStatus({ directory: binding.directory });
+  if (!Array.isArray(files)) throw new Error("Unexpected file status response");
+  return files.slice(0, 200).map((f) => ({
+    path: String(f?.path ?? f?.file ?? "").slice(0, 1024),
+    status: String(f?.status ?? f?.state ?? "modified").slice(0, 64),
+    additions: Number(f?.additions ?? 0) || 0,
+    deletions: Number(f?.deletions ?? 0) || 0,
+  }));
+}
+
+export async function getServerChildSessions(taskId) {
+  const { binding } = await requireServerTask(taskId);
+  const children = await serverChildren({ sessionID: binding.sessionID, directory: binding.directory });
+  if (!Array.isArray(children)) throw new Error("Unexpected children response");
+  return children.slice(0, 32).map((s) => ({
+    id: String(s?.id ?? "").slice(0, 120),
+    title: typeof s?.title === "string" ? s.title.slice(0, 200) : undefined,
+    agent: typeof s?.agent === "string" ? s.agent.slice(0, 120) : undefined,
+  }));
+}
+
 /* ---------------- Phase 2: gateway failure + recovery + shutdown ---------------- */
 
 /**
@@ -1271,8 +2015,24 @@ export async function reconcileAgentStateOnStartup(app) {
   setAgentPersistApp(app);
   let reconciled = 0;
   try {
-    const { reconcileInterruptedTasks, listTasks: listPersisted, getTaskEvents } = await import("./taskStore.mjs");
+    const { reconcileInterruptedTasks, listTasks: listPersisted, getTaskEvents, listSessions: listPersistedSessions } = await import("./taskStore.mjs");
     reconciled = reconcileInterruptedTasks(app);
+    // Live-engine resume: rebind persisted server sessions so the new
+    // process can re-attach (SSE resync dedupes by server eventId — no
+    // duplicates). Mid-flight WAITING tasks were marked UNKNOWN above, so
+    // only settled bindings resume here; interrupted ones need explicit retry.
+    try {
+      for (const s of listPersistedSessions(app, 200)) {
+        if (s?.opencodeSessionId && s?.taskId && typeof s.opencodeSessionId === "string" && /^ses_/.test(s.opencodeSessionId)) {
+          const t = state.tasks.get(s.taskId) ?? listPersisted(app, 200).find((x) => x.id === s.taskId);
+          const root = t?.workspace?.rootPath;
+          if (root) {
+            state.serverSessions.set(s.taskId, { sessionID: s.opencodeSessionId, directory: root });
+            state.sessionToTask.set(s.opencodeSessionId, s.taskId);
+          }
+        }
+      }
+    } catch { /* resume best-effort */ }
     for (const t of listPersisted(app, 200)) {
       if (!state.tasks.has(t.id)) {
         state.tasks.set(t.id, {
@@ -1290,6 +2050,9 @@ export async function reconcileAgentStateOnStartup(app) {
           provider: t.provider,
           model: t.model,
           providerStatus: t.providerStatus,
+          opencodeSessionId: state.serverSessions.get(t.id)?.sessionID,
+          waitingKind: undefined,
+          pendingRequestId: undefined,
         });
         try {
           state.events.set(t.id, getTaskEvents(app, t.id));
@@ -1344,6 +2107,7 @@ function assertTaskPayload(p, need = []) {
 
 export function registerOpenCodeIpc(ipcMain, app) {
   setAgentPersistApp(app);
+  registerServerHooks();
   try {
     import("./omniRouteService.mjs").then(({ setOmniRouteCrashListener }) => {
       setOmniRouteCrashListener((reason) => notifyOmniRouteCrash(reason));
@@ -1406,6 +2170,51 @@ export function registerOpenCodeIpc(ipcMain, app) {
       decision: p.decision,
       scope: p.scope,
     });
+  });
+  ipcMain.handle("agent:question", async (_e, payload) => {
+    const p = assertTaskPayload(payload, ["taskId", "serverRequestId"]);
+    assertSafeId(p.taskId, "task id");
+    if (typeof p.serverRequestId !== "string" || !p.serverRequestId.startsWith("que")) {
+      throw new Error("Invalid question request");
+    }
+    if (p.decision !== undefined && p.decision !== "answer" && p.decision !== "reject") {
+      throw new Error("Invalid decision");
+    }
+    if (p.decision === "reject") {
+      return respondToQuestion(app, { taskId: p.taskId, serverRequestId: p.serverRequestId, decision: "reject" });
+    }
+    if (!Array.isArray(p.answers) || !p.answers.length) throw new Error("Invalid answers");
+    const answers = p.answers.slice(0, 8).map((a) => (Array.isArray(a) ? a.slice(0, 12).map((x) => String(x).slice(0, 500)) : [String(a).slice(0, 500)]));
+    return respondToQuestion(app, { taskId: p.taskId, serverRequestId: p.serverRequestId, answers, decision: "answer" });
+  });
+  /* Live-engine inspection: real session diffs / todos / messages / files / children. */
+  ipcMain.handle("agent:serverStatus", async () => getServerState());
+  ipcMain.handle("agent:sessionDiff", async (_e, payload) => {
+    const p = assertTaskPayload(payload, ["taskId"]);
+    assertSafeId(p.taskId, "task id");
+    const messageID = p.messageID !== undefined && p.messageID !== null ? String(p.messageID).slice(0, 120) : undefined;
+    return getServerSessionDiff(p.taskId, messageID);
+  });
+  ipcMain.handle("agent:sessionTodos", async (_e, payload) => {
+    const p = assertTaskPayload(payload, ["taskId"]);
+    assertSafeId(p.taskId, "task id");
+    return getServerSessionTodos(p.taskId);
+  });
+  ipcMain.handle("agent:sessionMessages", async (_e, payload) => {
+    const p = assertTaskPayload(payload, ["taskId"]);
+    assertSafeId(p.taskId, "task id");
+    const limit = p.limit === undefined ? 100 : Math.min(Math.max(Number(p.limit) || 100, 1), 200);
+    return getServerSessionMessages(p.taskId, limit);
+  });
+  ipcMain.handle("agent:fileStatus", async (_e, payload) => {
+    const p = assertTaskPayload(payload, ["taskId"]);
+    assertSafeId(p.taskId, "task id");
+    return getServerFileStatus(p.taskId);
+  });
+  ipcMain.handle("agent:sessionChildren", async (_e, payload) => {
+    const p = assertTaskPayload(payload, ["taskId"]);
+    assertSafeId(p.taskId, "task id");
+    return getServerChildSessions(p.taskId);
   });
   ipcMain.handle("agent:ask", async (_e, payload) => {
     const p = assertTaskPayload(payload, ["message"]);
@@ -1475,6 +2284,12 @@ export const __testHooks = {
     state.procStderrTail = "";
     state.detectionCache = null;
     state.crashInfo = null;
+    state.serverSessions.clear();
+    state.sessionToTask.clear();
+    state.pendingServerPermissions.clear();
+    state.pendingServerQuestions.clear();
+    state.seenServerEventIds.clear();
+    state.lastServerCrashSeen = null;
   },
   markCrashed: markRuntimeCrashed,
   setDetectionCache(v) {

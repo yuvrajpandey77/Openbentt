@@ -8,8 +8,12 @@ import type {
   OmniRouteDetection,
   OpenCodeAgentEvent,
   OpenCodeDetection,
+  OpenCodeFileDiff,
+  OpenCodeQuestion,
   OpenCodeRuntimeState,
+  OpenCodeServerState,
   OpenCodeTask,
+  OpenCodeTodo,
   RuntimeModel,
   VoiceEvent,
   VoiceSessionPublic,
@@ -39,6 +43,18 @@ interface AgentBridge {
     approvalId: string;
     decision: "allow-once" | "allow-task" | "deny";
   }) => Promise<OpenCodeTask>;
+  respondToQuestion: (args: {
+    taskId: string;
+    serverRequestId: string;
+    answers?: string[][];
+    decision?: "answer" | "reject";
+  }) => Promise<OpenCodeTask>;
+  serverStatus: () => Promise<OpenCodeServerState>;
+  sessionDiff: (taskId: string, messageID?: string) => Promise<OpenCodeFileDiff[]>;
+  sessionTodos: (taskId: string) => Promise<OpenCodeTodo[]>;
+  sessionMessages: (taskId: string, limit?: number) => Promise<unknown>;
+  fileStatus: (taskId: string) => Promise<Array<{ path: string; status: string; additions: number; deletions: number }>>;
+  sessionChildren: (taskId: string) => Promise<Array<{ id: string; title?: string; agent?: string }>>;
   onEvent: (cb: (evt: OpenCodeAgentEvent) => void) => () => void;
   /* Universal ask path: conversational turn through the real binary. */
   askOpenCode: (args: {
@@ -129,6 +145,27 @@ export const openCodeAgentApi = {
   },
   respondToPermission(args: Parameters<AgentBridge["respondToPermission"]>[0]) {
     return requireBridge().respondToPermission(args);
+  },
+  respondToQuestion(args: Parameters<AgentBridge["respondToQuestion"]>[0]) {
+    return requireBridge().respondToQuestion(args);
+  },
+  serverStatus() {
+    return requireBridge().serverStatus();
+  },
+  sessionDiff(taskId: string, messageID?: string) {
+    return requireBridge().sessionDiff(taskId, messageID);
+  },
+  sessionTodos(taskId: string) {
+    return requireBridge().sessionTodos(taskId);
+  },
+  sessionMessages(taskId: string, limit?: number) {
+    return requireBridge().sessionMessages(taskId, limit);
+  },
+  fileStatus(taskId: string) {
+    return requireBridge().fileStatus(taskId);
+  },
+  sessionChildren(taskId: string) {
+    return requireBridge().sessionChildren(taskId);
   },
   onEvent(cb: (evt: OpenCodeAgentEvent) => void): () => void {
     return requireBridge().onEvent(cb);

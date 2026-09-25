@@ -7,7 +7,7 @@
     "email": "openbentt-contributors@users.noreply.github.com"
   },
   "private": true,
-  "version": "2.4.2",
+  "version": "2.4.4",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
@@ -21,7 +21,7 @@
     "preview": "vite preview",
     "test": "vitest run && npm run test:electron",
     "test:unit": "vitest run",
-    "test:electron": "node --test electron/gpuSafeMode.test.mjs electron/llamaBinary.test.mjs electron/researchDb.test.mjs electron/researchVectorStore.test.mjs electron/researchJobQueue.test.mjs electron/researchProjectService.test.mjs electron/researchWorkers/chunkWorker.test.mjs electron/compileArtifactStore.test.mjs electron/externalUrlPolicy.test.mjs electron/navigationPolicy.test.mjs electron/log.test.mjs electron/documentsStore.test.mjs electron/knowledgeStore.test.mjs electron/connectorStore.test.mjs electron/toolStore.test.mjs electron/phase7Store.test.mjs electron/phase8Store.test.mjs electron/agentAudit.test.mjs electron/opencodeService.test.mjs electron/omniRouteService.test.mjs electron/taskStore.test.mjs electron/agentChain.test.mjs electron/voiceService.test.mjs electron/voiceChain.test.mjs server/httpPolicy.test.mjs server/research-proxy.test.mjs server/latex-compile.test.mjs src/lib/research/embedCore.test.mjs",
+    "test:electron": "node --test electron/gpuSafeMode.test.mjs electron/llamaBinary.test.mjs electron/researchDb.test.mjs electron/researchVectorStore.test.mjs electron/researchJobQueue.test.mjs electron/researchProjectService.test.mjs electron/researchWorkers/chunkWorker.test.mjs electron/compileArtifactStore.test.mjs electron/externalUrlPolicy.test.mjs electron/navigationPolicy.test.mjs electron/log.test.mjs electron/documentsStore.test.mjs electron/knowledgeStore.test.mjs electron/connectorStore.test.mjs electron/toolStore.test.mjs electron/phase7Store.test.mjs electron/phase8Store.test.mjs electron/agentAudit.test.mjs electron/opencodeService.test.mjs electron/opencodeServer.test.mjs electron/omniRouteService.test.mjs electron/taskStore.test.mjs electron/agentChain.test.mjs electron/voiceService.test.mjs electron/voiceChain.test.mjs server/httpPolicy.test.mjs server/research-proxy.test.mjs server/latex-compile.test.mjs src/lib/research/embedCore.test.mjs",
     "bench:documents": "vitest run src/lib/documents/benchmark.test.ts",
     "bench:knowledge": "vitest run src/lib/knowledge/benchmark.test.ts",
     "test:e2e": "playwright test",

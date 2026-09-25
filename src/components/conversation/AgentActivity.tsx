@@ -3,6 +3,8 @@ import { useChat } from "@/context/ChatContext";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { getDesktopApi } from "@/lib/desktopApi";
 import type { Message } from "@/types/chat";
+import { deriveExecutionStatus, pendingPermission, pendingQuestion } from "@/lib/agent/executionView";
+import type { OpenCodeQuestion } from "@/lib/agent/openCodeTypes";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, Loader2, FolderOpen, FileCode, ExternalLink } from "lucide-react";
@@ -28,6 +30,7 @@ const STATUS_LABEL: Record<NonNullable<Message["executionStatus"]>, string> = {
   starting: "Starting…",
   running: "Working…",
   waiting_for_permission: "Waiting for permission",
+  waiting_for_user: "Waiting for your input",
   completed: "Completed",
   failed: "Failed",
   cancelled: "Cancelled",
@@ -57,6 +60,8 @@ export const AgentActivity: React.FC<{ message: Message; compact?: boolean }> = 
     executionEvents,
     executionTasks,
     respondToExecutionPermission,
+    respondToExecutionQuestion,
+    rejectExecutionQuestion,
     cancelExecutionTask,
     setExecutionDrawerTaskId,
     escalateAskToTask,
@@ -77,17 +82,29 @@ export const AgentActivity: React.FC<{ message: Message; compact?: boolean }> = 
 
   const events = taskId ? (executionEvents[taskId] ?? []) : [];
   const task = taskId ? executionTasks[taskId] : undefined;
-  const pendingPermission = [...events]
-    .reverse()
-    .find((e) => e.type === "agent.permission.requested");
+  // Pending requests pair request↔reply events so answered history stays
+  // visible without looking actionable.
+  const pendingPerm = pendingPermission(events);
+  const pendingQ = pendingQuestion(events);
 
   const approvalId =
-    pendingPermission && typeof pendingPermission.payload.approvalId === "string"
-      ? String(pendingPermission.payload.approvalId)
+    pendingPerm && typeof pendingPerm.approvalId === "string"
+      ? String(pendingPerm.approvalId)
       : null;
+  const questionRequestId =
+    pendingQ && typeof pendingQ.serverRequestId === "string"
+      ? String(pendingQ.serverRequestId)
+      : null;
+  const questions: OpenCodeQuestion[] = Array.isArray(pendingQ?.questions)
+    ? (pendingQ.questions as OpenCodeQuestion[])
+    : [];
 
-  const visible = showAll ? trace : trace.slice(-6);
-  const active = status === "running" || status === "starting" || status === "queued";
+  // Live headline: what is OpenCode doing right now?
+  const snapshot = task ? deriveExecutionStatus(task, events) : null;
+
+const visible = showAll ? trace : trace.slice(-6);
+  const isTerminalStatus = status === "completed" || status === "failed" || status === "cancelled";
+  const active = !isTerminalStatus && (status === "running" || status === "starting" || status === "queued");
 
   return (
     <div
@@ -100,7 +117,15 @@ export const AgentActivity: React.FC<{ message: Message; compact?: boolean }> = 
       <div className="flex items-center gap-2">
         {active && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
         <span className="text-xs font-medium text-foreground">
-          {status ? STATUS_LABEL[status] : askPermissions.length > 0 ? "Needs your call" : "Activity"}
+          {isTerminalStatus
+            ? STATUS_LABEL[status]
+            : snapshot && (snapshot.status === "terminal_running" || snapshot.status === "tool_running" || snapshot.status === "editing" || snapshot.status === "thinking")
+            ? snapshot.headline
+            : status
+            ? STATUS_LABEL[status]
+            : askPermissions.length > 0
+            ? "Needs your call"
+            : "Activity"}
         </span>
         {task && (
           <span className="truncate text-[11px] text-muted-foreground">
@@ -326,7 +351,7 @@ export const AgentActivity: React.FC<{ message: Message; compact?: boolean }> = 
         </div>
       )}
 
-      {pendingPermission && status === "waiting_for_permission" && taskId && (
+      {pendingPerm && (status === "waiting_for_permission" || status === "running") && taskId && (
         <div
           role="dialog"
           aria-label="Permission request"
@@ -334,14 +359,20 @@ export const AgentActivity: React.FC<{ message: Message; compact?: boolean }> = 
         >
           <p className="text-xs font-medium text-foreground">Agent is requesting permission</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {String(pendingPermission.payload.description ?? pendingPermission.payload.capability ?? "")}
+            {String(pendingPerm.description ?? pendingPerm.serverAction ?? pendingPerm.capability ?? "")}
           </p>
-          {pendingPermission.payload.target != null &&
-            String(pendingPermission.payload.target) && (
+          {pendingPerm.target != null &&
+            String(pendingPerm.target) && (
               <p className="mt-0.5 break-all font-mono text-[11px] text-muted-foreground">
-                Target: {String(pendingPermission.payload.target)}
+                Target: {String(pendingPerm.target)}
               </p>
             )}
+          {pendingPerm.serverAction != null && String(pendingPerm.serverAction) && (
+            <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+              Engine action: {String(pendingPerm.serverAction)}
+              {pendingPerm.risk != null && String(pendingPerm.risk) ? ` · risk ${String(pendingPerm.risk)}` : ""}
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Button
               type="button"
@@ -358,6 +389,7 @@ export const AgentActivity: React.FC<{ message: Message; compact?: boolean }> = 
               variant="outline"
               className="h-7 text-xs"
               disabled={!approvalId}
+              title="Saves a rule with the engine — persists across sessions"
               onClick={() => approvalId && void respondToExecutionPermission(taskId, approvalId, "allow-task")}
             >
               Allow for task
@@ -374,10 +406,131 @@ export const AgentActivity: React.FC<{ message: Message; compact?: boolean }> = 
             </Button>
           </div>
           <p className="mt-1.5 text-[10px] text-muted-foreground">
-            Voice, models, and documents can never approve — only you, here.
+            Allow once approves this request only. Allow for task saves an engine rule that persists —
+            manage saved rules in Setup → Execution. Nothing is ever auto-approved.
           </p>
         </div>
       )}
+
+      {pendingQ && questionRequestId && taskId && (
+        <QuestionCard
+          taskId={taskId}
+          requestId={questionRequestId}
+          questions={questions}
+          onAnswer={(answers) => void respondToExecutionQuestion(taskId, questionRequestId, answers)}
+          onReject={() => void rejectExecutionQuestion(taskId, questionRequestId)}
+        />
+      )}
+    </div>
+  );
+};
+
+/**
+ * First-class engine question UI. Execution is paused (WAITING_FOR_USER)
+ * until an answer is submitted — the paused state is explicit, never shown
+ * as still-executing.
+ */
+const QuestionCard: React.FC<{
+  taskId: string;
+  requestId: string;
+  questions: OpenCodeQuestion[];
+  onAnswer: (answers: string[][]) => void;
+  onReject: () => void;
+}> = ({ questions, onAnswer, onReject }) => {
+  const [selected, setSelected] = useState<Record<number, string[]>>({});
+  const [busy, setBusy] = useState(false);
+
+  if (!questions.length) return null;
+
+  const toggle = (qi: number, label: string, multi: boolean) => {
+    setSelected((prev) => {
+      const cur = prev[qi] ?? [];
+      if (multi) {
+        return { ...prev, [qi]: cur.includes(label) ? cur.filter((l) => l !== label) : [...cur, label] };
+      }
+      return { ...prev, [qi]: [label] };
+    });
+  };
+
+  const ready = questions.every((_, qi) => (selected[qi] ?? []).length > 0);
+
+  return (
+    <div
+      role="dialog"
+      aria-label="Agent question"
+      className="mt-2 rounded-md border border-primary/40 bg-primary/5 p-2.5"
+    >
+      <p className="text-xs font-medium text-foreground">
+        Agent is waiting for your input
+        <span className="ml-1.5 font-normal text-muted-foreground">· execution paused</span>
+      </p>
+      <div className="mt-2 space-y-2.5">
+        {questions.map((q, qi) => (
+          <fieldset key={qi}>
+            <legend className="text-xs font-medium text-foreground">
+              {q.header ? `${q.header}: ` : ""}{q.question || "Choose an option"}
+            </legend>
+            <div className="mt-1 flex flex-wrap gap-1.5" role={q.multi ? "group" : "radiogroup"} aria-label={q.header || `Question ${qi + 1}`}>
+              {q.options.map((o) => {
+                const on = (selected[qi] ?? []).includes(o.label);
+                return (
+                  <button
+                    key={o.label}
+                    type="button"
+                    role={q.multi ? "checkbox" : "radio"}
+                    aria-checked={on}
+                    title={o.description}
+                    disabled={busy}
+                    onClick={() => toggle(qi, o.label, q.multi)}
+                    className={cn(
+                      "rounded-md border px-2.5 py-1.5 text-left text-xs transition-colors",
+                      on
+                        ? "border-primary bg-primary/15 text-foreground"
+                        : "border-border/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <span className="font-medium">{o.label}</span>
+                    {o.description && (
+                      <span className="mt-0.5 block max-w-64 text-[11px] opacity-80">{o.description}</span>
+                    )}
+                  </button>
+                );
+              })}
+              {!q.options.length && (
+                <span className="text-[11px] text-muted-foreground">No options provided.</span>
+              )}
+            </div>
+          </fieldset>
+        ))}
+      </div>
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        <Button
+          type="button"
+          size="sm"
+          className="h-7 text-xs"
+          disabled={!ready || busy}
+          onClick={() => {
+            setBusy(true);
+            try {
+              onAnswer(questions.map((_, qi) => selected[qi] ?? []));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? "Sending…" : "Send answer"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          disabled={busy}
+          onClick={onReject}
+        >
+          Dismiss
+        </Button>
+      </div>
     </div>
   );
 };

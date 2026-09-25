@@ -1,9 +1,27 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+function getSoftwareRenderingMode() {
+  const args = process.argv.slice(1);
+  const swArg = args.find((a) => a.startsWith("--openbentt-software-rendering="));
+  if (swArg) return swArg.split("=")[1] === "1";
+  return false;
+}
+
+function getSafeModeReason() {
+  const args = process.argv.slice(1);
+  const reasonArg = args.find((a) => a.startsWith("--openbentt-safe-mode-reason="));
+  if (reasonArg) {
+    const reason = reasonArg.split("=")[1];
+    return reason || null;
+  }
+  return null;
+}
+
 contextBridge.exposeInMainWorld("openbenttDesktop", {
   platform: process.platform,
   isElectron: true,
-  softwareRenderingMode: false,
+  softwareRenderingMode: getSoftwareRenderingMode(),
+  safeModeReason: getSafeModeReason(),
   framelessTitleBar: false,
   nativeMenuBar: true,
   windowMinimize: () => ipcRenderer.invoke("desktop:windowMinimize"),
@@ -18,6 +36,8 @@ contextBridge.exposeInMainWorld("openbenttDesktop", {
   openExternal: (url) => ipcRenderer.invoke("desktop:openExternal", url),
   openPath: (path) => ipcRenderer.invoke("desktop:openPath", path),
   pickWorkspaceFolder: (currentPath) => ipcRenderer.invoke("desktop:pickWorkspaceFolder", currentPath),
+  copyText: (text) => ipcRenderer.invoke("desktop:copyText", text),
+  pasteText: () => ipcRenderer.invoke("desktop:pasteText"),
   // Workspace authority (read-only + approval-gated writes; renderer never touches fs).
   workspaceResolve: (root) => ipcRenderer.invoke("workspace:resolve", { root }),
   workspaceList: (root, dir, depth) => ipcRenderer.invoke("workspace:list", { root, dir, depth }),
@@ -229,6 +249,13 @@ contextBridge.exposeInMainWorld("openbenttAgent", {
   getTask: (taskId) => ipcRenderer.invoke("agent:getTask", { taskId }),
   listTasks: () => ipcRenderer.invoke("agent:listTasks"),
   respondToPermission: (args) => ipcRenderer.invoke("agent:permission", args),
+  respondToQuestion: (args) => ipcRenderer.invoke("agent:question", args),
+  serverStatus: () => ipcRenderer.invoke("agent:serverStatus"),
+  sessionDiff: (taskId, messageID) => ipcRenderer.invoke("agent:sessionDiff", { taskId, messageID }),
+  sessionTodos: (taskId) => ipcRenderer.invoke("agent:sessionTodos", { taskId }),
+  sessionMessages: (taskId, limit) => ipcRenderer.invoke("agent:sessionMessages", { taskId, limit }),
+  fileStatus: (taskId) => ipcRenderer.invoke("agent:fileStatus", { taskId }),
+  sessionChildren: (taskId) => ipcRenderer.invoke("agent:sessionChildren", { taskId }),
   classify: (text) => ipcRenderer.invoke("agent:classify", { text }),
   askOpenCode: (args) => ipcRenderer.invoke("agent:ask", args),
   listOpenCodeModels: () => ipcRenderer.invoke("agent:opencodeModels"),

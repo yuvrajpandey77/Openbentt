@@ -578,7 +578,7 @@ const SettingsPanel: React.FC = () => {
               <Switch id="theme-toggle" checked={theme === "dark"} onCheckedChange={toggleTheme} />
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Typography uses Plus Jakarta Sans for UI and JetBrains Mono for code fields — Openbentt uses a
+              Typography uses Inter + Noto Sans for UI and JetBrains Mono for code fields — Openbentt uses a
               research-lab aesthetic.
             </p>
           </CardContent>

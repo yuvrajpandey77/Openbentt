@@ -113,4 +113,25 @@ export function registerDesktopWindowIpc(ipc) {
     if (res.canceled || !res.filePaths?.[0]) return { path: null };
     return { path: String(res.filePaths[0]).slice(0, 4096) };
   });
+
+  ipc.handle("desktop:copyText", async (_event, text) => {
+    if (typeof text !== "string") return { ok: false };
+    try {
+      const { clipboard } = await import("electron");
+      clipboard.writeText(text);
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    }
+  });
+
+  ipc.handle("desktop:pasteText", async () => {
+    try {
+      const { clipboard } = await import("electron");
+      const text = clipboard.readText();
+      return { ok: true, text };
+    } catch {
+      return { ok: false, text: "" };
+    }
+  });
 }

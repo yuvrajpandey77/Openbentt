@@ -60,6 +60,10 @@ export const AGENT_CAPABILITIES = [
   "DELETE_FILES",
   "RUN_COMMANDS",
   "NETWORK_ACCESS",
+  // Fallback label for engine-native actions with no Openbentt equivalent.
+  // Policy is DENY by default (evaluateCapabilityPolicy) — the engine still
+  // pauses and the user still decides per request; nothing is auto-allowed.
+  "UNKNOWN",
 ];
 
 export const COMMAND_RISK_LEVELS = [
@@ -76,11 +80,33 @@ export const OPENCODE_EVENT_TYPES = [
   "agent.thinking",
   "agent.tool.requested",
   "agent.permission.requested",
+  "agent.permission.replied",
+  "agent.question.requested",
+  "agent.question.answered",
+  "agent.question.rejected",
   "agent.tool.started",
+  "agent.tool.progress",
   "agent.tool.output",
+  "agent.tool.completed",
+  "agent.tool.failed",
+  "agent.step.started",
+  "agent.step.completed",
+  "agent.step.failed",
   "agent.file.changed",
+  "agent.diff.updated",
   "agent.command.requested",
   "agent.command.output",
+  "agent.terminal.started",
+  "agent.terminal.output",
+  "agent.terminal.completed",
+  "agent.message.delta",
+  "agent.message.completed",
+  "agent.reasoning.delta",
+  "agent.todo.updated",
+  "agent.context.updated",
+  "agent.session.status",
+  "agent.session.idle",
+  "agent.subagent.started",
   "agent.error",
   "agent.completed",
   "agent.failed",
@@ -176,6 +202,15 @@ const CHAT_SIGNALS = [
 ];
 
 /**
+ * Creation intent: a build verb plus a software-artifact noun in the same
+ * request (e.g. "create an app", "add a login page", "write a script",
+ * "make me a dashboard"). Both halves are required so plain chat such as
+ * "write me a poem" or "make it better" never routes to execution.
+ */
+const CODE_CREATE_VERBS = /\b(create|add|write|make|build|implement|scaffold|generate)\b/i;
+const CODE_ARTIFACTS = /\b(apps?|applications?|pages?|components?|dashboards?|features?|endpoints?|apis?|websites?|sites?|landing.?pages?|services?|tools?|scripts?|functions?|files?|tests?|projects?|programs?|software|uis?|buttons?|forms?|logins?|auth|databases?|schemas?|migrations?)\b/i;
+
+/**
  * Classify a user request. Conservative: CODE requires execution semantics
  * (a workspace/project + an action verb), not just the word "code".
  * Returns one of TASK_CATEGORIES.
@@ -201,6 +236,7 @@ export function classifyTask(text) {
   if (RESEARCH_SIGNALS.some((r) => r.test(t))) return "RESEARCH";
   if (SYSTEM_SIGNALS.some((r) => r.test(t))) return "SYSTEM_TASK";
   if (CODE_SIGNALS.some((r) => r.test(t))) return "CODE";
+  if (CODE_CREATE_VERBS.test(t) && CODE_ARTIFACTS.test(t)) return "CODE";
   if (mentionsProject && hasCodeAction) return "CODE";
   if (CHAT_SIGNALS.some((r) => r.test(t))) return "CHAT";
   // Short generic utterances default to CHAT only when clearly conversational.
@@ -546,9 +582,90 @@ export function normalizeOpenCodeEvent(raw, binding = {}) {
   return { eventId, taskId, sessionId, timestamp, type, payload: safe };
 }
 
-/* ---------------- permission request ---------------- */
+/**
+ * Normalize one engine tool part ({ tool, callID, state }) into canonical
+ * events. The same part id is re-emitted as pending → running → completed;
+ * each emission is a distinct server event with a distinct evt id, so every
+ * transition becomes exactly one canonical event.
+ *
+ * status mapping: pending → tool.started (+terminal.started for bash);
+ * running → tool.progress (+terminal heartbeat stays implicit); completed →
+ * tool.completed (+terminal.completed for bash, +file.changed for
+ * write/edit); error → tool.failed (+terminal.completed nonzero for bash).
+ */
+function toolPartEvents(mk, part, messageId, partId) {
+  const tool = String(part.tool ?? "tool").slice(0, 120);
+  const callId = String(part.callID ?? part.callId ?? "").slice(0, 120);
+  const st = part.state && typeof part.state === "object" ? part.state : {};
+  const status = typeof st.status === "string" ? st.status : "pending";
+  const input = st.input && typeof st.input === "object" ? st.input : {};
+  const title = typeof part.title === "string" ? part.title.slice(0, 300) : typeof st.title === "string" ? st.title.slice(0, 300) : undefined;
+  const time = st.time && typeof st.time === "object" ? st.time : {};
+  const durationMs =
+    Number.isFinite(Number(time.end)) && Number.isFinite(Number(time.start))
+      ? Math.max(0, Number(time.end) - Number(time.start))
+      : undefined;
+  const base = { tool, callId, messageId, partId, input, title, durationMs };
+  const isBash = tool === "bash";
+  const command = isBash && typeof input.command === "string" ? input.command.slice(0, 2000) : undefined;
+  const workdir = typeof input.workdir === "string" ? input.workdir.slice(0, 1024) : undefined;
 
-export function buildPermissionRequest({ taskId, sessionId, capability, risk, description, workspace, target, preview }) {
+  if (status === "pending") {
+    const out = [mk("agent.tool.started", { ...base, message: title ?? `Starting ${tool}.` }, "tool")];
+    if (isBash && command) out.push(mk("agent.terminal.started", { callId, command, cwd: workdir }, "term"));
+    return out;
+  }
+  if (status === "running") {
+    const runningOut = typeof st?.metadata?.output === "string" ? st.metadata.output : "";
+    return [mk("agent.tool.progress", {
+      ...base,
+      message: runningOut ? runningOut.slice(-2000) : (title ?? `Running ${tool}…`),
+    }, "tool")];
+  }
+  if (status === "completed" || status === "success") {
+    const output =
+      (typeof st.output === "string" && st.output ? st.output : null) ??
+      (typeof st?.metadata?.output === "string" && st.metadata.output ? st.metadata.output : null) ??
+      "[completed]";
+    const exit = Number(st?.metadata?.exit);
+    const out = [mk("agent.tool.completed", {
+      ...base,
+      output: String(output).slice(0, 8000),
+      exitCode: Number.isFinite(exit) ? exit : undefined,
+    }, "tool")];
+    if (isBash) {
+      out.push(mk("agent.terminal.completed", {
+        callId,
+        command,
+        cwd: workdir,
+        exitCode: Number.isFinite(exit) ? exit : 0,
+        output: String(output).slice(0, 8000),
+        durationMs,
+      }, "term"));
+    }
+    const filePath =
+      (tool === "write" || tool === "edit") && typeof input.filePath === "string" && input.filePath
+        ? input.filePath.slice(0, 1024)
+        : null;
+    if (filePath) out.push(mk("agent.file.changed", { file: filePath, change: tool === "write" ? "written" : "edited", callId }, "file"));
+    return out;
+  }
+  const errMsg =
+    (typeof st.error === "string" && st.error ? st.error : null) ??
+    (typeof st?.metadata?.error === "string" ? st.metadata.error : null) ??
+    (typeof st.output === "string" && st.output ? st.output : null) ??
+    "Tool failed.";
+  const out = [mk("agent.tool.failed", { ...base, message: String(errMsg).slice(0, 2000) }, "tool")];
+  if (isBash) {
+    out.push(mk("agent.terminal.completed", {
+      callId, command, cwd: workdir, exitCode: -1,
+      output: String(errMsg).slice(0, 8000), durationMs,
+    }, "term"));
+  }
+  return out;
+}
+
+/* ---------------- permission request ---------------- */export function buildPermissionRequest({ taskId, sessionId, capability, risk, description, workspace, target, preview }) {
   if (!isKnownCapability(capability)) throw new Error("Unknown capability");
   if (typeof taskId !== "string" || !taskId) throw new Error("Invalid task id");
   return {
@@ -563,6 +680,389 @@ export function buildPermissionRequest({ taskId, sessionId, capability, risk, de
     preview: Array.isArray(preview) ? preview.slice(0, 16) : [],
     expiresAt: new Date(Date.now() + OPENCODE_LIMITS.approvalTtlMs).toISOString(),
   };
+}
+
+/**
+ * Map an OpenCode server permission event (permission.asked /
+ * permission.v2.asked) to an Openbentt permission request shape.
+ * Pure + fail-closed: unknown shapes throw, never fabricate approvals.
+ * Returns { serverRequestId, sessionID, kind, action, resources, description }.
+ */
+export function describeServerPermission(properties) {
+  if (!properties || typeof properties !== "object") throw new Error("Invalid permission event");
+  const id = properties.id;
+  const sessionID = properties.sessionID;
+  if (typeof id !== "string" || !/^per/.test(id)) throw new Error("Invalid permission id");
+  if (typeof sessionID !== "string" || !sessionID) throw new Error("Invalid session id");
+  if (typeof properties.action === "string" && Array.isArray(properties.resources)) {
+    // v2 shape: { action, resources[], save?, metadata?, source? }
+    return {
+      serverRequestId: id,
+      sessionID,
+      kind: "v2",
+      action: String(properties.action).slice(0, 200),
+      resources: properties.resources.map((r) => String(r).slice(0, 1024)).slice(0, 32),
+      save: Array.isArray(properties.save) ? properties.save.map((s) => String(s).slice(0, 200)).slice(0, 8) : [],
+      metadata: properties.metadata && typeof properties.metadata === "object" ? properties.metadata : {},
+      description: `${properties.action}: ${properties.resources.slice(0, 4).join(", ")}`,
+    };
+  }
+  if (typeof properties.permission === "string" && Array.isArray(properties.patterns)) {
+    // v1 shape: { permission, patterns[], metadata?, always?, tool? }
+    return {
+      serverRequestId: id,
+      sessionID,
+      kind: "v1",
+      action: String(properties.permission).slice(0, 200),
+      resources: properties.patterns.map((r) => String(r).slice(0, 1024)).slice(0, 32),
+      save: Array.isArray(properties.always) ? properties.always.map((s) => String(s).slice(0, 200)).slice(0, 8) : [],
+      metadata: properties.metadata && typeof properties.metadata === "object" ? properties.metadata : {},
+      tool: properties.tool && typeof properties.tool === "object" ? properties.tool : undefined,
+      description: `${properties.permission}: ${properties.patterns.slice(0, 4).join(", ")}`,
+    };
+  }
+  throw new Error("Unrecognized permission event shape");
+}
+
+/**
+ * Map an OpenCode server question event (question.asked /
+ * question.v2.asked) to an Openbentt question shape. Pure + fail-closed.
+ * Returns { serverRequestId, sessionID, questions: [{ header, question, options[], multi? }] }.
+ */
+export function describeServerQuestion(properties) {
+  if (!properties || typeof properties !== "object") throw new Error("Invalid question event");
+  const id = properties.id;
+  const sessionID = properties.sessionID;
+  if (typeof id !== "string" || !/^que/.test(id)) throw new Error("Invalid question id");
+  if (typeof sessionID !== "string" || !sessionID) throw new Error("Invalid session id");
+  if (!Array.isArray(properties.questions) || !properties.questions.length) {
+    throw new Error("Question event has no questions");
+  }
+  const questions = properties.questions.slice(0, 8).map((q) => {
+    if (!q || typeof q !== "object") throw new Error("Invalid question entry");
+    const options = Array.isArray(q.options)
+      ? q.options.slice(0, 12).map((o) => ({
+        label: String(o?.label ?? o ?? "").slice(0, 200),
+        description: typeof o?.description === "string" ? o.description.slice(0, 500) : undefined,
+      })).filter((o) => o.label)
+      : [];
+    return {
+      header: typeof q.header === "string" ? q.header.slice(0, 200) : "Question",
+      question: typeof q.question === "string" ? q.question.slice(0, 2000) : "",
+      options,
+      multi: q.multi === true,
+    };
+  });
+  return { serverRequestId: id, sessionID, questions };
+}
+
+/**
+ * Validate user answers for a question reply. Each answer corresponds to one
+ * question in order; each answer is an array of selected option labels.
+ * Pure + fail-closed.
+ */
+export function validateQuestionAnswers(questions, answers) {
+  if (!Array.isArray(questions) || !Array.isArray(answers)) throw new Error("Invalid answers");
+  if (answers.length !== questions.length) throw new Error("Answer count must match question count");
+  return answers.map((ans, i) => {
+    const q = questions[i];
+    const labels = new Set((q.options ?? []).map((o) => o.label));
+    const arr = Array.isArray(ans) ? ans : [ans];
+    if (!arr.length) throw new Error(`Question ${i + 1} needs at least one answer`);
+    if (!q.multi && arr.length > 1) throw new Error(`Question ${i + 1} accepts a single answer`);
+    for (const a of arr) {
+      if (typeof a !== "string" || !labels.has(a)) throw new Error(`Invalid option for question ${i + 1}`);
+    }
+    return arr.slice(0, 12);
+  });
+}
+
+/**
+ * Normalize one OpenCode server SSE event ({ id, type, properties }) into a
+ * list of canonical Openbentt agent events bound to a task. Pure:
+ * no I/O, no secrets retained beyond redacted payloads. Unknown server types
+ * return [] (ignored) — never fabricated, never thrown.
+ *
+ * Server `id` (evt_*) is preserved as the canonical eventId so reconnect
+ * resync can deduplicate exactly.
+ */
+export function normalizeServerEvents(serverEvent, binding = {}) {
+  const taskId = typeof binding.taskId === "string" ? binding.taskId : "unknown";
+  const sessionId =
+    typeof binding.sessionId === "string"
+      ? binding.sessionId
+      : typeof serverEvent?.properties?.sessionID === "string"
+        ? serverEvent.properties.sessionID
+        : "unknown";
+  const at = (ms) => {
+    const n = Number(ms);
+    return Number.isFinite(n) ? new Date(n).toISOString() : new Date().toISOString();
+  };
+  const mk = (type, payload, tag) => {
+    const base = normalizeOpenCodeEvent({ type, payload }, { taskId, sessionId });
+    // Server event ids (evt_*) are unique per server event — use them verbatim
+    // so reconnect resync deduplicates exactly. When ONE server event yields
+    // SEVERAL canonical events (tool + terminal + file), each takes a stable
+    // `#tag` discriminator so dedupe keeps all of them, on every reconnect.
+    // IDs are capped deterministically in pushCanonicalEvents (taskStore
+    // truncates at 64 chars).
+    const serverId = typeof serverEvent?.id === "string" ? serverEvent.id : null;
+    if (serverId) base.eventId = tag ? `${serverId}#${tag}` : serverId;
+    if (serverEvent?.properties?.timestamp !== undefined) base.timestamp = at(serverEvent.properties.timestamp);
+    return base;
+  };
+  if (!serverEvent || typeof serverEvent.type !== "string") return [];
+  const p = serverEvent.properties && typeof serverEvent.properties === "object" ? serverEvent.properties : {};
+  const ts = p.timestamp;
+  void ts;
+  switch (serverEvent.type) {
+    case "server.connected":
+      return [mk("agent.status", { message: "Connected to the OpenCode engine.", connection: "live" })];
+    case "session.created":
+    case "session.updated":
+      return [];
+    case "session.status": {
+      const st = p.status && typeof p.status === "object" ? p.status.type : p.status;
+      if (st === "busy") return [mk("agent.session.status", { status: "busy", message: "OpenCode is working." })];
+      if (st === "idle") return [mk("agent.session.idle", { message: "OpenCode finished this turn." })];
+      if (st === "retry") return [mk("agent.session.status", { status: "retry", message: String(p.status?.message ?? "Retrying.").slice(0, 500) })];
+      return [];
+    }
+    case "session.idle":
+      return [mk("agent.session.idle", { message: "OpenCode is idle." })];
+    case "session.error": {
+      const err = p.error && typeof p.error === "object" ? p.error : {};
+      const name = typeof err.name === "string" ? err.name : typeof err.type === "string" ? err.type : "error";
+      const msg = typeof err.message === "string" ? err.message : typeof err.data?.message === "string" ? err.data.message : "The engine reported an error.";
+      return [mk("agent.error", { message: `${name}: ${msg}`.slice(0, 2000), code: String(name).slice(0, 120) })];
+    }
+    case "session.next.prompted":
+      return [mk("agent.status", { message: "Prompt accepted — OpenCode started working." })];
+    case "session.next.step.started":
+      return [mk("agent.step.started", { message: "Step started." })];
+    case "session.next.step.ended":
+      return [mk("agent.step.completed", { message: "Step finished." })];
+    case "session.next.step.failed":
+      return [mk("agent.step.failed", { message: "Step failed." })];
+    case "session.next.text.started":
+      return [];
+    case "session.next.text.delta":
+      return typeof p.delta === "string" && p.delta
+        ? [mk("agent.message.delta", { delta: p.delta.slice(0, 8000), messageId: String(p.assistantMessageID ?? "").slice(0, 120) })]
+        : [];
+    case "session.next.text.ended":
+      return [mk("agent.message.completed", { messageId: String(p.assistantMessageID ?? "").slice(0, 120) })];
+    case "session.next.reasoning.delta":
+      return typeof p.delta === "string" && p.delta
+        ? [mk("agent.reasoning.delta", { delta: p.delta.slice(0, 8000) })]
+        : [];
+    case "session.next.reasoning.started":
+    case "session.next.reasoning.ended":
+      return [];
+    case "session.next.tool.called":
+      return [mk("agent.tool.started", {
+        tool: String(p.tool ?? "tool").slice(0, 120),
+        callId: String(p.callID ?? "").slice(0, 120),
+        input: p.input && typeof p.input === "object" ? p.input : {},
+        messageId: String(p.assistantMessageID ?? "").slice(0, 120),
+      })];
+    case "session.next.tool.input.delta":
+    case "session.next.tool.input.started":
+    case "session.next.tool.input.ended":
+      return [];
+    case "session.next.tool.progress":
+      return [mk("agent.tool.progress", {
+        callId: String(p.callID ?? "").slice(0, 120),
+        message: typeof p.message === "string" ? p.message.slice(0, 2000) : typeof p.output === "string" ? p.output.slice(0, 2000) : "Working…",
+      })];
+    case "session.next.tool.success": {
+      const content = Array.isArray(p.content) ? p.content : [];
+      const text = content.map((c) => (c && typeof c.text === "string" ? c.text : "")).filter(Boolean).join("\n").slice(0, 8000);
+      return [mk("agent.tool.completed", {
+        callId: String(p.callID ?? "").slice(0, 120),
+        output: text || "[completed]",
+        outputPaths: Array.isArray(p.outputPaths) ? p.outputPaths.map((x) => String(x).slice(0, 1024)).slice(0, 32) : [],
+      })];
+    }
+    case "session.next.tool.failed": {
+      const msg = typeof p.error === "string" ? p.error : p.error?.message ?? "Tool failed.";
+      return [mk("agent.tool.failed", { callId: String(p.callID ?? "").slice(0, 120), message: String(msg).slice(0, 2000) })];
+    }
+    case "session.next.shell.started":
+      return [mk("agent.terminal.started", { command: String(p.command ?? "").slice(0, 2000) })];
+    case "session.next.shell.ended": {
+      const code = Number.isFinite(Number(p.exit)) ? Number(p.exit) : Number.isFinite(Number(p.exitCode)) ? Number(p.exitCode) : undefined;
+      return [mk("agent.terminal.completed", { command: String(p.command ?? "").slice(0, 2000), exitCode: code ?? -1, output: typeof p.output === "string" ? p.output.slice(0, 8000) : undefined })];
+    }
+    case "session.next.shell.output":
+      return typeof p.output === "string" && p.output
+        ? [mk("agent.terminal.output", { output: p.output.slice(0, 8000) })]
+        : [];
+    case "session.next.compaction.started":
+    case "session.next.compaction.delta":
+    case "session.next.compaction.ended":
+      return [mk("agent.status", { message: "Compacting session context." })];
+    case "session.next.context.updated": {
+      const u = p.usage ?? p.context ?? {};
+      return [mk("agent.context.updated", {
+        input: Number(u.input ?? u.inputTokens ?? 0) || 0,
+        output: Number(u.output ?? u.outputTokens ?? 0) || 0,
+        reasoning: Number(u.reasoning ?? 0) || 0,
+        cacheRead: Number(u?.cache?.read ?? 0) || 0,
+        cacheWrite: Number(u?.cache?.write ?? 0) || 0,
+        cost: typeof p.cost === "number" ? p.cost : undefined,
+      })];
+    }
+    case "session.next.synthetic":
+      return typeof p.message === "string" && p.message
+        ? [mk("agent.status", { message: p.message.slice(0, 2000) })]
+        : [];
+    case "session.next.agent.switched":
+      return [mk("agent.subagent.started", { agent: String(p.agent ?? p.name ?? "subagent").slice(0, 200) })];
+    case "session.next.model.switched":
+      return [mk("agent.status", { message: `Model: ${String(p.model ?? p.modelID ?? "?").slice(0, 200)}` })];
+    case "session.next.retried":
+      return [mk("agent.status", { message: "Retrying." })];
+    case "session.next.revert.staged":
+    case "session.next.revert.committed":
+    case "session.next.revert.cleared":
+      return [];
+    case "permission.asked":
+    case "permission.v2.asked":
+      // Bridged with approval metadata by opencodeServer.mjs (needs
+      // actionStore) — marker only; the server module emits the full
+      // agent.permission.requested event itself.
+      return [{ __permissionMarker: true, properties: p, serverId: serverEvent.id, sessionId }];
+    case "permission.replied":
+    case "permission.v2.replied":
+      return [mk("agent.permission.replied", { requestId: String(p.requestID ?? p.id ?? "").slice(0, 120) })];
+    case "question.asked":
+    case "question.v2.asked":
+      return [{ __questionMarker: true, properties: p, serverId: serverEvent.id, sessionId }];
+    case "question.replied":
+    case "question.v2.replied":
+      return [mk("agent.question.answered", { requestId: String(p.requestID ?? p.id ?? "").slice(0, 120) })];
+    case "question.rejected":
+    case "question.v2.rejected":
+      return [mk("agent.question.rejected", { requestId: String(p.requestID ?? p.id ?? "").slice(0, 120) })];
+    case "todo.updated":
+      return [mk("agent.todo.updated", { todos: Array.isArray(p.todos) ? p.todos.slice(0, 50) : [] })];
+    case "session.diff": {
+      const diff = Array.isArray(p.diff) ? p.diff : [];
+      return [mk("agent.diff.updated", {
+        files: diff.slice(0, 64).map((d) => ({
+          file: String(d?.file ?? d?.path ?? "").slice(0, 1024),
+          status: String(d?.status ?? "modified").slice(0, 32),
+          additions: Number(d?.additions ?? 0) || 0,
+          deletions: Number(d?.deletions ?? 0) || 0,
+          patch: typeof d?.patch === "string" ? d.patch.slice(0, 20000) : undefined,
+        })),
+      })];
+    }
+    case "file.edited":
+      return [mk("agent.file.changed", { file: String(p.file ?? p.path ?? "").slice(0, 1024), change: "edited" })];
+    case "file.watcher.updated":
+      return [];
+    case "message.updated": {
+      const info = p.info && typeof p.info === "object" ? p.info : {};
+      const role = info.role;
+      if (role === "assistant") {
+        const tokens = info.tokens && typeof info.tokens === "object" ? info.tokens : {};
+        const out = [mk("agent.message.completed", {
+          messageId: String(info.id ?? "").slice(0, 120),
+          model: typeof info.modelID === "string" ? info.modelID.slice(0, 200) : undefined,
+          provider: typeof info.providerID === "string" ? info.providerID.slice(0, 120) : undefined,
+        }, "msg")];
+        const input = Number(tokens.input ?? 0) || 0;
+        const output = Number(tokens.output ?? 0) || 0;
+        if (input || output) {
+          out.push(mk("agent.context.updated", {
+            input,
+            output,
+            reasoning: Number(tokens.reasoning ?? 0) || 0,
+            cacheRead: Number(tokens?.cache?.read ?? 0) || 0,
+            cacheWrite: Number(tokens?.cache?.write ?? 0) || 0,
+            cost: typeof info.cost === "number" ? info.cost : undefined,
+          }, "ctx"));
+        }
+        return out;
+      }
+      // User echoes carry no new information (the prompt is already in chat).
+      return [];
+    }
+    case "message.part.updated": {
+      const part = p.part && typeof p.part === "object" ? p.part : null;
+      if (!part || typeof part.type !== "string") return [];
+      const messageId = String(part.messageID ?? p.messageID ?? "").slice(0, 120);
+      const partId = String(part.id ?? part.partID ?? "").slice(0, 120);
+      // User-message echoes (our own prompt coming back) are dropped — the
+      // caller passes binding.messageRole; unknown defaults to visible.
+      if (binding.messageRole === "user" && (part.type === "text" || part.type === "reasoning")) return [];
+      switch (part.type) {
+        case "text": {
+          const text = typeof part.text === "string" ? part.text : "";
+          if (!text) return [];
+          return [mk("agent.message.completed", { messageId, partId, text: text.slice(0, 8000) }, "text")];
+        }
+        case "reasoning": {
+          const text = typeof part.text === "string" ? part.text : "";
+          if (!text) return [];
+          return [mk("agent.reasoning.delta", { messageId, partId, delta: text.slice(0, 8000) }, "reason")];
+        }
+        case "tool":
+          return toolPartEvents(mk, part, messageId, partId);
+        case "step-start":
+          return [mk("agent.step.started", { messageId, partId }, "step")];
+        case "step-finish": {
+          const tokens = part.tokens && typeof part.tokens === "object" ? part.tokens : {};
+          const out = [mk("agent.step.completed", {
+            messageId,
+            partId,
+            reason: typeof part.reason === "string" ? part.reason.slice(0, 120) : undefined,
+          }, "step")];
+          const input = Number(tokens.input ?? 0) || 0;
+          const output = Number(tokens.output ?? 0) || 0;
+          if (input || output) {
+            out.push(mk("agent.context.updated", {
+              input,
+              output,
+              reasoning: Number(tokens.reasoning ?? 0) || 0,
+              cacheRead: Number(tokens?.cache?.read ?? 0) || 0,
+              cacheWrite: Number(tokens?.cache?.write ?? 0) || 0,
+              cost: typeof part.cost === "number" ? part.cost : undefined,
+            }, "ctx"));
+          }
+          return out;
+        }
+        default:
+          return [];
+      }
+    }
+    case "message.part.delta": {
+      if (typeof p.delta !== "string" || !p.delta) return [];
+      const messageId = String(p.messageID ?? "").slice(0, 120);
+      const partId = String(p.partID ?? "").slice(0, 120);
+      if (binding.messageRole === "user") return [];
+      if (p.field === "reasoning") {
+        return [mk("agent.reasoning.delta", { messageId, partId, delta: p.delta.slice(0, 8000) })];
+      }
+      return [mk("agent.message.delta", { messageId, partId, delta: p.delta.slice(0, 8000) })];
+    }
+    case "message.part.removed":
+    case "message.removed":
+      return [];
+    case "pty.created":
+      return [mk("agent.terminal.started", { terminalId: String(p.id ?? p.ptyID ?? "").slice(0, 120) })];
+    case "pty.updated":
+      return typeof p.output === "string" && p.output
+        ? [mk("agent.terminal.output", { terminalId: String(p.id ?? p.ptyID ?? "").slice(0, 120), output: p.output.slice(0, 8000) })]
+        : [];
+    case "pty.exited":
+    case "pty.deleted":
+      return [mk("agent.terminal.completed", { terminalId: String(p.id ?? p.ptyID ?? "").slice(0, 120), exitCode: Number(p.exit ?? p.code ?? -1) || 0 })];
+    default:
+      return [];
+  }
 }
 
 /* ---------------- task helpers ---------------- */

@@ -10,14 +10,18 @@ import {
   classifyCommand,
   classifyTask,
   decideMode,
+  describeServerPermission,
+  describeServerQuestion,
   evaluateCapabilityPolicy,
   isSupportedVersion,
   isValidTaskStatus,
   normalizeOpenCodeEvent,
+  normalizeServerEvents,
   redactSecretsFromText,
   sanitizeTaskTitle,
   scanForPromptInjection,
   shouldRouteToOpenCode,
+  validateQuestionAnswers,
 } from "./openCodeCore.mjs";
 import type {
   AgentCapability,
@@ -33,14 +37,18 @@ export {
   classifyCommand,
   classifyTask,
   decideMode,
+  describeServerPermission,
+  describeServerQuestion,
   evaluateCapabilityPolicy,
   isSupportedVersion,
   isValidTaskStatus,
   normalizeOpenCodeEvent,
+  normalizeServerEvents,
   redactSecretsFromText,
   sanitizeTaskTitle,
   scanForPromptInjection,
   shouldRouteToOpenCode,
+  validateQuestionAnswers,
 };
 
 export type { AgentCapability, OpenCodeAgentEvent, TaskCategory };

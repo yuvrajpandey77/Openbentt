@@ -105,6 +105,7 @@ export interface Message {
     | "starting"
     | "running"
     | "waiting_for_permission"
+    | "waiting_for_user"
     | "completed"
     | "failed"
     | "cancelled"

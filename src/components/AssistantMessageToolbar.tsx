@@ -56,6 +56,15 @@ export const AssistantMessageToolbar: React.FC<AssistantMessageToolbarProps> = (
   if (disabled) return null;
 
   const copy = async () => {
+    const api = getDesktopApi();
+    if (api?.copyText) {
+      const r = await api.copyText(plainText);
+      if (r.ok) {
+        toast({ title: "Copied", description: "Full reply copied to clipboard." });
+        return;
+      }
+    }
+    // Fallback to web clipboard API
     try {
       await navigator.clipboard.writeText(plainText);
       toast({ title: "Copied", description: "Full reply copied to clipboard." });

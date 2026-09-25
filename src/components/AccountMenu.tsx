@@ -5,6 +5,7 @@ import { isDesktopApp } from "@/lib/isDesktopApp";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /** Phase 9 — account menu: profile, settings, real auth state, logout. No secrets. */
 export const AccountMenu: React.FC<{ collapsed?: boolean; onOpenSettings?: () => void }> = ({
@@ -48,7 +49,10 @@ export const AccountMenu: React.FC<{ collapsed?: boolean; onOpenSettings?: () =>
         <button
           type="button"
           aria-label={`Account: ${user?.displayName ?? subtitle}`}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent/60"
+          className={cn(
+            "flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-accent/60",
+            collapsed ? "w-auto justify-center" : "w-full justify-start text-left"
+          )}
         >
           <Avatar className="h-8 w-8 shrink-0">
             {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}

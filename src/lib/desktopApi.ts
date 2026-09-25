@@ -38,6 +38,10 @@ export interface OpenbenttDesktopApi {
   openPath?(path: string): Promise<{ ok: boolean }>;
   /** Native folder picker (Cursor/VS Code style). Null when cancelled/unavailable. */
   pickWorkspaceFolder?(currentPath?: string): Promise<{ path: string | null }>;
+  /** Copy text to system clipboard (Electron main process). */
+  copyText?(text: string): Promise<{ ok: boolean }>;
+  /** Paste text from system clipboard (Electron main process). */
+  pasteText?(): Promise<{ ok: boolean; text: string }>;
   /* Workspace authority (main-owned fs; renderer never touches paths directly). */
   workspaceResolve?(root: string): Promise<{ root: string }>;
   workspaceList?(root: string, dir?: string, depth?: number): Promise<Array<{ path: string; kind: string }>>;

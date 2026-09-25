@@ -1,38 +1,29 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { ShieldAlert, ShieldCheck, X, Check } from "lucide-react";
-import { FileText, Terminal, Globe } from "lucide-react";
+import React, { useState } from "react";
+import { ShieldAlert, ShieldCheck } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useChat } from "@/context/ChatContext";
+import { pendingPermission, pendingQuestion } from "@/lib/agent/executionView";
 import { cn } from "@/lib/utils";
 
+/**
+ * Approvals indicator. Openbentt never auto-approves: every OpenCode
+ * permission request and question waits for an explicit user decision.
+ * The pill surfaces the pending count and jumps to the inspector.
+ */
 export const PermissionPill: React.FC = () => {
-  const { fullAccessGranted, setFullAccessGranted } = useChat();
+  const { executionTasks, executionEvents, setExecutionDrawerTaskId } = useChat();
   const [showDetails, setShowDetails] = useState(false);
-  const autoApproveRef = useRef<number | null>(null);
 
-  const startAutoApprove = () => {
-    setFullAccessGranted(true);
-  };
+  const pending: Array<{ taskId: string; kind: "permission" | "question" }> = [];
+  for (const [taskId, events] of Object.entries(executionEvents)) {
+    const task = executionTasks[taskId];
+    if (!task || !["WAITING_FOR_PERMISSION", "RUNNING"].includes(task.status)) continue;
+    if (pendingPermission(events)) pending.push({ taskId, kind: "permission" });
+    if (pendingQuestion(events)) pending.push({ taskId, kind: "question" });
+  }
 
-  const cancelAutoApprove = () => {
-    if (autoApproveRef.current) {
-      clearTimeout(autoAppproveRef.current);
-      autoApproveRef.current = null;
-    }
-    setFullAccessGranted(false);
-  };
-
-  const handleDismiss = () => {
-    cancelAutoApprove();
-    setShowDetails(false);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (autoApproveRef.current) clearTimeout(autoApproveRef.current);
-    };
-  }, []);
+  const count = pending.length;
+  const first = pending[0];
 
   return (
     <div className="relative">
@@ -41,133 +32,59 @@ export const PermissionPill: React.FC = () => {
           <TooltipTrigger asChild>
             <button
               type="button"
-              onClick={() => setShowDetails((v) => !v)}
+              onClick={() => {
+                if (first) setExecutionDrawerTaskId(first.taskId);
+                else setShowDetails((v) => !v);
+              }}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors",
-                fullAccessGranted
-                  ? "border-primary/50 bg-primary/10 text-primary hover:bg-primary/15"
+                count > 0
+                  ? "border-amber-500/50 bg-amber-500/10 text-amber-600 hover:bg-amber-500/15 dark:text-amber-400"
                   : "border-muted-foreground/20 bg-muted/30 text-muted-foreground/80 hover:bg-muted/40 hover:text-muted-foreground"
               )}
               aria-expanded={showDetails}
-              aria-label={showDetails ? "Hide permission details" : "Show permission details"}
+              aria-label={count > 0 ? `${count} pending approvals — review` : "Approvals — manual review"}
             >
-              {fullAccessGranted ? (
-                <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-              ) : (
+              {count > 0 ? (
                 <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+              ) : (
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
               )}
-              <span className="min-w-0 truncate font-medium">Full Access</span>
-              {fullAccessGranted && (
-                <span className="flex items-center gap-1 text-[10px] opacity-70">
-                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  Active
-                </span>
-              )}
-              <X className="h-3 w-3 shrink-0 opacity-50 hover:opacity-100" />
+              <span className="min-w-0 truncate font-medium">
+                {count > 0 ? `Approvals · ${count}` : "Approvals · manual"}
+              </span>
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom" align="start" className="max-w-xs">
             <p className="text-xs text-muted-foreground">
-              Click to expand permission details
+              {count > 0
+                ? "OpenCode is waiting for your decision — click to review."
+                : "Every OpenCode action that needs approval waits for you. Nothing is auto-approved."}
             </p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
 
-      {showDetails && (
+      {showDetails && count === 0 && (
         <div className="absolute left-0 bottom-full mb-1.5 z-50 w-80 rounded-lg border border-border bg-card p-3 shadow-lg animate-fade-in-up">
           <div className="flex items-start gap-2">
-            {fullAccessGranted ? (
-              <ShieldCheck className="h-5 w-5 shrink-0 text-primary mt-0.5" />
-            ) : (
-              <ShieldAlert className="h-5 w-5 shrink-0 text-primary mt-0.5" />
-            )}
+            <ShieldCheck className="h-5 w-5 shrink-0 text-primary mt-0.5" />
             <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-sm text-foreground">Turn on Full Access?</h4>
+              <h4 className="font-medium text-sm text-foreground">Manual approvals</h4>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Openbentt will be able to run commands, use the internet, and create and edit files anywhere on this computer without your permission.
+                OpenCode asks before running commands, editing files, or accessing the network.
+                Each request shows what it wants to do, the affected files, and the scope.
+                Allow once, allow for the task, or deny — nothing runs without your decision.
               </p>
             </div>
           </div>
-
-          <div className="mt-3 space-y-2 text-[11px] text-muted-foreground">
-            <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
-              <FileText className="h-4 w-4 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-foreground">Files and folders</p>
-                <p>Read, create, modify, upload, or delete files anywhere on this computer</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
-              <Terminal className="h-4 w-4 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-foreground">Terminal commands</p>
-                <p>Run commands, install software, and change system settings</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
-              <Globe className="h-4 w-4 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-foreground">Internet and connected apps</p>
-                <p>Access websites, send data, and use enabled plugins</p>
-              </div>
-            </div>
-          </div>
-
-          <p className="mt-3 text-[10px] text-destructive/80">
-            This comes with risks like loss or exposure of sensitive data and prompt injection. You can turn this off.
-            <a href="#" className="text-primary hover:underline ml-1">Learn more</a>
-          </p>
-
-          <div className="mt-3 flex items-center gap-2">
-            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
-              <input
-                type="checkbox"
-                checked={fullAccessGranted}
-                onChange={(e) => {
-                  if (e.target.checked) setFullAccessGranted(true);
-                  else setFullAccessGranted(false);
-                }}
-                className="h-3 w-3 rounded border-border bg-background text-primary focus:ring-primary"
-              />
-              <span>Approve for me (auto-approve after 5s)</span>
-            </label>
-          </div>
-
-          <div className="mt-3 flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 h-8 text-xs"
-              onClick={handleDismiss}
-            >
-              <X className="h-3 w-3 mr-1" />
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1 h-8 text-xs"
-              onClick={() => {
-                if (fullAccessGranted) {
-                  setFullAccessGranted(false);
-                } else {
-                  setFullAccessGranted(true);
-                }
-              }}
-            >
-              {fullAccessGranted ? (
-                <>
-                  <X className="h-3 w-3 mr-1" />
-                  Turn Off
-                </>
-              ) : (
-                <>
-                  <Check className="h-3 w-3 mr-1" />
-                  Confirm
-                </>
-              )}
-            </Button>
-          </div>
+          <button
+            type="button"
+            className="mt-3 w-full rounded border px-3 py-1.5 text-xs hover:bg-muted"
+            onClick={() => setShowDetails(false)}
+          >
+            Close
+          </button>
         </div>
       )}
     </div>

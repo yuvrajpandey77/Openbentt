@@ -464,7 +464,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                   type="button"
                   onClick={onOpenLocalAI}
                   className={cn(
-                    "sidebar-nav-item w-full justify-start",
+                    "sidebar-nav-item",
+                    collapsed ? "justify-center w-auto" : "w-full justify-start",
                     collapsed && "sidebar-nav-item--icon-only"
                   )}
                   aria-label="Local AI Status"
@@ -477,7 +478,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             </Tooltip>
             
             <AccountMenu
-              collapsed={!showLabels}
+              collapsed={collapsed}
               onOpenSettings={() => {
                 navigate("/settings");
                 onCloseMobile();

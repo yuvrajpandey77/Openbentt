@@ -60,6 +60,7 @@ import {
 import { decideRoute } from "@/lib/agent/openCodeHarness";
 import { hasOpenCodeDesktopApi, openCodeAgentApi } from "@/lib/agent/openCodeAgentApi";
 import type { OpenCodeAgentEvent, OpenCodeTask } from "@/lib/agent/openCodeTypes";
+import { humanizeExecutionEvent, mergeStreamingText } from "@/lib/agent/executionView";
 import { getExecutionRuntime } from "@/lib/agent/executionRuntime";
 import {
   askOpenCodeLayer,
@@ -71,6 +72,8 @@ import {
   type OpenCodeLayerSnapshot,
 } from "@/lib/agent/openCodeChat";
 
+export type ExecutionMode = "chat" | "plan" | "build" | "task";
+
 export const AGENT_WORKSPACE_KEY = "openbentt-agent-workspace-root";
 export const projectWorkspaceKey = (projectId: string) =>
   `openbentt-project-workspace:${projectId}`;
@@ -79,12 +82,42 @@ export function resolveExecutionWorkspace(projectId?: string | null): string {
   try {
     if (projectId) {
       const linked = localStorage.getItem(projectWorkspaceKey(projectId));
-      if (linked?.trim()) return linked.trim();
+      if (linked?.trim()) return deduplicatePath(linked.trim());
     }
-    return localStorage.getItem(AGENT_WORKSPACE_KEY)?.trim() ?? "";
+    return deduplicatePath(localStorage.getItem(AGENT_WORKSPACE_KEY)?.trim() ?? "");
   } catch {
     return "";
   }
+}
+
+function deduplicatePath(path: string): string {
+  if (!path) return path;
+  // Detect and fix duplicated path segments (e.g., /a/b/a/b -> /a/b)
+  const parts = path.split("/").filter(Boolean);
+  if (parts.length < 2) return path;
+  
+  // Check if the second half equals the first half
+  const mid = Math.floor(parts.length / 2);
+  const firstHalf = parts.slice(0, mid).join("/");
+  const secondHalf = parts.slice(mid).join("/");
+  
+  if (firstHalf === secondHalf) {
+    return "/" + firstHalf;
+  }
+  
+  // Check for duplicate adjacent segments
+  const deduped = parts.reduce((acc, part) => {
+    if (acc.length === 0 || acc[acc.length - 1] !== part) {
+      acc.push(part);
+    }
+    return acc;
+  }, [] as string[]);
+  
+  if (deduped.length !== parts.length) {
+    return "/" + deduped.join("/");
+  }
+  
+  return path;
 }
 
 interface ChatContextProps {
@@ -105,9 +138,6 @@ interface ChatContextProps {
   executionEvents: Record<string, OpenCodeAgentEvent[]>;
   workspaceNeeded: boolean;
   setWorkspaceNeeded: (v: boolean) => void;
-  /** Full Access permission: when true, OpenCode permission requests are auto-approved. */
-  fullAccessGranted: boolean;
-  setFullAccessGranted: (v: boolean) => void;
   executionDrawerTaskId: string | null;
   setExecutionDrawerTaskId: (id: string | null) => void;
   cancelExecutionTask: (taskId: string) => Promise<void>;
@@ -116,6 +146,12 @@ interface ChatContextProps {
     approvalId: string,
     decision: "allow-once" | "allow-task" | "deny"
   ) => Promise<void>;
+  respondToExecutionQuestion: (
+    taskId: string,
+    serverRequestId: string,
+    answers: string[][],
+  ) => Promise<void>;
+  rejectExecutionQuestion: (taskId: string, serverRequestId: string) => Promise<void>;
   /** Voice transcripts enter the SAME pipeline as typed text (metadata only). */
   submitVoiceTranscript: (transcript: string) => Promise<void>;
   /**
@@ -127,6 +163,9 @@ interface ChatContextProps {
   /** Model selection for EVERY chat panel: OpenCode models, free first. */
   openCodeModel: string;
   setOpenCodeModel: (id: string) => void;
+  /** Execution mode: chat (default), plan, build, task. */
+  executionMode: ExecutionMode;
+  setExecutionMode: (mode: ExecutionMode) => void;
   /** True when chat can send right now (layer available OR legacy provider ready). */
   unifiedChatReady: boolean;
   /**
@@ -141,7 +180,7 @@ interface ChatContextProps {
   sendMessage: (
     content: string,
     attachments?: MessageAttachment[],
-    options?: { workspaceAssistBlock?: string; projectId?: string | null; inputSource?: "text" | "voice" }
+    options?: { workspaceAssistBlock?: string; projectId?: string | null; inputSource?: "text" | "voice"; executionMode?: ExecutionMode }
   ) => Promise<void>;
   regenerateLastResponse: () => Promise<void>;
   beginEditUserMessage: (messageId: string) => void;
@@ -469,16 +508,24 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
   const activeProjectIdRef = useRef<string | null>(null);
   const [workspaceNeeded, setWorkspaceNeeded] = useState(false);
-  const [fullAccessGranted, setFullAccessGranted] = useState(false);
   const [executionTasks, setExecutionTasks] = useState<Record<string, OpenCodeTask>>({});
   const [executionEvents, setExecutionEvents] = useState<Record<string, OpenCodeAgentEvent[]>>({});
   const [executionDrawerTaskId, setExecutionDrawerTaskId] = useState<string | null>(null);
+  // executionMode defaults to "chat" for each new session/conversation.
+  // User's manual selection within a session is respected; no global persistence.
+  const [executionMode, setExecutionModeState] = useState<ExecutionMode>("chat");
+  const executionModeRef = useRef(executionMode);
+  executionModeRef.current = executionMode;
   const executionTasksRef = useRef<Record<string, OpenCodeTask>>({});
   executionTasksRef.current = executionTasks;
 
   const setActiveProjectId = useCallback((id: string | null) => {
     activeProjectIdRef.current = id;
     setActiveProjectIdState(id);
+  }, []);
+
+  const setExecutionMode = useCallback((mode: ExecutionMode) => {
+    setExecutionModeState(mode);
   }, []);
 
   const setProjectWorkspace = useCallback((projectId: string, root: string) => {
@@ -533,42 +580,51 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     []
   );
 
+  /**
+   * Streaming delta buffers: high-frequency message deltas accumulate here
+   * and flush into message content on a short interval — one render per
+   * batch instead of one per token. Raw deltas stay in executionEvents.
+   */
+  const deltaBuffers = useRef<Record<string, string>>({});
+  const deltaFlushTimer = useRef<number | null>(null);
+  const flushDeltaBuffers = useCallback(() => {
+    deltaFlushTimer.current = null;
+    const pending = deltaBuffers.current;
+    deltaBuffers.current = {};
+    const ids = Object.keys(pending);
+    if (!ids.length) return;
+    for (const taskId of ids) {
+      const chunk = pending[taskId];
+      if (!chunk) continue;
+      patchExecutionMessage(taskId, (m) => ({
+        ...m,
+        content: `${m.content ?? ""}${chunk}`.slice(-60000),
+        streaming: true,
+      }));
+    }
+  }, [patchExecutionMessage]);
+  const queueDelta = useCallback(
+    (taskId: string, delta: string) => {
+      if (!delta) return;
+      deltaBuffers.current[taskId] = `${deltaBuffers.current[taskId] ?? ""}${delta}`.slice(-60000);
+      if (deltaFlushTimer.current === null) {
+        deltaFlushTimer.current = window.setTimeout(flushDeltaBuffers, 120);
+      }
+    },
+    [flushDeltaBuffers]
+  );
+  useEffect(
+    () => () => {
+      if (deltaFlushTimer.current !== null) window.clearTimeout(deltaFlushTimer.current);
+    },
+    []
+  );
+
   const humanizeAgentEvent = useCallback((e: OpenCodeAgentEvent): string => {
-    const p = e.payload as Record<string, unknown>;
-    const msg = typeof p.message === "string" ? p.message : "";
-    const file = typeof p.file === "string" ? p.file : "";
-    const target = typeof p.target === "string" ? p.target : "";
-    switch (e.type) {
-      case "agent.started":
-        return "Working on it…";
-      case "agent.thinking":
-        return msg ? `Thinking · ${msg.slice(0, 140)}` : "Thinking…";
-      case "agent.status":
-        return msg ? `Status · ${msg.slice(0, 140)}` : "Status update";
-      case "agent.tool.requested":
-        return `Tool requested · ${String(p.tool ?? p.capability ?? "tool")}`;
-      case "agent.tool.started":
-        return `Running · ${String(p.tool ?? p.command ?? "tool")}${target ? ` · ${target}` : ""}`;
-      case "agent.tool.output":
-        return msg ? `Output · ${msg.slice(0, 140)}` : "Tool output";
-      case "agent.file.changed":
-        return `Changed file · ${file || target || "file"}`;
-      case "agent.command.requested":
-        return `Command requested · ${String(p.command ?? target ?? "")}`.slice(0, 160);
-      case "agent.command.output":
-        return msg ? `Command output · ${msg.slice(0, 140)}` : "Command output";
-      case "agent.permission.requested":
-        return `Permission required · ${String(p.capability ?? "")} ${target}`.slice(0, 160);
-      case "agent.error":
-        return `Error · ${(msg || "see details").slice(0, 140)}`;
-      case "agent.completed":
-        return msg ? `Done · ${msg.slice(0, 160)}` : "Completed";
-      case "agent.failed":
-        return `Failed · ${(msg || "see details").slice(0, 160)}`;
-      case "agent.cancelled":
-        return "Cancelled";
-      default:
-        return e.type;
+    try {
+      return humanizeExecutionEvent(e);
+    } catch {
+      return e.type;
     }
   }, []);
 
@@ -576,7 +632,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     switch (type) {
       case "agent.permission.requested":
         return "waiting_for_permission";
+      case "agent.question.requested":
+        return "waiting_for_user";
       case "agent.completed":
+      case "agent.session.idle":
         return "completed";
       case "agent.failed":
         return "failed";
@@ -652,6 +711,22 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (list.some((e) => e.eventId === evt.eventId)) return prev;
           return { ...prev, [evt.taskId]: [...list.slice(-499), evt] };
         });
+        // High-frequency streaming deltas batch into message content (one
+        // render per batch, not per token). Raw deltas stay in
+        // executionEvents for the timeline/debug views.
+        if (evt.type === "agent.message.delta" && typeof evt.payload.delta === "string") {
+          queueDelta(evt.taskId, evt.payload.delta);
+          setExecutionTasks((prev) => {
+            const t = prev[evt.taskId];
+            if (!t) return prev;
+            return {
+              ...prev,
+              [evt.taskId]: { ...t, status: "RUNNING", lastEvent: evt.type, updatedAt: evt.timestamp },
+            };
+          });
+          patchExecutionMessage(evt.taskId, (m) => ({ ...m, executionStatus: "running", streaming: true }));
+          return;
+        }
         const status = statusForEvent(evt.type);
         setExecutionTasks((prev) => {
           const t = prev[evt.taskId];
@@ -659,44 +734,78 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const mapped =
             status === "waiting_for_permission"
               ? "WAITING_FOR_PERMISSION"
-              : status === "completed"
-                ? "COMPLETED"
-                : status === "failed"
-                  ? "FAILED"
-                  : status === "cancelled"
-                    ? "CANCELLED"
-                    : status === "starting"
-                      ? "STARTING"
-                      : "RUNNING";
+              : status === "waiting_for_user"
+                ? "WAITING_FOR_PERMISSION"
+                : status === "completed"
+                  ? "COMPLETED"
+                  : status === "failed"
+                    ? "FAILED"
+                    : status === "cancelled"
+                      ? "CANCELLED"
+                      : status === "starting"
+                        ? "STARTING"
+                        : "RUNNING";
           return { ...prev, [evt.taskId]: { ...t, status: mapped, lastEvent: evt.type, updatedAt: evt.timestamp } };
         });
+        // Trace-worthy events only: high-frequency output (deltas, tool
+        // progress, terminal output, context) would flood the timeline.
+        // They remain fully visible in the Terminal/Logs/Debug views.
+        const TRACE_SUPPRESSED = new Set([
+          "agent.message.delta",
+          "agent.reasoning.delta",
+          "agent.tool.progress",
+          "agent.terminal.output",
+          "agent.context.updated",
+          "agent.session.status",
+          "agent.status",
+        ]);
         const detail = humanizeAgentEvent(evt);
+        // Live-engine full-text snapshots (text parts) heal delta-accumulated
+        // content via overlap merge — no duplication, no loss on reconnect.
+        const snapshotText =
+          evt.type === "agent.message.completed" && typeof evt.payload.text === "string"
+            ? evt.payload.text
+            : null;
         patchExecutionMessage(evt.taskId, (m) => ({
           ...m,
           executionStatus: status,
-          agentTrace: [...(m.agentTrace ?? []), { step: evt.type, detail }].slice(-120),
+          agentTrace: TRACE_SUPPRESSED.has(evt.type)
+            ? (m.agentTrace ?? [])
+            : [...(m.agentTrace ?? []), { step: evt.type, detail }].slice(-120),
           content:
-            evt.type === "agent.completed" && typeof evt.payload.message === "string" && evt.payload.message
-              ? `${m.content ? `${m.content}\n\n` : ""}${String(evt.payload.message).slice(0, 2000)}`
-              : m.content,
-          streaming: evt.type === "agent.completed" || evt.type === "agent.failed" || evt.type === "agent.cancelled" ? false : m.streaming,
+            snapshotText !== null
+              ? mergeStreamingText(m.content ?? "", snapshotText)
+              : evt.type === "agent.completed" && typeof evt.payload.message === "string" && evt.payload.message
+                ? `${m.content ? `${m.content}\n\n` : ""}${String(evt.payload.message).slice(0, 2000)}`
+                : m.content,
+          streaming:
+            evt.type === "agent.completed" ||
+            evt.type === "agent.failed" ||
+            evt.type === "agent.cancelled" ||
+            evt.type === "agent.session.idle"
+              ? false
+              : m.streaming,
         }));
-        if (evt.type === "agent.permission.requested") {
-          if (fullAccessGranted) {
-            void openCodeAgentApi.respondToPermission({
-              taskId: evt.taskId,
-              approvalId: evt.payload.approvalId,
-              decision: "allow-task",
-            });
-          } else {
-            setExecutionDrawerTaskId((cur) => cur ?? evt.taskId);
-          }
+        if (evt.type === "agent.permission.requested" || evt.type === "agent.question.requested") {
+          // Never auto-approve: surface the request and open the inspector
+          // so the user can review scope before deciding.
+          setExecutionDrawerTaskId((cur) => cur ?? evt.taskId);
         }
         if (evt.type === "agent.file.changed") {
           // Phase C/D: lazily capture before-state for real diffs.
           void snapshotTaskFile(evt.taskId, evt);
         }
-        if (evt.type === "agent.completed" || evt.type === "agent.failed" || evt.type === "agent.cancelled") {
+        if (
+          evt.type === "agent.completed" ||
+          evt.type === "agent.failed" ||
+          evt.type === "agent.cancelled" ||
+          evt.type === "agent.session.idle"
+        ) {
+          if (deltaFlushTimer.current !== null) {
+            window.clearTimeout(deltaFlushTimer.current);
+            deltaFlushTimer.current = null;
+          }
+          flushDeltaBuffers();
           setIsLoading(false);
         }
         if (evt.type === "agent.completed") {
@@ -714,7 +823,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         /* noop */
       }
     };
-  }, [humanizeAgentEvent, patchExecutionMessage, statusForEvent, snapshotTaskFile, verifyTaskCompletion]);
+  }, [humanizeAgentEvent, patchExecutionMessage, statusForEvent, snapshotTaskFile, verifyTaskCompletion, queueDelta, flushDeltaBuffers]);
 
   /**
    * Chat → OpenCode seam. Returns true when the turn was absorbed by
@@ -728,16 +837,22 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       projectId?: string | null;
       inputSource: "text" | "voice";
       model?: string;
-      /** Explicit escalation (user picked run-as-task): build regardless of heuristics. */
-      forceBuild?: boolean;
+      /** Execution mode from composer selector: chat | plan | build | task */
+      executionMode?: ExecutionMode;
     }): Promise<boolean> => {
+      const mode = args.executionMode ?? executionModeRef.current;
+      
+      // Chat mode never routes to execution
+      if (mode === "chat") return false;
+      
       let decision: { category: string; routeToOpenCode: boolean; mode: "plan" | "build"; reason: string };
       try {
         decision = decideRoute(args.text);
       } catch {
         return false;
       }
-      if (!decision.routeToOpenCode) return false;
+      // For plan/build/task modes, we route to OpenCode regardless of heuristic
+      // The main process still validates category fail-closed.
       if (getExecutionRuntime() !== "opencode") return false;
       if (!hasOpenCodeDesktopApi()) return false;
 
@@ -772,7 +887,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : "";
 
       try {
-        const mode = args.forceBuild ? "build" : decision.mode;
+        // Map executionMode to OpenCode mode: plan→plan, build→build, task→build
+        const openCodeMode = mode === "plan" ? "plan" : "build";
         // Phase B: bind the real project context (bounded; untrusted parts
         // are already DATA-wrapped by the harness prompt enrichment).
         const projectBlock = (() => {
@@ -789,9 +905,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             {
               step: "agent.started",
               detail:
-                mode === "plan"
+                openCodeMode === "plan"
                   ? "Working on it… (plan · read-only — ask for changes to switch to build)"
-                  : "Working on it… (build — writes will ask for approval)",
+                  : mode === "task"
+                    ? "Working on it… (task · multi-step — writes will ask for approval)"
+                    : "Working on it… (build — writes will ask for approval)",
             },
           ],
         }));
@@ -799,7 +917,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           prompt: `${args.text.slice(0, 8000)}${continuing}${projectBlock ? `\n\n${projectBlock.slice(0, 3000)}` : ""}`.slice(0, 12000),
           title: args.text.slice(0, 80),
           workspaceRoot,
-          mode,
+          mode: openCodeMode,
           inputSource: args.inputSource,
           model: args.model?.trim() ? args.model.trim() : undefined,
         });
@@ -857,24 +975,59 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const t = await openCodeAgentApi.respondToPermission({ taskId, approvalId, decision });
         setExecutionTasks((prev) => ({ ...prev, [taskId]: t }));
-        // Remove the permission request event from the events array so the UI clears the permission dialog
-        setExecutionEvents((prev) => {
-          const events = prev[taskId];
-          if (!events) return prev;
-          return {
-            ...prev,
-            [taskId]: events.filter((e) => e.type !== "agent.permission.requested" || e.payload.approvalId !== approvalId),
-          };
-        });
+        // History is preserved: the request event stays in the timeline and
+        // the replied event marks resolution (pending selectors pair them).
         patchExecutionMessage(taskId, (m) => ({
           ...m,
-          executionStatus: "running",
+          executionStatus: decision === "deny" ? m.executionStatus : "running",
           agentTrace: [...(m.agentTrace ?? []), { step: "agent.permission.responded", detail: `Permission ${decision}` }],
         }));
       } catch (e) {
         toast({
           title: "Permission failed",
           description: e instanceof Error ? e.message : "Could not respond.",
+          variant: "destructive",
+        });
+      }
+    },
+    [patchExecutionMessage, toast]
+  );
+
+  const respondToExecutionQuestion = useCallback(
+    async (taskId: string, serverRequestId: string, answers: string[][]) => {
+      try {
+        const t = await openCodeAgentApi.respondToQuestion({ taskId, serverRequestId, answers, decision: "answer" });
+        setExecutionTasks((prev) => ({ ...prev, [taskId]: t }));
+        patchExecutionMessage(taskId, (m) => ({
+          ...m,
+          executionStatus: "running",
+          agentTrace: [...(m.agentTrace ?? []), { step: "agent.question.answered", detail: "Answer sent — resuming" }],
+        }));
+      } catch (e) {
+        toast({
+          title: "Answer failed",
+          description: e instanceof Error ? e.message : "Could not send the answer.",
+          variant: "destructive",
+        });
+      }
+    },
+    [patchExecutionMessage, toast]
+  );
+
+  const rejectExecutionQuestion = useCallback(
+    async (taskId: string, serverRequestId: string) => {
+      try {
+        const t = await openCodeAgentApi.respondToQuestion({ taskId, serverRequestId, decision: "reject" });
+        setExecutionTasks((prev) => ({ ...prev, [taskId]: t }));
+        patchExecutionMessage(taskId, (m) => ({
+          ...m,
+          executionStatus: "running",
+          agentTrace: [...(m.agentTrace ?? []), { step: "agent.question.rejected", detail: "Question dismissed" }],
+        }));
+      } catch (e) {
+        toast({
+          title: "Dismiss failed",
+          description: e instanceof Error ? e.message : "Could not dismiss the question.",
           variant: "destructive",
         });
       }
@@ -1224,7 +1377,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           projectId: chatProjectId,
           inputSource: "text",
           model: openCodeModelRef.current,
-          forceBuild: true,
+          executionMode: "task",
         });
       } catch {
         patchMessageById(chatId, assistantMessageId, (m) => ({
@@ -1870,7 +2023,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const sendMessage = async (
     content: string,
     attachments: MessageAttachment[] = [],
-    options?: { workspaceAssistBlock?: string; projectId?: string | null; inputSource?: "text" | "voice" }
+    options?: { workspaceAssistBlock?: string; projectId?: string | null; inputSource?: "text" | "voice"; executionMode?: ExecutionMode }
   ) => {
     const trimmed = content.trim();
     if (!trimmed && attachments.length === 0) return;
@@ -1992,6 +2145,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           projectId,
           inputSource,
           model: openCodeModelRef.current,
+          executionMode: options?.executionMode ?? executionModeRef.current,
         });
       } catch {
         absorbed = false;
@@ -2312,12 +2466,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     executionEvents,
     workspaceNeeded,
     setWorkspaceNeeded,
-    fullAccessGranted,
-    setFullAccessGranted,
     executionDrawerTaskId,
     setExecutionDrawerTaskId,
     cancelExecutionTask,
     respondToExecutionPermission,
+    respondToExecutionQuestion,
+    rejectExecutionQuestion,
 registerProjectContextProvider,
   registerThreadContextProvider,
   submitVoiceTranscript,
@@ -2327,6 +2481,8 @@ registerProjectContextProvider,
     refreshOpenCodeLayer,
     openCodeModel,
     setOpenCodeModel,
+    executionMode,
+    setExecutionMode,
     unifiedChatReady: openCodeLayer.available || canSendMessage(apiConfig),
     selectChat,
     deleteChat,

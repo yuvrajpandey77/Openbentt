@@ -177,8 +177,21 @@ export function saveSession(app, session) {
   );
 }
 
-export function appendTaskEvent(app, event) {
-  if (!event || typeof event.eventId !== "string" || typeof event.taskId !== "string") {
+/** Read persisted local sessions (for live-engine resume rebinding). */
+export function listSessions(app, limit = 200) {
+  const db = getDb(app);
+  const lim = Math.min(Math.max(Number(limit) || 200, 1), 500);
+  return db
+    .prepare(
+      `SELECT id, workspace_id AS workspaceId, task_id AS taskId, status,
+        opencode_session_id AS opencodeSessionId, created_at AS createdAt,
+        updated_at AS updatedAt
+       FROM agent_sessions ORDER BY updated_at DESC LIMIT ?`,
+    )
+    .all(lim);
+}
+
+export function appendTaskEvent(app, event) {  if (!event || typeof event.eventId !== "string" || typeof event.taskId !== "string") {
     fail("invalid event");
   }
   const db = getDb(app);

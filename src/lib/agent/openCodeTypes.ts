@@ -63,11 +63,33 @@ export type OpenCodeEventType =
   | "agent.thinking"
   | "agent.tool.requested"
   | "agent.permission.requested"
+  | "agent.permission.replied"
+  | "agent.question.requested"
+  | "agent.question.answered"
+  | "agent.question.rejected"
   | "agent.tool.started"
+  | "agent.tool.progress"
   | "agent.tool.output"
+  | "agent.tool.completed"
+  | "agent.tool.failed"
+  | "agent.step.started"
+  | "agent.step.completed"
+  | "agent.step.failed"
   | "agent.file.changed"
+  | "agent.diff.updated"
   | "agent.command.requested"
   | "agent.command.output"
+  | "agent.terminal.started"
+  | "agent.terminal.output"
+  | "agent.terminal.completed"
+  | "agent.message.delta"
+  | "agent.message.completed"
+  | "agent.reasoning.delta"
+  | "agent.todo.updated"
+  | "agent.context.updated"
+  | "agent.session.status"
+  | "agent.session.idle"
+  | "agent.subagent.started"
   | "agent.error"
   | "agent.completed"
   | "agent.failed"
@@ -98,6 +120,13 @@ export interface OpenCodeTask {
   providerStatus?: string;
   /** Phase 3: input modality (text default). */
   inputSource?: InputSource;
+  /** Live engine: OpenCode server session id (ses_*) for resume/inspect. */
+  opencodeSessionId?: string;
+  /** Distinguishes permission waits from question waits (both WAITING_FOR_PERMISSION). */
+  waitingKind?: "permission" | "question";
+  /** Server request id (per_ / que_ prefixed) currently blocking the task, if any. */
+  pendingRequestId?: string;
+  lastError?: string;
 }
 
 export interface OpenCodeSession {
@@ -141,6 +170,46 @@ export interface OpenCodeDetection {
   version?: string;
   source?: "managed" | "system" | "unknown";
   compatible?: boolean;
+}
+
+/** Managed `opencode serve` state (live engine). */
+export interface OpenCodeServerState {
+  status: "STOPPED" | "STARTING" | "READY" | "DEGRADED" | "STOPPING" | "CRASHED";
+  port?: number;
+  pid?: number;
+  startedAt?: string;
+  lastError?: string;
+  executablePath?: string;
+  version?: string;
+  connected: boolean;
+  reconnects: number;
+  restarts: number;
+}
+
+export interface OpenCodeQuestionOption {
+  label: string;
+  description?: string;
+}
+
+export interface OpenCodeQuestion {
+  header: string;
+  question: string;
+  options: OpenCodeQuestionOption[];
+  multi: boolean;
+}
+
+export interface OpenCodeTodo {
+  content: string;
+  status: string;
+  priority: string;
+}
+
+export interface OpenCodeFileDiff {
+  file: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch?: string;
 }
 
 export interface OpenCodeRuntimeState {

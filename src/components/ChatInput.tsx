@@ -8,15 +8,20 @@ import {
   Bot,
   ChevronDown,
   Columns2,
+  Hammer,
+  MessageSquare,
   Paperclip,
   PlusCircle,
+  Search,
   Square,
   FileText,
   Mic,
   MoreHorizontal,
   FolderKanban,
+  Zap,
 } from "lucide-react";
-import { useChat } from "@/context/ChatContext";
+import { useChat, ExecutionMode } from "@/context/ChatContext";
+// import { detectModeIntent, modeIntentToSuggestion, shouldSuggestModeChange, isInternalTaskStep } from "@/lib/agent/modeDetection";
 import { useLocalAI } from "@/context/LocalAIContext";
 import { SourceFilter } from "@/components/integrations/SourceFilter";
 import {
@@ -123,6 +128,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const [showExtras, setShowExtras] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [capturing, setCapturing] = useState(false);
   const draftsRef = useRef<Record<string, RouteDraft>>({});
   const lastPathRef = useRef<string | null>(null);
@@ -151,6 +157,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
     openCodeModel,
     setOpenCodeModel,
     unifiedChatReady,
+    executionMode,
+    setExecutionMode,
+    executionTasks,
+    executionEvents,
   } = useChat();
   const { workspace: composerWs } = useWorkspace();
   /** Universal layer: chat runs on the Execution Engine — local models, no keys, no maze. */
@@ -159,6 +169,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   /** Bumps when localStorage consent changes so web /chat re-reads getLocalWeightsConsent(). */
   const [localConsentTick, setLocalConsentTick] = useState(0);
   const [plusOpen, setPlusOpen] = useState(false);
+  // const suggestionToastRef = useRef<{ mode: ExecutionMode; text: string; timestamp: number } | null>(null);
   const { toast } = useToast();
   const { data: models, isLoading: modelsLoading, isError: modelsError } = useOpenRouterModels(
     apiConfig.apiKey,
@@ -286,6 +297,29 @@ const ChatInput: React.FC<ChatInputProps> = ({
     draftsRef.current[pathKey] = { text: message, attachments };
   }, [message, attachments, pathKey]);
 
+  // Build conversation history for context-aware detection
+  const conversationHistory = useMemo(() => {
+    const chat = chats.find((c) => c.id === currentChatId);
+    if (!chat) return [];
+    return chat.messages.slice(-8).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+  }, [chats, currentChatId]);
+
+  // Check if a task is currently running in this conversation
+  const currentTask = useMemo(() => {
+    if (!currentChatId) return null;
+    const chat = chats.find((c) => c.id === currentChatId);
+    if (!chat?.taskIds?.length) return null;
+    const lastTaskId = chat.taskIds[chat.taskIds.length - 1];
+    return executionTasks[lastTaskId] ?? null;
+  }, [chats, currentChatId, executionTasks]);
+
+  const isTaskRunning = currentTask && 
+    ["QUEUED", "STARTING", "RUNNING", "WAITING_FOR_PERMISSION"].includes(currentTask.status);
+  const currentTaskStatus = currentTask?.status ?? null;
+
   const handleSendMessage = async () => {
     // Universal layer: single Execution Engine model — no tiling, gateway decides vision.
     if (!layerActive && apiConfig.comparisonEnabled && dedupeModels(apiConfig.comparisonModelIds).length < 2) {
@@ -314,12 +348,18 @@ const ChatInput: React.FC<ChatInputProps> = ({
     const textToSend = t;
     setMessage("");
     setAttachments([]);
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      const minH = isStudio ? "2.25rem" : isCompact ? "2.75rem" : "3.25rem";
+      textareaRef.current.style.height = minH;
+    }
 
     try {
       if (agentMode && attachments.length === 0) {
         await sendAgentMessage(textToSend);
       } else {
-        await sendMessage(textToSend, toSend);
+        await sendMessage(textToSend, toSend, { executionMode });
       }
     } catch {
       setMessage(textToSend);
@@ -586,6 +626,61 @@ const ChatInput: React.FC<ChatInputProps> = ({
           <div className="flex items-center gap-1.5">
             <WorkspaceSelector />
             <PermissionPill />
+            {isDesktopApp() && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-auto min-w-[110px] gap-1.5 px-2.5 py-1 text-left text-[11px] transition-colors border-border/60 bg-background/80 hover:bg-muted/50"
+                        aria-label={`Execution mode: ${executionMode}`}
+                      >
+                        {executionMode === "chat" && <MessageSquare className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                        {executionMode === "plan" && <Search className="h-3.5 w-3.5 shrink-0 text-blue-500" />}
+                        {executionMode === "build" && <Hammer className="h-3.5 w-3.5 shrink-0 text-amber-500" />}
+                        {executionMode === "task" && <Zap className="h-3.5 w-3.5 shrink-0 text-purple-500" />}
+                        <span className="min-w-0 truncate font-medium capitalize hidden sm:inline">
+                          {executionMode}
+                        </span>
+                        <ChevronDown size={12} className="shrink-0" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-56 p-1">
+                      {([
+                        { mode: "chat" as ExecutionMode, label: "Chat", desc: "Conversation and general assistance", icon: MessageSquare, color: "text-primary" },
+                        { mode: "plan" as ExecutionMode, label: "Plan", desc: "Analyze and create an implementation plan", icon: Search, color: "text-blue-500" },
+                        { mode: "build" as ExecutionMode, label: "Build", desc: "Implement changes in the project", icon: Hammer, color: "text-amber-500" },
+                        { mode: "task" as ExecutionMode, label: "Task", desc: "Run multi-step autonomous work", icon: Zap, color: "text-purple-500" },
+                      ]).map(({ mode, label, desc, icon: Icon, color }) => (
+                        <DropdownMenuItem
+                          key={mode}
+                          onClick={() => setExecutionMode(mode)}
+                          className={cn(
+                            "group flex cursor-pointer items-center gap-2 py-1.5 px-2 text-sm",
+                            executionMode === mode && "bg-primary/10"
+                          )}
+                        >
+                          <Icon className={cn("h-4 w-4 shrink-0", color)} />
+                          <div className="flex-1 text-left">
+                            <span className="font-medium block">{label}</span>
+                            <span className="text-[11px] text-muted-foreground block">{desc}</span>
+                          </div>
+                          {executionMode === mode && <span className="shrink-0 text-primary">✓</span>}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" align="start" className="max-w-xs">
+                  <p className="text-xs text-muted-foreground">
+                    Select how OpenBentt should handle your request. Chat is the default for questions and discussion.
+                    Plan analyzes and creates a plan. Build implements changes. Task runs multi-step autonomous work.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -754,6 +849,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
               target.style.height = "auto";
               target.style.height = Math.min(target.scrollHeight, 24 * 16) + "px";
             }}
+            ref={textareaRef}
           />
 
           <div className={cn("flex items-center justify-between gap-1", !isStudio && "md:contents")}>
