@@ -140,6 +140,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     return () => clearTimeout(timer);
   }, [chats]);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [showMoreNav, setShowMoreNav] = useState(false);
 
   const iconOnly = !isMobile && collapsed;
   const showLabels = isMobile || !collapsed;

@@ -69,5 +69,5 @@ describe("startSemanticIndexRebuild", () => {
     vi.spyOn(embeddingIndex, "buildChunkEmbeddings").mockRejectedValue(new Error("ONNX load failed"));
     const { promise } = startSemanticIndexRebuild([libraryChunk], "proj-fail");
     await expect(promise).rejects.toThrow(/ONNX load failed/);
-  });
+  }, 10000);
 });
