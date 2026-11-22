@@ -21,6 +21,7 @@ import {
   Focus,
   LayoutGrid,
   PanelLeft,
+  Maximize,
 } from "lucide-react";
 
 const PRESET_IDS = Object.keys(WORKSPACE_PRESETS) as Exclude<WorkspacePresetId, "custom">[];
@@ -202,6 +203,17 @@ export function WorkspaceChrome() {
             <Command className="h-3 w-3" />
             <span className="hidden sm:inline">Commands</span>
             <kbd className="hidden rounded border px-1 font-mono text-[9px] opacity-70 md:inline">⌘K</kbd>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-7 gap-1 text-xs"
+            onClick={() => window.open("/notebook", "_blank")}
+            title="Open notebook in popup"
+          >
+            <Maximize className="h-3 w-3" />
+            <span className="hidden sm:inline">Popup</span>
           </Button>
           {layout.mode === "focus" && (
             <Button

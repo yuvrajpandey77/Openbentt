@@ -20,6 +20,60 @@ export type ReleaseNote = {
 
 export const releaseNotes: ReleaseNote[] = [
   {
+    version: "2.5.3",
+    date: "Nov 23, 2026",
+    title: "Desktop UX overhaul · native window integration · chat experience",
+    summary:
+      "Comprehensive desktop experience upgrade with ChatGPT-style empty state, native title bar controls, unified design system, and performance optimizations. Local-first AI app with ChatGPT Desktop-level interaction discipline.",
+    highlight:
+      "New ChatGPT desktop-style empty chat with welcome state, suggested actions, and smooth first-message transition",
+    sections: [
+      {
+        heading: "Highlights",
+        bullets: [
+          "ChatGPT desktop-style empty chat: 'Ready when you are.' heading, composer, and 4 suggested actions (Summarize, Analyze, Start project, Search library)",
+          "First-message transition: welcome state fades out, composer repositions, messages reveal progressively",
+          "Native window integration: platform-specific title bars (Windows hidden + overlay, macOS hiddenInset, Linux frameless/safe mode)",
+          "Unified dark design system: consistent background (#171717), sidebar, header, composer (#353535), active (#303030), primary text (#F5F5F5), secondary (#999999)",
+          "PermissionPill in header: one-click access to approve any OpenCode permission requests globally",
+          "Notebook lag fix: restructured ResearchProjectContext initialization to avoid blocking UI during load",
+          "New chat behavior: creates empty conversation with proper routing to ChatHome welcome state",
+          "All prior fixes maintained: VoiceDock crash, duplicate mic, PDF display, device independence",
+        ],
+      },
+      {
+        heading: "PermissionPill — Global Approval Access",
+        bullets: [
+          "Persistent amber badge in header shows pending OpenCode permission requests",
+          "Clickable to open approvals drawer with task/question details",
+          "Debounced check (250ms) for performance — no flicker on every render",
+          "Keyboard accessible (Enter/Space to open)",
+          "Jumps to the active task drawer when a pending request is found",
+        ],
+      },
+      {
+        heading: "Notebook Performance Fix",
+        bullets: [
+          "Reduced initialization blocking: `setLoading(false)` now triggers after project loads, not after all async operations",
+          "No more whole-app lag when opening Notebook — UI becomes interactive progressively",
+          "Skeleton loading state allows browsing while project data fetches in background",
+          "Fixed ResearchProjectContext useEffect to avoid blocking UI chain of initResearchDesktop → refreshProjects → listResearchProjects → loadActive",
+        ],
+      },
+      {
+        heading: "Design System & Appearance",
+        bullets: [
+          "APP_SHELL_BG: #1f1f1f → #171717 (matches dark palette throughout)",
+          "Background: #171717 | Sidebar: #171717 | Header: #171717",
+          "Elevated surface: #202020 | Composer: #353535 | Hover: #292929",
+          "Active: #303030 | Primary text: #F5F5F5 | Secondary text: #999999",
+          "Border: #303030 | All tokens consistent across light/dark modes",
+        ],
+      },
+    ],
+    cta: { label: "Download 2.5.3", to: "/download" },
+  },
+  {
     version: "2.5.0",
     date: "Nov 22, 2026",
     title: "Prism migration · multi-agent desktop · one-click import",

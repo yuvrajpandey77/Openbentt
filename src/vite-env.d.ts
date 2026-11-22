@@ -121,6 +121,12 @@ interface OpenbenttResearchApi {
 
 interface Window {
   readonly openbenttDesktop?: OpenbenttDesktopApi;
+  readonly openbenttNarration?: {
+    status: () => Promise<{ voice: string; description: string; ready: boolean }>;
+    ensure: () => Promise<{ ok: boolean; voice: string }>;
+    synthesize: (text: string) => Promise<{ voice: string; wavBase64: string }>;
+    onProgress: (cb: (payload: { label?: string; received?: number; total?: number }) => void) => () => void;
+  };
   readonly openbenttLocalGguf?: import("@/lib/localGguf/desktopApi").OpenbenttLocalGgufApi;
   readonly openbenttSecrets?: import("@/lib/privacy/desktopSecrets").OpenbenttSecretsApi;
   readonly openbenttResearch?: OpenbenttResearchApi;

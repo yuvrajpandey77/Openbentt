@@ -36,6 +36,7 @@ import { registerOcrIpc } from "./ocrService.mjs";
 import { registerComputerUseIpc } from "./computerUseService.mjs";
 import { setOmniRouteEventTarget, cleanupOmniRouteOnQuit } from "./omniRouteService.mjs";
 import { registerVoiceIpc, setVoiceEventTarget, cleanupVoiceOnQuit, isMicGrantActive } from "./voiceService.mjs";
+import { registerNarrationIpc, cleanupNarration } from "./narrationVoice.mjs";
 import { resolveUnderDistRoot } from "./ipcValidate.mjs";
 import { registerNavigationPolicy, setVoiceGrantChecker } from "./navigationPolicy.mjs";
 import { getGpuSafeMode } from "./gpuSafeMode.mjs";
@@ -229,7 +230,7 @@ function registerAppProtocolHandler() {
 }
 
 /** App shell background — matches `.app-shell { --background: 0 0% 12% }` → #1f1f1f */
-const APP_SHELL_BG = "#1f1f1f";
+const APP_SHELL_BG = "#171717";
 
 /** Compact caption strip (native overlay height on Windows; in-app bar elsewhere). */
 const TITLE_BAR_HEIGHT = 28;
@@ -474,6 +475,7 @@ app.whenReady().then(async () => {
   });
   registerOpenCodeIpc(ipcMain, app);
   registerVoiceIpc(ipcMain, app);
+  registerNarrationIpc(ipcMain, app);
   registerWorkspaceIpc(ipcMain, app);
   registerLatexIpc(ipcMain, app);
   registerOcrIpc(ipcMain, app);
@@ -503,6 +505,7 @@ app.on("before-quit", () => {
   cleanupOpenCodeOnQuit();
   cleanupOmniRouteOnQuit();
   cleanupVoiceOnQuit();
+  cleanupNarration();
   cleanupWorkspaceOnQuit();
   // Bounded agent shutdown (tasks → OpenCode → OmniRoute) before DB close.
   // before-quit cannot block long; best-effort async with hard timeout.

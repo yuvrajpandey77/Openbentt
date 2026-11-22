@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Copy, FileDown, FileCheck2, Undo2 } from "lucide-react";
+import { Copy, FileDown, FileCheck2, Undo2, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { exportElementToPdf } from "@/lib/chatExportPdf";
@@ -25,6 +25,7 @@ interface AssistantMessageToolbarProps {
   workspaceRoot?: string | null;
   applyTaskKey?: string;
   allowedFiles?: string[] | null;
+  onSpeak?: () => void;
 }
 
 export const AssistantMessageToolbar: React.FC<AssistantMessageToolbarProps> = ({
@@ -35,6 +36,7 @@ export const AssistantMessageToolbar: React.FC<AssistantMessageToolbarProps> = (
   workspaceRoot,
   applyTaskKey,
   allowedFiles,
+  onSpeak,
 }) => {
   const { toast } = useToast();
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -111,6 +113,12 @@ export const AssistantMessageToolbar: React.FC<AssistantMessageToolbarProps> = (
         <Copy className="h-3.5 w-3.5" />
         Copy full
       </Button>
+      {onSpeak ? (
+        <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" onClick={onSpeak}>
+          <Volume2 className="h-3.5 w-3.5" />
+          Listen
+        </Button>
+      ) : null}
       <Button
         type="button"
         variant="outline"

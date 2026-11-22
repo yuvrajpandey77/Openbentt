@@ -332,6 +332,12 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
   const showRetry =
     lastMsg?.role === "assistant" && !lastMsg.comparisonResponses && !isLoading;
 
+  // --- State determination ---
+  // isEmpty: used for edge-case rendering when ChatMessages receives no messages
+  // isConversation: true when there are messages in the conversation
+  const isEmpty = messages.length === 0;
+  const isConversation = !isEmpty;
+
 const renderMessage = (message: Message, displayIdx: number) => {
     const idx = messages.indexOf(message);
     const isLast = idx === messages.length - 1;
@@ -453,7 +459,7 @@ const renderMessage = (message: Message, displayIdx: number) => {
           </div>
         ) : null}
 
-        {messages.length === 0 ? (
+        {isEmpty ? (
           emptyVariant === "studio" ? (
             <p className="px-4 py-5 text-center text-xs leading-relaxed text-muted-foreground">
               No messages yet. Ask about your LaTeX draft, compile errors, citations, or uploaded PDFs.

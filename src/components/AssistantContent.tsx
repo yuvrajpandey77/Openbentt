@@ -8,6 +8,7 @@ import { MarkdownCodeBlock } from "@/components/MarkdownCodeBlock";
 import { highlightInReactChildren } from "@/lib/highlightSearch";
 import type { ReactNode } from "react";
 import { ChatStreamingCursor, ChatThinkingIndicator } from "@/components/ChatThinkingIndicator";
+import type { NarrationChunk } from "@/lib/narration/script";
 
 interface AssistantContentProps {
   content: string;
@@ -15,6 +16,8 @@ interface AssistantContentProps {
   /** When set (e.g. thread search), matching text is highlighted; fenced code blocks are skipped. */
   highlightQuery?: string;
   compact?: boolean;
+  /** While a reply is being read aloud, later lines fade until the voice reaches them. */
+  readAlong?: { chunkIndex: number; wordIndex: number; chunks: NarrationChunk[] } | null;
 }
 
 function makeMarkdownComponents(highlightQuery: string | undefined): Components {
@@ -122,11 +125,25 @@ function makeMarkdownComponents(highlightQuery: string | undefined): Components 
 }
 
 /** Renders markdown (GFM tables, lists) with optional ```openbentt-chart``` JSON blocks as live charts. */
+function SpokenLine({ text, wordIndex }: { text: string; wordIndex: number }) {
+  const words = text.split(/\s+/).filter(Boolean);
+  return (
+    <p className="my-2 text-sm leading-relaxed first:mt-0 last:mb-0">
+      {words.map((word, i) => (
+        <span key={`${word}-${i}`} className={i < wordIndex ? "text-foreground transition-colors duration-300" : "text-muted-foreground/40 transition-colors duration-300"}>
+          {word}{" "}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 export const AssistantContent: React.FC<AssistantContentProps> = ({
   content,
   streaming,
   highlightQuery,
   compact,
+  readAlong,
 }) => {
   const { displayText, charts } = extractChartBlocks(content);
   const markdownComponents = useMemo(() => makeMarkdownComponents(highlightQuery), [highlightQuery]);
@@ -143,6 +160,35 @@ export const AssistantContent: React.FC<AssistantContentProps> = ({
           {displayText || "\u00a0"}
           {displayText.trim() ? <ChatStreamingCursor /> : null}
         </p>
+      </div>
+    );
+  }
+
+  if (readAlong && readAlong.chunks.length > 0) {
+    return (
+      <div className="space-y-1">
+        {readAlong.chunks.map((chunk, index) => {
+          const spoken = chunk.speak != null;
+          const state = !spoken ? "keep" : index < readAlong.chunkIndex ? "done" : index === readAlong.chunkIndex ? "active" : "upcoming";
+          if (state === "active" && chunk.speak) {
+            return <SpokenLine key={index} text={chunk.speak} wordIndex={readAlong.wordIndex} />;
+          }
+          return (
+            <div
+              key={index}
+              className={
+                state === "upcoming"
+                  ? "opacity-40 transition-opacity duration-500"
+                  : "opacity-100 transition-opacity duration-500"
+              }
+            >
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {chunk.markdown}
+              </ReactMarkdown>
+            </div>
+          );
+        })}
+        {charts.length > 0 && <OpenbenttChartViews charts={charts} />}
       </div>
     );
   }

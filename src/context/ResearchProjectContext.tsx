@@ -301,8 +301,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   }, []);
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
+    ;(async () => {
       if (isDesktopApp()) {
         try {
           await initResearchDesktop();
@@ -310,21 +309,22 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
           /* non-fatal */
         }
       }
-      await refreshProjects();
       const list = await listResearchProjects();
+      setProjects(list);
       if (list.length === 0) {
         const created = await createResearchProject("My research");
         setProject(created);
-      } else {
-        await loadActive();
-        if (!(await getActiveProjectId())) {
-          await setActiveProjectId(list[0].id);
-          setProject(await loadResearchProject(list[0].id));
-        }
+        setLoading(false);
+        return;
+      }
+      await loadActive();
+      if (!(await getActiveProjectId())) {
+        await setActiveProjectId(list[0].id);
+        setProject(await loadResearchProject(list[0].id));
       }
       setLoading(false);
     })();
-  }, [loadActive, refreshProjects]);
+  }, [loadActive]);
 
   const projectChunksRef = useRef(project?.chunks);
   projectChunksRef.current = project?.chunks;

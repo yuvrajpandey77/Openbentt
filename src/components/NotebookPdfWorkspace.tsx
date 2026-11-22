@@ -34,6 +34,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   ArrowDownToLine,
   ArrowRightCircle,
+  BookClosed,
   BookOpen,
   CheckCheck,
   Download,
@@ -625,6 +626,8 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, [mainTab, previewBuffer]);
+
+  const [tocOpen, setTocOpen] = useState(true);
 
   const nudgeZoom = (delta: number) => {
     setPdfScale((s) => {
@@ -1327,6 +1330,29 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
                         </div>
                       </div>
                     </div>
+                    {tocOpen && (
+                      <div className="sticky top-0 left-0 z-20 h-full w-16 bg-muted/80 border-r border-border/60 flex flex-col items-center overflow-hidden">
+                        {sectionHeadings.length > 0 && (
+                          <div className="flex-1 p-2 overflow-y-auto space-y-1">
+                            {sectionHeadings.map((h) => (
+                              <Button
+                                key={h.line}
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="w-full text-left text-[10px] px-2 py-1 rounded-md hover:bg-primary/10 text-muted-foreground mb-1"
+                                onClick={() => requestFocusSection(h.line)}
+                              >
+                                {h.label}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                        {!sectionHeadings.length && (
+                          <span className="text-[10px] text-muted-foreground p-2">No headings</span>
+                        )}
+                      </div>
+                    )}
                     <div ref={pdfScrollRef} className="min-h-0 flex-1 overflow-auto">
                       <div className="bg-muted/40 p-3 md:p-4">
                         <div ref={previewRef} className="mx-auto flex max-w-full flex-col items-center gap-0 pb-2" />

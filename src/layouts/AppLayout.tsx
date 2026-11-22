@@ -25,6 +25,8 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { NarrationProvider } from "@/context/NarrationContext";
+import { VoiceDock } from "@/components/narration/VoiceDock";
 
 const WORKSPACE_PANEL_KEY = "openbentt-workspace-panel-open";
 
@@ -171,6 +173,7 @@ const AppLayout: React.FC = () => {
   }
 
   return (
+    <NarrationProvider>
     <div className={cn("flex overflow-hidden", isDesktopApp() ? "h-full" : "h-screen")}>
       <Sidebar
         isMobileOpen={isMobileSidebarOpen}
@@ -303,7 +306,9 @@ const AppLayout: React.FC = () => {
       <RightSidebar isOpen={rightSidebarOpen} onClose={() => setRightSidebarOpen(false)} />
       {/* Secondary execution inspector: conversation primary, internals secondary. */}
       <ExecutionInspector />
+      <VoiceDock />
     </div>
+    </NarrationProvider>
   );
 };
 

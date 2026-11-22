@@ -119,6 +119,17 @@ contextBridge.exposeInMainWorld("openbenttLocalGguf", {
   },
 });
 
+contextBridge.exposeInMainWorld("openbenttNarration", {
+  status: () => ipcRenderer.invoke("narration:status"),
+  ensure: () => ipcRenderer.invoke("narration:ensure"),
+  synthesize: (text) => ipcRenderer.invoke("narration:synthesize", text),
+  onProgress: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on("narration:progress", handler);
+    return () => ipcRenderer.removeListener("narration:progress", handler);
+  },
+});
+
 contextBridge.exposeInMainWorld("openbenttSecrets", {
   status: () => ipcRenderer.invoke("secretVault:status"),
   load: () => ipcRenderer.invoke("secretVault:load"),

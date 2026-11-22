@@ -2,8 +2,9 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Menu, PanelRight } from "lucide-react";
 import { ShareLinkButton } from "@/components/ShareLinkButton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { PermissionPill } from "@/components/conversation/PermissionPill";
 import { useChat } from "@/context/ChatContext";
 import { FeedbackDialog } from "@/components/FeedbackDialog";
 import type { WorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
@@ -28,7 +29,7 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
   const activeChat = chats.find((c) => c.id === currentChatId);
 
   return (
-    <header className="flex shrink-0 items-center justify-between gap-2 bg-background/90 px-2 py-2 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 md:px-3">
+    <header className="flex shrink-0 items-center justify-between gap-2 bg-background/90 px-3 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 md:px-3">
       <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
         <Button
           variant="ghost"
@@ -79,6 +80,7 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
         </Tooltip>
         <FeedbackDialog compact />
         <ShareLinkButton />
+        <PermissionPill />
       </div>
     </header>
   );
