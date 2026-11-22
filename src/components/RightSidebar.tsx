@@ -419,7 +419,7 @@ function FileBrowserEntry({
       </button>
       {isExpanded && (
         <div className="pl-6">
-          <LoadDirContents path={entry.path} expandedDirs={expandedDirs} onToggleDir={toggleDir} />
+          <LoadDirContents path={entry.path} expandedDirs={expandedDirs} onToggleDir={onToggleDir} />
         </div>
       )}
     </div>

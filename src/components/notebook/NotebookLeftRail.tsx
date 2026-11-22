@@ -160,16 +160,20 @@ export function NotebookExplorerDock({
             variant="ghost"
             className={cn(
               dockBtnClass,
+              "w-auto gap-1 px-2",
               explorerOpen && "border-border/70 bg-background text-foreground"
             )}
             onClick={toggleExplorer}
-            aria-label={explorerOpen ? "Close explorer" : "Open explorer"}
+            aria-label={explorerOpen ? "Close notebook sidebar" : "Open notebook sidebar"}
             aria-expanded={explorerOpen}
           >
             {explorerOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
+            <span className="text-[11px] font-medium">Files</span>
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="bottom">{explorerOpen ? "Close explorer" : "Open explorer"}</TooltipContent>
+        <TooltipContent side="bottom">
+          {explorerOpen ? "Hide files, papers, chats, and tools" : "Show files, papers, chats, and tools"}
+        </TooltipContent>
       </Tooltip>
     </div>
   );

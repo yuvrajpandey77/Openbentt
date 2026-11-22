@@ -11,7 +11,7 @@ export function useGlobalShortcuts(options: {
   onOpenSettings: () => void;
   onToggleRightSidebar: () => void;
 }) {
-  const { onOpenSearch, onOpenSettings } = options;
+  const { onOpenSearch, onOpenSettings, onToggleRightSidebar } = options;
   const navigate = useNavigate();
   const { createNewChat } = useChat();
 
@@ -52,5 +52,5 @@ export function useGlobalShortcuts(options: {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onOpenSearch, onOpenSettings, navigate, createNewChat]);
+  }, [onOpenSearch, onOpenSettings, onToggleRightSidebar, navigate, createNewChat]);
 }

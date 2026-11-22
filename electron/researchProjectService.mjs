@@ -4,7 +4,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
+import { resolveTexBinary } from "./tectonicEngine.mjs";
 import {
   getCompileArtifactDesktop,
   putCompileArtifactDesktop,
@@ -282,9 +283,14 @@ export function registerResearchProjectIpc(ipcMain, app) {
   ipcMain.handle("research:compileProjectLatex", async (_e, payload) => {
     const { mainTex, mainPath = "main.tex", files = [], bibtex = false } = payload ?? {};
     if (!mainTex || typeof mainTex !== "string") throw new Error("Missing mainTex");
-    const pdflatexCheck = spawnSync("pdflatex", ["--version"], { encoding: "utf8" });
-    if (pdflatexCheck.status !== 0) {
-      return { ok: false, message: "pdflatex not found on PATH. Install TeX Live or MacTeX." };
+
+    const binOk = (name) => spawnSync(name, ["--version"], { encoding: "utf8", timeout: 8000 }).status === 0;
+    const engine = await resolveTexBinary(app);
+    if (!engine) {
+      return {
+        ok: false,
+        message: "Could not download the built-in TeX engine (tectonic). Check your network and compile again.",
+      };
     }
 
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openbentt-proj-tex-"));
@@ -312,36 +318,57 @@ export function registerResearchProjectIpc(ipcMain, app) {
         }
       }
 
-      const opts = { cwd: dir, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 };
       const baseName = mainPath.replace(/\.tex$/i, "") || "main";
-      const args = ["-interaction=nonstopmode", "-halt-on-error", mainPath];
-      let log = "";
-      const runPdf = () => {
-        const r = spawnSync("pdflatex", args, opts);
-        log += (r.stdout || "") + (r.stderr || "");
-        return r.status ?? 1;
-      };
+      const run = (bin, args, timeout = 90000) =>
+        new Promise((resolve) => {
+          execFile(
+            bin,
+            args,
+            { cwd: dir, timeout, maxBuffer: 32 * 1024 * 1024, windowsHide: true },
+            (err, stdout, stderr) => {
+              resolve({
+                status: err ? (typeof err.code === "number" ? err.code : 1) : 0,
+                log: `${stdout ?? ""}\n${stderr ?? ""}`,
+              });
+            }
+          );
+        });
 
-      let status = runPdf();
-      if (bibtex) {
-        spawnSync("bibtex", [baseName], opts);
-        status = runPdf();
-        status = runPdf();
+      let log = "";
+      let status = 1;
+      // tectonic is one pass and stays off the UI thread (async). The app downloads it when missing.
+      if (engine.kind === "tectonic") {
+        const r = await run(engine.bin, ["--keep-logs", "--outdir", dir, mainPath], 180000);
+        log += r.log;
+        status = r.status;
       } else {
-        status = runPdf();
+        const args = ["-interaction=nonstopmode", "-halt-on-error", mainPath];
+        const runPdf = async () => {
+          const r = await run("pdflatex", args, 90000);
+          log += r.log;
+          return r.status;
+        };
+        status = await runPdf();
+        const needsRerun = bibtex || /Rerun to get/i.test(log) || /Citation .* undefined/i.test(log);
+        if (needsRerun && bibtex && binOk("bibtex")) {
+          const b = await run("bibtex", [baseName], 45000);
+          log += b.log;
+          status = await runPdf();
+          status = await runPdf();
+        } else if (needsRerun) {
+          status = await runPdf();
+        }
       }
 
       const pdfPath = path.join(dir, `${baseName}.pdf`);
       try {
-        await fs.access(pdfPath);
+        const pdfBuf = await fs.readFile(pdfPath);
+        if (pdfBuf.length > 0) return { ok: true, base64: pdfBuf.toString("base64") };
       } catch {
-        return { ok: false, message: log.slice(-24000) || "pdflatex failed" };
+        /* no pdf */
       }
-      if (status !== 0) {
-        return { ok: false, message: log.slice(-24000) || "pdflatex failed" };
-      }
-      const pdfBuf = await fs.readFile(pdfPath);
-      return { ok: true, base64: pdfBuf.toString("base64") };
+      void status;
+      return { ok: false, message: log.slice(-24000) || "LaTeX compile failed" };
     } finally {
       await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
     }

@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { AppChromeHeader } from "@/components/AppChromeHeader";
 import { getWorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
 import { SIDEBAR_COLLAPSED_KEY } from "@/lib/storageMigrate";
-import { sidebarMainMarginClass } from "@/lib/sidebarLayout";
+import { rightSidebarMainMarginClass, sidebarMainMarginClass } from "@/lib/sidebarLayout";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import ChatMessages from "@/components/ChatMessages";
 import { ExecutionInspector } from "@/components/conversation/ExecutionInspector";
@@ -46,6 +46,17 @@ const AppLayout: React.FC = () => {
     location.pathname === "/notebook" ||
     location.pathname === "/webgpu" ||
     location.pathname === "/projects";
+  /** Settings and tools are their own page — never a pane beside the chat transcript. */
+  const isStandalonePage =
+    location.pathname === "/settings" ||
+    location.pathname === "/diagnostics" ||
+    location.pathname === "/agent" ||
+    location.pathname === "/tasks" ||
+    location.pathname === "/documents" ||
+    location.pathname === "/files" ||
+    location.pathname === "/labs" ||
+    location.pathname === "/write" ||
+    location.pathname === "/benchmark";
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
@@ -185,7 +196,8 @@ const AppLayout: React.FC = () => {
       <main
         className={cn(
           "flex min-h-0 flex-1 flex-col transition-[margin] duration-300 ease-out",
-          sidebarMainMarginClass(sidebarCollapsed)
+          sidebarMainMarginClass(sidebarCollapsed),
+          rightSidebarMainMarginClass(rightSidebarOpen)
         )}
       >
         {!isFullBleedStudio && (
@@ -216,7 +228,7 @@ const AppLayout: React.FC = () => {
         )}
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {isFullBleedStudio ? (
+          {isFullBleedStudio || isStandalonePage ? (
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <Outlet />
             </div>
@@ -280,8 +292,8 @@ const AppLayout: React.FC = () => {
           )}
         </div>
 
-        {/* ONE composer everywhere except full-bleed studio (Notebook has floating chat). */}
-        {!isFullBleedStudio && (
+        {/* Composer stays on chat. Settings and tools are full pages. */}
+        {!isFullBleedStudio && !isStandalonePage && (
           <div className="shrink-0 bg-gradient-to-t from-card/90 to-background/95 backdrop-blur-sm">
             <ChatInput isLoading={isLoading} workspaceMeta={workspaceMeta} />
           </div>

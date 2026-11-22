@@ -125,7 +125,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
   variant = "default",
 }) => {
   const isStudio = variant === "studio";
-  const isCompact = variant === "compact" || isStudio;
   const location = useLocation();
   const pathKey = location.pathname;
 
@@ -439,13 +438,13 @@ const ChatInput: React.FC<ChatInputProps> = ({
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
-      const minH = isStudio ? "2.25rem" : isCompact ? "2.75rem" : "3.25rem";
+      const minH = isStudio ? "2.25rem" : "2.5rem";
       textareaRef.current.style.height = minH;
     }
 
     try {
       if (agentMode && attachments.length === 0) {
-        await sendAgentMessage(textToSend);
+        await sendAgentMessage(textToSend, { roleId: agentRoleId });
       } else {
         await sendMessage(textToSend, toSend, { executionMode });
       }
@@ -865,7 +864,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 </TooltipTrigger>
                 <TooltipContent side="bottom" align="start" className="max-w-xs">
                   <p className="text-xs text-muted-foreground">
-                    Phase 8 role agents (research, engineering, …). Selecting a role enables tool-using agent mode in chat.
+                    Runs this role on the agent you connected (OpenCode, Claude, Codex, Cursor, or another detected CLI).
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -1002,34 +1001,31 @@ const ChatInput: React.FC<ChatInputProps> = ({
             /* Universal layer: the box is always writable; send-time guards explain. */
             disabled={isLoading}
             className={cn(
-              "resize-none border-0 bg-muted/30 px-3 text-[15px] leading-relaxed text-foreground shadow-sm outline-none placeholder:text-muted-foreground/75 focus:outline-none focus-visible:outline-none focus-visible:ring-0 sm:text-base",
+              "resize-none border-0 bg-muted/30 px-3 py-0 text-[15px] leading-6 text-foreground shadow-sm outline-none placeholder:text-muted-foreground/75 focus:outline-none focus-visible:outline-none focus-visible:ring-0 sm:text-base",
               isStudio
-                ? "min-h-[2.25rem] max-h-24 py-2 pb-9 text-sm"
-                : isCompact
-                  ? "min-h-[2.75rem] max-h-32 py-2.5 pb-10"
-                  : "min-h-[3.25rem] max-h-40 pb-2 pt-2.5 md:min-h-[7.5rem] md:max-h-96 md:pb-14 md:pt-3"
+                ? "min-h-[2.5rem] max-h-24 py-1.5 pb-9 text-sm"
+                : "min-h-[2.5rem] max-h-32 py-1.5"
             )}
             style={{
               height: "auto",
-              minHeight: isStudio ? "2.25rem" : isCompact ? "2.75rem" : undefined,
-              maxHeight: isStudio ? "6rem" : undefined,
-              overflowY: message.length > 500 ? "auto" : "hidden",
+              minHeight: "2.5rem",
+              maxHeight: isStudio ? "6rem" : "8rem",
+              overflowY: message.length > 180 ? "auto" : "hidden",
             }}
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
+              const cap = isStudio ? 96 : 128;
               target.style.height = "auto";
-              target.style.height = Math.min(target.scrollHeight, 24 * 16) + "px";
+              target.style.height = Math.min(target.scrollHeight, cap) + "px";
             }}
             ref={textareaRef}
           />
 
-          <div className={cn("flex items-center justify-between gap-1", !isStudio && "md:contents")}>
-          {/* Bottom-left toolbar: model selector + attach + extras toggle */}
+          <div className="flex items-center justify-between gap-1">
+          {/* Toolbar sits under the field so the input stays one line tall. */}
           <div
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto max-md:shrink-0",
-              !isStudio &&
-                "md:absolute md:bottom-2 md:left-2 md:max-w-[calc(100%-3.5rem)] md:flex-wrap md:gap-1",
+              "flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto",
               isStudio && "absolute bottom-2 left-2 max-w-[calc(100%-3.5rem)] flex-wrap gap-1"
             )}
           >
@@ -1340,13 +1336,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
           </div>
 
           {/* Bottom-right: send / stop */}
-          <div
-            className={cn(
-              "shrink-0",
-              !isStudio && "md:absolute md:bottom-2 md:right-2",
-              isStudio && "absolute bottom-2 right-2"
-            )}
-          >
+          <div className={cn("shrink-0", isStudio && "absolute bottom-2 right-2")}>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

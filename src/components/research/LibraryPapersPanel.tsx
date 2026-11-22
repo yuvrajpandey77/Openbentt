@@ -3,12 +3,19 @@ import { useResearchProject } from "@/context/ResearchProjectContext";
 import { displayPaperTitle } from "@/lib/research/displayPaperLabel";
 import { VirtualList } from "@/components/VirtualList";
 import { LIMITS } from "@/lib/research/projectLimits";
-import { FileUp, Trash2 } from "lucide-react";
-import { useRef } from "react";
+import { BookOpen, FileUp, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export function LibraryPapersPanel() {
   const { project, uploadPaperPdf, updateProject, projectPressure } = useResearchProject();
+  const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [justAdded, setJustAdded] = useState<{ id: string; title: string } | null>(null);
+
+  const openInNotebook = (paperId: string) => {
+    navigate(`/notebook?paper=${encodeURIComponent(paperId)}`);
+  };
 
   if (!project) return null;
 
@@ -29,8 +36,11 @@ export function LibraryPapersPanel() {
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if (f) void uploadPaperPdf(f);
             e.target.value = "";
+            if (!f) return;
+            void uploadPaperPdf(f).then((id) => {
+              if (id) setJustAdded({ id, title: f.name });
+            });
           }}
         />
         <Button type="button" onClick={() => inputRef.current?.click()} disabled={atLimit}>
@@ -44,8 +54,22 @@ export function LibraryPapersPanel() {
           <span className="text-xs text-primary">Large library — indexing may take longer</span>
         )}
       </div>
+      {justAdded && (
+        <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
+          <p className="text-sm font-medium text-foreground">Next: open this in Notebook</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {justAdded.title} will show in the notebook sidebar. The chat button wiggles so you can ask about it from there.
+          </p>
+          <Button type="button" size="sm" className="mt-2" onClick={() => openInNotebook(justAdded.id)}>
+            <BookOpen className="mr-2 h-4 w-4" />
+            Open in Notebook
+          </Button>
+        </div>
+      )}
       {project.papers.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Upload PDFs to build your local corpus.</p>
+        <p className="text-sm text-muted-foreground">
+          Upload a PDF. Then open it in Notebook — it lands in the sidebar, and you ask about it from the chat button.
+        </p>
       ) : (
         <VirtualList
           items={project.papers}
@@ -63,9 +87,15 @@ export function LibraryPapersPanel() {
                   {p.extractedText.length.toLocaleString()} chars extracted
                 </p>
               </div>
-              <Button type="button" size="icon" variant="ghost" onClick={() => removePaper(p.id)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button type="button" size="sm" variant="outline" onClick={() => openInNotebook(p.id)}>
+                  <BookOpen className="mr-1.5 h-3.5 w-3.5" />
+                  Notebook
+                </Button>
+                <Button type="button" size="icon" variant="ghost" onClick={() => removePaper(p.id)} aria-label="Remove paper">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         />

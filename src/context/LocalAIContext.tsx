@@ -67,7 +67,7 @@ interface LocalAIContextValue {
   defaultReason: string;
   preferredModel: string | null;
   setPreferredModel: (name: string | null) => void;
-  refresh: () => Promise<void>;
+  refresh: (opts?: { quiet?: boolean }) => Promise<void>;
   pullModel: (model: string) => Promise<void>;
   cancelPull: (model: string) => Promise<void>;
   activePulls: Record<string, OllamaPullProgress>;

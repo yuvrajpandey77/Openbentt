@@ -50,6 +50,7 @@ import {
   scanForPromptInjection,
   shouldRouteToOpenCode,
 } from "../src/lib/agent/openCodeCore.mjs";
+import { externalAgentReady, isExternalAgentCli, startExternalAgent, stopExternalAgent } from "./externalAgentRun.mjs";
 import {
   bindServerSession,
   cleanupServerOnQuit as cleanupServeOnQuit,
@@ -94,6 +95,16 @@ const MIN_VERSION = "1.0.0";
 const MAX_TASKS = OPENCODE_LIMITS.maxTasks;
 const MAX_SESSIONS = OPENCODE_LIMITS.maxSessions;
 const MAX_EVENTS_PER_TASK = OPENCODE_LIMITS.maxEventsPerTask;
+/** Token streams must not evict the durable tool/permission trace. */
+const NOISY_AGENT_EVENTS = new Set([
+  "agent.message.delta",
+  "agent.reasoning.delta",
+  "agent.terminal.output",
+  "agent.tool.progress",
+  "agent.session.status",
+  "agent.status",
+  "agent.context.updated",
+]);
 const MAX_LOG_CHARS = OPENCODE_LIMITS.maxLogChars;
 
 const OPENCODE_TOOL_ID = "opencode.execute";
@@ -236,7 +247,8 @@ export function pushCanonicalEvents(taskId, sessionId, canonicalEvents) {  const
       type: evt.type,
       payload: evt.payload && typeof evt.payload === "object" ? evt.payload : {},
     };
-    list.push(stored);
+    const noisy = NOISY_AGENT_EVENTS.has(stored.type);
+    if (!noisy) list.push(stored);
     delivered.push(stored);
   }
   if (list.length > MAX_EVENTS_PER_TASK) {
@@ -247,6 +259,7 @@ export function pushCanonicalEvents(taskId, sessionId, canonicalEvents) {  const
     try {
       eventTarget?.webContents?.send("agent:event", evt);
     } catch { /* window may be gone */ }
+    if (NOISY_AGENT_EVENTS.has(evt.type)) continue;
     try {
       state.persistApp && Promise.resolve().then(async () => {
         const { appendTaskEvent } = await import("./taskStore.mjs");
@@ -1005,7 +1018,9 @@ function audit(app, fields) {
   }
 }
 
-export async function createTask(app, { title, prompt, workspaceRoot, displayName, mode = "build", inputSource = "text", model } = {}) {
+const AGENT_CLI_IDS = new Set(["opencode", "claude", "codex", "cursor-agent", "aider", "gemini"]);
+
+export async function createTask(app, { title, prompt, workspaceRoot, displayName, mode = "build", inputSource = "text", model, agentCli, roleId } = {}) {
   void app;
   clearOpenCodeIdleTimer();
   if (state.tasks.size >= MAX_TASKS) throw new Error("Too many tasks");
@@ -1047,6 +1062,8 @@ export async function createTask(app, { title, prompt, workspaceRoot, displayNam
     // Preferred OpenCode model (chat picker); execution resolves it against
     // the gateway model cache and falls back to "auto" when unknown.
     requestedModel: cleanModel,
+    agentCli: AGENT_CLI_IDS.has(agentCli) ? agentCli : undefined,
+    roleId: typeof roleId === "string" && /^[a-z0-9-]{1,64}$/.test(roleId) ? roleId : undefined,
   };
   state.tasks.set(id, task);
   state.events.set(id, []);
@@ -1121,9 +1138,22 @@ function stripAnsi(s) {
   return String(s ?? "").replace(/\x1b\[[0-9;]*m/g, "");
 }
 
+export function looksLikeCliHelp(text) {
+  const t = String(text ?? "").replace(/\\n/g, "\n");
+  const flat = t.replace(/\s+/g, " ");
+  return (
+    /USAGE\s+opencode run/i.test(flat) ||
+    /Show help information/i.test(flat) ||
+    (/DESCRIPTION/i.test(flat) && /Run OpenCode with a message/i.test(flat)) ||
+    (/GLOBAL FLAGS/i.test(flat) && /--print-logs/i.test(flat)) ||
+    (/ARGUMENTS\s+message/i.test(flat) && /--standalone/i.test(flat))
+  );
+}
+
 /** Extract assistant text from `opencode run --format json` event lines (best-effort). */
 export function extractAskText(stdout) {
   const raw = stripAnsi(stdout).slice(0, ASK_MAX_OUTPUT_CHARS * 2);
+  if (looksLikeCliHelp(raw)) return "";
   const lines = raw.split("\n").filter((l) => l.trim());
   const parts = [];
   let sawJson = false;
@@ -1133,12 +1163,18 @@ export function extractAskText(stdout) {
     sawJson = true;
     try {
       const evt = JSON.parse(t);
+      // Prefer structured error messages over dumping CLI help.
+      if (evt?.type === "error" || evt?.error) {
+        const msg =
+          (typeof evt.error?.message === "string" && evt.error.message) ||
+          (typeof evt.message === "string" && evt.message) ||
+          "";
+        if (msg) return redactSecretsFromText(msg).slice(0, ASK_MAX_OUTPUT_CHARS).trim();
+      }
       const texts = [];
       const walk = (v, depth) => {
         if (depth > 6 || texts.join("").length > ASK_MAX_OUTPUT_CHARS) return;
         if (typeof v === "string") {
-          // Only harvest known text-bearing keys is complex; harvest leaf
-          // strings from text-ish envelopes and filter below.
           texts.push(v);
           return;
         }
@@ -1160,13 +1196,18 @@ export function extractAskText(stdout) {
       };
       walk(evt, 0);
       for (const s of texts) {
-        if (s && s.length < 4000) parts.push(s);
+        if (s && s.length < 8000 && !looksLikeCliHelp(s)) parts.push(s);
       }
     } catch { /* not an event line */ }
   }
-  if (parts.length) return redactSecretsFromText(parts.join("")).slice(0, ASK_MAX_OUTPUT_CHARS).trim();
+  if (parts.length) {
+    const joined = redactSecretsFromText(parts.join("")).slice(0, ASK_MAX_OUTPUT_CHARS).trim();
+    if (looksLikeCliHelp(joined)) return "";
+    return joined;
+  }
   if (sawJson) return "";
-  // Non-JSON output (formatted default): return as plain text.
+  // Non-JSON output (formatted default): return as plain text — never CLI help.
+  if (looksLikeCliHelp(raw)) return "";
   return redactSecretsFromText(raw).slice(0, ASK_MAX_OUTPUT_CHARS).trim();
 }
 
@@ -1191,29 +1232,39 @@ export async function askOpenCode(app, { message, model, workspaceRoot, title, s
   }
   const det = await detectOpenCode();
   if (!det.installed) throw new Error("OpenCode is not installed. See Setup → Execution.");
+  // OpenCode v2.x dropped `--dir`; set process cwd instead (unknown flags dump USAGE into chat).
   const cwd = workspaceRoot ? await resolveWorkspaceRoot(workspaceRoot) : askSandboxDir();
-  const args = ["run", "--format", "json", "--dir", cwd];
+  const args = ["run", "--format", "json"];
   if (cleanModel) args.push("--model", cleanModel);
   if (cleanSession) args.push("--session", cleanSession);
   if (typeof title === "string" && title.trim()) args.push("--title", title.trim().slice(0, 120));
   args.push(clean);
   const startedAt = Date.now();
-  const { text, session, permissionRequests, timedOut } = await new Promise((resolve) => {
+  const { text, session, permissionRequests, timedOut, helpLeak } = await new Promise((resolve) => {
     const child = execFile(det.executablePath, args, {
+      cwd,
       timeout: ASK_TIMEOUT_MS,
       maxBuffer: 8 * 1024 * 1024,
       windowsHide: true,
       env: buildChildEnv(),
     }, (err, stdout, stderr) => {
       if (err && err.killed) {
-        resolve({ text: "", session: cleanSession, permissionRequests: [], timedOut: true });
+        resolve({
+          text: "",
+          session: cleanSession,
+          permissionRequests: [],
+          timedOut: true,
+          helpLeak: false,
+        });
         return;
       }
+      const combined = `${stdout ?? ""}\n${stderr ?? ""}`;
       resolve({
         text: extractAskText(stdout ?? ""),
         session: extractAskSession(stdout ?? "") ?? cleanSession,
         permissionRequests: extractAskPermissions(stderr ?? ""),
         timedOut: false,
+        helpLeak: looksLikeCliHelp(combined),
       });
     });
     // Closed stdin: any interactive permission prompt hits EOF and denies.
@@ -1230,8 +1281,17 @@ export async function askOpenCode(app, { message, model, workspaceRoot, title, s
     },
   });
   if (timedOut) throw new Error("OpenCode took too long to answer (180s). Try a shorter question.");
+  if (helpLeak) {
+    throw new Error(
+      "OpenCode CLI rejected the request (unsupported flags). Update Openbentt or pick Local Ollama / another provider."
+    );
+  }
   if (!text && permissionRequests.length === 0) {
     throw new Error("OpenCode returned no answer. Check Setup → Execution for runtime status.");
+  }
+  // Never surface CLI help / USAGE banners as a chat reply.
+  if (looksLikeCliHelp(text)) {
+    throw new Error("OpenCode returned CLI help instead of an answer. Try Local Ollama or another provider.");
   }
   return { text, model: cleanModel ?? "auto", durationMs: Date.now() - startedAt, sessionId: session, permissionRequests };
 }
@@ -1355,9 +1415,12 @@ async function simulateExecution(app, task, session) {
   // is only reachable after every required approval is granted — never by
   // falling through.
   task.checkpoint ??= 0;
-  const wantsTest = /test|failing|broken|fix/i.test(task.prompt);
-  const wantsWrite = /fix|patch|refactor|modify|create|implement|build|edit|rewrite|update/i.test(task.prompt);
-  const wantsDelete = /delete|remove|destroy|wipe/i.test(task.prompt);
+  // Role policy text ("do not delete") must not look like a delete request.
+  const intent = (task.prompt.match(/User request:\s*([\s\S]*)$/i)?.[1] ?? task.prompt).slice(0, 4000);
+  const wantsTest = /\b(test|failing|broken|fix)\b/i.test(intent);
+  const wantsWrite = /\b(fix|patch|refactor|modify|create|implement|build|edit|rewrite|update)\b/i.test(intent);
+  const wantsDelete = /\b(delete|remove|destroy|wipe)\b/i.test(intent)
+    && !/\b(do not|don't|never|without)\b[\s\S]{0,40}\b(delete|remove|destroy|wipe)\b/i.test(intent);
   if (wantsDelete && task.checkpoint <= 0) {
     task.checkpoint = 1;
     syncTaskState(app, task, session);
@@ -1493,8 +1556,28 @@ export async function startTask(app, taskId) {
   if (!["QUEUED", "FAILED", "CANCELLED", "CRASHED", "UNKNOWN"].includes(task.status)) {
     throw new Error(`Task is ${task.status}`);
   }
-  if (!shouldRouteToOpenCode(task.category) && task.category !== "UNKNOWN") {
+  const explicitAgent = Boolean(task.roleId || task.agentCli);
+  if (!explicitAgent && !shouldRouteToOpenCode(task.category) && task.category !== "UNKNOWN") {
     throw new Error(`Task category ${task.category} does not route to OpenCode in Phase 1`);
+  }
+  if (isExternalAgentCli(task.agentCli) && await externalAgentReady(task.agentCli)) {
+    const session = createSession({ workspaceId: task.workspace.workspaceId, taskId: task.id });
+    session.status = "RUNNING";
+    persistSession(app, session);
+    task.sessionId = session.id;
+    task.status = "RUNNING";
+    task.updatedAt = nowIso();
+    task.error = undefined;
+    syncTaskState(app, task, session);
+    const started = await startExternalAgent({
+      task,
+      session,
+      app,
+      pushEvent,
+      syncTaskState,
+    });
+    if (started) return { ...task, workspace: { ...task.workspace } };
+    task.status = "QUEUED";
   }
   await ensureRuntime(app);
   const session = createSession({ workspaceId: task.workspace.workspaceId, taskId: task.id });
@@ -1571,6 +1654,7 @@ export async function startTask(app, taskId) {
 export async function cancelTask(app, taskId) {
   const task = state.tasks.get(taskId);
   if (!task) throw new Error("Task not found");
+  stopExternalAgent(taskId);
   // Live engine: abort the real session first so work actually stops.
   const binding = state.serverSessions.get(taskId);
   if (binding) {
@@ -2175,6 +2259,8 @@ export function registerOpenCodeIpc(ipcMain, app) {
       inputSource: p.inputSource === "voice" ? "voice" : "text",
       // Optional OpenCode model pin (validated inside createTask).
       model: p.model,
+      agentCli: typeof p.agentCli === "string" ? p.agentCli : undefined,
+      roleId: typeof p.roleId === "string" ? p.roleId : undefined,
     });
   });
   ipcMain.handle("agent:startTask", async (_e, payload) => {

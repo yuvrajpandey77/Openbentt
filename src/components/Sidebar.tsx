@@ -28,7 +28,10 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AccountMenu } from "@/components/AccountMenu";
 import { LocalAIStatus } from "@/components/LocalAIStatus";
+import { NotebookPaneSettingsDock } from "@/components/notebook/NotebookPaneSettingsDock";
+import { ChatActionsMenu } from "@/components/ChatActionsMenu";
 import { isWorkspacePathAllowedOnWeb } from "@/config/platformSurface";
+import { sidebarWidthClass } from "@/lib/sidebarLayout";
 
 /**
  * Central sidebar — primary destinations always visible (including when collapsed).
@@ -194,28 +197,35 @@ const Sidebar: React.FC<SidebarProps> = ({
   const renderRecentChat = (chat: { id: string; title: string }) => {
     const active = currentChatId === chat.id;
     return (
-      <Tooltip key={chat.id}>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={() => handleSelectChat(chat.id)}
-            title={chat.title || "Untitled chat"}
-            className={cn(
-              "sidebar-nav-item",
-              collapsed && "sidebar-nav-item--icon-only",
-              isMobile && "sidebar-nav-item--mobile",
-              active && "sidebar-nav-item--active"
-            )}
-            aria-current={active ? "page" : undefined}
-          >
-            <MessageSquare className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")} strokeWidth={1.5} />
-            {showLabels && (
-              <span className="sidebar-nav-label truncate">{chat.title || "Untitled chat"}</span>
-            )}
-          </button>
-        </TooltipTrigger>
-        {iconOnly && <TooltipContent side="right">Open conversation</TooltipContent>}
-      </Tooltip>
+      <div key={chat.id} className="group flex items-center gap-0.5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => handleSelectChat(chat.id)}
+              title={chat.title || "Untitled chat"}
+              className={cn(
+                "sidebar-nav-item min-w-0 flex-1",
+                collapsed && "sidebar-nav-item--icon-only",
+                isMobile && "sidebar-nav-item--mobile",
+                active && "sidebar-nav-item--active"
+              )}
+              aria-current={active ? "page" : undefined}
+            >
+              <MessageSquare className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")} strokeWidth={1.5} />
+              {showLabels && (
+                <span className="sidebar-nav-label truncate">{chat.title || "Untitled chat"}</span>
+              )}
+            </button>
+          </TooltipTrigger>
+          {iconOnly && <TooltipContent side="right">Open conversation</TooltipContent>}
+        </Tooltip>
+        {showLabels && (
+          <div className="opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+            <ChatActionsMenu chatId={chat.id} compact />
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -234,11 +244,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           "fixed inset-y-0 left-0 z-[var(--z-sidebar)] flex flex-col",
           "border-r border-border bg-background",
           "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
-          isMobile
-            ? "w-full border-0"
-            : collapsed
-              ? "w-[56px] border-r border-border"
-              : "w-[260px] border-r border-border",
+          isMobile ? "w-full border-0" : cn(sidebarWidthClass(collapsed), "border-r border-border"),
           isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
         aria-label="Primary navigation"
@@ -460,6 +466,19 @@ const Sidebar: React.FC<SidebarProps> = ({
               collapsed && "items-center"
             )}
           >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className={cn(collapsed ? "flex justify-center" : "w-full")}>
+                  <NotebookPaneSettingsDock
+                    embedded
+                    layout={collapsed ? "dock" : "sidebar"}
+                    className={collapsed ? "relative h-9 w-9 rounded-lg shadow-none" : undefined}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right">Compiler and notebook panes</TooltipContent>
+            </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <button

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GripHorizontal, Maximize2, MessageSquare, Minimize2, Minimize, X } from "lucide-react";
 import ChatMessages from "@/components/ChatMessages";
@@ -49,6 +50,34 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
   const resizeRef = useRef<{ w: number; h: number; sx: number; sy: number } | null>(null);
   const [resolvedPos, setResolvedPos] = useState<{ x: number; y: number } | null>(null);
   const [showConnectionHint, setShowConnectionHint] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [askHint, setAskHint] = useState(false);
+  const [wiggle, setWiggle] = useState(false);
+
+  useEffect(() => {
+    const fromUrl = searchParams.get("paper");
+    let fromSession = false;
+    try {
+      fromSession = Boolean(sessionStorage.getItem("openbentt-ask-hint"));
+    } catch {
+      fromSession = false;
+    }
+    if (!fromUrl && !fromSession) return;
+    setAskHint(true);
+    setWiggle(true);
+    const t = window.setTimeout(() => setWiggle(false), 1700);
+    return () => window.clearTimeout(t);
+  }, [searchParams]);
+
+  const dismissAskHint = () => {
+    setAskHint(false);
+    setWiggle(false);
+    try {
+      sessionStorage.removeItem("openbentt-ask-hint");
+    } catch {
+      /* ignore */
+    }
+  };
 
   const isExpanded =
     chatPanelRect.width >= CHAT_PANEL_EXPANDED.width - 8 &&
@@ -192,15 +221,35 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
 
   if (!chatPanelOpen) {
     return (
-      <Button
-        type="button"
-        size="icon"
-        className="absolute bottom-4 right-4 z-40 h-11 w-11 rounded-full shadow-lg"
-        aria-label="Open project chat"
-        onClick={() => setChatPanelOpen(true)}
-      >
-        <MessageSquare className="h-5 w-5" />
-      </Button>
+      <div className="absolute bottom-4 right-4 z-40 flex items-end gap-2">
+        {askHint && (
+          <button
+            type="button"
+            onClick={() => {
+              dismissAskHint();
+              setChatPanelOpen(true);
+            }}
+            className="max-w-[220px] rounded-xl border border-primary/40 bg-background px-3 py-2 text-left shadow-lg"
+          >
+            <p className="text-xs font-medium text-foreground">Ask from here</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Your paper is in the sidebar. Click the chat to ask about it.
+            </p>
+          </button>
+        )}
+        <Button
+          type="button"
+          size="icon"
+          className={cn("h-11 w-11 rounded-full shadow-lg", wiggle && "chat-bubble-wiggle")}
+          aria-label="Open project chat"
+          onClick={() => {
+            dismissAskHint();
+            setChatPanelOpen(true);
+          }}
+        >
+          <MessageSquare className="h-5 w-5" />
+        </Button>
+      </div>
     );
   }
 

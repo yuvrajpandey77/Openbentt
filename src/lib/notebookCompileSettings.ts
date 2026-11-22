@@ -32,7 +32,7 @@ export function saveNotebookCompileSettings(next: Partial<NotebookCompileSetting
 export function compileBackendLabel(b: CompileBackend): string {
   switch (b) {
     case "auto":
-      return "Auto (BusyTeX → local TeX when needed)";
+      return "Auto (built-in TeX)";
     case "wasm":
       return "Browser BusyTeX";
     case "local":

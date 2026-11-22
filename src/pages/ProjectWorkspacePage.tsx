@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useWorkspaceFolderPicker } from "@/hooks/useWorkspaceFolderPicker";
 import { ExecutionBadge } from "@/components/conversation/ExecutionBadge";
-import { Plus, FolderOpen, FolderKanban, Files, BookOpen, FileStack, NotebookPen, ListTodo, MoreHorizontal, ChevronRight, ChevronDown, Search, MessageSquare, Mic, Brain } from "lucide-react";
+import { Plus, FolderOpen, FolderKanban, Files, BookOpen, FileStack, NotebookPen, ListTodo, MoreHorizontal, ChevronRight, ChevronDown, Search, MessageSquare, Mic, Brain, RefreshCw, FileText, FolderTree } from "lucide-react";
+import { getDesktopApi } from "@/lib/desktopApi";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { ChatActionsMenu } from "@/components/ChatActionsMenu";
 
 /**
  * Project workspace: the primary context boundary.
@@ -259,18 +261,22 @@ const ProjectWorkspacePage: React.FC = () => {
               </div>
               <nav className="flex shrink-0 flex-col gap-0.5 mb-4" aria-label="Project conversations">
                 {projectChats.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => handleSelectChat(c.id)}
-                    className={cn(
-                      "sidebar-nav-item",
-                      currentChatId === c.id && "sidebar-nav-item--active"
-                    )}
-                  >
-                    <MessageSquare className="shrink-0 h-4 w-4" strokeWidth={1.5} />
-                    <span className="sidebar-nav-label truncate">{c.title || "Untitled conversation"}</span>
-                  </button>
+                  <div key={c.id} className="group flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectChat(c.id)}
+                      className={cn(
+                        "sidebar-nav-item min-w-0 flex-1",
+                        currentChatId === c.id && "sidebar-nav-item--active"
+                      )}
+                    >
+                      <MessageSquare className="shrink-0 h-4 w-4" strokeWidth={1.5} />
+                      <span className="sidebar-nav-label truncate">{c.title || "Untitled conversation"}</span>
+                    </button>
+                    <div className="opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                      <ChatActionsMenu chatId={c.id} compact />
+                    </div>
+                  </div>
                 ))}
                 {projectChats.length === 0 && (
                   <p className="px-2 py-1 text-xs text-muted-foreground">No conversations yet.</p>

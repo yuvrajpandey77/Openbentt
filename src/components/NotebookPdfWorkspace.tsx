@@ -269,10 +269,13 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   }, [sourceText]);
 
   useEffect(() => {
-    workspace?.setSectionHeadings(parseSectionHeadings(sourceText));
+    const t = window.setTimeout(() => {
+      workspace?.setSectionHeadings(parseSectionHeadings(sourceText));
+    }, 700);
+    return () => window.clearTimeout(t);
   }, [sourceText, workspace]);
 
-  const debouncedSourceForHistory = useDebouncedValue(sourceText, 800);
+  const debouncedSourceForHistory = useDebouncedValue(sourceText, 2500);
 
   useEffect(() => {
     if (!workspace) return;
@@ -308,7 +311,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   }, [researchProject, sourceText, studioCtx?.activeEditorFile.type]);
 
   /** Debounce Source in system context so typing does not rewrite a huge string every keystroke. */
-  const debouncedSourceForAssist = useDebouncedValue(sourceText, 400);
+  const debouncedSourceForAssist = useDebouncedValue(sourceText, 1500);
 
   const previewBuffer = useMemo(() => {
     if (!originalBytes && compiledBytes) return compiledBytes;
@@ -727,6 +730,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
         const blob = await compileNotebookSourceToPdf(text, fileName?.replace(/\.(pdf|tex)$/i, "") || "Notebook", {
           bundle,
           projectId: researchProject.id,
+          allowTextFallback: false,
         });
         const buf = await blob.arrayBuffer();
         setCompiledBytes(buf.slice(0));
@@ -745,7 +749,9 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
         return;
       }
 
-      const blob = await compileNotebookSourceToPdf(text, fileName?.replace(/\.(pdf|tex)$/i, "") || "Notebook");
+      const blob = await compileNotebookSourceToPdf(text, fileName?.replace(/\.(pdf|tex)$/i, "") || "Notebook", {
+        allowTextFallback: false,
+      });
       const buf = await blob.arrayBuffer();
       setCompiledBytes(buf.slice(0));
       setPreviewVariant("compiled");

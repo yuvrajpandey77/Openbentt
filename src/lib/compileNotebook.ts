@@ -15,6 +15,8 @@ export type CompileNotebookOptions = {
   /** When set with bundle, enables compile artifact cache lookup/store. */
   projectId?: string;
   useCompileCache?: boolean;
+  /** Explicit Compile clicks should fail visibly instead of a fake text PDF. */
+  allowTextFallback?: boolean;
 };
 
 function prepareBundle(bundle: CompileBundle, applyStyle: boolean): CompileBundle {
@@ -83,6 +85,7 @@ export async function compileNotebookSourceToPdf(
       }
       return blob;
     } catch (err) {
+      if (opts.allowTextFallback === false) throw err;
       return textFallbackPdf(prepared.mainTex, plainTitle, err);
     }
   }
@@ -93,6 +96,7 @@ export async function compileNotebookSourceToPdf(
     try {
       return await compileLatexToPdfBlob(tex);
     } catch (err) {
+      if (opts.allowTextFallback === false) throw err;
       return textFallbackPdf(tex, plainTitle, err);
     }
   }

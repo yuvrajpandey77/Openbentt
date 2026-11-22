@@ -86,7 +86,7 @@ export function NotebookStudioShell() {
     const buf = editorBufferRef.current;
     if (prev.type === "bib") setBibliography(buf);
     else if (prev.type === "projectFile") updateProjectFileContent(prev.fileId, buf);
-    else setDraftTex(buf);
+    else setDraftTex(buf, { immediate: true });
     prevEditorFileRef.current = activeEditorFile;
   }, [activeEditorFile, setBibliography, setDraftTex, updateProjectFileContent]);
 

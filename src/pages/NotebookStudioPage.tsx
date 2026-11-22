@@ -19,7 +19,8 @@ const NotebookStudioPage: React.FC = () => {
 
   useEffect(() => {
     if (!loading && project) {
-      const t = window.setTimeout(() => setEntering(false), 480);
+      // Short paint gate only — long artificial delay made Notebook feel frozen.
+      const t = window.setTimeout(() => setEntering(false), 50);
       return () => window.clearTimeout(t);
     }
     setEntering(true);

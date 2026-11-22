@@ -1,9 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import { FileText, FolderKanban, Search, Sparkles } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import { useLocalAI } from "@/context/LocalAIContext";
 import { friendlyModelLabel } from "@/lib/ollama/selection";
 import { Button } from "@/components/ui/button";
+import { ChatProviderPicker, needsChatProviderChoice } from "@/components/ChatProviderPicker";
+import { clearChatProviderChoice, loadChatProviderChoice } from "@/lib/agent/chatProviderChoice";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 
 /** Empty chat — short prompts only; no instructional clutter. */
 const SUGGESTIONS = [
@@ -16,10 +19,26 @@ const SUGGESTIONS = [
 export const ChatHome: React.FC = () => {
   const { queuePromptInComposer, createNewChat } = useChat();
   const { effectiveModel } = useLocalAI();
+  const [version, setVersion] = useState(0);
+  const choice = loadChatProviderChoice();
+  const showPicker = isDesktopApp() && (!choice || version < 0);
 
   const modelLabel = effectiveModel?.modelId
     ? friendlyModelLabel(effectiveModel.modelId)
     : null;
+
+  if (showPicker || (isDesktopApp() && needsChatProviderChoice())) {
+    return (
+      <div className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center gap-6 px-4 py-10">
+        <img src="/openbentt-logo.svg" alt="" className="h-10 w-10 object-contain opacity-90" />
+        <ChatProviderPicker
+          onChosen={() => {
+            setVersion((n) => Math.abs(n) + 1);
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center gap-8 px-4 py-10">
@@ -27,6 +46,18 @@ export const ChatHome: React.FC = () => {
         <img src="/openbentt-logo.svg" alt="" className="h-10 w-10 object-contain opacity-90" />
         <h1 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">Openbentt</h1>
         {modelLabel && <p className="text-xs text-muted-foreground">{modelLabel}</p>}
+        {isDesktopApp() && choice && (
+          <button
+            type="button"
+            className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+            onClick={() => {
+              clearChatProviderChoice();
+              setVersion(-1);
+            }}
+          >
+            Change AI provider
+          </button>
+        )}
       </div>
       <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2" role="list">
         {SUGGESTIONS.map((s) => (

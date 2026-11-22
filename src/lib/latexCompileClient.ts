@@ -32,7 +32,7 @@ const LOCAL_LATEX_DOWN_HINT =
   "Vite proxies /api/latex-compile to 127.0.0.1:8788. Start the helper in another terminal: npm run latex-compile (requires pdflatex on PATH).";
 
 const LOCAL_ELECTRON_HINT =
-  "Install TeX Live or MacTeX so pdflatex is on PATH, or set Compile backend to “Browser BusyTeX” in Notebook settings (gear).";
+  "Openbentt downloads tectonic on the first compile. If that failed, check your network and compile again. Browser BusyTeX stays off unless you pick it under Compiler.";
 
 const WASM_LIMIT_HINT =
   "Browser BusyTeX cannot load IEEEtran, TikZ, or many journal packages. Install TeX Live and use “Local TeX Live (Electron)” in Notebook settings.";
@@ -74,10 +74,11 @@ export function documentNeedsFullTexLive(tex: string, bundle?: CompileBundle): b
  * - Simple docs: BusyTeX → local pdflatex → HTTP
  * - Full-TeX docs (IEEE, TikZ, …): local pdflatex → BusyTeX → HTTP
  */
-export function autoCompileEngineOrder(needsFullTex: boolean, localAvailable: boolean): CompileEngine[] {
-  if (needsFullTex && localAvailable) return ["local", "wasm", "http"];
-  if (localAvailable) return ["wasm", "local", "http"];
-  return ["wasm", "http"];
+export function autoCompileEngineOrder(_needsFullTex: boolean, localAvailable: boolean): CompileEngine[] {
+  // Never try the HTTP helper in auto mode — in the desktop app that request
+  // hangs on app:// and compile looks stuck. Remote is an explicit backend.
+  if (localAvailable) return ["local", "wasm"];
+  return ["wasm"];
 }
 
 function appendLocalLatexHintIfProxyDown(errText: string, status: number): string {
@@ -133,6 +134,7 @@ async function compileLatexHttp(tex: string, endpoint: string, bundle?: CompileB
       method: "POST",
       headers: { "Content-Type": contentType },
       body,
+      signal: AbortSignal.timeout(8000),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -247,6 +249,8 @@ async function compileAuto(
         console.warn("[latex] Local TeX unavailable (no pdflatex), trying next backend…");
         continue;
       }
+      // A real TeX error should surface immediately — don't start BusyTeX after it.
+      if (engine === "local") throw formatLocalCompileError(message, needsFullTex);
     }
   }
 
@@ -262,6 +266,13 @@ export async function compileLatexToPdfBlob(tex: string, bundle?: CompileBundle)
   const localAvailable = canCompileLocalElectron(bundle);
 
   if (backend === "auto") {
+    // Desktop never falls through to BusyTeX. That WASM build is the resource spike.
+    if (isDesktopApp()) {
+      if (!localAvailable || !bundle) {
+        throw new Error(`No local TeX engine.\n\n${LOCAL_ELECTRON_HINT}`);
+      }
+      return compileLocalElectron(bundle);
+    }
     return compileAuto(texClean, bundle, needsFullTex, localAvailable);
   }
 
@@ -270,17 +281,10 @@ export async function compileLatexToPdfBlob(tex: string, bundle?: CompileBundle)
   }
 
   if (backend === "local") {
-    if (localAvailable) {
-      try {
-        return await compileLocalElectron(bundle!);
-      } catch (err) {
-        // Missing pdflatex → keep going; other TeX errors still fall through so the user gets a PDF somehow.
-        console.warn("[latex] Local TeX failed, cascading to BusyTeX/HTTP…", errMessage(err));
-      }
-    } else {
-      console.warn("[latex] Local TeX unavailable; cascading to BusyTeX/HTTP…");
+    if (!localAvailable || !bundle) {
+      throw new Error(`No local TeX engine.\n\n${LOCAL_ELECTRON_HINT}`);
     }
-    return compileAuto(texClean, bundle, needsFullTex, false);
+    return compileLocalElectron(bundle);
   }
 
   // wasm — BusyTeX first, then HTTP so compile still works without BusyTeX assets.

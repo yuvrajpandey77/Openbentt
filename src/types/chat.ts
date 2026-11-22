@@ -126,6 +126,8 @@ export interface Chat {
   projectId?: string | null;
   /** Ordered OpenCode task ids spawned from this conversation (execution history). */
   taskIds?: string[];
+  /** When set, automatic titles from the latest message leave this name alone. */
+  titleLocked?: boolean;
 }
 
 /**

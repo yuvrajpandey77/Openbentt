@@ -159,12 +159,16 @@ export function NotebookStudioPreview({
     };
   }, [previewBuffer, paper?.id, setPdfPageInfo]);
 
+  // Debounce page-progress writes — every page flip used to save the whole project.
   useEffect(() => {
     if (!activePaperId || !pdfNumPages) return;
-    void updatePaperReview(activePaperId, {
-      lastReviewedPage: pdfPage,
-      reviewStatus: "reviewing",
-    });
+    const t = window.setTimeout(() => {
+      void updatePaperReview(activePaperId, {
+        lastReviewedPage: pdfPage,
+        reviewStatus: "reviewing",
+      });
+    }, 600);
+    return () => window.clearTimeout(t);
   }, [activePaperId, pdfPage, pdfNumPages, updatePaperReview]);
 
   const renderCurrentPage = useCallback(async () => {
@@ -220,8 +224,11 @@ export function NotebookStudioPreview({
     el.innerHTML = "";
     thumbWrapsRef.current = [];
     let cancelled = false;
-    const limit = Math.min(pdfNumPages, 24);
+    // Cap thumbs hard — 24 canvases + full-page render was a common OOM path.
+    const limit = Math.min(pdfNumPages, 8);
     void (async () => {
+      // Yield so the main page paint wins over thumbnails.
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
       for (let p = 1; p <= limit; p++) {
         if (cancelled) return;
         const wrap = document.createElement("button");
@@ -241,6 +248,9 @@ export function NotebookStudioPreview({
           await renderPdfThumbnail(doc, p, c, 56);
         } catch {
           /* thumbnail cancelled or doc closed */
+        }
+        if (p % 2 === 0) {
+          await new Promise<void>((r) => setTimeout(r, 0));
         }
       }
     })();

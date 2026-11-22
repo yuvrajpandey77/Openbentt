@@ -22,17 +22,14 @@ describe("documentNeedsFullTexLive", () => {
 });
 
 describe("autoCompileEngineOrder", () => {
-  it("prefers BusyTeX for simple docs when local is available", () => {
-    expect(autoCompileEngineOrder(false, true)).toEqual(["wasm", "local", "http"]);
+  it("prefers native TeX whenever Electron compile is available", () => {
+    expect(autoCompileEngineOrder(false, true)).toEqual(["local", "wasm"]);
+    expect(autoCompileEngineOrder(true, true)).toEqual(["local", "wasm"]);
   });
 
-  it("prefers local TeX for IEEE-style docs when Electron compile is available", () => {
-    expect(autoCompileEngineOrder(true, true)).toEqual(["local", "wasm", "http"]);
-  });
-
-  it("uses BusyTeX then HTTP on web without local bundle", () => {
-    expect(autoCompileEngineOrder(false, false)).toEqual(["wasm", "http"]);
-    expect(autoCompileEngineOrder(true, false)).toEqual(["wasm", "http"]);
+  it("uses BusyTeX only when no local engine is available", () => {
+    expect(autoCompileEngineOrder(false, false)).toEqual(["wasm"]);
+    expect(autoCompileEngineOrder(true, false)).toEqual(["wasm"]);
   });
 });
 

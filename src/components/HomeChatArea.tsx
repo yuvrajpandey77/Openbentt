@@ -10,10 +10,8 @@ import { isLocalGemmaWeightsLoaded } from "@/lib/gemmaWebGpu/localGemmaInference
 import { LOCAL_TINY_MODEL_ID } from "@/lib/gemmaWebGpu/models";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, HardDrive } from "lucide-react";
-import { ErrorCard } from "@/components/ErrorCard";
-
 const HomeChatArea: React.FC = () => {
-  const { chats, currentChatId, isLoading, apiConfig, webgpuModelDownloadProgress, normalizedError, clearError } = useChat();
+  const { chats, currentChatId, isLoading, apiConfig, webgpuModelDownloadProgress } = useChat();
   const isMobile = useIsMobile();
   const [ramReady, setRamReady] = useState(() => isLocalGemmaWeightsLoaded());
 
@@ -111,28 +109,7 @@ const HomeChatArea: React.FC = () => {
           </div>
         </div>
       )}
-      {normalizedError && (
-        <div className="shrink-0 border-b border-border/50 px-3 py-2 sm:px-4">
-          <div className="mx-auto max-w-3xl">
-            <ErrorCard
-              error={normalizedError.error}
-              provider={normalizedError.details?.provider ?? "unknown"}
-              model={normalizedError.details?.model ?? "unknown"}
-              onRetry={() => {
-                // Retry will be handled by the chat context
-              }}
-              onChooseModel={() => {
-                // Navigate to settings or open model picker
-              }}
-              onOpenSettings={() => {
-                // Navigate to settings
-              }}
-              onDismiss={() => clearError()}
-            />
-          </div>
-        </div>
-      )}
-      {messages.length === 0 && !isLoading && !normalizedError ? (
+      {messages.length === 0 && !isLoading ? (
         <ChatHome />
       ) : (
         <ChatMessages messages={messages} isLoading={isLoading} activeTaskId={activeTaskId} />

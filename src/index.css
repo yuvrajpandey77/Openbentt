@@ -478,6 +478,19 @@
     animation: chatShimmer 1.4s ease-in-out infinite;
   }
 
+  @keyframes openbenttWiggle {
+    0%, 100% { transform: rotate(0deg); }
+    20% { transform: rotate(-14deg); }
+    40% { transform: rotate(12deg); }
+    60% { transform: rotate(-8deg); }
+    80% { transform: rotate(6deg); }
+  }
+
+  .chat-bubble-wiggle {
+    animation: openbenttWiggle 0.55s ease-in-out 3;
+    transform-origin: center bottom;
+  }
+
   @keyframes chatShimmer {
     0% {
       background-position: 100% 0;

@@ -11,6 +11,7 @@ import { CapabilitiesSheet } from "@/components/CapabilitiesSheet";
 import { ContextMeter } from "@/components/ContextMeter";
 import { ProviderQuotaMeter } from "@/components/ProviderQuotaMeter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ChatActionsMenu } from "@/components/ChatActionsMenu";
 
 interface ChatContainerProps {
   onOpenMobileSidebar: () => void;
@@ -90,6 +91,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
           )}
           <CapabilitiesSheet />
           <ShareLinkButton />
+          <ChatActionsMenu chatId={currentChatId} />
         </div>
       </header>
 

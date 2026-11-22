@@ -23,6 +23,17 @@ import { ChatThinkingIndicator } from "@/components/ChatThinkingIndicator";
 import { CompareUseInNotebook } from "@/components/research/CompareUseInNotebook";
 import { AgentRunApprovals } from "@/components/actions/AgentRunApprovals";
 import { AgentActivity } from "@/components/conversation/AgentActivity";
+
+/** OpenCode sometimes prints its CLI manual into the transcript. Never show that wall of flags. */
+function scrubOpenCodeCliHelp(content: string): string {
+  const flat = content.replace(/\s+/g, " ");
+  const isHelp =
+    /USAGE\s+opencode run/i.test(flat) ||
+    (/GLOBAL FLAGS/i.test(flat) && /opencode run/i.test(flat)) ||
+    (/DESCRIPTION/i.test(flat) && /Run OpenCode with a message/i.test(flat));
+  if (!isHelp) return content;
+  return "That reply was OpenCode’s command help, not an answer. Use Local Ollama from the model menu, or send the question again.";
+}
 import { OpenCodeActivityTerminal } from "@/components/conversation/OpenCodeActivityTerminal";
 
 const SCROLL_PIN_THRESHOLD_PX = 80;
@@ -149,7 +160,7 @@ const AssistantRoleContent: React.FC<{
                 ) : (
                   <div className="flex-1">
                     <AssistantContent
-                      content={part.content}
+                      content={scrubOpenCodeCliHelp(part.content)}
                       streaming={part.streaming}
                       highlightQuery={highlightQuery}
                       compact={compact}
@@ -176,7 +187,7 @@ const AssistantRoleContent: React.FC<{
     <>
       <div ref={exportRef}>
         <AssistantContent
-          content={message.content}
+          content={scrubOpenCodeCliHelp(message.content)}
           streaming={streamingActive}
           highlightQuery={highlightQuery}
           compact={compact}

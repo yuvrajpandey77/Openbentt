@@ -80,6 +80,8 @@ import {
   streamOpenCodeLayerChat,
   type OpenCodeLayerSnapshot,
 } from "@/lib/agent/openCodeChat";
+import { choiceUsesOpenCodeAsk, loadChatProviderChoice, PREFERRED_AGENT_KEY } from "@/lib/agent/chatProviderChoice";
+import { getAgentRole } from "@/lib/agent/agentRoles";
 
 export type ExecutionMode = "chat" | "plan" | "build" | "task";
 
@@ -87,7 +89,8 @@ export type ExecutionMode = "chat" | "plan" | "build" | "task";
 function shouldUseOpenCodeAskLayer(cfg: ApiKeyConfig, layerAvailable: boolean): boolean {
   if (!hasOpenCodeDesktopApi() || !layerAvailable) return false;
   if (prefersLocalOllamaInference(cfg)) return false;
-  return true;
+  // Only when user explicitly picked an OpenCode/CLI agent — never auto-dump CLI help.
+  return choiceUsesOpenCodeAsk(loadChatProviderChoice()?.id);
 }
 
 function formatChatProviderError(cfg: ApiKeyConfig, err: unknown, fallback: string): string {
@@ -203,7 +206,9 @@ interface ChatContextProps {
   dismissAskPermissions: (messageId: string) => void;
   selectChat: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
+  renameChat: (chatId: string, title: string) => void;
   clearChats: () => void;
+  chatsReady: boolean;
   sendMessage: (
     content: string,
     attachments?: MessageAttachment[],
@@ -223,7 +228,7 @@ interface ChatContextProps {
   setSourceScope: (v: string[]) => void;
   /** Suspended agent run awaiting user confirmation (null when none). */
   pendingAgentConfirm: { runId: string; toolId: string; summary: string } | null;
-  sendAgentMessage: (content: string, opts?: { projectId?: string }) => Promise<void>;
+  sendAgentMessage: (content: string, opts?: { projectId?: string; roleId?: string }) => Promise<void>;
   confirmAgentRun: (runId: string) => Promise<void>;
   /** Research: register a provider returning the active project id for agent scoping. */
   registerAgentProjectProvider: (fn: (() => string | null) | null) => void;
@@ -335,6 +340,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   >(null);
   const chatsRef = useRef(chats);
   chatsRef.current = chats;
+  const [chatsReady, setChatsReady] = useState(false);
 
   const setWorkspaceRouteAssist = useCallback((block: string | undefined) => {
     workspaceRouteAssistRef.current = block;
@@ -403,6 +409,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else if (savedCurrentChatId) {
       setCurrentChatId(null);
     }
+    setChatsReady(true);
 
     let cancelled = false;
 
@@ -779,11 +786,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let dispose = () => {};
     try {
       dispose = openCodeAgentApi.onEvent((evt) => {
-        setExecutionEvents((prev) => {
-          const list = prev[evt.taskId] ?? [];
-          if (list.some((e) => e.eventId === evt.eventId)) return prev;
-          return { ...prev, [evt.taskId]: [...list.slice(-499), evt] };
-        });
+        const HIGH_FREQ = evt.type === "agent.message.delta"
+          || evt.type === "agent.reasoning.delta"
+          || evt.type === "agent.terminal.output"
+          || evt.type === "agent.tool.progress";
+        if (!HIGH_FREQ) {
+          setExecutionEvents((prev) => {
+            const list = prev[evt.taskId] ?? [];
+            if (list.some((e) => e.eventId === evt.eventId)) return prev;
+            // UI keeps a short tail. The full run is already appended to the task log on disk.
+            return { ...prev, [evt.taskId]: [...list.slice(-159), evt] };
+          });
+        }
         // High-frequency streaming deltas batch into message content (one
         // render per batch, not per token). Raw deltas stay in
         // executionEvents for the timeline/debug views.
@@ -964,6 +978,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       model?: string;
       /** Execution mode from composer selector: chat | plan | build | task */
       executionMode?: ExecutionMode;
+      agentCli?: string;
+      roleId?: string;
     }): Promise<boolean> => {
       const mode = args.executionMode ?? executionModeRef.current;
       
@@ -1056,6 +1072,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           mode: openCodeMode,
           inputSource: args.inputSource,
           model: args.model?.trim() ? args.model.trim() : undefined,
+          agentCli: args.agentCli,
+          roleId: args.roleId,
         });
         setExecutionTasks((prev) => ({ ...prev, [created.id]: created }));
         setExecutionEvents((prev) => ({ ...prev, [created.id]: [] }));
@@ -1536,17 +1554,23 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteChat = (chatId: string) => {
-    setChats((prevChats) => prevChats.filter((chat) => chat.id !== chatId));
-
+    const remaining = chatsRef.current.filter((chat) => chat.id !== chatId);
+    setChats(remaining);
     if (currentChatId === chatId) {
-      const remainingChats = chatsRef.current.filter((chat) => chat.id !== chatId);
-      setCurrentChatId(remainingChats.length > 0 ? remainingChats[0].id : null);
+      setCurrentChatId(remaining.length > 0 ? remaining[remaining.length - 1].id : null);
     }
-
     toast({
-      title: "Chat Deleted",
-      description: "The chat has been deleted",
+      title: "Chat deleted",
+      description: "That conversation is gone.",
     });
+  };
+
+  const renameChat = (chatId: string, title: string) => {
+    const next = title.trim().slice(0, 80);
+    if (!next) return;
+    setChats((prev) =>
+      prev.map((chat) => (chat.id === chatId ? { ...chat, title: next, titleLocked: true, updatedAt: new Date() } : chat))
+    );
   };
 
   const clearChats = () => {
@@ -1557,6 +1581,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateChatTitleFromMessages = (chatId: string, messages: Message[]) => {
+    if (chatsRef.current.find((c) => c.id === chatId)?.titleLocked) return;
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
     const base = lastUser.content.trim() || (lastUser.attachments?.length ? "(attachment)" : "");
@@ -2417,11 +2442,116 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     []
   );
 
-  const sendAgentMessage = async (content: string, opts?: { projectId?: string }) => {
+  const sendAgentMessage = async (content: string, opts?: { projectId?: string; roleId?: string }) => {
       const trimmed = content.trim();
       if (!trimmed) return;
+      let roleId = opts?.roleId;
+      if (!roleId) {
+        try { roleId = localStorage.getItem("openbentt-agent-role") ?? "research-assistant"; } catch { roleId = "research-assistant"; }
+      }
+      let role;
+      try { role = getAgentRole(roleId); } catch { role = getAgentRole("research-assistant"); }
+      let preferred = "opencode";
+      try { preferred = localStorage.getItem(PREFERRED_AGENT_KEY) || "opencode"; } catch { /* default */ }
+
+      const looksLikeWork = trimmed.length > 24 && /\b(fix|build|create|implement|edit|write|draft|send|schedule|delete|remove|refactor|compile|inspect|debug|add|update|research|investigate|brief|outline|code|file|repo)\b/i.test(trimmed);
+
+      if (looksLikeWork && hasOpenCodeDesktopApi() && getExecutionRuntime() === "opencode") {
+        let activeChatId = currentChatId;
+        if (activeChatId && !chatsRef.current.some((c) => c.id === activeChatId)) activeChatId = null;
+        if (!activeChatId) activeChatId = createNewChat();
+        const chatId: string = activeChatId;
+        const projectId = opts?.projectId ?? agentProjectProviderRef.current?.() ?? null;
+        const userMessage: Message = {
+          id: uuidv4(), role: "user", content: trimmed, timestamp: new Date(),
+        };
+        const assistantMessage: Message = {
+          id: uuidv4(), role: "assistant", content: "", timestamp: new Date(), streaming: true,
+        };
+        setChats((prevChats) =>
+          prevChats.map((chat) =>
+            chat.id === chatId
+              ? { ...chat, messages: [...chat.messages, userMessage, assistantMessage], updatedAt: new Date() }
+              : chat
+          )
+        );
+        setIsLoading(true);
+        const instruction = [
+          `You are acting as Openbentt's ${role.name}.`,
+          role.systemPolicy,
+          `Access level: ${role.accessLevel}. Stay inside this role. External sends stay approval-gated.`,
+          "",
+          `User request:\n${trimmed}`,
+        ].join("\n");
+        const absorbed = await tryRouteToExecution({
+          chatId,
+          assistantMessageId: assistantMessage.id,
+          text: instruction,
+          projectId,
+          inputSource: "text",
+          model: openCodeModelRef.current,
+          executionMode: role.accessLevel === "read-only" ? "plan" : "build",
+          agentCli: preferred,
+          roleId: role.id,
+        });
+        if (absorbed) return;
+        setChats((prevChats) =>
+          prevChats.map((chat) =>
+            chat.id === chatId
+              ? { ...chat, messages: chat.messages.filter((m) => m.id !== assistantMessage.id && m.id !== userMessage.id), updatedAt: new Date() }
+              : chat
+          )
+        );
+        setIsLoading(false);
+      }
+
+      if (!looksLikeWork && hasOpenCodeDesktopApi()) {
+        let activeChatId = currentChatId;
+        if (activeChatId && !chatsRef.current.some((c) => c.id === activeChatId)) activeChatId = null;
+        if (!activeChatId) activeChatId = createNewChat();
+        const chatId: string = activeChatId;
+        const userMessage: Message = {
+          id: uuidv4(), role: "user", content: trimmed, timestamp: new Date(),
+        };
+        const assistantMessage: Message = {
+          id: uuidv4(), role: "assistant", content: "", timestamp: new Date(), streaming: true,
+        };
+        setChats((prevChats) =>
+          prevChats.map((chat) =>
+            chat.id === chatId
+              ? { ...chat, messages: [...chat.messages, userMessage, assistantMessage], updatedAt: new Date() }
+              : chat
+          )
+        );
+        setIsLoading(true);
+        try {
+          const asked = await openCodeAgentApi.askOpenCode({
+            message: `You are Openbentt's ${role.name}. Answer in that role, briefly.\n\n${trimmed}`.slice(0, 8000),
+            title: role.name.slice(0, 80),
+            model: openCodeModelRef.current,
+          });
+          patchAgentMessage(chatId, assistantMessage.id, (m) => ({
+            ...m,
+            content: asked.text || "No answer came back.",
+            streaming: false,
+          }));
+          persistAgentTurn(chatId, trimmed, asked.text || "", asked.model || role.name);
+          return;
+        } catch {
+          setChats((prevChats) =>
+            prevChats.map((chat) =>
+              chat.id === chatId
+                ? { ...chat, messages: chat.messages.filter((m) => m.id !== assistantMessage.id && m.id !== userMessage.id), updatedAt: new Date() }
+                : chat
+            )
+          );
+        } finally {
+          setIsLoading(false);
+        }
+      }
+
       if (!canSendChat(apiConfig)) {
-        toastKeyMissing("Add an OpenRouter API key or set an OpenAI-compatible base URL in Settings.");
+        toastKeyMissing("Connect an agent in Settings → Agents, or add a model in Settings.");
         return;
       }
       let activeChatId = currentChatId;
@@ -2454,7 +2584,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const messageId = assistantMessage.id;
 
       try {
-        const def = getAgentDefinition("research-assistant");
+        const def = getAgentDefinition(role.id);
         const modelFn = collectingModelFn(createRoutedModelFn(def, apiConfig));
         const output = await runAgent(
           def,
@@ -2641,7 +2771,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unifiedChatReady,
       selectChat,
       deleteChat,
+      renameChat,
       clearChats,
+      chatsReady,
       sendMessage,
       regenerateLastResponse,
       beginEditUserMessage,
@@ -2705,7 +2837,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unifiedChatReady,
       selectChat,
       deleteChat,
+      renameChat,
       clearChats,
+      chatsReady,
       sendMessage,
       regenerateLastResponse,
       beginEditUserMessage,

@@ -28,6 +28,20 @@ import { inferPdfMetadata } from "@/lib/research/citationTools";
 import { displayPaperTitle } from "@/lib/research/displayPaperLabel";
 import { extractPdfReviewAnnotations } from "@/lib/pdfAnnotations";
 import { requestSemanticIndexRebuild } from "@/lib/research/embeddingPipeline";
+
+export const OPEN_PAPER_KEY = "openbentt-open-paper";
+export const ASK_HINT_KEY = "openbentt-ask-hint";
+
+function notePaperReady(paperId: string | null) {
+  if (!paperId) return;
+  try {
+    sessionStorage.setItem(OPEN_PAPER_KEY, paperId);
+    sessionStorage.setItem(ASK_HINT_KEY, paperId);
+  } catch {
+    /* ignore */
+  }
+  window.dispatchEvent(new CustomEvent("openbentt-paper-added", { detail: { paperId } }));
+}
 import type { EmbeddingIndexProgress } from "@/lib/research/embeddingIndex";
 import {
   chunkIdsRemovedAfterRechunk,
@@ -91,10 +105,10 @@ type ResearchProjectContextValue = {
   importProjectFromFolder: (files: FileList | File[]) => Promise<void>;
   removeProject: (id: string) => Promise<void>;
   updateProject: (patch: Partial<ResearchProjectData>) => Promise<void>;
-  setDraftTex: (tex: string) => void;
+  setDraftTex: (tex: string, opts?: { immediate?: boolean }) => void;
   setBibliography: (bib: string) => void;
   setTargetVenue: (venue: ResearchProjectData["targetVenue"]) => Promise<void>;
-  uploadPaperPdf: (file: File) => Promise<void>;
+  uploadPaperPdf: (file: File) => Promise<string | null>;
   updatePaperReview: (
     paperId: string,
     patch: Partial<import("@/types/researchProject").ResearchPaper>
@@ -145,9 +159,12 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   const { registerCorpusRagProvider, registerChatLogPersister, registerAgentProjectProvider, apiConfig } = useChat();
 
   // Register corpus RAG provider whenever there's an active project.
+  // Cache TF-IDF per chunk fingerprint — rebuilding on every query froze chat in Notebook.
+  const tfidfCacheRef = useRef<{ key: string; index: ReturnType<typeof buildTfidfIndex> } | null>(null);
   useEffect(() => {
     if (!project?.chunks.length) {
       registerCorpusRagProvider(null);
+      tfidfCacheRef.current = null;
       return;
     }
     const budget = ragBudgetForProvider(apiConfig.aiProvider);
@@ -158,7 +175,12 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
         const names = Object.fromEntries(
           p.papers.map((paper) => [paper.id, paper.metadata.title ?? paper.fileName])
         );
-        const tfidf = buildTfidfIndex(p.chunks);
+        const key = `${p.id}:${p.chunks.length}:${p.chunks[0]?.id ?? ""}:${p.chunks[p.chunks.length - 1]?.id ?? ""}`;
+        let tfidf = tfidfCacheRef.current?.key === key ? tfidfCacheRef.current.index : null;
+        if (!tfidf) {
+          tfidf = buildTfidfIndex(p.chunks);
+          tfidfCacheRef.current = { key, index: tfidf };
+        }
         const vectors = await resolveLibraryEmbeddings(p.id, p.chunks, p.chunkEmbeddings);
         const { hybridRetrieveV2 } = await import("@/lib/research/retrievalV2");
         const hits = await hybridRetrieveV2(query, p.chunks, names, tfidf, vectors, {
@@ -304,10 +326,14 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
     })();
   }, [loadActive, refreshProjects]);
 
+  const projectChunksRef = useRef(project?.chunks);
+  projectChunksRef.current = project?.chunks;
+
   useEffect(() => {
-    if (!isDesktopApp() || !project) return;
+    if (!isDesktopApp() || !project?.id) return;
+    const projectId = project.id;
     return onResearchJobProgress((payload) => {
-      if (payload.projectId !== project.id) return;
+      if (payload.projectId !== projectId) return;
       const jobType = payload.jobType ?? "rechunk";
       setBackgroundJob({
         jobId: payload.jobId,
@@ -318,8 +344,8 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       });
       if (payload.status === "completed" && jobType === "rechunk") {
         void (async () => {
-          const prevChunks = project.chunks;
-          const reloaded = await loadResearchProject(project.id);
+          const prevChunks = projectChunksRef.current ?? [];
+          const reloaded = await loadResearchProject(projectId);
           if (!reloaded) return;
           const removed = chunkIdsRemovedAfterRechunk(prevChunks, reloaded.chunks);
           // Draft-only churn must not kick MiniLM — only library paper chunks.
@@ -334,7 +360,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
             .map((c) => c.id)
             .sort()
             .join("|");
-          if (libRemoved.length) await deleteEmbeddingsForChunksDesktop(project.id, libRemoved);
+          if (libRemoved.length) await deleteEmbeddingsForChunksDesktop(projectId, libRemoved);
           setProject(reloaded);
           if (libRemoved.length || prevLib !== nextLib) {
             runSemanticRebuildRef.current?.(reloaded.chunks, reloaded.id, {
@@ -348,7 +374,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
         bgClearTimerRef.current = setTimeout(() => setBackgroundJob(null), 4000);
       }
     });
-  }, [project?.id, project?.chunks, toast]);
+  }, [project?.id]);
 
   useEffect(() => {
     if (!isDesktopApp()) return;
@@ -368,20 +394,30 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
     cancelSemanticIndexRebuildInner();
   }, [cancelSemanticIndexRebuildInner]);
 
+  const resumeIndexTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maybeResumeIndexing = useCallback(
     (p: ResearchProjectData | null) => {
       if (!p) return;
-      const cp = loadIndexCheckpoint(p.id);
       const lib = p.chunks.filter((c) => c.paperId !== "draft");
+      if (lib.length === 0) return;
+      const cp = loadIndexCheckpoint(p.id);
       const embedded = isDesktopApp()
         ? 0
         : Object.keys(p.chunkEmbeddings ?? {}).filter((k) => k !== "__query__").length;
       if (isDesktopApp()) {
-        void embeddingStatsDesktop(p.id).then((stats) => {
-          if (stats.count < lib.length) {
-            runSemanticRebuildRef.current?.(p.chunks, p.id);
-          }
-        });
+        // Defer embed resume so Notebook first paint isn't blocked by MiniLM IPC.
+        if (resumeIndexTimerRef.current) clearTimeout(resumeIndexTimerRef.current);
+        const projectId = p.id;
+        const chunks = p.chunks;
+        const libCount = lib.length;
+        resumeIndexTimerRef.current = setTimeout(() => {
+          resumeIndexTimerRef.current = null;
+          void embeddingStatsDesktop(projectId).then((stats) => {
+            if (stats.count < libCount) {
+              runSemanticRebuildRef.current?.(chunks, projectId);
+            }
+          });
+        }, 2500);
         return;
       }
       if (cp && cp.doneIds.length < cp.total && embedded < lib.length) {
@@ -409,9 +445,9 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       await setActiveProjectId(id);
       const p = await loadResearchProject(id);
       setProject(p);
-      maybeResumeIndexing(p);
+      // Do not auto-embed on open — MiniLM on Notebook enter froze the whole app.
     },
-    [cancelSemanticIndexRebuildInner, maybeResumeIndexing]
+    [cancelSemanticIndexRebuildInner]
   );
 
   const persist = useCallback(
@@ -482,11 +518,8 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
 
   runSemanticRebuildRef.current = runSemanticRebuild;
 
-  useEffect(() => {
-    if (project && loadIndexCheckpoint(project.id)) {
-      maybeResumeIndexing(project);
-    }
-  }, [project?.id, maybeResumeIndexing]);
+  // Indexing resumes only from an explicit rebuild or after a paper upload.
+  // Opening Notebook must not start MiniLM.
 
   const rebuildSemanticIndex = useCallback(() => {
     if (!project) return;
@@ -675,8 +708,9 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   const dismissBackgroundJob = useCallback(() => setBackgroundJob(null), []);
 
   const setDraftTex = useCallback(
-    (tex: string) => {
-      if (!project) return;
+    (tex: string, opts?: { immediate?: boolean }) => {
+      const current = projectRef.current;
+      if (!current) return;
       if (tex.length > LIMITS.maxDraftChars) {
         toast({
           title: "Draft too large",
@@ -685,16 +719,26 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
         });
         return;
       }
-      setProject((p) => (p ? { ...p, draftTex: tex } : p));
-      setDraftSaveStatus("dirty");
+      // Keep keystrokes out of React state. Updating `project` every character
+      // re-rendered Sidebar, chat, and the whole Notebook studio.
       draftPendingRef.current = tex;
+      setDraftSaveStatus((s) => (s === "dirty" ? s : "dirty"));
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-      draftTimerRef.current = setTimeout(() => {
+      const projectId = current.id;
+      const commit = () => {
         const pending = draftPendingRef.current;
-        if (pending != null) void flushDraft(project.id, pending, project.papers);
-      }, DRAFT_DEBOUNCE_MS);
+        const live = projectRef.current;
+        if (pending == null || !live || live.id !== projectId) return;
+        setProject((p) => (p && p.id === projectId ? { ...p, draftTex: pending } : p));
+        void flushDraft(projectId, pending, live.papers);
+      };
+      if (opts?.immediate) {
+        commit();
+        return;
+      }
+      draftTimerRef.current = setTimeout(commit, DRAFT_DEBOUNCE_MS);
     },
-    [flushDraft, project, toast]
+    [flushDraft, toast]
   );
 
   const bibTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -857,14 +901,14 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       setBibliography,
       setTargetVenue: async (venue) => updateProject({ targetVenue: venue }),
       uploadPaperPdf: async (file) => {
-        if (!project) return;
+        if (!project) return null;
         if (project.papers.length >= LIMITS.maxPapers) {
           toast({
             title: "Paper limit reached",
             description: `This project supports up to ${LIMITS.maxPapers} PDFs.`,
             variant: "destructive",
           });
-          return;
+          return null;
         }
         const buf = await file.arrayBuffer();
         // Phase F: non-PDF sources go through the document adapters
@@ -879,17 +923,37 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
               description: `${file.name} could not be read. Try PDF, DOCX, Markdown, or text.`,
               variant: "destructive",
             });
-            return;
+            return null;
           }
           const meta = inferPdfMetadata(doc.text);
           const next = await addPaperToProject(project, file.name, doc.text, meta, undefined, [
             `[ingested via ${doc.provenance.adapter} ${doc.provenance.version}]`,
           ]);
-          setProject(next);
+          const rebuild = await rebuildProjectCorpus(
+            next.id,
+            next.papers.map((p) => ({
+              id: p.id,
+              fileName: p.fileName,
+              extractedText: p.extractedText,
+            })),
+            next.draftTex
+          );
+          if (rebuild.mode === "sync") {
+            next.chunks = rebuild.chunks;
+            next.chunkEmbeddings = undefined;
+            await saveResearchProject(next);
+            setProject(next);
+            runSemanticRebuild(next.chunks, next.id);
+          } else {
+            next.chunkEmbeddings = undefined;
+            await saveResearchProject(next, { skipChunks: true });
+            setProject(next);
+          }
           await refreshProjects();
+          const paperId = next.papers[next.papers.length - 1]?.id ?? null;
+          notePaperReady(paperId);
           toast({ title: "Source added", description: displayPaperTitle({ fileName: file.name, metadata: meta }) });
-          runSemanticRebuild(next.chunks, next.id);
-          return;
+          return paperId;
         }
         const { extractResearchPdfWithOcr } = await import("@/lib/documents/pdfOcrIngest");
         const { text: extracted, ocrApplied, ocrAvailable } = await extractResearchPdfWithOcr(
@@ -907,8 +971,30 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
           /* optional */
         }
         const next = await addPaperToProject(project, file.name, extracted, meta, b64, reviewNotes);
-        setProject(next);
+        // addPaperToProject clears chunks — must rebuild corpus before embed.
+        const rebuild = await rebuildProjectCorpus(
+          next.id,
+          next.papers.map((p) => ({
+            id: p.id,
+            fileName: p.fileName,
+            extractedText: p.extractedText,
+          })),
+          next.draftTex
+        );
+        if (rebuild.mode === "sync") {
+          next.chunks = rebuild.chunks;
+          next.chunkEmbeddings = undefined;
+          await saveResearchProject(next);
+          setProject(next);
+          runSemanticRebuild(next.chunks, next.id);
+        } else {
+          next.chunkEmbeddings = undefined;
+          await saveResearchProject(next, { skipChunks: true });
+          setProject(next);
+        }
         await refreshProjects();
+        const paperId = next.papers[next.papers.length - 1]?.id ?? null;
+        notePaperReady(paperId);
         void createProjectSnapshot(project.id, "after-upload");
         const annCount = reviewNotes?.length ?? 0;
         const bodyOnly = extracted
@@ -928,7 +1014,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
                 : " · scanned PDF — install system tesseract for OCR"
               : ""),
         });
-        runSemanticRebuild(next.chunks, next.id);
+        return paperId;
       },
       updatePaperReview,
       addProjectFile,

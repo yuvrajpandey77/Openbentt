@@ -68,7 +68,7 @@ export function NotebookPaneSettingsDock({ embedded = false, layout = "dock", cl
           aria-label="Notebook pane settings"
         >
           <Settings2 className={cn("h-4 w-4", layout === "sidebar" && "shrink-0")} />
-          {layout === "sidebar" ? <span className="truncate">Panes</span> : null}
+          {layout === "sidebar" ? <span className="truncate">Compiler</span> : null}
         </Button>
       </PopoverTrigger>
       <PopoverContent

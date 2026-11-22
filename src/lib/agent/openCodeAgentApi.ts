@@ -33,6 +33,10 @@ interface AgentBridge {
     inputSource?: "text" | "voice";
     /** Optional OpenCode model pin from the chat model picker. */
     model?: string;
+    /** Connected CLI to run: opencode, claude, codex, cursor-agent, aider, gemini. */
+    agentCli?: string;
+    /** Role id chosen in the composer. Forces this turn onto the connected agent. */
+    roleId?: string;
   }) => Promise<OpenCodeTask>;
   startTask: (taskId: string) => Promise<OpenCodeTask>;
   cancelTask: (taskId: string) => Promise<OpenCodeTask>;

@@ -12,20 +12,16 @@ import { ThreadContextProvider } from "@/components/conversation/ThreadContextPr
 const ConversationRoutePage: React.FC = () => {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
-  const { chats, selectChat } = useChat();
+  const { chats, chatsReady, selectChat } = useChat();
 
   useEffect(() => {
-    if (!conversationId) {
+    if (!chatsReady) return;
+    if (!conversationId || !chats.some((c) => c.id === conversationId)) {
       navigate("/chat", { replace: true });
       return;
     }
-    if (chats.some((c) => c.id === conversationId)) {
-      selectChat(conversationId);
-    } else if (chats.length > 0) {
-      // Unknown id (e.g. cleared storage): fall back to chat root.
-      navigate("/chat", { replace: true });
-    }
-  }, [conversationId, chats, selectChat, navigate]);
+    selectChat(conversationId);
+  }, [conversationId, chats, chatsReady, selectChat, navigate]);
 
   return (
     <ThreadContextProvider>

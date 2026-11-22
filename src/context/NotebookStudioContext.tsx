@@ -31,7 +31,7 @@ export type ConnectionDrag = {
 } | null;
 
 const CHAT_PANEL_RECT_KEY = "openbentt-notebook-chat-panel-rect";
-const EXPLORER_OPEN_KEY = "openbentt-notebook-explorer-open";
+const EXPLORER_OPEN_KEY = "openbentt-notebook-explorer-open-v2";
 const EXPLORER_WIDTH_KEY = "openbentt-notebook-explorer-width";
 const DEFAULT_CHAT_RECT: ChatPanelRect = { x: -1, y: -1, width: 420, height: 520 };
 
@@ -61,9 +61,10 @@ export const NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX = 40;
 
 function loadExplorerOpen(): boolean {
   try {
-    return localStorage.getItem(EXPLORER_OPEN_KEY) === "1";
+    // Open by default. Only a deliberate close ("0") keeps it hidden.
+    return localStorage.getItem(EXPLORER_OPEN_KEY) !== "0";
   } catch {
-    return false;
+    return true;
   }
 }
 

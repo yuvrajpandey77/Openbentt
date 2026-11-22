@@ -15,7 +15,7 @@ import {
 } from "@/lib/agent/externalAgentsApi";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 
-const PREFERRED_AGENT_KEY = "openbentt-preferred-external-agent";
+import { PREFERRED_AGENT_KEY } from "@/lib/agent/chatProviderChoice";
 
 function accessBadge(level: AgentRoleMeta["accessLevel"]) {
   if (level === "read-only") return <Badge variant="secondary">Read-only</Badge>;

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -44,8 +45,6 @@ import {
   SYSTEM_FOLDER_IDS,
 } from "@/lib/research/folderMigration";
 import { TemplateGallery } from "@/components/notebook/TemplateGallery";
-import { NotebookPaneSettingsDock } from "@/components/notebook/NotebookPaneSettingsDock";
-import { AppSettingsDialog } from "@/components/AppSettingsDialog";
 import { applyTemplatePack } from "@/lib/research/applyTemplate";
 import { loadTemplatePack, type TemplateCatalogEntry } from "@/lib/research/templateCatalog";
 import { useToast } from "@/hooks/use-toast";
@@ -65,7 +64,6 @@ import {
   FolderPlus,
   Pencil,
   Plus,
-  Settings,
   Trash2,
 } from "lucide-react";
 
@@ -302,7 +300,10 @@ export function NotebookFileTree({
     setChatConnection,
     chatConnections,
     openChatPanel,
+    setExplorerOpen,
   } = useNotebookStudio();
+  const [searchParams] = useSearchParams();
+  const openedPaperRef = useRef<string | null>(null);
   const [expanded, setExpanded] = useState(
     () => new Set(["folder-papers", "folder-chapters", "folder-assets", "folder-includes"])
   );
@@ -366,6 +367,35 @@ export function NotebookFileTree({
     },
     [project, setActiveFile, setActivePaperId, updatePaperReview, viewer]
   );
+
+  useEffect(() => {
+    let requested: string | null = null;
+    try {
+      requested = sessionStorage.getItem("openbentt-open-paper");
+    } catch {
+      requested = null;
+    }
+    const fromUrl = searchParams.get("paper");
+    const id = fromUrl || requested;
+    if (!id || !project || !viewer || openedPaperRef.current === id) return;
+    const paper = project.papers.find((p) => p.id === id);
+    if (!paper) return;
+    openedPaperRef.current = id;
+    setExplorerOpen(true);
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.add("folder-papers");
+      return next;
+    });
+    void openPaper(paper.id, paper.fileName).then(() => {
+      setChatConnection("pdf", paper.id);
+    });
+    try {
+      sessionStorage.removeItem("openbentt-open-paper");
+    } catch {
+      /* ignore */
+    }
+  }, [searchParams, project, viewer, openPaper, setChatConnection, setExplorerOpen]);
 
   const openChatForNode = useCallback(
     (node: TreeNode) => {
@@ -663,18 +693,8 @@ export function NotebookFileTree({
           <Plus className="h-3.5 w-3.5" />
           New file…
         </Button>
-        <div className="flex gap-1.5">
-          <AppSettingsDialog
-            trigger={
-              <Button type="button" variant="outline" size="sm" className="h-8 min-w-0 flex-1 gap-1 text-xs">
-                <Settings className="h-3.5 w-3.5 shrink-0" />
-                Settings
-              </Button>
-            }
-          />
-          <NotebookPaneSettingsDock embedded layout="sidebar" className="min-w-0 flex-1" />
-        </div>
         <p className="text-[10px] text-muted-foreground">
+          Compiler is in the left sidebar.{" "}
           <kbd className="rounded border px-1">J</kbd>/<kbd className="rounded border px-1">K</kbd> next/prev PDF
         </p>
       </div>
