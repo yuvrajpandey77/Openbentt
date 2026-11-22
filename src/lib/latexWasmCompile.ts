@@ -7,6 +7,7 @@ import type { CompileBundle } from "@/lib/research/compileBundle";
 import { wasmLatexFailureMessage } from "@/lib/latexErrorUi";
 
 let runnerInit: Promise<import("texlyre-busytex").BusyTexRunner> | null = null;
+let idleTerminateTimer: ReturnType<typeof setTimeout> | null = null;
 
 function busyTexBaseUrl(): string {
   const base = import.meta.env.BASE_URL || "/";
@@ -14,10 +15,21 @@ function busyTexBaseUrl(): string {
   return `${root}/core/busytex`;
 }
 
+function scheduleIdleTerminate() {
+  if (idleTerminateTimer) clearTimeout(idleTerminateTimer);
+  // Free ~hundreds of MB WASM after idle — keeps compile storms warm briefly.
+  idleTerminateTimer = setTimeout(() => terminateLatexWasmRunner(), 45_000);
+}
+
 /** Compile full .tex source to PDF in the browser using WebAssembly (pdflatex). */
 export async function compileLatexWasmToPdf(tex: string, bundle?: CompileBundle): Promise<Blob> {
   const { BusyTexRunner, PdfLatex } = await import("texlyre-busytex");
   const busytexBasePath = busyTexBaseUrl();
+
+  if (idleTerminateTimer) {
+    clearTimeout(idleTerminateTimer);
+    idleTerminateTimer = null;
+  }
 
   if (!runnerInit) {
     runnerInit = (async () => {
@@ -30,33 +42,41 @@ export async function compileLatexWasmToPdf(tex: string, bundle?: CompileBundle)
     })();
   }
 
-  const runner = await runnerInit;
-  const pdfLatex = new PdfLatex(runner, false);
+  try {
+    const runner = await runnerInit;
+    const pdfLatex = new PdfLatex(runner, false);
 
-  const mainTex = bundle?.mainTex ?? tex;
-  const additionalFiles = bundle?.additionalFiles ?? [];
-  const bibtex = bundle?.bibtex ?? false;
+    const mainTex = bundle?.mainTex ?? tex;
+    const additionalFiles = bundle?.additionalFiles ?? [];
+    const bibtex = bundle?.bibtex ?? false;
 
-  const result = await pdfLatex.compile({
-    input: mainTex,
-    additionalFiles: additionalFiles.map((f) => ({
-      path: f.path,
-      content: f.content,
-    })),
-    bibtex,
-    verbose: "silent",
-  });
+    const result = await pdfLatex.compile({
+      input: mainTex,
+      additionalFiles: additionalFiles.map((f) => ({
+        path: f.path,
+        content: f.content,
+      })),
+      bibtex,
+      verbose: "silent",
+    });
 
-  if (result.success && result.pdf && result.pdf.byteLength > 0) {
-    return new Blob([result.pdf], { type: "application/pdf" });
+    if (result.success && result.pdf && result.pdf.byteLength > 0) {
+      return new Blob([result.pdf], { type: "application/pdf" });
+    }
+
+    console.error("[LaTeX WASM] Full pdflatex log:\n", result.log);
+    throw new Error(wasmLatexFailureMessage(result.log, result.exitCode));
+  } finally {
+    scheduleIdleTerminate();
   }
-
-  console.error("[LaTeX WASM] Full pdflatex log:\n", result.log);
-  throw new Error(wasmLatexFailureMessage(result.log, result.exitCode));
 }
 
 /** For tests or teardown (optional). */
 export function terminateLatexWasmRunner(): void {
+  if (idleTerminateTimer) {
+    clearTimeout(idleTerminateTimer);
+    idleTerminateTimer = null;
+  }
   if (!runnerInit) return;
   void runnerInit.then((r) => r.terminate()).catch(() => {});
   runnerInit = null;

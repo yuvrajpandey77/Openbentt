@@ -888,35 +888,17 @@ const ChatInput: React.FC<ChatInputProps> = ({
           </div>
         )}
 
-        {/* Web-only fallback: explain why sending is blocked (desktop uses LayerDownBanner). */}
-        {!isStudio && !layerActive && !isDesktopApp() && !isLoadingConfig && !canSendMessage(apiConfig) && (
-          <Alert variant="default" className="border-primary/40 bg-primary/5 py-2">
-            <AlertTitle className="text-xs">Set up AI to send messages</AlertTitle>
+        {/* Only nudge when nothing can send — never insist on OpenRouter if local/desktop layer works. */}
+        {!layerActive &&
+          !isLoadingConfig &&
+          !canSendMessage(apiConfig) &&
+          !(isDesktopApp() && (apiConfig.aiProvider === "openai_compatible" || apiConfig.aiProvider === "local_gguf" || apiConfig.aiProvider === "webgpu_gemma")) && (
+          <Alert variant="default" className="border-border/60 bg-muted/30 py-2">
+            <AlertTitle className="text-xs">Choose a model in Settings</AlertTitle>
             <AlertDescription className="text-[11px]">
-              {apiConfig.aiProvider === "local_gguf"
-                ? "Download a GGUF in Labs, then pick it in Settings → AI & models."
-                : apiConfig.aiProvider === "webgpu_gemma"
-                  ? "Enable the on-device model in Settings, or switch to OpenRouter with an API key."
-                  : "Add an OpenRouter API key in Settings → AI & models (sidebar ⚙️), or use the desktop app where the Execution Engine answers with no key."}{" "}
-              <Link to="/setup" className="font-medium text-primary hover:underline">
-                Open setup
-              </Link>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {isStudio && !canSendChat(apiConfig) && !isLoadingConfig && (
-          <Alert variant="default" className="border-primary/40 bg-primary/5 py-2">
-            <AlertTitle className="text-xs">Set up AI to send messages</AlertTitle>
-            <AlertDescription className="text-[11px]">
-              {apiConfig.aiProvider === "local_gguf"
-                ? "Download a GGUF in Labs, then pick it in Settings → AI & models."
-                : apiConfig.aiProvider === "webgpu_gemma"
-                  ? "Enable the on-device model in Settings, or switch to OpenRouter with an API key."
-                  : "Add an OpenRouter API key in Settings → AI & models (sidebar ⚙️)."}
-              {" "}
-              <Link to="/setup" className="font-medium text-primary hover:underline">
-                Open setup
+              Use Ollama / local GGUF, or add a cloud API key.{" "}
+              <Link to="/settings" className="font-medium text-primary hover:underline">
+                Settings
               </Link>
             </AlertDescription>
           </Alert>

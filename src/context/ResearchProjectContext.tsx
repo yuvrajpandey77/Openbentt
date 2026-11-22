@@ -135,6 +135,8 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   const [backgroundJob, setBackgroundJob] = useState<BackgroundJobStatus | null>(null);
   const rebuildRef = useRef<ReturnType<typeof requestSemanticIndexRebuild> | null>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bgClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftPendingRef = useRef<string | null>(null);
   const integrityWarnedRef = useRef<string | null>(null);
   const projectRef = useRef<ResearchProjectData | null>(null);
@@ -320,13 +322,30 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
           const reloaded = await loadResearchProject(project.id);
           if (!reloaded) return;
           const removed = chunkIdsRemovedAfterRechunk(prevChunks, reloaded.chunks);
-          if (removed.length) await deleteEmbeddingsForChunksDesktop(project.id, removed);
+          // Draft-only churn must not kick MiniLM — only library paper chunks.
+          const libRemoved = removed.filter((id) => !id.includes("draft"));
+          const prevLib = prevChunks
+            .filter((c) => c.paperId !== "draft")
+            .map((c) => c.id)
+            .sort()
+            .join("|");
+          const nextLib = reloaded.chunks
+            .filter((c) => c.paperId !== "draft")
+            .map((c) => c.id)
+            .sort()
+            .join("|");
+          if (libRemoved.length) await deleteEmbeddingsForChunksDesktop(project.id, libRemoved);
           setProject(reloaded);
-          runSemanticRebuildRef.current?.(reloaded.chunks, reloaded.id, { removedChunkIds: removed });
+          if (libRemoved.length || prevLib !== nextLib) {
+            runSemanticRebuildRef.current?.(reloaded.chunks, reloaded.id, {
+              removedChunkIds: libRemoved,
+            });
+          }
         })();
       }
       if (payload.status === "completed") {
-        window.setTimeout(() => setBackgroundJob(null), 4000);
+        if (bgClearTimerRef.current) clearTimeout(bgClearTimerRef.current);
+        bgClearTimerRef.current = setTimeout(() => setBackgroundJob(null), 4000);
       }
     });
   }, [project?.id, project?.chunks, toast]);
@@ -615,27 +634,23 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
     async (
       projectId: string,
       tex: string,
-      papers: ResearchProjectData["papers"]
+      _papers: ResearchProjectData["papers"]
     ) => {
       setDraftSaveStatus("saving");
       try {
+        // Draft-only patch — do NOT enqueue rechunk/embed on every keystroke.
+        // Corpus rebuild runs when papers change (updateProject), not on typing.
         await patchProjectDraft(projectId, tex);
-        if (isDesktopApp()) {
-          await rebuildProjectCorpus(
-            projectId,
-            papers.map((p) => ({
-              id: p.id,
-              fileName: p.fileName,
-              extractedText: p.extractedText,
-            })),
-            tex
-          );
-        } else {
+        if (!isDesktopApp()) {
           const loaded = await loadResearchProject(projectId);
           if (loaded) setProject(loaded);
         }
         setDraftSaveStatus("saved");
-        window.setTimeout(() => setDraftSaveStatus((s) => (s === "saved" ? "idle" : s)), 2000);
+        if (draftStatusTimerRef.current) clearTimeout(draftStatusTimerRef.current);
+        draftStatusTimerRef.current = setTimeout(
+          () => setDraftSaveStatus((s) => (s === "saved" ? "idle" : s)),
+          2000
+        );
       } catch {
         setDraftSaveStatus("error");
       }
@@ -690,6 +705,8 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   useEffect(() => {
     return () => {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+      if (draftStatusTimerRef.current) clearTimeout(draftStatusTimerRef.current);
+      if (bgClearTimerRef.current) clearTimeout(bgClearTimerRef.current);
       if (bibTimerRef.current) clearTimeout(bibTimerRef.current);
       if (projectFileTimerRef.current) clearTimeout(projectFileTimerRef.current);
       rebuildRef.current?.abort();

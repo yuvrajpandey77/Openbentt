@@ -62,7 +62,7 @@ npm run dev             # http://127.0.0.1:8080
 
 **Requirements:** Node.js 18+ (22 in Docker), optional OpenRouter key / Ollama / local TeX.
 
-Setup & GPU notes: **[docs/SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)**.
+Setup & GPU notes: **[docs/SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)** · User manual: **[docs/USER_MANUAL.md](./docs/USER_MANUAL.md)**.
 
 ---
 

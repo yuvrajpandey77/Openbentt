@@ -23,6 +23,9 @@ export async function loadEmbeddingsForChunks(
   return out;
 }
 
+/** Hard cap: never pull the entire MiniLM matrix into the renderer for one RAG query. */
+const RAG_VECTOR_LOAD_CAP = 800;
+
 export async function resolveLibraryEmbeddings(
   projectId: string,
   chunks: CorpusChunk[],
@@ -34,7 +37,19 @@ export async function resolveLibraryEmbeddings(
   if (libIds.length === 0) return undefined;
   const stats = await embeddingStatsDesktop(projectId);
   if (!stats?.count) return undefined;
-  return loadEmbeddingsForChunks(projectId, libIds);
+  // Fair sample across papers when the library is huge — avoids multi‑10MB heap spikes.
+  const capped =
+    libIds.length <= RAG_VECTOR_LOAD_CAP
+      ? libIds
+      : (() => {
+          const step = Math.ceil(libIds.length / RAG_VECTOR_LOAD_CAP);
+          const out: string[] = [];
+          for (let i = 0; i < libIds.length && out.length < RAG_VECTOR_LOAD_CAP; i += step) {
+            out.push(libIds[i]!);
+          }
+          return out;
+        })();
+  return loadEmbeddingsForChunks(projectId, capped);
 }
 
 export async function isSemanticIndexReadyForProject(

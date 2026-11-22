@@ -23,7 +23,8 @@ import {
 import { isLoopbackCompatibleBase } from "@/lib/privacy/privacyPreferences";
 import { useTaskCenter } from "./TaskCenterContext";
 import { useChat } from "./ChatContext";
-import type { ApiKeyConfig } from "@/types/chat";
+import { canSendChat, normalizeApiConfig, type ApiKeyConfig } from "@/types/chat";
+import { defaultOllamaBaseUrl } from "@/lib/modelManager/ollamaProbe";
 
 /**
  * Phase 9 — local AI (Ollama-first) orchestration.
@@ -202,7 +203,8 @@ function buildEffectiveModel(
 
 export function LocalAIProvider({ children }: { children: React.ReactNode }) {
   const { upsertTask } = useTaskCenter();
-  const { apiConfig } = useChat();
+  const { apiConfig, setApiConfig } = useChat();
+  const autoLocalAppliedRef = useRef(false);
   const [status, setStatus] = useState<OllamaStatus | null>(null);
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -220,24 +222,25 @@ export function LocalAIProvider({ children }: { children: React.ReactNode }) {
   }, [apiConfig.openAiCompatibleBaseUrl]);
 
   const shouldProbeOllama = useMemo(() => {
-    // Skip noisy health polls when the user is on a remote OpenAI-compatible URL.
+    // Only probe when local inference is relevant — skip cloud providers to save IPC/CPU.
     if (apiConfig.aiProvider === "openai_compatible") {
       const base = (apiConfig.openAiCompatibleBaseUrl ?? "").trim() || DEFAULT_OLLAMA_CHAT_BASE;
       return isLoopbackCompatibleBase(base);
     }
-    // Still probe when unset/cloud so onboarding + Local AI card can offer Ollama.
-    return true;
-  }, [apiConfig.aiProvider, apiConfig.openAiCompatibleBaseUrl]);
+    if (apiConfig.aiProvider === "local_gguf" || apiConfig.aiProvider === "webgpu_gemma") {
+      return false;
+    }
+    // Cloud provider with no key: still probe once so we can auto-switch to Ollama.
+    return !canSendChat(apiConfig);
+  }, [apiConfig]);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (opts?: { quiet?: boolean }) => {
     if (!shouldProbeOllama) {
       setChecking(false);
       setInitialValidationDone(true);
-      setStatus(null);
-      setError(null);
       return;
     }
-    setChecking(true);
+    if (!opts?.quiet) setChecking(true);
     try {
       const api = getOllamaDesktopApi();
       const origin = configuredOrigin ?? undefined;
@@ -245,15 +248,17 @@ export function LocalAIProvider({ children }: { children: React.ReactNode }) {
         const s = await api.status(origin);
         setStatus(s);
         setError(s.reachable ? null : s.error ?? "Ollama is not reachable");
-        try {
-          setInstallInfo(await api.installInfo());
-        } catch {
-          /* optional */
-        }
-        try {
-          setRecommendedModels((await api.recommendedModels()).models);
-        } catch {
-          /* optional */
+        if (!opts?.quiet) {
+          try {
+            setInstallInfo(await api.installInfo());
+          } catch {
+            /* optional */
+          }
+          try {
+            setRecommendedModels((await api.recommendedModels()).models);
+          } catch {
+            /* optional */
+          }
         }
       } else {
         // Web fallback: OpenAI-compatible probe only (no pull/install support).
@@ -289,8 +294,7 @@ export function LocalAIProvider({ children }: { children: React.ReactNode }) {
     }
   }, [configuredOrigin, shouldProbeOllama]);
 
-  // Initial detection + slow poll for external changes (Ollama started/stopped).
-  // Pause while the tab/window is hidden so backgrounded Electron doesn't burn CPU.
+  // Initial detection + slow poll. Quiet polls never flip `checking` (avoids UI thrash).
   useEffect(() => {
     const clearPoll = () => {
       if (pollRef.current != null) {
@@ -302,15 +306,15 @@ export function LocalAIProvider({ children }: { children: React.ReactNode }) {
       clearPoll();
       pollRef.current = window.setInterval(() => {
         if (typeof document !== "undefined" && document.hidden) return;
-        void refresh();
-      }, 30000);
+        void refresh({ quiet: true });
+      }, 90_000);
     };
     const onVisibility = () => {
       if (document.hidden) {
         clearPoll();
         return;
       }
-      void refresh();
+      void refresh({ quiet: true });
       startPoll();
     };
 
@@ -428,6 +432,31 @@ export function LocalAIProvider({ children }: { children: React.ReactNode }) {
     if (auto.selected) return "ready";
     return "no-models";
   }, [checking, status, auto.selected, desktopAvailable]);
+
+  // If Ollama is ready and the active provider can't send (e.g. OpenRouter with no key),
+  // switch to local openai_compatible automatically — never require a cloud key for local use.
+  useEffect(() => {
+    if (autoLocalAppliedRef.current) return;
+    if (health !== "ready" || !auto.selected) return;
+    if (canSendChat(apiConfig)) return;
+    const cloudNeedsKey =
+      apiConfig.aiProvider === "openrouter" ||
+      apiConfig.aiProvider === "openai_direct" ||
+      apiConfig.aiProvider === "anthropic" ||
+      apiConfig.aiProvider === "google";
+    if (!cloudNeedsKey && apiConfig.aiProvider !== "openai_compatible") return;
+    autoLocalAppliedRef.current = true;
+    setApiConfig(
+      normalizeApiConfig({
+        ...apiConfig,
+        aiProvider: "openai_compatible",
+        model: auto.selected,
+        openAiCompatibleBaseUrl:
+          apiConfig.openAiCompatibleBaseUrl?.trim() || defaultOllamaBaseUrl(),
+        comparisonEnabled: false,
+      })
+    );
+  }, [health, auto.selected, apiConfig, setApiConfig]);
 
   const localAIForEffective = useMemo(() => ({
     defaultModel: auto.selected,

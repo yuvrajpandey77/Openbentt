@@ -14,8 +14,14 @@ export const MAX_EMBED_CHARS = 512;
 
 /** @type {Promise<((text: string, opts?: { pooling: string; normalize: boolean }) => Promise<{ data: Float32Array | number[] }>)> | null} */
 let pipelinePromise = null;
+/** @type {ReturnType<typeof setTimeout> | null} */
+let idleDisposeTimer = null;
 
 export async function getEmbedder() {
+  if (idleDisposeTimer) {
+    clearTimeout(idleDisposeTimer);
+    idleDisposeTimer = null;
+  }
   if (!pipelinePromise) {
     pipelinePromise = (async () => {
       const { pipeline, env } = await import("@xenova/transformers");
@@ -29,6 +35,10 @@ export async function getEmbedder() {
 
 /** Drop the cached MiniLM pipeline so GC can reclaim ONNX/WASM RAM after indexing. */
 export function disposeEmbedder() {
+  if (idleDisposeTimer) {
+    clearTimeout(idleDisposeTimer);
+    idleDisposeTimer = null;
+  }
   const pending = pipelinePromise;
   pipelinePromise = null;
   if (!pending) return;
@@ -41,6 +51,12 @@ export function disposeEmbedder() {
       }
     })
     .catch(() => {});
+}
+
+/** Keep MiniLM warm briefly across chat turns, then free RAM. */
+export function scheduleIdleDisposeEmbedder(ms = 60_000) {
+  if (idleDisposeTimer) clearTimeout(idleDisposeTimer);
+  idleDisposeTimer = setTimeout(() => disposeEmbedder(), ms);
 }
 
 /** L2-normalized MiniLM embedding (384-dim). */
@@ -123,16 +139,24 @@ export async function buildChunkEmbeddingsFromChunks(chunks, opts = {}) {
   await getEmbedder();
   onProgress?.({ phase: "embedding", done: Object.keys(vectors).filter((k) => k !== "__query__").length, total: library.length });
 
+  /** @type {Record<string, number[]>} */
+  let sincePartial = {};
   for (let i = 0; i < pending.length; i++) {
     if (signal?.aborted) {
       throw Object.assign(new Error("Embedding index cancelled"), { name: "AbortError" });
     }
     const c = pending[i];
     vectors[c.id] = await embedPassage(c.text);
+    sincePartial[c.id] = vectors[c.id];
     const done = Object.keys(vectors).filter((k) => k !== "__query__").length;
     onProgress?.({ phase: "embedding", done, total: library.length });
-    if (done % 8 === 0) onPartial?.({ ...vectors });
+    // Delta-only partials — never re-upsert the full vector map (was O(n²) SQLite).
+    if (Object.keys(sincePartial).length >= 8) {
+      onPartial?.(sincePartial);
+      sincePartial = {};
+    }
   }
+  if (Object.keys(sincePartial).length) onPartial?.(sincePartial);
   onProgress?.({ phase: "done", done: library.length, total: library.length });
   return vectors;
 }

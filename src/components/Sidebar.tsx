@@ -11,20 +11,17 @@ import {
   BookOpen,
   FileStack,
   NotebookPen,
-  FlaskConical,
   Settings,
   Menu,
   Search,
   Bot,
   Cpu,
-  Plug,
   Stethoscope,
   ChevronRight,
   ChevronUp,
   ListTodo,
   MoreHorizontal,
   History,
-  FileType2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
@@ -48,35 +45,23 @@ type NavItem = {
   hint?: string;
 };
 
-/** Always one click away — chat, projects, notebook/compile, library, settings. */
+/** Primary destinations only — keep the rail short and reliable. */
 const PRIMARY_NAV: NavItem[] = [
   { icon: Plus, label: "New chat", id: "new-chat", shortcut: "⌘N", action: "new-chat" },
-  { icon: MessageSquare, label: "Chat", id: "chat", to: "/chat", hint: "Home conversation" },
-  { icon: FolderKanban, label: "Projects", id: "projects", to: "/projects", hint: "Research projects" },
-  {
-    icon: NotebookPen,
-    label: "Notebook",
-    id: "notebook",
-    to: "/notebook",
-    hint: "Write · compile · preview PDF",
-  },
-  { icon: FileStack, label: "Documents", id: "documents", to: "/documents" },
-  { icon: BookOpen, label: "Research", id: "research", to: "/labs", hint: "Library & synthesis" },
+  { icon: MessageSquare, label: "Chat", id: "chat", to: "/chat" },
+  { icon: FolderKanban, label: "Projects", id: "projects", to: "/projects" },
+  { icon: NotebookPen, label: "Notebook", id: "notebook", to: "/notebook" },
+  { icon: Settings, label: "Settings", id: "settings", to: "/settings" },
 ];
 
-const WORKSPACE_NAV: NavItem[] = [
+/** Secondary tools — collapsed under More by default. */
+const MORE_NAV: NavItem[] = [
+  { icon: FileStack, label: "Documents", id: "documents", to: "/documents" },
+  { icon: BookOpen, label: "Research", id: "research", to: "/labs" },
   { icon: Files, label: "Files", id: "files", to: "/files" },
   { icon: ListTodo, label: "Tasks", id: "tasks", to: "/tasks" },
-  { icon: FileType2, label: "Math / LaTeX", id: "write", to: "/write", hint: "KaTeX scratchpad" },
-];
-
-const MORE_NAV: NavItem[] = [
   { icon: Bot, label: "Agent", id: "agent", to: "/agent" },
-  { icon: Plug, label: "Integrations", id: "integrations", to: "/setup" },
-  { icon: Cpu, label: "Models", id: "models", to: "/settings" },
-  { icon: FlaskConical, label: "Benchmark", id: "developer", to: "/benchmark" },
   { icon: Stethoscope, label: "Diagnostics", id: "diagnostics", to: "/diagnostics" },
-  { icon: Settings, label: "Settings", id: "settings", to: "/settings" },
 ];
 
 interface SidebarProps {
@@ -121,7 +106,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   const showLabels = isMobile || !collapsed;
   const allowed = (item: NavItem) => !item.to || isWorkspacePathAllowedOnWeb(item.to);
   const primaryNav = PRIMARY_NAV.filter(allowed);
-  const workspaceNav = WORKSPACE_NAV.filter(allowed);
   const moreNav = MORE_NAV.filter(allowed);
 
   const handleNewChat = () => {
@@ -415,14 +399,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-hide">
             <FeatureErrorBoundary feature="sidebar-nav">
-              {sectionLabel("Main", NotebookPen)}
               <nav className="mb-3 flex shrink-0 flex-col gap-0.5" aria-label="Primary navigation">
                 {primaryNav.map(renderNavItem)}
-              </nav>
-
-              {sectionLabel("Workspace", Files)}
-              <nav className="mb-3 flex shrink-0 flex-col gap-0.5" aria-label="Workspace">
-                {workspaceNav.map(renderNavItem)}
               </nav>
 
               {showLabels && recentGlobalChats.length > 0 && (
@@ -445,34 +423,34 @@ const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <History className="h-4 w-4 shrink-0" />
                       <span className="truncate">
-                        Load more (
-                        {chats.filter((c) => !c.projectId).length - recentGlobalChats.length})
+                        More ({chats.filter((c) => !c.projectId).length - recentGlobalChats.length})
                       </span>
                     </button>
                   )}
                 </>
               )}
 
-              {sectionLabel("More", MoreHorizontal)}
-              {showLabels && moreNav.length > 3 && (
-                <button
-                  type="button"
-                  onClick={() => setShowMoreNav((v) => !v)}
-                  className="mb-1 flex items-center gap-1 px-1 text-[11px] text-muted-foreground hover:text-foreground"
-                  aria-expanded={showMoreNav}
-                >
-                  <ChevronRight className={cn("h-3 w-3 transition-transform", showMoreNav && "rotate-90")} />
-                  {showMoreNav ? "Show less" : `Show ${moreNav.length - 3} more`}
-                </button>
+              {showLabels && moreNav.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowMoreNav((v) => !v)}
+                    className="mb-1 mt-1 flex w-full items-center gap-1.5 px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                    aria-expanded={showMoreNav}
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                    <span>More</span>
+                    <ChevronRight
+                      className={cn("ml-auto h-3 w-3 transition-transform", showMoreNav && "rotate-90")}
+                    />
+                  </button>
+                  {showMoreNav && (
+                    <nav className="mb-4 flex shrink-0 flex-col gap-0.5" aria-label="More">
+                      {moreNav.map(renderNavItem)}
+                    </nav>
+                  )}
+                </>
               )}
-              <nav className="mb-4 flex shrink-0 flex-col gap-0.5" aria-label="More capabilities">
-                {(showLabels
-                  ? showMoreNav
-                    ? moreNav
-                    : moreNav.slice(0, 3)
-                  : moreNav.filter((i) => i.id === "settings" || i.id === "integrations")
-                ).map(renderNavItem)}
-              </nav>
             </FeatureErrorBoundary>
           </div>
 

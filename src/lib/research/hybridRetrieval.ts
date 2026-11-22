@@ -200,12 +200,14 @@ export async function hybridRetrieveAsync(
 
   let semanticHits: SimilarityHit[] = [];
   if (vectors && Object.keys(vectors).some((id) => id !== "__query__")) {
+    const { scheduleIdleDisposeEmbedder } = await import("@/lib/research/embedCore.mjs");
     const queryVector = await embedPassage(queryText);
     semanticHits = findSemanticSimilarPassages(queryText, chunks, vectors, paperNames, {
       minScore: 0.35,
       limit: limit * 2,
       queryVector,
     });
+    scheduleIdleDisposeEmbedder(60_000);
   }
 
   return fuseRetrievalLists(queryText, lexicalHits, semanticHits, options);
@@ -220,26 +222,11 @@ export async function scanDraftHybrid(
   vectors?: Record<string, number[]>
 ): Promise<RetrievalHit[]> {
   const clean = draftTex.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, " ");
-  const windows: string[] = [];
-  for (let i = 0; i < clean.length; i += 260) {
-    windows.push(clean.slice(i, i + 320));
-    if (windows.length >= 20) break;
-  }
-
-  const seen = new Set<string>();
-  const all: RetrievalHit[] = [];
-  const hasSemantic = vectors && Object.keys(vectors).some((id) => id !== "__query__");
-
-  for (const w of windows) {
-    const hits = hasSemantic
-      ? await hybridRetrieveAsync(w, chunks, paperNames, tfidfIndex, vectors, { limit: 3 })
-      : hybridRetrieve(w, chunks, paperNames, tfidfIndex, vectors, { limit: 3 });
-    for (const h of hits) {
-      const key = `${h.paperId}:${h.snippet.slice(0, 50)}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      all.push(h);
-    }
-  }
-  return all.sort((a, b) => b.fusedScore - a.fusedScore).slice(0, 30);
+  // One coarse query for the whole draft — never 20× MiniLM embeds.
+  const sample = clean.slice(0, 1200).trim();
+  if (!sample) return [];
+  const hits = await hybridRetrieveAsync(sample, chunks, paperNames, tfidfIndex, vectors, {
+    limit: 30,
+  });
+  return hits;
 }

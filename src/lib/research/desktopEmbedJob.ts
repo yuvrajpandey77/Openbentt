@@ -11,6 +11,8 @@ export type DesktopEmbedController = {
   promise: Promise<{ embedded: number } | null>;
 };
 
+const EMBED_JOB_TIMEOUT_MS = 10 * 60 * 1000;
+
 export function enqueueDesktopEmbedJob(
   projectId: string,
   opts?: { removedChunkIds?: string[]; onProgress?: (p: EmbeddingIndexProgress) => void }
@@ -18,12 +20,34 @@ export function enqueueDesktopEmbedJob(
   const ac = new AbortController();
   const promise = (async () => {
     if (!isDesktopApp()) return null;
+    const api = window.openbenttResearch;
+
     const { jobId } = await enqueueResearchJob(projectId, "embed", {
       removedChunkIds: opts?.removedChunkIds ?? [],
     });
     if (!jobId) return null;
-    return new Promise<{ embedded: number } | null>((resolve, reject) => {
-      const api = window.openbenttResearch;
+
+    // Fast path: job may already be terminal (deduped / instant "up to date").
+    try {
+      const jobs = await api?.listJobs?.(projectId);
+      const mine = jobs?.find((j) => j.id === jobId);
+      if (mine?.status === "completed") return { embedded: 1 };
+      if (mine?.status === "failed") throw new Error(mine.message ?? "Embed job failed");
+      if (mine?.status === "cancelled") return null;
+    } catch (e) {
+      if (e instanceof Error && /Embed job failed/i.test(e.message)) throw e;
+    }
+
+    return await new Promise<{ embedded: number } | null>((resolve, reject) => {
+      let settled = false;
+      const done = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        unsub?.();
+        fn();
+      };
+
       const unsub = api?.onJobProgress?.((payload) => {
         if (payload.projectId !== projectId || payload.jobId !== jobId) return;
         if (payload.message && payload.progress != null) {
@@ -38,25 +62,23 @@ export function enqueueDesktopEmbedJob(
             opts?.onProgress?.({ phase: "loading-model", done: 0, total: 0 });
           }
         }
-        if (payload.status === "completed") {
-          unsub?.();
-          resolve({ embedded: 1 });
-        }
-        if (payload.status === "failed") {
-          unsub?.();
-          reject(new Error(payload.message ?? "Embed job failed"));
-        }
-        if (payload.status === "cancelled") {
-          unsub?.();
-          resolve(null);
-        }
+        if (payload.status === "completed") done(() => resolve({ embedded: 1 }));
+        if (payload.status === "failed")
+          done(() => reject(new Error(payload.message ?? "Embed job failed")));
+        if (payload.status === "cancelled") done(() => resolve(null));
       });
+
+      const timeout = setTimeout(() => {
+        done(() => resolve(null));
+      }, EMBED_JOB_TIMEOUT_MS);
+
       ac.signal.addEventListener(
         "abort",
         () => {
-          unsub?.();
-          void api?.cancelJob?.(projectId, jobId);
-          resolve(null);
+          done(() => {
+            void api?.cancelJob?.(projectId, jobId);
+            resolve(null);
+          });
         },
         { once: true }
       );

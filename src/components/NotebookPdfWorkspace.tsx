@@ -584,10 +584,15 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
 
   /** Re-render when buffer/scale changes, and when returning to Preview (tab unmount clears the canvas). */
   useEffect(() => {
-    if (isStudio || mainTab !== "preview") return;
+    if (isStudio || mainTab !== "preview") {
+      // Drop raster canvases when leaving Preview — frees large RGBA buffers on software GPU.
+      if (previewRef.current) previewRef.current.innerHTML = "";
+      return;
+    }
     void runPreviewRender();
     return () => {
       previewRenderGenRef.current += 1;
+      if (previewRef.current) previewRef.current.innerHTML = "";
     };
   }, [runPreviewRender, mainTab, isStudio]);
 

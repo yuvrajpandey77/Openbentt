@@ -25,6 +25,14 @@ const NotebookStudioPage: React.FC = () => {
     setEntering(true);
   }, [loading, project?.id]);
 
+  // Free BusyTeX WASM + MiniLM when leaving Notebook — major RAM reclaim.
+  useEffect(() => {
+    return () => {
+      void import("@/lib/latexWasmCompile").then((m) => m.terminateLatexWasmRunner()).catch(() => {});
+      void import("@/lib/research/embedCore.mjs").then((m) => m.disposeEmbedder()).catch(() => {});
+    };
+  }, []);
+
   return (
     <DesktopOnlyGate>
       {loading || entering || !project ? (

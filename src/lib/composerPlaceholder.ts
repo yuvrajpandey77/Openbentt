@@ -9,37 +9,43 @@ export function getComposerPlaceholder(
     comparisonEnabled?: boolean;
     /** Web /chat — shorter placeholder */
     webChat?: boolean;
+    /** Ollama (or other local) is ready even if cloud key is missing */
+    localReady?: boolean;
   } = {}
 ): string {
   if (opts.isLoadingConfig) return "Loading…";
 
+  if (opts.localReady && !canSendChat(cfg)) {
+    return "Message…";
+  }
+
   if (!canSendMessage(cfg)) {
     if (canSendChat(cfg) && cfg.aiProvider === "local_gguf") {
-      return "Choose an installed GGUF in Settings → AI provider, or download one in Labs";
+      return "Pick a GGUF model in Settings";
     }
   }
 
   if (!canSendChat(cfg)) {
     switch (cfg.aiProvider) {
       case "webgpu_gemma":
-        return "Finish on-device setup above, or pick another provider in Settings";
+        return "Finish on-device setup, or pick a provider in Settings";
       case "local_gguf":
-        return "Open Labs → Local model hub to download a GGUF, then select it in Settings";
+        return "Download a GGUF in Settings, then select it";
       case "openai_compatible":
-        return "Set your local server URL in Settings (Ollama, LM Studio, …)";
+        return "Start Ollama (or set a local server URL in Settings)";
       default:
-        return "Add an API key in Settings to get started";
+        return "Add a cloud API key — or use Ollama / desktop local models";
     }
   }
 
   if (cfg.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
-    return "Complete on-device model setup above before your first message";
+    return "Complete on-device model setup above";
   }
 
   if (opts.workspacePlaceholder) return opts.workspacePlaceholder;
   if (opts.comparisonEnabled ?? cfg.comparisonEnabled) {
-    return "Same prompt goes to each selected model…";
+    return "Message all selected models…";
   }
-  if (opts.webChat) return "Ask Cobentt";
-  return "Ask anything — attach images, audio, or files with the paperclip";
+  if (opts.webChat) return "Message…";
+  return "Message…";
 }

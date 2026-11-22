@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useRef, useCallback } from "react";
+import React, { createContext, useState, useContext, useEffect, useRef, useCallback, useMemo } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
   Chat,
@@ -2487,9 +2487,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           toast({ title: "Confirmation needed", description: `Agent requests: ${pending.toolId}` });
         } else if (output.run.status === "completed" && output.run.finalText !== undefined) {
           patchAgentMessage(chatId, messageId, (m) => ({ ...m, content: "", agentTrace: trace, streaming: true }));
-          await streamTextChunked(output.run.finalText ?? "", (chunk) => {
+          const batcher = createRafBatcher((chunk) => {
             patchAgentMessage(chatId, messageId, (m) => ({ ...m, content: m.content + chunk }));
-          }, controller.signal);
+          });
+          await streamTextChunked(output.run.finalText ?? "", (chunk) => batcher.push(chunk), controller.signal);
+          batcher.flushPending();
           patchAgentMessage(chatId, messageId, (m) => ({
             ...m, researchSources: sources, streaming: false,
             metrics: { ttftMs: null, totalMs: output.run.durationMs ?? 0 },
@@ -2571,9 +2573,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           toast({ title: "Confirmation needed", description: `Agent requests: ${next.toolId}` });
         } else if (output.run.status === "completed" && output.run.finalText !== undefined) {
           const continuation = output.run.finalText ?? "";
-          await streamTextChunked(continuation, (chunk) => {
+          const batcher = createRafBatcher((chunk) => {
             patchAgentMessage(slot.chatId, slot.messageId, (m) => ({ ...m, content: m.content + chunk }));
-          }, controller.signal);
+          });
+          await streamTextChunked(continuation, (chunk) => batcher.push(chunk), controller.signal);
+          batcher.flushPending();
           patchAgentMessage(slot.chatId, slot.messageId, (m) => ({
             ...m, agentTrace: trace, researchSources: sources, streaming: false,
             metrics: { ttftMs: null, totalMs: output.run.durationMs ?? 0 },
@@ -2595,71 +2599,141 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [apiConfig, patchAgentMessage, persistAgentTurn, toast]
   );
 
-  const value: ChatContextProps = {
-    chats,
-    currentChatId,
-    isLoading,
-    isLoadingConfig,
-    apiConfig,
-    pendingComposer,
-    clearPendingComposer,
-    createNewChat,
-    activeProjectId,
-    setActiveProjectId,
-    setProjectWorkspace,
-    executionTasks,
-    executionEvents,
-    workspaceNeeded,
-    setWorkspaceNeeded,
-    executionDrawerTaskId,
-    setExecutionDrawerTaskId,
-    cancelExecutionTask,
-    respondToExecutionPermission,
-    respondToExecutionQuestion,
-    rejectExecutionQuestion,
-registerProjectContextProvider,
-  registerThreadContextProvider,
-  submitVoiceTranscript,
-    escalateAskToTask,
-    dismissAskPermissions,
-    openCodeLayer,
-    refreshOpenCodeLayer,
-    openCodeModel,
-    setOpenCodeModel,
-    executionMode,
-    setExecutionMode,
-    unifiedChatReady:
-      (!prefersLocalOllamaInference(apiConfig) && openCodeLayer.available) || canSendMessage(apiConfig),
-    selectChat,
-    deleteChat,
-    clearChats,
-    sendMessage,
-    regenerateLastResponse,
-    beginEditUserMessage,
-    agentMode,
-    setAgentMode: setAgentModeAndPersist,
-    sourceScope,
-    setSourceScope,
-    pendingAgentConfirm,
-    sendAgentMessage,
-    confirmAgentRun,
-    registerAgentProjectProvider,
-    setApiConfig,
-    stopStreaming,
-    queuePromptInComposer,
-    streamingPromptTokens,
-    providerQuotaSnapshot,
-    setWorkspaceRouteAssist,
-    registerNotebookAssistSync,
-    registerCorpusRagProvider,
-    registerChatLogPersister,
-    workspaceAssistTokenEstimate,
-    setWorkspaceAssistTokenEstimate,
-    notebookLatexInsertRequest,
-    requestNotebookLatexInsert,
-    clearNotebookLatexInsertRequest,
-    webgpuModelDownloadProgress,
-  };
+  const unifiedChatReady =
+    (!prefersLocalOllamaInference(apiConfig) && openCodeLayer.available) || canSendMessage(apiConfig);
+
+  // Memoize so token-stream setState does not rebuild a new context object every
+  // render for consumers that only need stable actions (Sidebar, Settings, etc.).
+  const value = useMemo<ChatContextProps>(
+    () => ({
+      chats,
+      currentChatId,
+      isLoading,
+      isLoadingConfig,
+      apiConfig,
+      pendingComposer,
+      clearPendingComposer,
+      createNewChat,
+      activeProjectId,
+      setActiveProjectId,
+      setProjectWorkspace,
+      executionTasks,
+      executionEvents,
+      workspaceNeeded,
+      setWorkspaceNeeded,
+      executionDrawerTaskId,
+      setExecutionDrawerTaskId,
+      cancelExecutionTask,
+      respondToExecutionPermission,
+      respondToExecutionQuestion,
+      rejectExecutionQuestion,
+      registerProjectContextProvider,
+      registerThreadContextProvider,
+      submitVoiceTranscript,
+      escalateAskToTask,
+      dismissAskPermissions,
+      openCodeLayer,
+      refreshOpenCodeLayer,
+      openCodeModel,
+      setOpenCodeModel,
+      executionMode,
+      setExecutionMode,
+      unifiedChatReady,
+      selectChat,
+      deleteChat,
+      clearChats,
+      sendMessage,
+      regenerateLastResponse,
+      beginEditUserMessage,
+      agentMode,
+      setAgentMode: setAgentModeAndPersist,
+      sourceScope,
+      setSourceScope,
+      pendingAgentConfirm,
+      sendAgentMessage,
+      confirmAgentRun,
+      registerAgentProjectProvider,
+      setApiConfig,
+      stopStreaming,
+      queuePromptInComposer,
+      streamingPromptTokens,
+      providerQuotaSnapshot,
+      setWorkspaceRouteAssist,
+      registerNotebookAssistSync,
+      registerCorpusRagProvider,
+      registerChatLogPersister,
+      workspaceAssistTokenEstimate,
+      setWorkspaceAssistTokenEstimate,
+      notebookLatexInsertRequest,
+      requestNotebookLatexInsert,
+      clearNotebookLatexInsertRequest,
+      webgpuModelDownloadProgress,
+    }),
+    [
+      chats,
+      currentChatId,
+      isLoading,
+      isLoadingConfig,
+      apiConfig,
+      pendingComposer,
+      clearPendingComposer,
+      createNewChat,
+      activeProjectId,
+      setActiveProjectId,
+      setProjectWorkspace,
+      executionTasks,
+      executionEvents,
+      workspaceNeeded,
+      setWorkspaceNeeded,
+      executionDrawerTaskId,
+      setExecutionDrawerTaskId,
+      cancelExecutionTask,
+      respondToExecutionPermission,
+      respondToExecutionQuestion,
+      rejectExecutionQuestion,
+      registerProjectContextProvider,
+      registerThreadContextProvider,
+      submitVoiceTranscript,
+      escalateAskToTask,
+      dismissAskPermissions,
+      openCodeLayer,
+      refreshOpenCodeLayer,
+      openCodeModel,
+      setOpenCodeModel,
+      executionMode,
+      setExecutionMode,
+      unifiedChatReady,
+      selectChat,
+      deleteChat,
+      clearChats,
+      sendMessage,
+      regenerateLastResponse,
+      beginEditUserMessage,
+      agentMode,
+      setAgentModeAndPersist,
+      sourceScope,
+      setSourceScope,
+      pendingAgentConfirm,
+      sendAgentMessage,
+      confirmAgentRun,
+      registerAgentProjectProvider,
+      setApiConfig,
+      stopStreaming,
+      queuePromptInComposer,
+      streamingPromptTokens,
+      providerQuotaSnapshot,
+      setWorkspaceRouteAssist,
+      registerNotebookAssistSync,
+      registerCorpusRagProvider,
+      registerChatLogPersister,
+      workspaceAssistTokenEstimate,
+      setWorkspaceAssistTokenEstimate,
+      notebookLatexInsertRequest,
+      requestNotebookLatexInsert,
+      clearNotebookLatexInsertRequest,
+      webgpuModelDownloadProgress,
+    ]
+  );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 };

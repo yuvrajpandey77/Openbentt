@@ -85,6 +85,17 @@ export function enqueueJob(app, projectId, type, payload = {}, opts = {}) {
     }
   }
 
+  // Coalesce pending rechunks so typing never piles up hundreds of workers.
+  if (type === "rechunk") {
+    const pending = q.jobs.find((j) => j.type === "rechunk" && j.status === "pending");
+    if (pending) {
+      pending.payload = payload;
+      pending.updatedAt = new Date().toISOString();
+      persistJob(app, pending);
+      return { jobId: pending.id, deduped: true };
+    }
+  }
+
   const job = {
     id: uuid(),
     projectId,
@@ -310,19 +321,17 @@ async function runJob(app, job, signal, onProgress) {
       if (library.length === 0) return { embedded: 0 };
 
       const embeddedIds = new Set(listEmbeddedChunkIds(app, job.projectId));
-      const resumeVectors = {};
-      for (const id of embeddedIds) resumeVectors[id] = [];
-
       const pending = library.filter((c) => !embeddedIds.has(c.id));
       if (pending.length === 0) {
         onProgress(1, "Embeddings up to date");
         return { embedded: 0, skipped: library.length };
       }
 
+      // Only embed missing chunks — never pass empty resume stubs that force a full re-index.
       onProgress(0.05, "Loading MiniLM…");
       const { vectors } = await runEmbedWorker(
-        library,
-        resumeVectors,
+        pending,
+        {},
         signal,
         (frac, msg) => onProgress(0.1 + frac * 0.85, msg),
         (partial) => {

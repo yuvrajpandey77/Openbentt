@@ -4,7 +4,8 @@
  * Rasterizing every page of a large PDF pegs CPU/GPU and allocates huge canvases.
  * Preview only needs the first chunk; users still have the full file + Source extract.
  */
-export const PDF_PREVIEW_MAX_PAGES = 48;
+/** Soft raster cap — software GPU + large PDFs OOM otherwise. Full PDF still available as blob. */
+export const PDF_PREVIEW_MAX_PAGES = 8;
 
 /** pdf.js logs unsupported “Knockout groups” via `console.log` (often hundreds of times per doc). */
 function installKnockoutGroupLogFilter(): () => void {
