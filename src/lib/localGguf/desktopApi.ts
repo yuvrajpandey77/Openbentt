@@ -46,7 +46,7 @@ export interface HfSecretStatus {
 
 export interface OpenbenttLocalGgufApi {
   listRegistry(): Promise<{ entries: LocalGgufRegistryEntry[] }>;
-  diskFree(): Promise<{ bytes: number | null }>;
+  diskFree(): Promise<{ bytes: number | null; root?: string }>;
   resolveBinary(configuredPath?: string): Promise<LocalGgufBinaryInfo>;
   searchHf(query: string): Promise<LocalGgufSearchHit[]>;
   listGgufFiles(repoId: string): Promise<{

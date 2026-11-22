@@ -35,9 +35,32 @@ function sendProgress(payload) {
  * @param {string} dir
  * @returns {number | null} free bytes approximate
  */
+function existingDir(dir) {
+  let target = path.resolve(dir);
+  while (!fs.existsSync(target)) {
+    const parent = path.dirname(target);
+    if (parent === target) break;
+    target = parent;
+  }
+  return target;
+}
+
+/** Keep slashes; Hugging Face rejects a repo id whose `/` was percent-encoded. */
+function encodeRepoId(repoId) {
+  return String(repoId)
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+}
+
 export function getDiskFreeBytesApprox(dir) {
   try {
-    const target = path.resolve(dir);
+    const target = existingDir(dir);
+    if (typeof fs.statfsSync === "function") {
+      const st = fs.statfsSync(target);
+      const free = Number(st.bavail) * Number(st.bsize);
+      if (Number.isFinite(free) && free >= 0) return free;
+    }
     if (process.platform === "win32") {
       const root = path.parse(target).root;
       const letter = root.replace(/[\\/:]/g, "").charAt(0);
@@ -86,11 +109,64 @@ function assertRevision(r) {
   return v;
 }
 
+/** @type {string | null} */
+let resolvedModelRoot = null;
+
+function readSavedModelRoot(app) {
+  try {
+    const saved = fs.readFileSync(path.join(app.getPath("userData"), "gguf-root.txt"), "utf8").trim();
+    if (saved && fs.existsSync(saved)) return saved;
+  } catch { /* first run */ }
+  return null;
+}
+
+/**
+ * Weights are large. If the config disk is nearly full, keep models on the
+ * data volume that actually has room (this machine's home partition is ~2 GiB).
+ * @param {import('electron').App} app
+ */
+function resolveModelRoot(app) {
+  if (resolvedModelRoot && fs.existsSync(resolvedModelRoot)) return resolvedModelRoot;
+  const saved = readSavedModelRoot(app);
+  if (saved) {
+    resolvedModelRoot = saved;
+    return saved;
+  }
+  const userRoot = path.join(app.getPath("userData"), "gguf-models");
+  let best = userRoot;
+  let bestFree = getDiskFreeBytesApprox(userRoot) ?? 0;
+  const username = process.env.USER || process.env.USERNAME || "";
+  if (process.platform !== "win32" && username && fs.existsSync("/proc/mounts")) {
+    const text = fs.readFileSync("/proc/mounts", "utf8");
+    for (const line of text.split("\n")) {
+      const parts = line.split(" ");
+      if (parts.length < 3) continue;
+      const mp = parts[1].replace(/\\040/g, " ");
+      const fstype = parts[2];
+      if (!/^(ext4|btrfs|xfs|f2fs|ntfs|exfat)$/.test(fstype)) continue;
+      if (mp.startsWith("/tmp") || mp.startsWith("/run/user") || mp.includes("/.mount_")) continue;
+      const homeOnMount = path.join(mp, "home", username);
+      if (!fs.existsSync(homeOnMount)) continue;
+      const free = getDiskFreeBytesApprox(homeOnMount);
+      if (free != null && free > bestFree + 4 * 1024 ** 3) {
+        best = path.join(homeOnMount, ".local", "share", "openbentt", "gguf-models");
+        bestFree = free;
+      }
+    }
+  }
+  fs.mkdirSync(best, { recursive: true });
+  try {
+    fs.writeFileSync(path.join(app.getPath("userData"), "gguf-root.txt"), best);
+  } catch { /* userData may be read-only; the in-memory root still works this session */ }
+  resolvedModelRoot = best;
+  return best;
+}
+
 /**
  * @param {import('electron').App} app
  */
 export function getGgufPaths(app) {
-  const root = path.join(app.getPath("userData"), "gguf-models");
+  const root = resolveModelRoot(app);
   const registryPath = path.join(root, "registry.json");
   const filesDir = path.join(root, "files");
   return { root, registryPath, filesDir };
@@ -320,7 +396,7 @@ export async function ensureLlamaServer(opts) {
  */
 export async function hfSearchModels(query, limit = 15) {
   const q = encodeURIComponent(query.trim());
-  const url = `https://huggingface.co/api/models?search=${q}&limit=${limit}&sort=downloads&direction=-1`;
+  const url = `https://huggingface.co/api/models?search=${q}&limit=${limit}&sort=downloads&direction=-1&filter=gguf`;
   const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
   if (!res.ok) throw new Error(`Hugging Face search failed (${res.status})`);
   return await res.json();
@@ -330,7 +406,7 @@ export async function hfSearchModels(query, limit = 15) {
  * @param {string} repoId
  */
 export async function hfGetModelFiles(repoId) {
-  const id = encodeURIComponent(assertSafeRepoId(repoId));
+  const id = encodeRepoId(assertSafeRepoId(repoId));
   const url = `https://huggingface.co/api/models/${id}?blobs=true`;
   const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
   if (!res.ok) throw new Error(`HF model lookup failed (${res.status})`);
@@ -362,7 +438,7 @@ export async function hfGetModelFiles(repoId) {
 }
 
 async function hfHeadSize(repoId, revision, fileName) {
-  const id = encodeURIComponent(repoId);
+  const id = encodeRepoId(repoId);
   const rev = encodeURIComponent(revision);
   const fn = fileName.split("/").map((p) => encodeURIComponent(p)).join("/");
   const url = `https://huggingface.co/${id}/resolve/${rev}/${fn}`;
@@ -383,7 +459,7 @@ async function hfHeadSize(repoId, revision, fileName) {
  * @param {number} expectedTotal from HEAD — for progress bar and resume completeness
  */
 async function downloadGguf(repoId, revision, fileName, destAbsolute, token, expectedTotal, registryIdTag) {
-  const id = encodeURIComponent(repoId);
+  const id = encodeRepoId(repoId);
   const rev = encodeURIComponent(revision);
   const fn = fileName.split("/").map((p) => encodeURIComponent(p)).join("/");
   const url = `https://huggingface.co/${id}/resolve/${rev}/${fn}`;
@@ -494,8 +570,9 @@ export function registerLocalGgufIpc(ipcMain, app) {
 
   ipcMain.handle("localGguf:diskFree", async () => {
     const { root } = paths();
+    await fsp.mkdir(root, { recursive: true });
     const b = getDiskFreeBytesApprox(root);
-    return { bytes: b };
+    return { bytes: b, root };
   });
 
   ipcMain.handle("localGguf:resolveBinary", async (_e, configuredPath) => {
@@ -510,6 +587,10 @@ export function registerLocalGgufIpc(ipcMain, app) {
     if (!Array.isArray(arr)) return [];
     return arr
       .filter((m) => typeof m?.id === "string")
+      .filter((m) => {
+        const tags = Array.isArray(m.tags) ? m.tags.map((t) => String(t).toLowerCase()) : [];
+        return /gguf/i.test(m.id) || tags.some((t) => t.includes("gguf"));
+      })
       .map((m) => ({
         id: m.id,
         downloads: m.downloads,

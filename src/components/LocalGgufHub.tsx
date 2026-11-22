@@ -311,25 +311,27 @@ const LocalGgufHub: React.FC = () => {
               models and size caps to protect disk and RAM. Change the limit in Settings → AI provider → Local file
               model.
             </p>
-            <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
-              <li className="flex items-center gap-2">
+            <ul className="space-y-1.5 text-sm">
+              <li className="flex items-start gap-2">
                 {llamaOk ? (
-                  <CheckCircle2 className="h-4 w-4 text-primary" />
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 ) : (
-                  <AlertTriangle className="h-4 w-4 text-primary" />
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 )}
-                <span>
+                <span className="min-w-0">
                   llama-server
                   {binaryQuery.data?.source === "bundled" ? (
                     <Badge variant="secondary" className="ml-1.5 text-[10px]">
                       bundled
                     </Badge>
                   ) : null}
-                  : <code className="text-[11px]">{binaryQuery.data?.path ?? "not found"}</code>
+                  <code className="mt-1 block break-all text-[11px] text-muted-foreground">
+                    {binaryQuery.data?.path ?? "not found"}
+                  </code>
                 </span>
               </li>
               <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-primary" />
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
                 <span>Policy: max {apiConfig.localGgufMaxParamB}B parameters</span>
               </li>
               <li className="flex items-center gap-2">
@@ -338,7 +340,12 @@ const LocalGgufHub: React.FC = () => {
                 ) : (
                   <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                 )}
-                <span>Free disk: {diskQuery.data?.bytes != null ? formatBytes(diskQuery.data.bytes) : "unknown"}</span>
+                <span className="min-w-0">
+                  Free disk: {diskQuery.data?.bytes != null ? formatBytes(diskQuery.data.bytes) : "unknown"}
+                  {diskQuery.data?.root ? (
+                    <code className="mt-1 block break-all text-[11px] text-muted-foreground">{diskQuery.data.root}</code>
+                  ) : null}
+                </span>
               </li>
               <li className="flex items-center gap-2">
                 {entries.length > 0 ? (
@@ -470,10 +477,16 @@ const LocalGgufHub: React.FC = () => {
                 <Label>GGUF file — {pickedRepoId}</Label>
                 {filesQuery.isFetching ? (
                   <p className="text-xs text-muted-foreground">Listing files…</p>
+                ) : filesQuery.isError ? (
+                  <p className="text-xs text-primary">
+                    Could not list files for this repo. {filesQuery.error instanceof Error ? filesQuery.error.message : "Try again."}
+                  </p>
+                ) : (filesQuery.data?.gguf?.length ?? 0) === 0 ? (
+                  <p className="text-xs text-primary">This repo has no .gguf files. Search again — results are GGUF repos only.</p>
                 ) : filteredFiles.allowed.length === 0 ? (
                   <p className="text-xs text-primary">
-                    No files pass the safety filter for this repo. Try another model or raise the limit in Settings (max
-                    16B).
+                    {filteredFiles.blocked[0]?.reason ??
+                      "No files pass the safety filter for this repo. Try a Q4 quant or raise the limit in Settings (max 16B)."}
                   </p>
                 ) : (
                   <select

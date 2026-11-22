@@ -9,6 +9,7 @@ import {
 describe("guardrails", () => {
   it("parses parameter sizes from names", () => {
     expect(parseParamBillions("org/Llama-3.2-3B-GGUF", "x-Q4_K_M.gguf")).toBe(3);
+    expect(parseParamBillions("unsloth/Qwen3.5-4B-GGUF", "Qwen3.5-4B-Q4_K_M.gguf")).toBe(4);
     expect(parseParamBillions("Qwen/Qwen2.5-7B", "qwen2.5-7b-q4.gguf")).toBe(7);
     expect(parseParamBillions("x/y", "weights.gguf")).toBeNull();
   });
