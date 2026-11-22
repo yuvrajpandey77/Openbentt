@@ -22,6 +22,10 @@ export type DesktopEditRole = "undo" | "redo" | "cut" | "copy" | "paste" | "sele
 export interface OpenbenttDesktopApi {
   platform: NodeJS.Platform;
   isElectron: true;
+  /** True when running a packaged production build (from main via preload). */
+  isPackaged?: boolean;
+  /** False in packaged builds unless OPENBENTT_ENABLE_DEVTOOLS=1. */
+  devToolsAllowed?: boolean;
   framelessTitleBar?: boolean;
   nativeMenuBar?: boolean;
   windowMinimize?(): Promise<void>;
@@ -61,6 +65,13 @@ export interface OpenbenttDesktopApi {
   latexDetect?(root: string): Promise<{ isLatex: boolean; mainTex?: string; chapters?: string[]; bibliography?: string[]; buildDir?: string; engines?: Record<string, boolean> }>;
   latexCompile?(root: string, engine?: string): Promise<{ ok: boolean; mainTex: string; pdf: string | null; pdfSize: number; errors: Array<{ file: string; line: number; message: string }>; warnings: string[]; logTail: string }>;
   latexOpenPdf?(root: string, path: string): Promise<{ opened: boolean; path: string }>;
+  documentsOcrStatus?(): Promise<{ available: boolean; binary?: string; error?: string }>;
+  documentsOcr?(payload: {
+    pages?: Array<{ pageNumber?: number; dataBase64: string; mimeType?: string }>;
+    dataBase64?: string;
+    mimeType?: string;
+    imagePath?: string;
+  }): Promise<{ text: string; pages: Array<{ pageNumber: number; text: string }>; confidence?: number }>;
   computerCapabilities?(): Promise<{ screenshot: boolean; act: boolean; open: boolean; platform: string }>;
   computerScreenshot?(): Promise<{ dataUrl: string; displayId: string | null; at: string }>;
   computerAct?(action: string, params?: Record<string, unknown>): Promise<{ result: { message: string; code: number | null }; before: string | null; after: string | null }>;
@@ -71,6 +82,18 @@ export interface OpenbenttDesktopApi {
   checkForUpdates(): Promise<{ ok: boolean; updateInfo?: string | null; message?: string }>;
   downloadUpdate(): Promise<{ ok: boolean; message?: string }>;
   installUpdate(): Promise<{ ok: boolean }>;
+  detectExternalAgents?(): Promise<{
+    ok: boolean;
+    agents: Array<{
+      id: string;
+      name: string;
+      available: boolean;
+      path: string | null;
+      version: string | null;
+      kind: "agent" | "assistant";
+    }>;
+    message?: string;
+  }>;
   onUpdateStatus(cb: (status: DesktopUpdateStatus) => void): () => void;
 }
 

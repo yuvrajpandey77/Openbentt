@@ -287,25 +287,24 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ isOpen, onClose }) => {
               {/* ACTIVITY TAB */}
               {activeTab === "activity" && (
                 <div className="space-y-2">
-                  <div className="text-[11px] text-muted-foreground font-medium px-1">Recent Activity</div>
+                  <div className="px-1 text-[11px] font-medium text-muted-foreground">Shortcuts</div>
                   <nav className="flex flex-col gap-1" aria-label="Activity">
                     {[
-                      { icon: Brain, label: "AI Research", to: "/labs" },
-                      { icon: Terminal, label: "Terminal", to: "/terminal" },
-                      { icon: Globe, label: "Web Search", to: "/search" },
-                      { icon: FileStack, label: "Documents", to: "/documents" },
-                      { icon: NotebookPen, label: "Editor", to: "/notebook" },
+                      { id: "research", icon: Brain, label: "Research", to: "/labs" },
+                      { id: "docs", icon: FileStack, label: "Documents", to: "/documents" },
+                      { id: "notebook", icon: NotebookPen, label: "Notebook · Compile", to: "/notebook" },
+                      { id: "tasks", icon: ListTodo, label: "Tasks", to: "/tasks" },
+                      { id: "agent", icon: Bot, label: "Agent · Voice", to: "/agent" },
                     ].map((item) => (
                       <NavLink
                         key={item.id}
                         to={item.to}
                         onClick={onClose}
-                        className={cn(
-                          "sidebar-nav-item",
-                          location.pathname === item.to && "sidebar-nav-item--active"
-                        )}
+                        className={({ isActive }) =>
+                          cn("sidebar-nav-item", isActive && "sidebar-nav-item--active")
+                        }
                       >
-                        <item.icon className="shrink-0 h-4 w-4" strokeWidth={1.5} />
+                        <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
                         <span className="sidebar-nav-label truncate">{item.label}</span>
                       </NavLink>
                     ))}
@@ -316,27 +315,25 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ isOpen, onClose }) => {
               {/* TOOLS TAB */}
               {activeTab === "tools" && (
                 <div className="space-y-2">
-                  <div className="text-[11px] text-muted-foreground font-medium px-1">Tools</div>
+                  <div className="px-1 text-[11px] font-medium text-muted-foreground">Tools</div>
                   <nav className="flex flex-col gap-1" aria-label="Tools">
                     {[
-                      { icon: Bot, label: "Computer Use", to: "/diagnostics" },
-                      { icon: Cpu, label: "Models", to: "/settings" },
-                      { icon: GitBranch, label: "Git", to: "/files" },
-                      { icon: Plug, label: "Integrations", to: "/setup" },
-                      { icon: FlaskConical, label: "Developer", to: "/benchmark" },
-                      { icon: ServerCog, label: "Providers", to: "/setup" },
-                      { icon: Stethoscope, label: "Diagnostics", to: "/diagnostics" },
+                      { id: "diag", icon: Stethoscope, label: "Diagnostics", to: "/diagnostics" },
+                      { id: "models", icon: Cpu, label: "Models", to: "/settings" },
+                      { id: "files", icon: Files, label: "Files", to: "/files" },
+                      { id: "setup", icon: Plug, label: "Integrations", to: "/setup" },
+                      { id: "bench", icon: FlaskConical, label: "Benchmark", to: "/benchmark" },
+                      { id: "providers", icon: ServerCog, label: "Providers", to: "/setup" },
                     ].map((item) => (
                       <NavLink
                         key={item.id}
                         to={item.to}
                         onClick={onClose}
-                        className={cn(
-                          "sidebar-nav-item",
-                          location.pathname === item.to && "sidebar-nav-item--active"
-                        )}
+                        className={({ isActive }) =>
+                          cn("sidebar-nav-item", isActive && "sidebar-nav-item--active")
+                        }
                       >
-                        <item.icon className="shrink-0 h-4 w-4" strokeWidth={1.5} />
+                        <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
                         <span className="sidebar-nav-label truncate">{item.label}</span>
                       </NavLink>
                     ))}
@@ -347,23 +344,22 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ isOpen, onClose }) => {
               {/* SETTINGS TAB */}
               {activeTab === "settings" && (
                 <div className="space-y-2">
-                  <div className="text-[11px] text-muted-foreground font-medium px-1">Settings</div>
+                  <div className="px-1 text-[11px] font-medium text-muted-foreground">Settings</div>
                   <nav className="flex flex-col gap-1" aria-label="Settings">
                     {[
-                      { icon: Settings, label: "Settings", to: "/settings" },
-                      { icon: HelpCircle, label: "Help & Docs", to: "/help" },
-                      { icon: User, label: "Account", to: "/account" },
+                      { id: "settings", icon: Settings, label: "Settings", to: "/settings" },
+                      { id: "setup", icon: Plug, label: "Setup / API keys", to: "/setup" },
+                      { id: "chat", icon: MessageSquare, label: "Back to chat", to: "/chat" },
                     ].map((item) => (
                       <NavLink
                         key={item.id}
                         to={item.to}
                         onClick={onClose}
-                        className={cn(
-                          "sidebar-nav-item",
-                          location.pathname === item.to && "sidebar-nav-item--active"
-                        )}
+                        className={({ isActive }) =>
+                          cn("sidebar-nav-item", isActive && "sidebar-nav-item--active")
+                        }
                       >
-                        <item.icon className="shrink-0 h-4 w-4" strokeWidth={1.5} />
+                        <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
                         <span className="sidebar-nav-label truncate">{item.label}</span>
                       </NavLink>
                     ))}

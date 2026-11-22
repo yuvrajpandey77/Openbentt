@@ -2,7 +2,10 @@
  * Worker thread: MiniLM embeddings (keeps main Electron process responsive).
  */
 import { parentPort, workerData } from "node:worker_threads";
-import { buildChunkEmbeddingsFromChunks } from "../../src/lib/research/embedCore.mjs";
+import {
+  buildChunkEmbeddingsFromChunks,
+  MAX_CHUNKS_INDEX_DESKTOP,
+} from "../../src/lib/research/embedCore.mjs";
 
 try {
   const { type, payload } = workerData;
@@ -12,8 +15,10 @@ try {
     const chunks = payload.chunks ?? [];
     const resumeVectors = payload.resumeVectors ?? {};
 
+    // Desktop SQLite persists vectors — index the full library (up to desktop cap).
     const vectors = await buildChunkEmbeddingsFromChunks(chunks, {
       resumeVectors,
+      maxChunks: MAX_CHUNKS_INDEX_DESKTOP,
       onProgress: (p) => {
         parentPort.postMessage({ type: "progress", progress: p });
       },

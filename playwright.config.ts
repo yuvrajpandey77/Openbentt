@@ -19,5 +19,13 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    // Opt-in desktop smoke: OPENBENTT_E2E_ELECTRON=1 npm run test:e2e -- --project=electron
+    {
+      name: "electron",
+      testMatch: /electron-smoke\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
 });

@@ -92,6 +92,7 @@ function DesktopMenuNavigateBridge() {
 function DesktopTitleBarMenus() {
   const navigate = useNavigate();
   const api = window.openbenttDesktop;
+  const showDevTools = api?.devToolsAllowed !== false;
 
   const go = useCallback((path: string) => navigate(path), [navigate]);
 
@@ -155,10 +156,17 @@ function DesktopTitleBarMenus() {
           <DropdownMenuItem className={menuItemClass} onSelect={() => void api?.reloadPage?.()}>
             Reload
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem className={menuItemClass} onSelect={() => void api?.toggleDevTools?.()}>
-            Toggle Developer Tools
-          </DropdownMenuItem>
+          {showDevTools ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className={menuItemClass}
+                onSelect={() => void api?.toggleDevTools?.()}
+              >
+                Toggle Developer Tools
+              </DropdownMenuItem>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
 

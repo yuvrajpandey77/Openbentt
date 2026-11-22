@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, NavLink, useNavigate, useParams } from "react-router-dom";
 import ChatMessages from "@/components/ChatMessages";
 import { useChat, resolveExecutionWorkspace } from "@/context/ChatContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
@@ -201,40 +201,53 @@ const ProjectWorkspacePage: React.FC = () => {
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* Project sidebar — matches main sidebar design */}
           <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-muted/20 md:flex" aria-label="Project workspace">
-            {/* Navigation: Chat, Research, Voice */}
+            {/* Navigation — real app routes (no dead /research or /voice paths) */}
             <nav className="flex shrink-0 flex-col gap-0.5 mb-4 px-1" aria-label="Project navigation">
               <NavLink
                 to={`/projects/${projectId}`}
-                onClick={onCloseMobile}
-                className={cn(
-                  "sidebar-nav-item",
-                  location.pathname === `/projects/${projectId}` && "sidebar-nav-item--active"
-                )}
+                end
+                className={({ isActive }) =>
+                  cn("sidebar-nav-item", isActive && "sidebar-nav-item--active")
+                }
               >
                 <MessageSquare className="shrink-0 h-4 w-4" strokeWidth={1.5} />
                 <span className="sidebar-nav-label truncate">Chat</span>
               </NavLink>
               <NavLink
-                to={`/projects/${projectId}/research`}
-                onClick={onCloseMobile}
-                className={cn(
-                  "sidebar-nav-item",
-                  location.pathname.startsWith(`/projects/${projectId}/research`) && "sidebar-nav-item--active"
-                )}
+                to="/notebook"
+                className={({ isActive }) =>
+                  cn("sidebar-nav-item", isActive && "sidebar-nav-item--active")
+                }
+              >
+                <NotebookPen className="shrink-0 h-4 w-4" strokeWidth={1.5} />
+                <span className="sidebar-nav-label truncate">Notebook · Compile</span>
+              </NavLink>
+              <NavLink
+                to="/labs"
+                className={({ isActive }) =>
+                  cn("sidebar-nav-item", isActive && "sidebar-nav-item--active")
+                }
               >
                 <Brain className="shrink-0 h-4 w-4" strokeWidth={1.5} />
                 <span className="sidebar-nav-label truncate">Research</span>
               </NavLink>
               <NavLink
-                to={`/projects/${projectId}/voice`}
-                onClick={onCloseMobile}
-                className={cn(
-                  "sidebar-nav-item",
-                  location.pathname.startsWith(`/projects/${projectId}/voice`) && "sidebar-nav-item--active"
-                )}
+                to="/documents"
+                className={({ isActive }) =>
+                  cn("sidebar-nav-item", isActive && "sidebar-nav-item--active")
+                }
+              >
+                <FileStack className="shrink-0 h-4 w-4" strokeWidth={1.5} />
+                <span className="sidebar-nav-label truncate">Documents</span>
+              </NavLink>
+              <NavLink
+                to="/agent"
+                className={({ isActive }) =>
+                  cn("sidebar-nav-item", isActive && "sidebar-nav-item--active")
+                }
               >
                 <Mic className="shrink-0 h-4 w-4" strokeWidth={1.5} />
-                <span className="sidebar-nav-label truncate">Voice</span>
+                <span className="sidebar-nav-label truncate">Agent · Voice</span>
               </NavLink>
             </nav>
 

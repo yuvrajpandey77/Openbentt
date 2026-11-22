@@ -3,7 +3,13 @@
  */
 
 export const MODEL_ID = "Xenova/all-MiniLM-L6-v2";
-export const MAX_CHUNKS_INDEX = 120;
+/**
+ * Legacy soft default for web/in-memory indexing. Desktop SQLite embed jobs pass
+ * `maxChunks: MAX_CHUNKS_INDEX_DESKTOP` so thousand-page libraries are fully covered.
+ */
+export const MAX_CHUNKS_INDEX = 2_000;
+export const MAX_CHUNKS_INDEX_WEB = 2_000;
+export const MAX_CHUNKS_INDEX_DESKTOP = 50_000;
 export const MAX_EMBED_CHARS = 512;
 
 /** @type {Promise<((text: string, opts?: { pooling: string; normalize: boolean }) => Promise<{ data: Float32Array | number[] }>)> | null} */
@@ -19,6 +25,22 @@ export async function getEmbedder() {
     })();
   }
   return pipelinePromise;
+}
+
+/** Drop the cached MiniLM pipeline so GC can reclaim ONNX/WASM RAM after indexing. */
+export function disposeEmbedder() {
+  const pending = pipelinePromise;
+  pipelinePromise = null;
+  if (!pending) return;
+  void pending
+    .then((pipe) => {
+      try {
+        if (pipe && typeof pipe.dispose === "function") pipe.dispose();
+      } catch {
+        /* ignore */
+      }
+    })
+    .catch(() => {});
 }
 
 /** L2-normalized MiniLM embedding (384-dim). */
@@ -43,23 +65,63 @@ export function cosineNormalized(a, b) {
 }
 
 /**
+ * Fair subset for embedding when corpus exceeds maxChunks.
+ * Round-robins across papers so one long PDF cannot monopolize the index.
+ * @param {{ id: string, paperId: string, text: string }[]} chunks
+ * @param {number} maxChunks
+ */
+export function selectChunksForEmbedding(chunks, maxChunks) {
+  const library = (chunks ?? []).filter((c) => c.paperId !== "draft");
+  if (!Number.isFinite(maxChunks) || maxChunks <= 0 || library.length <= maxChunks) {
+    return library;
+  }
+
+  /** @type {Map<string, typeof library>} */
+  const byPaper = new Map();
+  for (const c of library) {
+    const list = byPaper.get(c.paperId);
+    if (list) list.push(c);
+    else byPaper.set(c.paperId, [c]);
+  }
+
+  const queues = [...byPaper.values()];
+  const selected = [];
+  let cursor = 0;
+  while (selected.length < maxChunks && queues.length > 0) {
+    const qi = cursor % queues.length;
+    const q = queues[qi];
+    if (!q.length) {
+      queues.splice(qi, 1);
+      if (queues.length === 0) break;
+      cursor = qi;
+      continue;
+    }
+    selected.push(q.shift());
+    cursor = qi + 1;
+  }
+  return selected;
+}
+
+/**
  * @param {{ id: string, paperId: string, text: string }[]} chunks
  * @param {{
  *   onProgress?: (p: { phase: string, done: number, total: number }) => void,
  *   signal?: AbortSignal,
  *   resumeVectors?: Record<string, number[]>,
  *   onPartial?: (vectors: Record<string, number[]>) => void,
+ *   maxChunks?: number,
  * }} [opts]
  */
 export async function buildChunkEmbeddingsFromChunks(chunks, opts = {}) {
   const { onProgress, signal, resumeVectors, onPartial } = opts;
-  const library = chunks.filter((c) => c.paperId !== "draft").slice(0, MAX_CHUNKS_INDEX);
+  const maxChunks = opts.maxChunks ?? MAX_CHUNKS_INDEX;
+  const library = selectChunksForEmbedding(chunks, maxChunks);
   const vectors = { ...(resumeVectors ?? {}) };
-  const pending = library.filter((c) => !vectors[c.id]);
+  const pending = library.filter((c) => !vectors[c.id]?.length);
 
-  onProgress?.({ phase: "loading-model", done: Object.keys(vectors).length, total: library.length });
+  onProgress?.({ phase: "loading-model", done: Object.keys(vectors).filter((k) => k !== "__query__").length, total: library.length });
   await getEmbedder();
-  onProgress?.({ phase: "embedding", done: Object.keys(vectors).length, total: library.length });
+  onProgress?.({ phase: "embedding", done: Object.keys(vectors).filter((k) => k !== "__query__").length, total: library.length });
 
   for (let i = 0; i < pending.length; i++) {
     if (signal?.aborted) {
@@ -67,7 +129,7 @@ export async function buildChunkEmbeddingsFromChunks(chunks, opts = {}) {
     }
     const c = pending[i];
     vectors[c.id] = await embedPassage(c.text);
-    const done = Object.keys(vectors).length;
+    const done = Object.keys(vectors).filter((k) => k !== "__query__").length;
     onProgress?.({ phase: "embedding", done, total: library.length });
     if (done % 8 === 0) onPartial?.({ ...vectors });
   }

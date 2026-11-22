@@ -198,7 +198,28 @@ async function waitForServerModels(port, timeoutMs = 120_000, getStderrTail) {
   throw new Error(msg + (tail.trim() ? `\n--- llama-server stderr (tail) ---\n${tail.slice(-2000)}` : ""));
 }
 
+const LLAMA_IDLE_MS = 15 * 60 * 1000;
+/** @type {ReturnType<typeof setTimeout> | null} */
+let llamaIdleTimer = null;
+
+function clearLlamaIdleTimer() {
+  if (llamaIdleTimer) {
+    clearTimeout(llamaIdleTimer);
+    llamaIdleTimer = null;
+  }
+}
+
+function touchLlamaActivity() {
+  clearLlamaIdleTimer();
+  llamaIdleTimer = setTimeout(() => {
+    console.info("[llama-server] idle timeout — stopping to free RAM");
+    stopLlamaServer();
+  }, LLAMA_IDLE_MS);
+  llamaIdleTimer.unref?.();
+}
+
 function stopLlamaServer() {
+  clearLlamaIdleTimer();
   if (serverProc && !serverProc.killed) {
     try {
       serverProc.kill("SIGTERM");
@@ -230,6 +251,7 @@ export async function ensureLlamaServer(opts) {
     try {
       const res = await fetch(`http://127.0.0.1:${serverPort}/v1/models`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      touchLlamaActivity();
       return {
         baseUrl: serverBaseUrl,
         port: serverPort,
@@ -289,6 +311,7 @@ export async function ensureLlamaServer(opts) {
     stopLlamaServer();
     throw e;
   }
+  touchLlamaActivity();
   return { baseUrl: serverBaseUrl, port, chatModelId: serverChatModelId };
 }
 

@@ -19,22 +19,27 @@ export function NewsStrip({ compact = false }: NewsStripProps) {
               <p className="marketing-eyebrow">Updates</p>
               <h2 className="marketing-section-title mt-3 text-left">Latest news</h2>
             </div>
-            {releasesUrl && (
-              <a
-                href={releasesUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm font-medium text-primary hover:underline"
-              >
-                GitHub releases
-              </a>
-            )}
+            <div className="flex flex-wrap items-center gap-4">
+              <Link to="/news" className="text-sm font-medium text-primary hover:underline">
+                All release notes
+              </Link>
+              {releasesUrl && (
+                <a
+                  href={releasesUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm font-medium text-muted-foreground hover:underline"
+                >
+                  GitHub releases
+                </a>
+              )}
+            </div>
           </MarketingReveal>
           <ul className="divide-y divide-border/50 rounded-2xl border border-border/60 bg-card/50">
             {latestNews.map((item, i) => (
               <MarketingReveal key={item.title} as="li" delay={i * 50}>
                 <Link
-                  to={item.to ?? "/download"}
+                  to={item.to ?? "/news"}
                   className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between sm:gap-6 md:px-6 md:py-5"
                 >
                   <span className="text-base font-medium text-foreground md:text-lg">{item.title}</span>
@@ -53,21 +58,26 @@ export function NewsStrip({ compact = false }: NewsStripProps) {
       <div className="marketing-container">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <h2 className="marketing-section-title text-left">Latest news</h2>
-          {releasesUrl && (
-            <a
-              href={releasesUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              View more on GitHub
-            </a>
-          )}
+          <div className="flex flex-wrap gap-4">
+            <Link to="/news" className="text-sm font-medium text-primary hover:underline">
+              All release notes
+            </Link>
+            {releasesUrl && (
+              <a
+                href={releasesUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-medium text-muted-foreground hover:underline"
+              >
+                GitHub
+              </a>
+            )}
+          </div>
         </div>
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {latestNews.map((item) => (
             <li key={item.title}>
-              <Link to="/download" className="marketing-news-card marketing-card block h-full p-4">
+              <Link to={item.to ?? "/news"} className="marketing-news-card marketing-card block h-full p-4">
                 <p className="font-medium leading-snug text-foreground">{item.title}</p>
                 <p className="mt-2 text-xs text-muted-foreground">{item.date}</p>
               </Link>

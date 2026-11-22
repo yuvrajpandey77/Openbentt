@@ -121,3 +121,26 @@ export function formatRetrievalForPrompt(hits: RetrievalHit[], maxChars = 24_000
   }
   return lines.join("\n");
 }
+
+/**
+ * How much corpus evidence to inject into chat.
+ * Local/on-device models have smaller effective windows; cloud can take more hits.
+ */
+export function ragBudgetForProvider(aiProvider: string): { hitLimit: number; maxChars: number } {
+  switch (aiProvider) {
+    case "webgpu_gemma":
+      return { hitLimit: 4, maxChars: 4_000 };
+    case "local_gguf":
+      return { hitLimit: 6, maxChars: 6_000 };
+    case "openai_compatible":
+      // Ollama / LM Studio — treat as mid-size local context.
+      return { hitLimit: 8, maxChars: 10_000 };
+    case "anthropic":
+    case "google":
+    case "openai_direct":
+    case "openrouter":
+      return { hitLimit: 12, maxChars: 18_000 };
+    default:
+      return { hitLimit: 8, maxChars: 8_000 };
+  }
+}

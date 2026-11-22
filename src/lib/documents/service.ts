@@ -16,6 +16,7 @@ import { detectSections } from "@/lib/documents/structure";
 import { chunkDocumentBlocks } from "@/lib/documents/chunking";
 import { fetchPageForIngest, validateIngestUrl } from "@/lib/documents/urlIngest";
 import { extractHtmlArticle } from "@/lib/documents/extractors";
+import { canRetryOcr, ocrPdfBytes } from "@/lib/documents/ocr";
 import type {
   DocumentChunk, DocumentContent, DocumentExtraction, DocumentStatus, DocumentVersion,
   ExtractionStatus, OpenbenttDocument,
@@ -210,11 +211,31 @@ export async function ingest(input: IngestInput): Promise<{
 
 /** PDF entry point: keeps src/lib/pdfText.ts as the glyph source (unchanged). */
 export async function ingestPdfPages(
-  fileName: string, pdf: PdfPagesInput, opts?: { projectId?: string; mimeType?: string; size?: number }
-): Promise<{ document: OpenbenttDocument; version: DocumentVersion; duplicate: boolean; chunks: DocumentChunk[] }> {
+  fileName: string,
+  pdf: PdfPagesInput,
+  opts?: { projectId?: string; mimeType?: string; size?: number; pdfBytes?: Uint8Array },
+): Promise<{ document: OpenbenttDocument; version: DocumentVersion; duplicate: boolean; chunks: DocumentChunk[]; ocrApplied?: boolean }> {
   const joined = pdf.pages.map((p) => p.text).join("\n");
   const checksum = await sha256Hex(new TextEncoder().encode(`${fileName}\n${joined.slice(0, 50000)}`));
-  const result = buildPdfContent(pdf.pages, pdf.totalPages, fileName, opts?.mimeType ?? "application/pdf", opts?.size ?? joined.length, { truncated: pdf.truncated });
+  let result = buildPdfContent(pdf.pages, pdf.totalPages, fileName, opts?.mimeType ?? "application/pdf", opts?.size ?? joined.length, { truncated: pdf.truncated });
+  let ocrApplied = false;
+  const contentPages = result.content.pages.length
+    ? result.content.pages
+    : pdf.pages.map((p) => ({ pageNumber: p.pageNumber, text: p.text, charCount: p.text.length, empty: p.empty }));
+  if (
+    (result.status === "ocr-required" || result.status === "partial")
+    && opts?.pdfBytes
+    && await canRetryOcr(contentPages, pdf.totalPages)
+  ) {
+    try {
+      const ocrPages = await ocrPdfBytes(opts.pdfBytes);
+      result = buildPdfContent(ocrPages, pdf.totalPages, fileName, opts?.mimeType ?? "application/pdf", opts?.size ?? joined.length, { truncated: pdf.truncated });
+      ocrApplied = result.status !== "ocr-required";
+      logger.info("documents", "OCR applied to scanned PDF", { fileName, status: result.status, pages: ocrPages.length });
+    } catch (err) {
+      logger.warn("documents", "OCR retry failed", { fileName, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
   const existing = findDuplicate(checksum);
   const version = (existing?.version ?? 0) + 1;
   const { doc, versionRec } = buildDocument(
@@ -231,7 +252,33 @@ export async function ingestPdfPages(
   registry.contents.set(doc.id, content);
   registry.chunks.set(doc.id, chunks);
   registry.byChecksum.set(checksum, doc.id);
-  return { document: doc, version: versionRec, duplicate: Boolean(existing), chunks };
+  if (result.status === "extracted" || result.status === "partial") registry.staleIndex.add(doc.id);
+  return { document: doc, version: versionRec, duplicate: Boolean(existing), chunks, ocrApplied };
+}
+
+/** Re-run OCR for a document stuck in needs-ocr (desktop + tesseract required). */
+export async function retryOcrForDocument(
+  documentId: string,
+  pdfBytes: Uint8Array,
+  fileName: string,
+): Promise<{ document?: OpenbenttDocument; ok: boolean; reason?: string }> {
+  const doc = getDocument(documentId);
+  if (!doc) return { ok: false, reason: "not-found" };
+  if (doc.status !== "needs-ocr") return { document: doc, ok: false, reason: "not-needs-ocr" };
+  const content = registry.contents.get(documentId);
+  const pages = content?.pages ?? [];
+  const totalPages = (doc.metadata.pageCount?.value ?? pages.length) || 1;
+  const pdfInput: PdfPagesInput = {
+    pages: pages.map((p) => ({ pageNumber: p.pageNumber, text: p.text, empty: p.empty })),
+    totalPages,
+  };
+  const r = await ingestPdfPages(fileName, pdfInput, {
+    projectId: doc.projectId,
+    mimeType: doc.mimeType,
+    size: pdfBytes.length,
+    pdfBytes,
+  });
+  return { document: r.document, ok: r.ocrApplied === true || r.document.status !== "needs-ocr" };
 }
 
 /** Controlled URL ingest: validate -> fetch -> extract -> ingest. */

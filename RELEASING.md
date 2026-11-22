@@ -74,7 +74,7 @@ In **dev** (`electron:dev`), update checks may report dev-only — expected.
 
 ## Code signing (macOS / Windows)
 
-Current CI builds are **unsigned** (`CSC_IDENTITY_AUTO_DISCOVERY=false` on macOS). To ship signed installers:
+CI wires signing automatically when secrets exist (`CSC_LINK`, `CSC_KEY_PASSWORD`, Apple notarization vars). Without secrets, builds stay **unsigned** (`CSC_IDENTITY_AUTO_DISCOVERY` disabled). To ship signed installers:
 
 ### GitHub Actions secrets
 

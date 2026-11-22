@@ -1,9 +1,9 @@
 # Openbentt — feature completion log
 
-**Product name:** Openbentt (repo: SecuredChatCogerphere)  
+**Product name:** Openbentt (repo: Openbentt)  
 **Primary surface:** Electron desktop  
 **Secondary surface:** static web app (OpenRouter chat, Notebook; no offline GGUF / Labs)  
-**Last audited:** May 2026 · app version `2.0.7` (`package.json`)
+**Last audited:** Nov 2026 · app version `2.5.0` (`package.json`)
 
 Use this log to audit claims in marketing, README, and release notes. Each row links to code or tests as evidence.
 
@@ -25,9 +25,12 @@ Use this log to audit claims in marketing, README, and release notes. Each row l
 | Electron desktop (primary) | completed | desktop | `electron/main.mjs`, `package.json` `main` | Landing skipped; opens `/chat` |
 | Static web app (secondary) | completed | web | `src/App.tsx`, `vite build` | Marketing at `/`; workspaces guarded |
 | Web route guard (desktop-only paths) | completed | web | `src/config/platformSurface.ts`, `WebWorkspaceRouteGuard.tsx` | `/labs`, `/write`, `/benchmark`, `/webgpu` → `/chat` on web |
-| GitHub Release installers | completed | desktop | `RELEASING.md`, `.github/workflows/release.yml` | Unsigned macOS/Windows |
-| Auto-update (electron-updater) | partial | desktop | `DesktopUpdateCard.tsx`, `electron/main.mjs` | Needs `latest*.yml` on release |
-| Code signing | missing | desktop | `PRODUCTION_CHECKLIST.md`, `RELEASING.md` | Gatekeeper / SmartScreen friction |
+| GitHub Release installers | completed | desktop | `RELEASING.md`, `.github/workflows/release.yml` | Installers + `latest*.yml` |
+| Auto-update (electron-updater) | completed | desktop | `DesktopUpdateCard.tsx`, `electron/updater.mjs`, Settings top card | Needs `latest*.yml` on release (CI uploads) |
+| Multi-agent PATH detect | completed | desktop | `externalAgentDetect.mjs`, Settings → Agents | OpenCode/Claude/Codex/Cursor/Aider/Gemini; shim noise filtered |
+| ZIP/folder project import | completed | desktop | `importProjectArchive.ts`, New Project dialog | Overleaf/Prism/Codex-compatible |
+| Bombadil browser QA | completed | release | `bombadil/specification.js`, `npm run test:bombadil` | Found & fixed missing `IntegrationsHub` import |
+| Code signing | partial | desktop | `release.yml` CSC/Apple secrets, `build/entitlements.mac.plist` | Signs when secrets present; unsigned otherwise |
 | Docker (web + research proxy) | completed | deploy | `docker-compose.yml`, `Dockerfile` | Optional; not the primary product story |
 
 ---
@@ -124,7 +127,7 @@ Use this log to audit claims in marketing, README, and release notes. Each row l
 | Writing assist parsers | `parseWritingAssist.test.ts`, `latexTools.test.ts` |
 | Chat / release / downloads | `chat.test.ts`, `releaseDownloads.test.ts`, `composerPlaceholder.test.ts` |
 | Local GGUF guardrails | `guardrails.test.ts` |
-| E2E / ChatContext | **missing** | See `PRODUCT_DOC.md` §8 |
+| E2E / ChatContext | **partial** | OpenCode smoke + opt-in Electron Playwright (`OPENBENTT_E2E_ELECTRON=1`); web research Phase A still skipped |
 
 ---
 

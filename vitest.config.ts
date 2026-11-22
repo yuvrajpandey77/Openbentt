@@ -9,6 +9,15 @@ export default defineConfig({
     setupFiles: [],
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Match vite.config.ts — citation-js package exports use short paths that resolve via aliases.
+      "citation-js/plugin-bibtex": path.resolve(
+        __dirname,
+        "node_modules/@citation-js/plugin-bibtex/lib/index.js"
+      ),
+      "citation-js/plugin-csl": path.resolve(
+        __dirname,
+        "node_modules/@citation-js/plugin-csl/lib/index.js"
+      ),
     },
   },
 });

@@ -5,7 +5,7 @@ Use this **on your machine** before `git push origin vX.Y.Z`. Check boxes as you
 **Automated gate (run first):**
 
 ```bash
-cd /path/to/SecuredChatCogerphere
+cd /path/to/Openbentt
 npm ci
 npm run verify:release   # lint + test + build + e2e (same as CI release gate)
 ```

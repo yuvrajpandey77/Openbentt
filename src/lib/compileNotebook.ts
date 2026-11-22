@@ -34,7 +34,33 @@ function prepareBundle(bundle: CompileBundle, applyStyle: boolean): CompileBundl
   return { ...bundle, mainTex, additionalFiles };
 }
 
-/** Plain text / page markers → jsPDF; full LaTeX → WASM / local / HTTP pdflatex. */
+/**
+ * Strip common LaTeX commands so a text-PDF fallback is still readable when
+ * every TeX engine (BusyTeX / local / HTTP) fails.
+ */
+function latexToReadablePlain(tex: string): string {
+  return tex
+    .replace(/\\begin\{document\}/gi, "")
+    .replace(/\\end\{document\}/gi, "")
+    .replace(/\\[a-zA-Z]+\*?(\[[^\]]*\])?(\{[^}]*\})?/g, " ")
+    .replace(/[{}%~^_]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120_000);
+}
+
+async function textFallbackPdf(source: string, plainTitle: string, reason: unknown): Promise<Blob> {
+  const why = reason instanceof Error ? reason.message.split("\n")[0] : String(reason);
+  const body =
+    `Openbentt text preview (LaTeX engines unavailable)\n` +
+    `Reason: ${why.slice(0, 280)}\n` +
+    `—\n\n` +
+    latexToReadablePlain(source);
+  console.warn("[compile] Using text PDF fallback after LaTeX failure:", why);
+  return compileTextToPdfBlob(body, `${plainTitle} (text fallback)`);
+}
+
+/** Plain text / page markers → jsPDF; full LaTeX → WASM / local / HTTP pdflatex (always yields a PDF). */
 export async function compileNotebookSourceToPdf(
   source: string,
   plainTitle = "Notebook",
@@ -50,17 +76,25 @@ export async function compileNotebookSourceToPdf(
       const cached = await getCachedCompilePdf(prepared, opts.projectId);
       if (cached.hit) return cached.blob;
     }
-    const blob = await compileLatexToPdfBlob(prepared.mainTex, prepared);
-    if (useCache) {
-      void storeCachedCompilePdf(prepared, blob, opts.projectId);
+    try {
+      const blob = await compileLatexToPdfBlob(prepared.mainTex, prepared);
+      if (useCache) {
+        void storeCachedCompilePdf(prepared, blob, opts.projectId);
+      }
+      return blob;
+    } catch (err) {
+      return textFallbackPdf(prepared.mainTex, plainTitle, err);
     }
-    return blob;
   }
 
   if (isLatexDocumentSource(source)) {
     let tex = applyNotebookLatexAutofix(source);
     if (applyStyle) tex = applyDocumentStyleToLatex(tex, loadDocumentStyle());
-    return compileLatexToPdfBlob(tex);
+    try {
+      return await compileLatexToPdfBlob(tex);
+    } catch (err) {
+      return textFallbackPdf(tex, plainTitle, err);
+    }
   }
 
   return compileTextToPdfBlob(source, plainTitle);

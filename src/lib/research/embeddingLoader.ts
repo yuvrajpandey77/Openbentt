@@ -5,7 +5,8 @@ import {
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import type { CorpusChunk } from "@/types/researchProject";
 
-const EMBED_LOAD_BATCH = 32;
+/** Larger batches keep IPC overhead low when resolving thousand-page corpora. */
+const EMBED_LOAD_BATCH = 256;
 
 /** Load vectors for library chunks in batches (desktop SQLite). */
 export async function loadEmbeddingsForChunks(

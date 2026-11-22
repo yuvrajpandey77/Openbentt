@@ -2,7 +2,7 @@
 
 **Audience:** product, marketing, release operators  
 **Companion:** [FEATURE_COMPLETION_LOG.md](./FEATURE_COMPLETION_LOG.md)  
-**Last updated:** May 2026
+**Last updated:** Nov 2026 (v2.5.0 final release — Prism migration, multi-agent detect, Bombadil)
 
 ---
 
@@ -44,7 +44,7 @@ These are **completed** on **desktop** with manual smoke per [LOCAL_RELEASE_CHEC
 
 | Area | Risk | Mitigation in copy / ops |
 |------|------|---------------------------|
-| **Unsigned installers** | macOS Gatekeeper, Windows SmartScreen | Release notes: right-click open / “More info” |
+| **Unsigned installers (no CSC secrets)** | macOS Gatekeeper, Windows SmartScreen | Release notes: right-click open / “More info”; CI signs when secrets set |
 | **Intel macOS** | CI bundles arm64 `llama-server` only | Document PATH / custom binary |
 | **WebGPU/WASM cold start** | 30–120s, large downloads | “On-device models load in-browser; first run is slow” |
 | **MiniLM semantic index** | CDN model fetch on first use | “Downloads a small embedding model once” |
@@ -73,8 +73,9 @@ These are **completed** on **desktop** with manual smoke per [LOCAL_RELEASE_CHEC
 
 ## Known limitations (honest footnotes)
 
-- **ChatContext** has no automated integration tests (~900 lines).
+- **ChatContext** OpenCode seam has smoke tests (`ChatContext.openCode.smoke.test.tsx`); full provider mount still manual.
 - **Research orchestrator** wires notebook writing/citation prompts to hybrid retrieval; not a full autonomous agent loop.
+- **OCR** uses system `tesseract` on desktop when installed; scanned PDFs stay `ocr-required` until tesseract is available.
 - **Caption AI** prompts chat; does not auto-patch `\caption{}` without user apply.
 - **Citation graph** enrichment uses Semantic Scholar over the network; not fully offline.
 - **Review workflow** is paste-first; PDF annotation → review notes only at upload time.

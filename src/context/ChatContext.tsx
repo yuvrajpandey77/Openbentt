@@ -15,13 +15,20 @@ import {
   canSendChat,
   canSendMessage,
 } from "@/types/chat";
-import { ensureCloudInferenceForConfig, loadPrivacyPreferences } from "@/lib/privacy/privacyPreferences";
+import {
+  ensureCloudInferenceForConfig,
+  loadPrivacyPreferences,
+  isLoopbackCompatibleBase,
+} from "@/lib/privacy/privacyPreferences";
 import { useToast } from "@/components/ui/use-toast";
 import { buildChatCompletionMessages, isStreamHttpError, StreamHttpError } from "@/lib/openrouter";
+import { resolveContextLimit } from "@/lib/contextMeter";
+import { compactMessagesForContext, messageTokenBudget } from "@/lib/chatContextCompact";
 import { streamChatForConfig } from "@/lib/aiStream";
 import { streamRoutedTask } from "@/lib/modelRouting";
 import { detectNotebookRoutedTask } from "@/lib/modelRouting/detectNotebookRoutedTask";
 import { abortLocalGemmaGeneration } from "@/lib/gemmaWebGpu/streamLocalGemma";
+import { unloadLocalGemma } from "@/lib/gemmaWebGpu/localGemmaInference";
 import { createRafBatcher } from "@/lib/streamBatch";
 import { gatherResearchContext } from "@/lib/researchSources";
 import { buildSystemPrompts } from "@/lib/systemPrompts";
@@ -29,6 +36,8 @@ import { substituteInlineCalc } from "@/lib/mathInline";
 import type { ProviderQuotaSnapshot } from "@/lib/providerRateLimits";
 import { LOCAL_STORAGE_KEYS } from "@/lib/storageMigrate";
 import { formatUserFacingError } from "@/lib/userFacingError";
+import { prefersLocalOllamaInference } from "@/lib/ollama/origin";
+import { normalizeProviderError } from "@/lib/errors/normalizedErrors";
 import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
 import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
 import { coerceApiConfigForPlatform } from "@/config/platformSurface";
@@ -73,6 +82,24 @@ import {
 } from "@/lib/agent/openCodeChat";
 
 export type ExecutionMode = "chat" | "plan" | "build" | "task";
+
+/** OpenCode ask-layer for cloud/default chat; never steal explicit local Ollama/GGUF/WebGPU. */
+function shouldUseOpenCodeAskLayer(cfg: ApiKeyConfig, layerAvailable: boolean): boolean {
+  if (!hasOpenCodeDesktopApi() || !layerAvailable) return false;
+  if (prefersLocalOllamaInference(cfg)) return false;
+  return true;
+}
+
+function formatChatProviderError(cfg: ApiKeyConfig, err: unknown, fallback: string): string {
+  const loopback =
+    cfg.aiProvider === "openai_compatible" &&
+    isLoopbackCompatibleBase(cfg.openAiCompatibleBaseUrl || "http://127.0.0.1:11434/v1");
+  if (loopback || cfg.aiProvider === "openai_compatible") {
+    const n = normalizeProviderError(err, loopback ? "ollama" : cfg.aiProvider, cfg.model || "");
+    return n.message || formatUserFacingError(err, fallback);
+  }
+  return formatUserFacingError(err, fallback);
+}
 
 export const AGENT_WORKSPACE_KEY = "openbentt-agent-workspace-root";
 export const projectWorkspaceKey = (projectId: string) =>
@@ -429,9 +456,45 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [toast]);
 
+  // Debounce chat persistence — never JSON.stringify the full history on every stream tick.
+  const persistChatsTimerRef = useRef<number | null>(null);
   useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEYS.CHATS, JSON.stringify(chats));
+    const streaming = chats.some((c) => c.messages.some((m) => m.streaming));
+    if (streaming) return;
+    if (persistChatsTimerRef.current != null) window.clearTimeout(persistChatsTimerRef.current);
+    persistChatsTimerRef.current = window.setTimeout(() => {
+      persistChatsTimerRef.current = null;
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEYS.CHATS, JSON.stringify(chatsRef.current));
+      } catch {
+        /* quota / private mode */
+      }
+    }, 800);
+    return () => {
+      if (persistChatsTimerRef.current != null) window.clearTimeout(persistChatsTimerRef.current);
+    };
   }, [chats]);
+
+  useEffect(() => {
+    const flush = () => {
+      if (persistChatsTimerRef.current != null) {
+        window.clearTimeout(persistChatsTimerRef.current);
+        persistChatsTimerRef.current = null;
+      }
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEYS.CHATS, JSON.stringify(chatsRef.current));
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+      flush();
+    };
+  }, []);
 
   useEffect(() => {
     if (currentChatId) {
@@ -450,6 +513,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(LOCAL_STORAGE_KEYS.API_CONFIG, JSON.stringify(toStore));
     }
   }, [apiConfig, isLoadingConfig]);
+
+  // Drop WebGPU/WASM weights when the user leaves on-device Gemma so RAM/VRAM free up.
+  useEffect(() => {
+    if (isLoadingConfig) return;
+    if (apiConfig.aiProvider === "webgpu_gemma") return;
+    void unloadLocalGemma().catch(() => {});
+  }, [apiConfig.aiProvider, isLoadingConfig]);
 
   const clearPendingComposer = useCallback(() => setPendingComposer(null), []);
 
@@ -518,6 +588,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   executionModeRef.current = executionMode;
   const executionTasksRef = useRef<Record<string, OpenCodeTask>>({});
   executionTasksRef.current = executionTasks;
+  const executionDrawerTaskIdRef = useRef<string | null>(null);
+  executionDrawerTaskIdRef.current = executionDrawerTaskId;
+  const MAX_EXECUTION_TASKS_IN_MEMORY = 12;
 
   const setActiveProjectId = useCallback((id: string | null) => {
     activeProjectIdRef.current = id;
@@ -807,20 +880,72 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           flushDeltaBuffers();
           setIsLoading(false);
+          // Bound RAM: keep only recent tasks (+ drawer) and drop orphaned event buffers.
+          setExecutionTasks((prevTasks) => {
+            const keepId = executionDrawerTaskIdRef.current;
+            const ids = Object.keys(prevTasks);
+            let nextTasks = prevTasks;
+            if (ids.length > MAX_EXECUTION_TASKS_IN_MEMORY) {
+              const terminal = new Set(["COMPLETED", "FAILED", "CANCELLED", "CRASHED"]);
+              const sorted = [...ids].sort((a, b) => {
+                const ta = Date.parse(String(prevTasks[a]?.updatedAt ?? 0)) || 0;
+                const tb = Date.parse(String(prevTasks[b]?.updatedAt ?? 0)) || 0;
+                return tb - ta;
+              });
+              const keep = new Set(sorted.slice(0, MAX_EXECUTION_TASKS_IN_MEMORY));
+              if (keepId) keep.add(keepId);
+              keep.add(evt.taskId);
+              nextTasks = {};
+              for (const id of ids) {
+                if (keep.has(id) || !terminal.has(String(prevTasks[id]?.status ?? ""))) {
+                  nextTasks[id] = prevTasks[id]!;
+                }
+              }
+              // Hard cap: drop oldest terminal beyond limit.
+              let overflow = Object.keys(nextTasks).length - MAX_EXECUTION_TASKS_IN_MEMORY;
+              if (overflow > 0) {
+                for (const id of sorted) {
+                  if (overflow <= 0) break;
+                  if (id === keepId || id === evt.taskId) continue;
+                  if (terminal.has(String(nextTasks[id]?.status ?? ""))) {
+                    delete nextTasks[id];
+                    overflow -= 1;
+                  }
+                }
+              }
+            }
+            const keepIds = new Set(Object.keys(nextTasks));
+            keepIds.add(evt.taskId);
+            if (keepId) keepIds.add(keepId);
+            setExecutionEvents((prevEv) => {
+              let changed = false;
+              const nextEv: typeof prevEv = {};
+              for (const [id, evts] of Object.entries(prevEv)) {
+                if (keepIds.has(id)) nextEv[id] = evts;
+                else changed = true;
+              }
+              return changed ? nextEv : prevEv;
+            });
+            return nextTasks === prevTasks ? prevTasks : nextTasks;
+          });
         }
         if (evt.type === "agent.completed") {
           // Phase B: verify claimed files against disk before reporting success.
           void verifyTaskCompletion(evt.taskId);
         }
       });
-    } catch {
-      /* bridge unavailable — normal chat continues */
+    } catch (e) {
+      // Bridge unavailable — normal chat continues; keep layer error visible for diagnostics.
+      setOpenCodeLayer((prev) => ({
+        ...prev,
+        lastError: formatUserFacingError(e, "OpenCode event bridge unavailable"),
+      }));
     }
     return () => {
       try {
         dispose();
       } catch {
-        /* noop */
+        /* dispose is best-effort during unmount */
       }
     };
   }, [humanizeAgentEvent, patchExecutionMessage, statusForEvent, snapshotTaskFile, verifyTaskCompletion, queueDelta, flushDeltaBuffers]);
@@ -848,7 +973,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let decision: { category: string; routeToOpenCode: boolean; mode: "plan" | "build"; reason: string };
       try {
         decision = decideRoute(args.text);
-      } catch {
+      } catch (e) {
+        patchMessageById(args.chatId, args.assistantMessageId, (m) => ({
+          ...m,
+          executionStatus: "failed",
+          agentTrace: [
+            ...(m.agentTrace ?? []),
+            {
+              step: "agent.failed",
+              detail: formatUserFacingError(e, "Could not decide execution route"),
+            },
+          ],
+        }));
         return false;
       }
       // For plan/build/task modes, we route to OpenCode regardless of heuristic
@@ -1044,6 +1180,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     status: null,
     askReady: false,
     opencodeInstalled: false,
+    lastError: undefined,
   });
   const openCodeLayerRef = useRef(openCodeLayer);
   openCodeLayerRef.current = openCodeLayer;
@@ -1056,7 +1193,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!hasOpenCodeDesktopApi()) {
       setOpenCodeLayer({
         available: false, checking: false, baseUrl: null, models: [], status: null,
-        askReady: false, opencodeInstalled: false,
+        askReady: false, opencodeInstalled: false, lastError: undefined,
       });
       return;
     }
@@ -1091,8 +1228,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     void (async () => {
       try {
         await openCodeAgentApi.ensureRuntime();
-      } catch {
-        /* banner covers it */
+      } catch (e) {
+        setOpenCodeLayer((prev) => ({
+          ...prev,
+          lastError: formatUserFacingError(e, "Could not start local runtime"),
+        }));
       } finally {
         await refreshOpenCodeLayer();
       }
@@ -1594,7 +1734,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Error regenerating:", e);
       toast({
         title: "Error",
-        description: formatUserFacingError(e, "Failed to retry"),
+        description: formatChatProviderError(apiConfig, e, "Failed to retry"),
         variant: "destructive",
       });
     }
@@ -1606,8 +1746,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     cfg: ApiKeyConfig,
     extras: PipelineExtras
   ) => {
-    // Regenerate (and any direct callers) honor the universal layer too.
-    if (hasOpenCodeDesktopApi() && openCodeLayerRef.current.available) {
+    // Regenerate honors OpenCode ask-layer unless user chose local Ollama/GGUF/WebGPU.
+    if (shouldUseOpenCodeAskLayer(cfg, openCodeLayerRef.current.available)) {
       const chatProjectId = chatsRef.current.find((c) => c.id === activeChatId)?.projectId ?? null;
       await runLayerPipeline(activeChatId, chatMessages, extras, { projectId: chatProjectId });
       return;
@@ -1621,7 +1761,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       comparisonIds.every((id) => id.length > 0);
     const targetModels = useTiling ? comparisonIds : [cfg.model];
 
-    const apiMessages = buildChatCompletionMessages(extras.systemPrompts, chatMessages);
+    const contextLimit = resolveContextLimit(cfg.model, undefined);
+    const systemChars = extras.systemPrompts.reduce((n, s) => n + (s?.length ?? 0), 0);
+    const compactedMessages = compactMessagesForContext(chatMessages, {
+      maxTokens: messageTokenBudget(contextLimit, systemChars),
+      keepRecent: cfg.aiProvider === "webgpu_gemma" || cfg.aiProvider === "local_gguf" ? 8 : 14,
+    });
+    const apiMessages = buildChatCompletionMessages(extras.systemPrompts, compactedMessages);
 
     setIsLoading(true);
     setStreamingPromptTokens(null);
@@ -1822,7 +1968,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         toast({
           title: "Error",
-          description: formatUserFacingError(error, "Failed to send message"),
+          description: formatChatProviderError(cfg, error, "Failed to send message"),
           variant: "destructive",
         });
         batcher.flushPending();
@@ -1964,7 +2110,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (isStreamHttpError(e)) {
               streamHttpErrors.push(e);
             }
-            const msg = formatUserFacingError(e, "Request failed");
+            const msg = formatChatProviderError(cfg, e, "Request failed");
             updateComparisonPart(model, (part) => ({
               ...part,
               error: msg,
@@ -2027,9 +2173,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     const trimmed = content.trim();
     if (!trimmed && attachments.length === 0) return;
-    // Universal layer: on desktop with OpenCode available, EVERY request goes
-    // through it — no keys, no provider maze, works offline (loopback).
-    const useLayer = hasOpenCodeDesktopApi() && openCodeLayerRef.current.available;
+    // OpenCode ask-layer for cloud/default; explicit local Ollama/GGUF/WebGPU uses apiConfig stream.
+    const useLayer = shouldUseOpenCodeAskLayer(apiConfig, openCodeLayerRef.current.available);
     if (!useLayer) {
       if (!canSendChat(apiConfig)) {
         toastKeyMissing(
@@ -2187,7 +2332,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Error preparing chat:", e);
       toast({
         title: "Error",
-        description: formatUserFacingError(e, "Failed to send message"),
+        description: formatChatProviderError(apiConfig, e, "Failed to send message"),
         variant: "destructive",
       });
     }
@@ -2483,7 +2628,8 @@ registerProjectContextProvider,
     setOpenCodeModel,
     executionMode,
     setExecutionMode,
-    unifiedChatReady: openCodeLayer.available || canSendMessage(apiConfig),
+    unifiedChatReady:
+      (!prefersLocalOllamaInference(apiConfig) && openCodeLayer.available) || canSendMessage(apiConfig),
     selectChat,
     deleteChat,
     clearChats,

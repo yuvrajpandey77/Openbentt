@@ -306,6 +306,7 @@ function applyServerStatusSideEffects(taskId, delivered) {
           pushEvent(task.id, task.sessionId ?? "unknown", "agent.completed", {
             message: "OpenCode finished this turn.",
           });
+          scheduleOpenCodeIdleStop();
         }
         break;
       case "agent.tool.failed":
@@ -885,7 +886,40 @@ function markRuntimeCrashed(reason) {
   }
 }
 
+const OPENCODE_IDLE_MS = 10 * 60 * 1000;
+/** @type {ReturnType<typeof setTimeout> | null} */
+let openCodeIdleTimer = null;
+
+function clearOpenCodeIdleTimer() {
+  if (openCodeIdleTimer) {
+    clearTimeout(openCodeIdleTimer);
+    openCodeIdleTimer = null;
+  }
+}
+
+function anyOpenCodeTaskBusy() {
+  for (const t of state.tasks.values()) {
+    if (["QUEUED", "STARTING", "RUNNING", "WAITING_FOR_PERMISSION"].includes(t.status)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Stop the OpenCode child after idle to free RAM/CPU when chat is quiet. */
+function scheduleOpenCodeIdleStop() {
+  clearOpenCodeIdleTimer();
+  if (anyOpenCodeTaskBusy()) return;
+  openCodeIdleTimer = setTimeout(() => {
+    openCodeIdleTimer = null;
+    if (anyOpenCodeTaskBusy()) return;
+    void stopRuntime().catch(() => {});
+  }, OPENCODE_IDLE_MS);
+  openCodeIdleTimer.unref?.();
+}
+
 export async function stopRuntime() {
+  clearOpenCodeIdleTimer();
   state.runtime.status = "STOPPING";
   try {
     await stopServer();
@@ -973,6 +1007,7 @@ function audit(app, fields) {
 
 export async function createTask(app, { title, prompt, workspaceRoot, displayName, mode = "build", inputSource = "text", model } = {}) {
   void app;
+  clearOpenCodeIdleTimer();
   if (state.tasks.size >= MAX_TASKS) throw new Error("Too many tasks");
   const cleanPrompt = typeof prompt === "string" ? prompt.slice(0, OPENCODE_LIMITS.maxPromptChars).trim() : "";
   if (!cleanPrompt) throw new Error("Invalid prompt");

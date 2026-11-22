@@ -139,9 +139,18 @@ export function NotebookStudioShell() {
               <DropdownMenuItem asChild>
                 <Link to="/projects">All projects…</Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/documents">Documents</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/labs">Research library</Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link to="/chat">Open full chat</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/settings">Settings</Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

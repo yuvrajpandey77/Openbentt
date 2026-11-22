@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="Openbentt Notebook studio">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <rect x="0" y="0" width="72" height="720" fill="#020617"/>
+  <circle cx="36" cy="40" r="14" fill="url(#accent)"/>
+  <rect x="22" y="90" width="28" height="28" rx="6" fill="#334155"/>
+  <rect x="22" y="140" width="28" height="28" rx="6" fill="#0ea5e9" opacity="0.9"/>
+  <rect x="22" y="190" width="28" height="28" rx="6" fill="#334155"/>
+  <rect x="88" y="16" width="1176" height="48" rx="10" fill="#020617" opacity="0.7"/>
+  <text x="108" y="46" fill="#e2e8f0" font-family="Georgia, serif" font-size="20">Openbentt · Notebook</text>
+  <text x="980" y="46" fill="#94a3b8" font-family="ui-sans-serif, system-ui" font-size="13">Compile · Import ZIP · Zotero</text>
+  <rect x="88" y="80" width="560" height="620" rx="12" fill="#0b1220" stroke="#1e293b"/>
+  <text x="112" y="118" fill="#67e8f9" font-family="ui-monospace, monospace" font-size="14">main.tex</text>
+  <text x="112" y="150" fill="#cbd5e1" font-family="ui-monospace, monospace" font-size="13">\documentclass{article}</text>
+  <text x="112" y="174" fill="#cbd5e1" font-family="ui-monospace, monospace" font-size="13">\begin{document}</text>
+  <text x="112" y="198" fill="#a5b4fc" font-family="ui-monospace, monospace" font-size="13">\section{Introduction}</text>
+  <text x="112" y="222" fill="#e2e8f0" font-family="ui-monospace, monospace" font-size="13">Local-first drafting with hybrid RAG&</text>
+  <text x="112" y="246" fill="#cbd5e1" font-family="ui-monospace, monospace" font-size="13">\end{document}</text>
+  <rect x="668" y="80" width="580" height="620" rx="12" fill="#f8fafc"/>
+  <rect x="700" y="120" width="516" height="40" rx="4" fill="#e2e8f0"/>
+  <text x="720" y="146" fill="#0f172a" font-family="Georgia, serif" font-size="22">PDF Preview</text>
+  <rect x="700" y="180" width="516" height="12" rx="2" fill="#cbd5e1"/>
+  <rect x="700" y="208" width="480" height="12" rx="2" fill="#cbd5e1"/>
+  <rect x="700" y="236" width="500" height="12" rx="2" fill="#cbd5e1"/>
+  <rect x="700" y="280" width="516" height="180" rx="8" fill="#e2e8f0"/>
+  <text x="720" y="380" fill="#64748b" font-family="Georgia, serif" font-size="16">Compiled via BusyTeX ’ local ’ HTTP cascade</text>
+  <text x="88" y="710" fill="#64748b" font-family="ui-sans-serif, system-ui" font-size="12">v2.5.0 · Prism / Overleaf ZIP import · multi-agent detect</text>
+</svg>

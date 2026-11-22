@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.5.0] — 2026-11-22
+
+### Added
+
+- **Prism / Overleaf / Codex import:** One-click ZIP and folder import into Notebook projects (plus `.tex` / `.bib`).
+- **Multi-agent PATH detect:** OpenCode, Claude Code, Codex CLI, Cursor Agent, Aider, Gemini CLI — prefer any agent in Settings → Agents.
+- **Marketing `/news` page:** Landing News strip and nav link to in-app release notes (v2.5.0 Prism migration story).
+- **Bombadil browser QA:** `npm run test:bombadil` property-based exploration for release confidence.
+- **Desktop updates on Settings:** Check / download / restart & install card surfaced at the top of Settings.
+
+### Changed
+
+- **Version bump:** `2.4.6` → `2.5.0` across package, lockfile, and download asset fallbacks.
+- **README:** Prism shutdown migration, screenshots, future scope, publish/install commands.
+
+### Fixed
+
+- **Settings Integrations tab:** Missing `IntegrationsHub` import (found by Bombadil `noConsoleErrors`).
+
 ## [2.2.5] — 2026-06-01
 
 ### Fixed

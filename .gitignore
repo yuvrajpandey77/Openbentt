@@ -40,3 +40,6 @@ resources/llama/darwin/llama-server
 resources/llama/win32/llama-server.exe
 resources/llama/win32/*.dll
 
+# Bombadil property-based browser runs
+bombadil-output/
+

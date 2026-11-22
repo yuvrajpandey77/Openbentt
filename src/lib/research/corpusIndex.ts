@@ -10,6 +10,10 @@ const STOP = new Set(
   )
 );
 
+/** Above this, score only inverted-index candidates (plus a small random fallback). */
+const INVERTED_CANDIDATE_THRESHOLD = 800;
+const MAX_CANDIDATES = 2_400;
+
 function tokenize(text: string): string[] {
   return text
     .toLowerCase()
@@ -24,27 +28,35 @@ function termFreq(tokens: string[]): Map<string, number> {
   return m;
 }
 
-/** Corpus-wide TF-IDF index with inverse document frequency. */
+/** Corpus-wide TF-IDF index with inverse document frequency + inverted postings. */
 export interface TfidfIndex {
   idf: Map<string, number>;
   docCount: number;
+  /** term → chunk ids containing the term (for candidate pruning). */
+  postings?: Map<string, string[]>;
 }
 
 export function buildTfidfIndex(chunks: CorpusChunk[]): TfidfIndex {
   const library = chunks.filter((c) => c.paperId !== "draft");
   const docCount = library.length || 1;
   const df = new Map<string, number>();
+  const postings = new Map<string, string[]>();
 
   for (const c of library) {
     const seen = new Set(tokenize(c.text));
-    for (const t of seen) df.set(t, (df.get(t) ?? 0) + 1);
+    for (const t of seen) {
+      df.set(t, (df.get(t) ?? 0) + 1);
+      const list = postings.get(t);
+      if (list) list.push(c.id);
+      else postings.set(t, [c.id]);
+    }
   }
 
   const idf = new Map<string, number>();
   for (const [term, count] of df) {
     idf.set(term, Math.log((docCount + 1) / (count + 1)) + 1);
   }
-  return { idf, docCount };
+  return { idf, docCount, postings };
 }
 
 function tfidfVector(tokens: string[], index: TfidfIndex): Map<string, number> {
@@ -72,6 +84,32 @@ function cosine(a: Map<string, number>, b: Map<string, number>): number {
   return dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
+/** Collect candidate chunk ids via inverted postings; empty = scan all. */
+export function candidateChunkIds(
+  queryTokens: string[],
+  index: TfidfIndex,
+  librarySize: number
+): Set<string> | null {
+  if (librarySize < INVERTED_CANDIDATE_THRESHOLD || !index.postings?.size) return null;
+
+  // Prefer rarer query terms first (higher IDF) for sharper candidates.
+  const ranked = [...new Set(queryTokens)].sort(
+    (a, b) => (index.idf.get(b) ?? 0) - (index.idf.get(a) ?? 0)
+  );
+  const counts = new Map<string, number>();
+  for (const term of ranked.slice(0, 24)) {
+    const posting = index.postings.get(term);
+    if (!posting) continue;
+    for (const id of posting) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+  if (counts.size === 0) return null;
+
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  return new Set(sorted.slice(0, MAX_CANDIDATES).map(([id]) => id));
+}
+
 /** Split text into overlapping chunks — canonical implementation in corpusChunksCore.mjs */
 export function chunkText(text: string, chunkSize = 480, overlap = 80): string[] {
   return chunkTextCore(text, chunkSize, overlap);
@@ -95,11 +133,14 @@ export function findSimilarPassages(
 ): SimilarityHit[] {
   const minScore = options?.minScore ?? 0.08;
   const limit = options?.limit ?? 24;
-  const qVec = tfidfVector(tokenize(queryText), index);
+  const qTokens = tokenize(queryText);
+  const qVec = tfidfVector(qTokens, index);
+  const library = chunks.filter((c) => c.paperId !== "draft");
+  const candidates = candidateChunkIds(qTokens, index, library.length);
   const hits: SimilarityHit[] = [];
 
-  for (const c of chunks) {
-    if (c.paperId === "draft") continue;
+  for (const c of library) {
+    if (candidates && !candidates.has(c.id)) continue;
     const score = cosine(qVec, tfidfVector(tokenize(c.text), index));
     if (score >= minScore) {
       hits.push({

@@ -13,6 +13,8 @@ interface ImportMetaEnv {
   readonly VITE_DESKTOP_ASSET_VERSION?: string;
   /** Injected from package.json in vite.config (semver for release asset filenames). */
   readonly VITE_APP_VERSION?: string;
+  /** Optional crash reporter endpoint — receives only { message, stack }; off by default. */
+  readonly VITE_ERROR_REPORT_URL?: string;
 }
 
 interface ImportMeta {
@@ -25,6 +27,8 @@ type DesktopEditRole = "undo" | "redo" | "cut" | "copy" | "paste" | "selectAll";
 interface OpenbenttDesktopApi {
   readonly isElectron: boolean;
   readonly platform: string;
+  readonly isPackaged?: boolean;
+  readonly devToolsAllowed?: boolean;
   readonly softwareRenderingMode?: boolean;
   readonly framelessTitleBar?: boolean;
   readonly nativeMenuBar?: boolean;

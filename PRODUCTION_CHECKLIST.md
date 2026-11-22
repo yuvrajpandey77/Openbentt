@@ -19,8 +19,8 @@ Use this before tagging a release or deploying. Mark items as you complete them.
   | Variable | Example | When to update |
   |----------|---------|----------------|
   | `VITE_PUBLIC_SITE_URL` | `https://openbentt.vercel.app` | Once per domain |
-  | `VITE_GITHUB_REPO` | `yuvrajpandey77/SecuredChatCogerphere` | If fork/self-host |
-  | `VITE_DESKTOP_ASSET_VERSION` | `2.0.8` | **Every release tag** (must match `package.json` / GitHub asset names) |
+  | `VITE_GITHUB_REPO` | `yuvrajpandey77/Openbentt` | If fork/self-host |
+  | `VITE_DESKTOP_ASSET_VERSION` | `2.5.0` | **Every release tag** (must match `package.json` / GitHub asset names); usually injected as `VITE_APP_VERSION` at build |
   | `VITE_RESEARCH_PROXY_URL` | optional proxy base URL | If using hosted research proxy |
   | `VITE_LATEX_COMPILE_URL` | optional compile API | If not using WASM-only Notebook |
   | `VITE_LATEX_REMOTE` | `1` | When forcing HTTP LaTeX compile |

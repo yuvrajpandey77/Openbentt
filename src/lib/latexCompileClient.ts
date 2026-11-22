@@ -270,20 +270,27 @@ export async function compileLatexToPdfBlob(tex: string, bundle?: CompileBundle)
   }
 
   if (backend === "local") {
-    if (!localAvailable) {
-      throw new Error(
-        needsFullTex
-          ? `${WASM_LIMIT_HINT}\n\n${LOCAL_ELECTRON_HINT}`
-          : "Local TeX compile requires the Electron app with a project compile bundle."
-      );
+    if (localAvailable) {
+      try {
+        return await compileLocalElectron(bundle!);
+      } catch (err) {
+        // Missing pdflatex → keep going; other TeX errors still fall through so the user gets a PDF somehow.
+        console.warn("[latex] Local TeX failed, cascading to BusyTeX/HTTP…", errMessage(err));
+      }
+    } else {
+      console.warn("[latex] Local TeX unavailable; cascading to BusyTeX/HTTP…");
     }
-    return compileLocalElectron(bundle);
+    return compileAuto(texClean, bundle, needsFullTex, false);
   }
 
-  // wasm — explicit BusyTeX only
+  // wasm — BusyTeX first, then HTTP so compile still works without BusyTeX assets.
   try {
     return await compileLatexWasmToPdf(texClean, bundle);
   } catch (wasmErr) {
-    throw enrichWasmFailure(errMessage(wasmErr), needsFullTex);
+    try {
+      return await compileLatexHttp(texClean, getLatexCompileEndpoint(), bundle);
+    } catch {
+      throw enrichWasmFailure(errMessage(wasmErr), needsFullTex);
+    }
   }
 }

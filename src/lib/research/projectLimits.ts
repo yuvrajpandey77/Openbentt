@@ -1,16 +1,21 @@
 import type { ResearchProjectData } from "@/types/researchProject";
+import { MAX_CHUNKS_INDEX_DESKTOP, MAX_CHUNKS_INDEX_WEB } from "@/lib/research/embedCore.mjs";
 
 /** Hard caps — indexing and UI degrade gracefully beyond soft limits. */
 export const LIMITS = {
   maxPapers: 500,
-  maxChunksIndexed: 120,
+  /** Semantic embed soft warn — desktop can index far more in SQLite. */
+  maxChunksIndexed: MAX_CHUNKS_INDEX_WEB,
+  maxChunksIndexedDesktop: MAX_CHUNKS_INDEX_DESKTOP,
   maxDraftChars: 2_000_000,
   maxBibliographyChars: 500_000,
   maxChatMessagesVirtualize: 40,
   maxLocalStorageProjectBytes: 4_500_000,
   softWarnPapers: 80,
-  softWarnChunks: 100,
+  softWarnChunks: 400,
   softWarnDraftChars: 400_000,
+  /** ~1000 pages ≈ 2–3M chars of extracted text across papers. */
+  softWarnExtractedChars: 2_500_000,
 } as const;
 
 export type ProjectPressureLevel = "ok" | "warn" | "critical";
@@ -40,13 +45,25 @@ export function assessProjectPressure(project: ResearchProjectData): ProjectPres
   }
 
   const libChunks = project.chunks.filter((c) => c.paperId !== "draft").length;
-  if (libChunks >= LIMITS.maxChunksIndexed) {
+  const embedCap = LIMITS.maxChunksIndexedDesktop;
+  if (libChunks >= embedCap) {
     bump(
-      `Corpus has ${libChunks} chunks; semantic index caps at ${LIMITS.maxChunksIndexed} passages.`,
+      `Corpus has ${libChunks} chunks; semantic index caps at ${embedCap} passages (fair sample across papers).`,
       "warn"
     );
   } else if (libChunks >= LIMITS.softWarnChunks) {
-    bump(`Indexing ${Math.min(libChunks, LIMITS.maxChunksIndexed)} of ${libChunks} corpus chunks.`, "warn");
+    bump(
+      `Large corpus (${libChunks} chunks). Desktop stores embeddings in SQLite; retrieval uses hybrid TF-IDF + MiniLM.`,
+      "warn"
+    );
+  }
+
+  const extractedChars = project.papers.reduce((n, p) => n + (p.extractedText?.length ?? 0), 0);
+  if (extractedChars >= LIMITS.softWarnExtractedChars) {
+    bump(
+      `~${Math.round(extractedChars / 1000)}k characters of source text — prefer desktop app for full semantic indexing.`,
+      "warn"
+    );
   }
 
   if (project.draftTex.length >= LIMITS.maxDraftChars) {

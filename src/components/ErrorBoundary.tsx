@@ -20,6 +20,20 @@ export class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
     console.error("[Openbentt] uncaught render error", error, info);
+    const reportUrl = import.meta.env.VITE_ERROR_REPORT_URL?.trim();
+    if (!reportUrl) return;
+    const payload = {
+      message: (error.message || String(error)).slice(0, 2000),
+      stack: (error.stack || info.componentStack || "").slice(0, 8000),
+    };
+    void fetch(reportUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch(() => {
+      /* privacy-first: never block UI on reporter failure */
+    });
   }
 
   private reload = () => {

@@ -124,13 +124,17 @@ export function normalizeOllamaError(
 ): NormalizedError {
   const err = error as { response?: { status: number }; message?: string; cause?: unknown };
 
-  // Network / connection errors
-  if (err instanceof TypeError && err.message.includes("fetch")) {
+  const rawMsg = err.message ?? String(error);
+  // Network / connection errors (TypeError fetch, Failed to fetch, ECONNREFUSED)
+  if (
+    (err instanceof TypeError && /fetch/i.test(err.message)) ||
+    /Failed to fetch|ECONNREFUSED|NetworkError|ERR_CONNECTION/i.test(rawMsg)
+  ) {
     return {
       code: "LOCAL_RUNTIME_UNAVAILABLE",
       message: "Cannot reach Ollama. Is it running?",
-      action: "Start Ollama (ollama serve) and ensure it's on http://127.0.0.1:11434.",
-      details: { provider: "ollama", model, rawError: err.message },
+      action: "Start Ollama (ollama serve) and ensure it's on http://127.0.0.1:11434. Then open Settings → Local AI.",
+      details: { provider: "ollama", model, rawError: rawMsg },
     };
   }
 
@@ -249,9 +253,27 @@ export function normalizeProviderError(
   const lowerProvider = provider.toLowerCase();
 
   if (lowerProvider === "ollama" || lowerProvider === "openai_compatible") {
-    // Check if it's a local Ollama URL
-    const baseUrl = (error as { config?: { baseURL?: string } })?.config?.baseURL ?? "";
-    if (baseUrl.includes("127.0.0.1") || baseUrl.includes("localhost")) {
+    // Prefer Ollama normalization for explicit "ollama" or loopback-compatible errors.
+    const baseUrl =
+      (error as { config?: { baseURL?: string } })?.config?.baseURL ??
+      (error as { baseUrl?: string })?.baseUrl ??
+      "";
+    const status =
+      (error as { status?: number })?.status ??
+      (error as { response?: { status?: number } })?.response?.status;
+    const loopback =
+      lowerProvider === "ollama" ||
+      baseUrl.includes("127.0.0.1") ||
+      baseUrl.includes("localhost") ||
+      baseUrl.includes("[::1]");
+    if (loopback) {
+      // StreamHttpError from aiStream has `.status` but no Axios-like `.response`.
+      if (typeof status === "number" && !(error as { response?: unknown }).response) {
+        return normalizeOllamaError(
+          { message: (error as Error)?.message, response: { status } },
+          model
+        );
+      }
       return normalizeOllamaError(error, model);
     }
     return normalizeOpenRouterError(error, provider, model);

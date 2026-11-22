@@ -32,6 +32,8 @@ export interface OpenCodeLayerSnapshot {
   askReady: boolean;
   opencodeInstalled: boolean;
   opencodeVersion?: string;
+  /** Last non-fatal layer probe error (detection / runtime / models). */
+  lastError?: string;
 }
 
 /** Heuristic: gateway ids carrying a free tier marker come first. */
@@ -72,16 +74,21 @@ export function storeOpenCodeModel(id: string): void {
 }
 
 export async function fetchOpenCodeLayer(): Promise<Omit<OpenCodeLayerSnapshot, "checking">> {
-  const empty = {
+  const empty: Omit<OpenCodeLayerSnapshot, "checking"> = {
     available: false,
     baseUrl: null,
-    models: [] as RuntimeModel[],
-    status: null as OpenCodeLayerSnapshot["status"],
+    models: [],
+    status: null,
     askReady: false,
     opencodeInstalled: false,
-    opencodeVersion: undefined as string | undefined,
+    opencodeVersion: undefined,
+    lastError: undefined,
   };
   if (!hasOpenCodeDesktopApi()) return empty;
+  const noteError = (e: unknown, fallback: string) => {
+    const msg = e instanceof Error ? e.message : fallback;
+    empty.lastError = empty.lastError ? `${empty.lastError}; ${msg}` : msg;
+  };
   // Binary detection first: `opencode run` answers ask-turns with no
   // gateway and no keys. This is the primary universal path.
   try {
@@ -91,8 +98,8 @@ export async function fetchOpenCodeLayer(): Promise<Omit<OpenCodeLayerSnapshot, 
       empty.askReady = true;
       empty.opencodeVersion = det.version;
     }
-  } catch {
-    /* detection failure is non-fatal */
+  } catch (e) {
+    noteError(e, "OpenCode detection failed");
   }
   try {
     const status = await openCodeAgentApi.getRuntimeStatus();
@@ -103,7 +110,8 @@ export async function fetchOpenCodeLayer(): Promise<Omit<OpenCodeLayerSnapshot, 
     try {
       const res = await openCodeAgentApi.getModels(false);
       gatewayModels = Array.isArray(res.models) ? res.models : [];
-    } catch {
+    } catch (e) {
+      noteError(e, "Could not list gateway models");
       gatewayModels = [];
     }
     // Picker source: gateway models when present, else the binary's own
@@ -113,8 +121,8 @@ export async function fetchOpenCodeLayer(): Promise<Omit<OpenCodeLayerSnapshot, 
       try {
         const bin = await openCodeAgentApi.listOpenCodeModels();
         if (Array.isArray(bin.models)) models = bin.models;
-      } catch {
-        /* picker falls back to auto */
+      } catch (e) {
+        noteError(e, "Could not list OpenCode models");
       }
     }
     empty.models = sortOpenCodeModels(models);
@@ -122,9 +130,12 @@ export async function fetchOpenCodeLayer(): Promise<Omit<OpenCodeLayerSnapshot, 
     // Usable when the binary answers (ask via `run`) and/or the gateway
     // streams — no user keys involved either way.
     empty.available = empty.askReady || (Boolean(baseUrl) && (omniReady || gatewayModels.length > 0));
+    if (empty.available) empty.lastError = undefined;
     return empty;
-  } catch {
+  } catch (e) {
+    noteError(e, "OpenCode runtime status failed");
     empty.available = empty.askReady;
+    if (empty.available) empty.lastError = undefined;
     return empty;
   }
 }

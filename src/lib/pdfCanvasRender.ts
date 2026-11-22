@@ -24,6 +24,8 @@ function installKnockoutGroupLogFilter(): () => void {
 export type RenderPdfPagesOptions = {
   /** Cap canvas pages (default {@link PDF_PREVIEW_MAX_PAGES}). */
   maxPages?: number;
+  /** When true mid-loop, abort and destroy the pdf.js document (zoom/tab churn). */
+  isStale?: () => boolean;
 };
 
 export async function renderPdfPages(
@@ -32,6 +34,7 @@ export async function renderPdfPages(
   scale = 1.2,
   options?: RenderPdfPagesOptions
 ): Promise<void> {
+  if (options?.isStale?.()) return;
   container.innerHTML = "";
   const pdfjs = await import("pdfjs-dist");
   const workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
@@ -45,13 +48,16 @@ export async function renderPdfPages(
   const loading = pdfjs.getDocument({ data: new Uint8Array(dataCopy) });
   let doc: Awaited<ReturnType<typeof loading.promise>> | null = null;
   try {
+    if (options?.isStale?.()) return;
     doc = await loading.promise;
     const n = doc.numPages;
     const limit = Math.min(n, maxPages);
 
     for (let p = 1; p <= limit; p++) {
+      if (options?.isStale?.()) return;
       // Spread raster work across frames so the tab stays responsive on large previews.
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      if (options?.isStale?.()) return;
       const page = await doc.getPage(p);
       const vp = page.getViewport({ scale });
       const canvas = document.createElement("canvas");
@@ -61,6 +67,7 @@ export async function renderPdfPages(
       canvas.height = vp.height;
       canvas.className = "mb-4 max-w-full rounded-md border border-border/60 bg-white shadow-sm";
       await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      if (options?.isStale?.()) return;
       container.appendChild(canvas);
     }
 

@@ -111,28 +111,6 @@ function refreshMicGrant() {
 
 /* ---------------- STT engines ---------------- */
 
-export class FakeSttEngine {
-  constructor() {
-    this.nextTranscript = "hello world";
-    this.nextError = null;
-    this.calls = [];
-    this.loaded = false;
-  }
-  async load() {
-    this.loaded = true;
-    return { ok: true, fake: true };
-  }
-  async unload() {
-    this.loaded = false;
-    return { ok: true };
-  }
-  async transcribe(_pcm, _sampleRate) {
-    this.calls.push({ at: nowIso() });
-    if (this.nextError) throw new Error(this.nextError);
-    return this.nextTranscript;
-  }
-}
-
 /**
  * Local Whisper STT via the already-bundled @xenova/transformers +
  * onnxruntime-node stack. Lazily loaded on first use; CPU by default with
@@ -217,28 +195,6 @@ export class LocalWhisperEngine {
 }
 
 /* ---------------- TTS engines ---------------- */
-
-export class FakeTtsEngine {
-  constructor() {
-    this.spoken = [];
-    this.failNext = null;
-    this.speaking = false;
-  }
-  async speak(text) {
-    if (this.failNext) {
-      const err = this.failNext;
-      this.failNext = null;
-      throw new Error(err);
-    }
-    this.speaking = true;
-    this.spoken.push({ text, at: nowIso() });
-    return { ok: true, fake: true };
-  }
-  async stop() {
-    this.speaking = false;
-    return { ok: true };
-  }
-}
 
 /**
  * OS-native local TTS (no model download, fully offline):
@@ -328,9 +284,14 @@ export class OsTtsEngine {
   }
 }
 
-export function setVoiceEngines({ stt, tts } = {}) {
+/** @internal Tests only — use `voiceService.testSupport.mjs`. */
+export function setVoiceEnginesInternal({ stt, tts } = {}) {
   if (stt !== undefined) state.engines.stt = stt;
   if (tts !== undefined) state.engines.tts = tts;
+}
+
+function isTestFakeSttEngine(eng) {
+  return eng?._testFake === true;
 }
 
 function sttEngine(app) {
@@ -347,7 +308,7 @@ function scheduleIdleUnload() {
   if (state.idleTimer) clearTimeout(state.idleTimer);
   state.idleTimer = setTimeout(() => {
     const busy = [...state.sessions.values()].some((s) => ["LISTENING", "TRANSCRIBING", "THINKING", "SPEAKING"].includes(s.state));
-    if (!busy && state.engines.stt && !(state.engines.stt instanceof FakeSttEngine)) {
+    if (!busy && state.engines.stt && !isTestFakeSttEngine(state.engines.stt)) {
       state.engines.stt.unload?.().catch(() => {});
     }
   }, VOICE_IDLE_UNLOAD_MS);
@@ -405,7 +366,7 @@ export function sttStatus() {
     model: "Xenova/whisper-tiny.en",
     loaded: Boolean(eng?.pipeline),
     loading: Boolean(eng?.loading),
-    fake: eng instanceof FakeSttEngine,
+    fake: isTestFakeSttEngine(eng),
   };
 }
 
@@ -659,7 +620,7 @@ export function cleanupVoiceOnQuit() {
       void tts.stop().catch(() => {});
     }
     const stt = state.engines.stt;
-    if (stt && typeof stt.unload === "function" && !(stt instanceof FakeSttEngine)) {
+    if (stt && typeof stt.unload === "function" && !isTestFakeSttEngine(stt)) {
       void stt.unload().catch(() => {});
     }
   } catch { /* noop */ }

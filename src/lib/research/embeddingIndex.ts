@@ -2,11 +2,23 @@ import type { CorpusChunk, SimilarityHit } from "@/types/researchProject";
 import {
   buildChunkEmbeddingsFromChunks,
   cosineNormalized,
+  disposeEmbedder,
   embedPassage,
   MAX_CHUNKS_INDEX,
+  MAX_CHUNKS_INDEX_DESKTOP,
+  MAX_CHUNKS_INDEX_WEB,
+  selectChunksForEmbedding,
 } from "@/lib/research/embedCore.mjs";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 
-export { embedPassage, MAX_CHUNKS_INDEX };
+export {
+  embedPassage,
+  MAX_CHUNKS_INDEX,
+  MAX_CHUNKS_INDEX_DESKTOP,
+  MAX_CHUNKS_INDEX_WEB,
+  disposeEmbedder,
+  selectChunksForEmbedding,
+};
 
 export type EmbeddingIndexProgress = {
   phase: "loading-model" | "embedding" | "done";
@@ -25,6 +37,19 @@ function getEmbeddingWorker(): Worker {
   return embeddingWorker;
 }
 
+/** Terminate the embedding worker and drop the MiniLM pipeline to free RAM. */
+export function shutdownEmbeddingWorker(): void {
+  if (embeddingWorker) {
+    try {
+      embeddingWorker.terminate();
+    } catch {
+      /* ignore */
+    }
+    embeddingWorker = null;
+  }
+  disposeEmbedder();
+}
+
 export function buildChunkEmbeddingsInWorker(
   chunks: CorpusChunk[],
   onProgress?: (p: EmbeddingIndexProgress) => void,
@@ -35,8 +60,17 @@ export function buildChunkEmbeddingsInWorker(
   const requestId = crypto.randomUUID?.() ?? `emb-${Date.now()}`;
   const worker = getEmbeddingWorker();
   return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      worker.removeEventListener("message", handler);
+      signal?.removeEventListener("abort", onAbort);
+    };
     const onAbort = () => {
-      worker.terminate();
+      cleanup();
+      try {
+        worker.terminate();
+      } catch {
+        /* ignore */
+      }
       embeddingWorker = null;
       reject(new DOMException("Embedding index cancelled", "AbortError"));
     };
@@ -54,12 +88,10 @@ export function buildChunkEmbeddingsInWorker(
           total: chunks.filter((c) => c.paperId !== "draft").length,
         });
       } else if (msg.type === "result") {
-        worker.removeEventListener("message", handler);
-        signal?.removeEventListener("abort", onAbort);
+        cleanup();
         resolve(msg.vectors);
       } else if (msg.type === "error") {
-        worker.removeEventListener("message", handler);
-        signal?.removeEventListener("abort", onAbort);
+        cleanup();
         reject(new Error(msg.message));
       }
     };
@@ -76,19 +108,25 @@ export async function buildChunkEmbeddings(
   resumeVectors?: Record<string, number[]>,
   onPartial?: (vectors: Record<string, number[]>) => void
 ): Promise<Record<string, number[]>> {
-  if (typeof Worker !== "undefined" && !signal?.aborted) {
-    try {
-      return await buildChunkEmbeddingsInWorker(chunks, onProgress, signal, resumeVectors, onPartial);
-    } catch (e) {
-      if ((e as Error)?.name === "AbortError") throw e;
+  try {
+    if (typeof Worker !== "undefined" && !signal?.aborted) {
+      try {
+        return await buildChunkEmbeddingsInWorker(chunks, onProgress, signal, resumeVectors, onPartial);
+      } catch (e) {
+        if ((e as Error)?.name === "AbortError") throw e;
+      }
     }
+    return await buildChunkEmbeddingsFromChunks(chunks, {
+      onProgress,
+      signal,
+      resumeVectors,
+      onPartial,
+      maxChunks: isDesktopApp() ? MAX_CHUNKS_INDEX_DESKTOP : MAX_CHUNKS_INDEX_WEB,
+    });
+  } finally {
+    // Indexing bursts are episodic — release worker/pipeline so idle app stays light.
+    shutdownEmbeddingWorker();
   }
-  return buildChunkEmbeddingsFromChunks(chunks, {
-    onProgress,
-    signal,
-    resumeVectors,
-    onPartial,
-  });
 }
 
 export function findSemanticSimilarPassages(

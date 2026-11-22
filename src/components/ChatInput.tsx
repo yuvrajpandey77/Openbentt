@@ -21,7 +21,15 @@ import {
   Zap,
 } from "lucide-react";
 import { useChat, ExecutionMode } from "@/context/ChatContext";
-// import { detectModeIntent, modeIntentToSuggestion, shouldSuggestModeChange, isInternalTaskStep } from "@/lib/agent/modeDetection";
+import {
+  detectModeIntent,
+  modeIntentToSuggestion,
+  shouldSuggestModeChange,
+  isInternalTaskStep,
+  type ModeSuggestion,
+} from "@/lib/agent/modeDetection";
+import { listAgentRoles } from "@/lib/agent/agentRoles";
+import { prefersLocalOllamaInference } from "@/lib/ollama/origin";
 import { useLocalAI } from "@/context/LocalAIContext";
 import { SourceFilter } from "@/components/integrations/SourceFilter";
 import {
@@ -163,13 +171,21 @@ const ChatInput: React.FC<ChatInputProps> = ({
     executionEvents,
   } = useChat();
   const { workspace: composerWs } = useWorkspace();
-  /** Universal layer: chat runs on the Execution Engine — local models, no keys, no maze. */
-  const layerActive = openCodeLayer.available;
+  /** OpenCode ask-layer only when not on explicit local Ollama/GGUF/WebGPU. */
+  const layerActive = openCodeLayer.available && !prefersLocalOllamaInference(apiConfig);
   const { effectiveModel } = useLocalAI();
   /** Bumps when localStorage consent changes so web /chat re-reads getLocalWeightsConsent(). */
   const [localConsentTick, setLocalConsentTick] = useState(0);
   const [plusOpen, setPlusOpen] = useState(false);
-  // const suggestionToastRef = useRef<{ mode: ExecutionMode; text: string; timestamp: number } | null>(null);
+  const [modeSuggestion, setModeSuggestion] = useState<ModeSuggestion | null>(null);
+  const [agentRoleId, setAgentRoleId] = useState<string>(() => {
+    try {
+      return localStorage.getItem("openbentt-agent-role") ?? "research-assistant";
+    } catch {
+      return "research-assistant";
+    }
+  });
+  const agentRoles = useMemo(() => listAgentRoles(), []);
   const { toast } = useToast();
   const { data: models, isLoading: modelsLoading, isError: modelsError } = useOpenRouterModels(
     apiConfig.apiKey,
@@ -320,7 +336,79 @@ const ChatInput: React.FC<ChatInputProps> = ({
     ["QUEUED", "STARTING", "RUNNING", "WAITING_FOR_PERMISSION"].includes(currentTask.status);
   const currentTaskStatus = currentTask?.status ?? null;
 
+  // Suggest-only mode detection: never auto-switch; skip while a task is running / internal steps.
+  useEffect(() => {
+    if (!isDesktopApp()) {
+      setModeSuggestion(null);
+      return;
+    }
+    if (executionMode !== "chat") {
+      setModeSuggestion(null);
+      return;
+    }
+    const text = message.trim();
+    if (text.length < 12) {
+      setModeSuggestion(null);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      const ctx = {
+        conversationHistory,
+        projectRoot: composerWs?.rootPath ?? null,
+        currentMode: executionMode,
+        isTaskRunning: Boolean(isTaskRunning),
+        currentTaskStatus,
+        hasAttachments: attachments.length > 0,
+      };
+      if (isInternalTaskStep(text, ctx)) {
+        setModeSuggestion(null);
+        return;
+      }
+      const intent = detectModeIntent(text, ctx);
+      if (shouldSuggestModeChange(executionMode, intent, false)) {
+        setModeSuggestion(modeIntentToSuggestion(intent));
+      } else {
+        setModeSuggestion(null);
+      }
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [
+    message,
+    executionMode,
+    conversationHistory,
+    composerWs?.rootPath,
+    isTaskRunning,
+    currentTaskStatus,
+    attachments.length,
+  ]);
+
+  const chooseAgentRole = useCallback((id: string) => {
+    setAgentRoleId(id);
+    try {
+      localStorage.setItem("openbentt-agent-role", id);
+    } catch {
+      /* non-critical */
+    }
+    if (!agentMode) setAgentMode(true);
+  }, [agentMode, setAgentMode]);
+
   const handleSendMessage = async () => {
+    // Local Ollama: block send when runtime/model is unavailable (don't fall through to OpenCode).
+    if (
+      !agentMode &&
+      executionMode === "chat" &&
+      apiConfig.aiProvider === "openai_compatible" &&
+      effectiveModel?.provider === "ollama" &&
+      effectiveModel.available === false
+    ) {
+      toast({
+        title: "Local model not ready",
+        description:
+          "Start Ollama and install/select a model in Settings → Local AI, then try again.",
+        variant: "destructive",
+      });
+      return;
+    }
     // Universal layer: single Execution Engine model — no tiling, gateway decides vision.
     if (!layerActive && apiConfig.comparisonEnabled && dedupeModels(apiConfig.comparisonModelIds).length < 2) {
       toast({
@@ -515,7 +603,26 @@ const ChatInput: React.FC<ChatInputProps> = ({
       }
       if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
         toast({ title: "PDF", description: "Extracting text…" });
-        const extractedText = await extractTextFromPdfFile(file);
+        let extractedText = await extractTextFromPdfFile(file);
+        const bodyChars = extractedText.replace(/\[[^\]]*\]/g, "").trim().length;
+        if (bodyChars < 40 && isDesktopApp()) {
+          try {
+            const { extractResearchPdfWithOcr } = await import("@/lib/documents/pdfOcrIngest");
+            const buf = await file.arrayBuffer();
+            const ocr = await extractResearchPdfWithOcr(buf, file.name);
+            if (ocr.ocrApplied && ocr.text.trim().length > bodyChars) {
+              extractedText = ocr.text;
+              toast({ title: "PDF", description: "OCR applied to scanned PDF." });
+            } else if (!ocr.ocrAvailable && bodyChars < 40) {
+              toast({
+                title: "Scanned PDF",
+                description: "Little text found. Install system tesseract for OCR on desktop.",
+              });
+            }
+          } catch {
+            /* keep glyph extraction */
+          }
+        }
         setAttachments((a) => [...a, { id: uuidv4(), kind: "pdf", name: file.name, extractedText }]);
         return;
       }
@@ -621,6 +728,38 @@ const ChatInput: React.FC<ChatInputProps> = ({
         {!isStudio && <WorkspaceNeededBanner />}
         {/* Desktop layer-down: one banner, one click — never the maze. */}
         {!isStudio && <LayerDownBanner />}
+        {!isStudio && modeSuggestion && isDesktopApp() && (
+          <div
+            className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-[11px]"
+            role="status"
+          >
+            <span className="text-muted-foreground">
+              Suggest <span className="font-medium capitalize text-foreground">{modeSuggestion.mode}</span>
+              {modeSuggestion.reason ? ` — ${modeSuggestion.reason}` : ""}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 text-[11px]"
+              onClick={() => {
+                setExecutionMode(modeSuggestion.mode);
+                setModeSuggestion(null);
+              }}
+            >
+              Switch to {modeSuggestion.mode}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[11px]"
+              onClick={() => setModeSuggestion(null)}
+            >
+              Dismiss
+            </Button>
+          </div>
+        )}
         {/* Always-visible working folder / project control (desktop). */}
         {!isStudio && (
           <div className="flex items-center gap-1.5">
@@ -677,6 +816,56 @@ const ChatInput: React.FC<ChatInputProps> = ({
                   <p className="text-xs text-muted-foreground">
                     Select how OpenBentt should handle your request. Chat is the default for questions and discussion.
                     Plan analyzes and creates a plan. Build implements changes. Task runs multi-step autonomous work.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {isDesktopApp() && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant={agentMode ? "outline" : "ghost"}
+                        size="sm"
+                        className="h-8 w-auto min-w-[100px] gap-1.5 px-2.5 py-1 text-left text-[11px] border-border/60"
+                        aria-label={`Agent role: ${agentRoles.find((r) => r.id === agentRoleId)?.name ?? agentRoleId}`}
+                      >
+                        <Bot className="h-3.5 w-3.5 shrink-0 text-primary" />
+                        <span className="min-w-0 truncate font-medium hidden sm:inline">
+                          {agentMode
+                            ? agentRoles.find((r) => r.id === agentRoleId)?.name ?? "Agent"
+                            : "Roles"}
+                        </span>
+                        <ChevronDown size={12} className="shrink-0" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-64 p-1">
+                      <DropdownMenuItem
+                        onClick={() => setAgentMode(false)}
+                        className={cn("text-sm", !agentMode && "bg-primary/10")}
+                      >
+                        Off — normal chat / execution
+                      </DropdownMenuItem>
+                      {agentRoles.map((r) => (
+                        <DropdownMenuItem
+                          key={r.id}
+                          onClick={() => chooseAgentRole(r.id)}
+                          className={cn(
+                            "flex flex-col items-start gap-0.5 py-1.5 text-sm",
+                            agentMode && agentRoleId === r.id && "bg-primary/10"
+                          )}
+                        >
+                          <span className="font-medium">{r.name}</span>
+                          <span className="text-[11px] text-muted-foreground line-clamp-2">{r.description}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" align="start" className="max-w-xs">
+                  <p className="text-xs text-muted-foreground">
+                    Phase 8 role agents (research, engineering, …). Selecting a role enables tool-using agent mode in chat.
                   </p>
                 </TooltipContent>
               </Tooltip>

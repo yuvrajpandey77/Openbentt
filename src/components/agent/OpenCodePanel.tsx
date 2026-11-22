@@ -30,34 +30,50 @@ export function OpenCodePanel({
   const [runtimeBusy, setRuntimeBusy] = useState(false);
   const eventsRef = useRef<OpenCodeAgentEvent[]>([]);
   eventsRef.current = events;
+  const taskRef = useRef(task);
+  taskRef.current = task;
 
   const refreshRuntime = useCallback(async () => {
     try {
       const s = await openCodeAgentApi.getRuntimeStatus();
       setRuntime(s);
-    } catch { /* degraded */ }
+    } catch (e) {
+      setRuntime(null);
+      setError(e instanceof Error ? e.message : "Runtime status unavailable");
+    }
     try {
       const m = await openCodeAgentApi.getModels(false);
       setModels(m.models ?? []);
-    } catch { /* no models */ }
+    } catch (e) {
+      setModels([]);
+      setError((prev) => prev ?? (e instanceof Error ? e.message : "Could not load models"));
+    }
   }, []);
 
   useEffect(() => {
     if (!available) return;
-    openCodeAgentApi.detectOpenCode().then(setDetection).catch(() => setDetection(null));
+    openCodeAgentApi
+      .detectOpenCode()
+      .then(setDetection)
+      .catch((e) => {
+        setDetection({ installed: false });
+        setError(e instanceof Error ? e.message : "OpenCode detection failed");
+      });
     void refreshRuntime();
+    // Stable subscription — filter via taskRef to avoid re-subscribing every task change.
     return openCodeAgentApi.onEvent((evt) => {
+      const t = taskRef.current;
       setEvents((prev) => {
-        if (task && evt.taskId !== task.id) return prev;
+        if (t && evt.taskId !== t.id) return prev;
         if (prev.some((e) => e.eventId === evt.eventId)) return prev;
-        return [...prev.slice(-499), evt];
+        return [...prev.slice(-199), evt];
       });
       if (evt.type === "agent.permission.requested") setExpanded(true);
       if (evt.type === "agent.completed" || evt.type === "agent.failed" || evt.type === "agent.cancelled") {
         setStatus(evt.type === "agent.completed" ? "completed" : "ended");
       }
     });
-  }, [available, task, refreshRuntime]);
+  }, [available, refreshRuntime]);
 
   const refreshTask = useCallback(async (taskId: string) => {
     try {

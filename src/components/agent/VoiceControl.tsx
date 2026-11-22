@@ -84,7 +84,9 @@ export function VoiceControl({
     if (!session) return;
     try {
       await openCodeAgentApi.stopVoiceSession(session.id);
-    } catch { /* best effort */ }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not stop voice session");
+    }
     setSession(null);
     setMicState("off");
     setTranscript(null);
@@ -135,7 +137,9 @@ export function VoiceControl({
     try {
       if (recorder) await recorder.cancel();
       else if (session) await openCodeAgentApi.cancelVoiceUtterance(session.id);
-    } catch { /* noop */ }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not cancel recording");
+    }
     setTranscript(null);
   }, [session]);
 
@@ -160,7 +164,9 @@ export function VoiceControl({
     if (!session) return;
     try {
       await openCodeAgentApi.stopVoiceSpeaking(session.id);
-    } catch { /* noop */ }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not stop speech");
+    }
     setSpeaking(false);
   }, [session]);
 

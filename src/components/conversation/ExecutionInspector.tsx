@@ -71,11 +71,13 @@ export const ExecutionInspector: React.FC = () => {
   const [tab, setTab] = React.useState<InspectorTab>("activity");
   const [diffs, setDiffs] = useState<FileDiff[] | null>(null);
   const [diffsLoading, setDiffsLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
   const [undoApproval, setUndoApproval] = useState<{ approvalId: string; files: string[] } | null>(null);
   const [undoBusy, setUndoBusy] = useState(false);
   const [undoDone, setUndoDone] = useState<string | null>(null);
   const [debug, setDebug] = useExecutionDebug();
   const [serverState, setServerState] = useState<OpenCodeServerState | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   // Real diffs from filesystem snapshots (never fabricated from agent text).
   useEffect(() => {
@@ -83,34 +85,45 @@ export const ExecutionInspector: React.FC = () => {
     const api = getDesktopApi();
     if (!api?.workspaceDiff) {
       setDiffs([]);
+      setDiffError("Workspace diff API unavailable");
       return;
     }
     setDiffsLoading(true);
+    setDiffError(null);
     api
       .workspaceDiff(executionDrawerTaskId)
       .then((d) => setDiffs(d))
-      .catch(() => setDiffs([]))
+      .catch((e) => {
+        setDiffs([]);
+        setDiffError(e instanceof Error ? e.message : "Could not load diffs");
+      })
       .finally(() => setDiffsLoading(false));
   }, [tab, executionDrawerTaskId, diffs]);
 
   useEffect(() => {
     setDiffs(null);
+    setDiffError(null);
     setUndoApproval(null);
     setUndoDone(null);
     setServerState(null);
+    setServerError(null);
   }, [executionDrawerTaskId]);
 
   // Engine connection state for the Debug tab (best effort).
   useEffect(() => {
     if (tab !== "debug" || !hasOpenCodeDesktopApi()) return;
     let cancelled = false;
+    setServerError(null);
     openCodeAgentApi
       .serverStatus()
       .then((s) => {
         if (!cancelled) setServerState(s);
       })
-      .catch(() => {
-        if (!cancelled) setServerState(null);
+      .catch((e) => {
+        if (!cancelled) {
+          setServerState(null);
+          setServerError(e instanceof Error ? e.message : "Server status unavailable");
+        }
       });
     return () => {
       cancelled = true;
@@ -367,6 +380,11 @@ export const ExecutionInspector: React.FC = () => {
         {activeTab === "diff" && (
           <div>
             {diffsLoading && <p className="text-xs text-muted-foreground">Computing real diffs…</p>}
+            {diffError && (
+              <p className="text-xs text-destructive" role="status">
+                {diffError}
+              </p>
+            )}
             {!diffsLoading && (!diffs || diffs.length === 0) && (
               <p className="text-xs text-muted-foreground">No filesystem changes recorded for this task.</p>
             )}
@@ -510,7 +528,11 @@ export const ExecutionInspector: React.FC = () => {
             <div className="mb-2 rounded border border-border/60 bg-muted/20 p-2">
               <p className="text-[11px] font-medium text-foreground">Engine connection</p>
               <pre className="mt-1 overflow-auto font-mono text-[11px] text-muted-foreground">
-                {serverState ? JSON.stringify(serverState, null, 2) : "Unavailable (bridge offline or still loading)."}
+                {serverError
+                  ? `Error: ${serverError}`
+                  : serverState
+                    ? JSON.stringify(serverState, null, 2)
+                    : "Unavailable (bridge offline or still loading)."}
               </pre>
             </div>
             <ol className="space-y-1.5">

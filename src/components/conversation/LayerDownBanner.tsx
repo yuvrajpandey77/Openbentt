@@ -42,6 +42,11 @@ export const LayerDownBanner: React.FC = () => {
             Setup →
           </Link>
         </span>
+        {openCodeLayer.lastError ? (
+          <span className="mt-1 block text-[10px] text-destructive/90" role="status">
+            {openCodeLayer.lastError}
+          </span>
+        ) : null}
         <span className="mt-1.5 flex gap-2">
           <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => void start()}>
             {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}

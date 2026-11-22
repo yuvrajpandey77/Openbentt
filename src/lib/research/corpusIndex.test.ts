@@ -36,5 +36,31 @@ describe("corpusIndex", () => {
     const index = buildTfidfIndex(chunks);
     expect(index.idf.get("quantum")).toBeDefined();
     expect(index.docCount).toBeGreaterThan(0);
+    expect(index.postings?.get("quantum")?.length).toBeGreaterThan(0);
+  });
+
+  it("still retrieves relevant hits on a large synthetic library", () => {
+    // ~900+ chunks so inverted-index candidate pruning engages (>=800).
+    const papers = Array.from({ length: 60 }, (_, i) => ({
+      id: `p${i}`,
+      fileName: `p${i}.pdf`,
+      extractedText:
+        i === 7
+          ? "Graph neural networks for citation recommendation in scholarly PDFs. ".repeat(120)
+          : `Unrelated filler topic about agriculture and weather patterns number ${i}. `.repeat(120),
+    }));
+    const chunks = buildCorpusChunks(papers, "");
+    expect(chunks.length).toBeGreaterThan(800);
+    const index = buildTfidfIndex(chunks);
+    const names = Object.fromEntries(papers.map((p) => [p.id, p.fileName]));
+    const hits = findSimilarPassages(
+      "citation recommendation graph neural networks",
+      chunks,
+      names,
+      index,
+      { minScore: 0.02, limit: 8 }
+    );
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].paperId).toBe("p7");
   });
 });

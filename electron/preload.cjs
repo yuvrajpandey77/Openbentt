@@ -17,9 +17,22 @@ function getSafeModeReason() {
   return null;
 }
 
+function getIsPackaged() {
+  const args = process.argv.slice(1);
+  const arg = args.find((a) => a.startsWith("--openbentt-packaged="));
+  return arg ? arg.split("=")[1] === "1" : false;
+}
+
+function devToolsAllowed() {
+  if (!getIsPackaged()) return true;
+  return process.env.OPENBENTT_ENABLE_DEVTOOLS === "1";
+}
+
 contextBridge.exposeInMainWorld("openbenttDesktop", {
   platform: process.platform,
   isElectron: true,
+  isPackaged: getIsPackaged(),
+  devToolsAllowed: devToolsAllowed(),
   softwareRenderingMode: getSoftwareRenderingMode(),
   safeModeReason: getSafeModeReason(),
   framelessTitleBar: false,
@@ -61,6 +74,8 @@ contextBridge.exposeInMainWorld("openbenttDesktop", {
   latexDetect: (root) => ipcRenderer.invoke("latex:detect", { root }),
   latexCompile: (root, engine) => ipcRenderer.invoke("latex:compile", { root, engine }),
   latexOpenPdf: (root, path) => ipcRenderer.invoke("latex:openPdf", { root, path }),
+  documentsOcrStatus: () => ipcRenderer.invoke("documents:ocrStatus"),
+  documentsOcr: (payload) => ipcRenderer.invoke("documents:ocr", payload),
   computerCapabilities: () => ipcRenderer.invoke("computer:capabilities"),
   computerScreenshot: () => ipcRenderer.invoke("computer:screenshot"),
   computerAct: (action, params) => ipcRenderer.invoke("computer:act", { action, params }),
@@ -75,6 +90,7 @@ contextBridge.exposeInMainWorld("openbenttDesktop", {
   checkForUpdates: () => ipcRenderer.invoke("desktop:checkForUpdates"),
   downloadUpdate: () => ipcRenderer.invoke("desktop:downloadUpdate"),
   installUpdate: () => ipcRenderer.invoke("desktop:installUpdate"),
+  detectExternalAgents: () => ipcRenderer.invoke("agents:detect"),
   onUpdateStatus: (cb) => {
     const handler = (_event, payload) => cb(payload);
     ipcRenderer.on("desktop:updateStatus", handler);

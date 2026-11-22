@@ -91,21 +91,33 @@ export const heroPrinciples: HeroPrinciple[] = [
 ];
 
 export const meridianAnnouncement = {
-  eyebrow: "New",
-  title: "Meridian 0.1 LaTeX writing prompts in Notebook — uses your chat model",
-  href: "/notebook",
+  eyebrow: "v2.5.0",
+  title: "Leave OpenAI Prism before Jan 1 — import ZIP/folder into Openbentt Notebook",
+  href: "/news",
 } as const;
 
 export const latestNews: NewsItem[] = [
+  {
+    title: "v2.5.0: Prism migration, multi-agent detect, one-click ZIP/folder import",
+    date: "Nov 2026",
+    to: "/news",
+  },
+  {
+    title: "Switch from OpenAI Prism: compile locally with BusyTeX cascade + Zotero",
+    date: "Nov 2026",
+    to: "/news#v2-5-0",
+  },
+  {
+    title: "Settings → Agents: auto-detect OpenCode, Claude, Codex, Cursor, Aider, Gemini",
+    date: "Nov 2026",
+    to: "/news",
+  },
   {
     title: "Meridian 0.1: LaTeX writing prompts for Notebook (your model in Settings)",
     date: "May 2026",
     to: "/notebook",
   },
-  { title: "Phase 1 desktop builds with bundled llama-server for offline GGUF", date: "May 2026" },
-  { title: "Notebook: LaTeX source, live PDF preview, Apply reply from chat", date: "May 2026" },
-  { title: "Model arena with TTFT and tokens/s in tiled comparison", date: "Apr 2026" },
-  { title: "Research labs: BibTeX, citation graph, Hugging Face model hub", date: "Mar 2026" },
+  { title: "Phase 1 desktop builds with bundled llama-server for offline GGUF", date: "May 2026", to: "/download" },
 ];
 
 export type ExploreItem = {
@@ -280,6 +292,7 @@ export const footerColumns = [
     title: "Desktop",
     links: [
       { label: "Download", to: "/download" },
+      { label: "News & releases", to: "/news" },
       { label: "GitHub Releases", external: "releases" as const },
       { label: "All platforms", to: "/download" },
     ],
@@ -288,6 +301,7 @@ export const footerColumns = [
     title: "Also available",
     links: [
       { label: "First-time setup", to: "/setup" },
+      { label: "v2.5.0 notes", to: "/news#v2-5-0" },
     ],
   },
   {

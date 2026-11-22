@@ -6,19 +6,17 @@ import path from "node:path";
 import { closeDb, getDb } from "./researchDb.mjs";
 import { makeTempUserData } from "./test/researchTestApp.mjs";
 import {
-  FakeSttEngine,
-  FakeTtsEngine,
   __voiceTestHooks,
   appendAudioChunk,
   beginUtterance,
   cancelUtterance,
   noteMicReady,
-  setVoiceEngines,
   speakText,
   startVoiceSession,
   stopVoiceSession,
   cleanupVoiceOnQuit,
 } from "./voiceService.mjs";
+import { FakeSttEngine, FakeTtsEngine, setVoiceEngines } from "./voiceService.testSupport.mjs";
 import {
   __testHooks,
   createTask,

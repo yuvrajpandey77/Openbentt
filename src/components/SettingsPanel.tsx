@@ -55,6 +55,7 @@ import { hasOpenCodeDesktopApi, openCodeAgentApi } from "@/lib/agent/openCodeAge
 import { loadPrivacyPreferences, savePrivacyPreferences, type PrivacyPreferences } from "@/lib/privacy/privacyPreferences";
 import { getSecretsApi, type VaultStatus } from "@/lib/privacy/desktopSecrets";
 import { McpManager } from "@/components/integrations/McpManager";
+import { IntegrationsHub } from "@/components/integrations/IntegrationsHub";
 import { SecurityCenter } from "@/components/integrations/SecurityCenter";
 import { AgentsPanel } from "@/components/agents/AgentsPanel";
 import { ApprovalsCenter } from "@/components/approvals/ApprovalsCenter";

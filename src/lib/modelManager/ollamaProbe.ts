@@ -1,4 +1,6 @@
-const DEFAULT_OLLAMA_BASE = "http://127.0.0.1:11434/v1";
+import { DEFAULT_OLLAMA_CHAT_BASE } from "@/lib/ollama/origin";
+
+const DEFAULT_OLLAMA_BASE = DEFAULT_OLLAMA_CHAT_BASE;
 const PROBE_TIMEOUT_MS = 4000;
 
 export interface OllamaProbeResult {

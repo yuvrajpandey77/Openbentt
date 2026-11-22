@@ -102,7 +102,10 @@ describe("OAuth core", () => {
     const s = newOAuthState("slack");
     expect(s.raw).toMatch(/^[0-9a-f]{64}$/);
     expect(validateOAuthState(s, s.raw)).toBe(true);
-    expect(validateOAuthState(s, `${s.raw.slice(0, 63)}0`)).toBe(false);
+    // Flip a nibble that is guaranteed different from the original last char.
+    const last = s.raw[63];
+    const flipped = last === "0" ? "1" : "0";
+    expect(validateOAuthState(s, `${s.raw.slice(0, 63)}${flipped}`)).toBe(false);
     expect(validateOAuthState(s, s.raw, Date.now() + 11 * 60 * 1000)).toBe(false);
   });
   it("builds least-privilege authorize URLs (scopes from registry)", () => {

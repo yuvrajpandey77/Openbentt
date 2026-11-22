@@ -5,8 +5,6 @@ import path from "node:path";
 import { closeDb } from "./researchDb.mjs";
 import { makeTempUserData } from "./test/researchTestApp.mjs";
 import {
-  FakeSttEngine,
-  FakeTtsEngine,
   LocalWhisperEngine,
   __voiceTestHooks,
   appendAudioChunk,
@@ -17,7 +15,6 @@ import {
   noteMicDenied,
   noteMicReady,
   registerVoiceIpc,
-  setVoiceEngines,
   setVoiceMode,
   speakText,
   startVoiceSession,
@@ -26,6 +23,7 @@ import {
   noteThinking,
   cleanupVoiceOnQuit,
 } from "./voiceService.mjs";
+import { FakeSttEngine, FakeTtsEngine, setVoiceEngines } from "./voiceService.testSupport.mjs";
 import { decidePermission, decideVoiceMediaPermission } from "./navigationPolicy.mjs";
 import { VOICE_AUDIO } from "../src/lib/agent/voiceCore.mjs";
 

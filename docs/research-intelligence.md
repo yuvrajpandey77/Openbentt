@@ -83,9 +83,10 @@ Covers: BibTeX/CSL formatting, bibliography health, TF-IDF retrieval, hybrid RRF
 ## What is NOT included (future work)
 
 - Cross-encoder reranking (e.g. ms-marco-MiniLM)
-- LLM claim verification or abstractive synthesis
-- Zotero / BibLaTeX sync
-- Automatic embedding rebuild on library change (manual index build still required)
-- Web Worker batch embedding (main thread today)
+- LLM claim verification or abstractive synthesis beyond chat/agent prompts
+
+## Large corpora
+
+See `docs/LARGE_CORPUS.md` — desktop SQLite embeddings (up to 50k passages), hybrid retrieval with inverted-index candidate pruning, and local vs cloud RAG budgets.
 
 See also: `docs/research-workspace-roadmap.md` for UI surface and phase plan.

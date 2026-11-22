@@ -15,6 +15,12 @@ import {
 } from "@/lib/ollama/desktopApi";
 import { probeOllamaModels } from "@/lib/modelManager/ollamaProbe";
 import { autoSelectOllamaModel } from "@/lib/ollama/selection";
+import {
+  openAiCompatibleBaseUrlToOllamaOrigin,
+  ollamaModelMatches,
+  DEFAULT_OLLAMA_CHAT_BASE,
+} from "@/lib/ollama/origin";
+import { isLoopbackCompatibleBase } from "@/lib/privacy/privacyPreferences";
 import { useTaskCenter } from "./TaskCenterContext";
 import { useChat } from "./ChatContext";
 import type { ApiKeyConfig } from "@/types/chat";
@@ -136,18 +142,19 @@ function buildEffectiveModel(
 
   // OpenAI-compatible (Ollama, LM Studio, etc.)
   if (provider === "openai_compatible") {
-    const isLocal = apiConfig.openAiCompatibleBaseUrl?.includes("127.0.0.1") ||
-                    apiConfig.openAiCompatibleBaseUrl?.includes("localhost") ||
-                    apiConfig.openAiCompatibleBaseUrl?.includes("[::1]");
-    // If initial validation hasn't completed, don't mark local models as unavailable yet
-    // They might just be waiting for the initial Ollama check to complete
+    const base = (apiConfig.openAiCompatibleBaseUrl ?? "").trim() || DEFAULT_OLLAMA_CHAT_BASE;
+    const isLocal = isLoopbackCompatibleBase(base);
+    const installed = [...localAI.modelNames, ...(localAI.runningModels ?? [])];
+    const modelInstalled = ollamaModelMatches(model, installed);
     const effectiveAvailable = isLocal
-      ? initialValidationDone ? (localAI.modelNames.includes(model) || localAI.runningModels?.includes(model)) : true // Before validation, assume available (will update after check)
-      : true; // Remote compatible providers - trust the config
+      ? initialValidationDone
+        ? localAI.health !== "unavailable" && modelInstalled
+        : true
+      : true;
     return {
       modelId: model || null,
       displayName: model || "Select model",
-      provider: "openai_compatible",
+      provider: isLocal ? "ollama" : "openai_compatible",
       location: isLocal ? "local" : "cloud",
       available: Boolean(model) && (isLocal ? effectiveAvailable : true),
       source: localAI.preferredModel === model ? "explicit" : localAI.defaultReason === "explicit-preference" ? "persisted" : "fallback",
@@ -207,12 +214,35 @@ export function LocalAIProvider({ children }: { children: React.ReactNode }) {
   const desktopAvailable = useMemo(() => getOllamaDesktopApi() != null, []);
   const pollRef = useRef<number | null>(null);
 
+  const configuredOrigin = useMemo(() => {
+    const base = (apiConfig.openAiCompatibleBaseUrl ?? "").trim() || DEFAULT_OLLAMA_CHAT_BASE;
+    return openAiCompatibleBaseUrlToOllamaOrigin(base);
+  }, [apiConfig.openAiCompatibleBaseUrl]);
+
+  const shouldProbeOllama = useMemo(() => {
+    // Skip noisy health polls when the user is on a remote OpenAI-compatible URL.
+    if (apiConfig.aiProvider === "openai_compatible") {
+      const base = (apiConfig.openAiCompatibleBaseUrl ?? "").trim() || DEFAULT_OLLAMA_CHAT_BASE;
+      return isLoopbackCompatibleBase(base);
+    }
+    // Still probe when unset/cloud so onboarding + Local AI card can offer Ollama.
+    return true;
+  }, [apiConfig.aiProvider, apiConfig.openAiCompatibleBaseUrl]);
+
   const refresh = useCallback(async () => {
+    if (!shouldProbeOllama) {
+      setChecking(false);
+      setInitialValidationDone(true);
+      setStatus(null);
+      setError(null);
+      return;
+    }
     setChecking(true);
     try {
       const api = getOllamaDesktopApi();
+      const origin = configuredOrigin ?? undefined;
       if (api) {
-        const s = await api.status();
+        const s = await api.status(origin);
         setStatus(s);
         setError(s.reachable ? null : s.error ?? "Ollama is not reachable");
         try {
@@ -227,10 +257,11 @@ export function LocalAIProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         // Web fallback: OpenAI-compatible probe only (no pull/install support).
-        const probe = await probeOllamaModels(undefined);
+        const chatBase = origin ? `${origin}/v1` : undefined;
+        const probe = await probeOllamaModels(chatBase);
         if (probe.ok) {
           setStatus({
-            origin: probe.baseUrl,
+            origin: probe.baseUrl.replace(/\/v1\/?$/, "") || probe.baseUrl,
             reachable: true,
             version: null,
             models: probe.modelIds.map((name) => ({
@@ -256,16 +287,39 @@ export function LocalAIProvider({ children }: { children: React.ReactNode }) {
       setChecking(false);
       setInitialValidationDone(true);
     }
-  }, []);
+  }, [configuredOrigin, shouldProbeOllama]);
 
   // Initial detection + slow poll for external changes (Ollama started/stopped).
+  // Pause while the tab/window is hidden so backgrounded Electron doesn't burn CPU.
   useEffect(() => {
-    void refresh();
-    pollRef.current = window.setInterval(() => {
+    const clearPoll = () => {
+      if (pollRef.current != null) {
+        window.clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+    const startPoll = () => {
+      clearPoll();
+      pollRef.current = window.setInterval(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        void refresh();
+      }, 30000);
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        clearPoll();
+        return;
+      }
       void refresh();
-    }, 30000);
+      startPoll();
+    };
+
+    void refresh();
+    if (typeof document === "undefined" || !document.hidden) startPoll();
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      if (pollRef.current != null) window.clearInterval(pollRef.current);
+      clearPoll();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [refresh]);
 
@@ -349,8 +403,12 @@ export function LocalAIProvider({ children }: { children: React.ReactNode }) {
     if (!api) throw new Error("Model downloads require the Openbentt desktop app");
     const name = model.trim();
     if (!name) throw new Error("Invalid model name");
-    await api.pullModel(name);
-  }, []);
+    const origin = configuredOrigin ?? undefined;
+    const res = await api.pullModel(name, origin);
+    if (!res?.ok) {
+      throw new Error(`Could not start download for ${name}`);
+    }
+  }, [configuredOrigin]);
 
   const cancelPull = useCallback(async (model: string) => {
     const api = getOllamaDesktopApi();

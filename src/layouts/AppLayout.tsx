@@ -41,6 +41,11 @@ const AppLayout: React.FC = () => {
   const location = useLocation();
   const workspaceMeta = getWorkspaceRouteMeta(location.pathname);
   const isMobile = useIsMobile();
+  /** Projects hub + Notebook keep the central sidebar but own their chrome/composer. */
+  const isFullBleedStudio =
+    location.pathname === "/notebook" ||
+    location.pathname === "/webgpu" ||
+    location.pathname === "/projects";
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
@@ -89,13 +94,12 @@ const AppLayout: React.FC = () => {
   }, [currentChatId, createNewChat, apiConfig]);
 
   useEffect(() => {
-    if (!workspaceMeta) {
+    if (!workspaceMeta || isFullBleedStudio) {
       setWorkspaceRouteAssist(undefined);
       return;
     }
-    if (location.pathname === "/notebook") return;
     setWorkspaceRouteAssist(workspaceMeta.systemAssist);
-  }, [workspaceMeta, location.pathname, setWorkspaceRouteAssist]);
+  }, [workspaceMeta, location.pathname, setWorkspaceRouteAssist, isFullBleedStudio]);
 
   useEffect(() => {
     if (location.pathname === "/notebook" && new URLSearchParams(location.search).has("panel")) {
@@ -184,17 +188,39 @@ const AppLayout: React.FC = () => {
           sidebarMainMarginClass(sidebarCollapsed)
         )}
       >
-        <AppChromeHeader
-          onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-          sidebarCollapsed={sidebarCollapsed}
-          onExpandSidebar={() => setSidebarCollapsed(false)}
-          workspaceMeta={workspaceMeta}
-          rightSidebarOpen={rightSidebarOpen}
-          onToggleRightSidebar={toggleRightSidebar}
-        />
+        {!isFullBleedStudio && (
+          <AppChromeHeader
+            onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+            sidebarCollapsed={sidebarCollapsed}
+            onExpandSidebar={() => setSidebarCollapsed(false)}
+            workspaceMeta={workspaceMeta}
+            rightSidebarOpen={rightSidebarOpen}
+            onToggleRightSidebar={toggleRightSidebar}
+          />
+        )}
+
+        {/* Mobile menu affordance when studio owns the chrome */}
+        {isFullBleedStudio && (
+          <div className="flex shrink-0 items-center gap-2 border-b border-border/50 px-2 py-1.5 md:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              <PanelRightOpen size={18} className="rotate-180" />
+            </Button>
+            <span className="text-xs font-medium text-muted-foreground">Menu</span>
+          </div>
+        )}
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {workspaceMeta && isMobile ? (
+          {isFullBleedStudio ? (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <Outlet />
+            </div>
+          ) : workspaceMeta && isMobile ? (
             <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <TabsList className="mx-2 mt-2 grid h-9 w-auto shrink-0 grid-cols-2 rounded-lg bg-muted/80 p-1">
                 <TabsTrigger value="chat" className="text-xs sm:text-sm">Chat</TabsTrigger>
@@ -254,10 +280,12 @@ const AppLayout: React.FC = () => {
           )}
         </div>
 
-        {/* ONE composer everywhere: execution runs inside the conversation. */}
-        <div className="shrink-0 bg-gradient-to-t from-card/90 to-background/95 backdrop-blur-sm">
-          <ChatInput isLoading={isLoading} workspaceMeta={workspaceMeta} />
-        </div>
+        {/* ONE composer everywhere except full-bleed studio (Notebook has floating chat). */}
+        {!isFullBleedStudio && (
+          <div className="shrink-0 bg-gradient-to-t from-card/90 to-background/95 backdrop-blur-sm">
+            <ChatInput isLoading={isLoading} workspaceMeta={workspaceMeta} />
+          </div>
+        )}
       </main>
       {/* Right sidebar: Files, Activity, Tools, Settings */}
       <RightSidebar isOpen={rightSidebarOpen} onClose={() => setRightSidebarOpen(false)} />

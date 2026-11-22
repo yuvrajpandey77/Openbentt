@@ -24,7 +24,6 @@ import {
 } from "@/lib/research/projectStore";
 import { rebuildProjectCorpus } from "@/lib/research/corpusPipeline";
 import { arrayBufferToBase64 } from "@/lib/research/base64";
-import { extractNotebookSourceFromPdf } from "@/lib/pdfText";
 import { inferPdfMetadata } from "@/lib/research/citationTools";
 import { displayPaperTitle } from "@/lib/research/displayPaperLabel";
 import { extractPdfReviewAnnotations } from "@/lib/pdfAnnotations";
@@ -61,7 +60,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { useChat } from "@/context/ChatContext";
-import { assembleResearchContext, formatRetrievalForPrompt } from "@/lib/ai/researchOrchestrator";
+import { assembleResearchContext, formatRetrievalForPrompt, ragBudgetForProvider } from "@/lib/ai/researchOrchestrator";
 import { buildTfidfIndex } from "@/lib/research/corpusIndex";
 import { resolveLibraryEmbeddings } from "@/lib/research/embeddingLoader";
 
@@ -89,6 +88,7 @@ type ResearchProjectContextValue = {
   createProject: (title: string) => Promise<void>;
   createProjectFromTemplate: (title: string, entry: TemplateCatalogEntry) => Promise<void>;
   importProjectFromFile: (file: File) => Promise<void>;
+  importProjectFromFolder: (files: FileList | File[]) => Promise<void>;
   removeProject: (id: string) => Promise<void>;
   updateProject: (patch: Partial<ResearchProjectData>) => Promise<void>;
   setDraftTex: (tex: string) => void;
@@ -140,7 +140,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   const projectRef = useRef<ResearchProjectData | null>(null);
   projectRef.current = project;
 
-  const { registerCorpusRagProvider, registerChatLogPersister, registerAgentProjectProvider } = useChat();
+  const { registerCorpusRagProvider, registerChatLogPersister, registerAgentProjectProvider, apiConfig } = useChat();
 
   // Register corpus RAG provider whenever there's an active project.
   useEffect(() => {
@@ -148,6 +148,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       registerCorpusRagProvider(null);
       return;
     }
+    const budget = ragBudgetForProvider(apiConfig.aiProvider);
     registerCorpusRagProvider(async (query: string) => {
       const p = projectRef.current;
       if (!p || !p.chunks.length) return "";
@@ -158,15 +159,17 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
         const tfidf = buildTfidfIndex(p.chunks);
         const vectors = await resolveLibraryEmbeddings(p.id, p.chunks, p.chunkEmbeddings);
         const { hybridRetrieveV2 } = await import("@/lib/research/retrievalV2");
-        const hits = await hybridRetrieveV2(query, p.chunks, names, tfidf, vectors, { limit: 6 });
-        return formatRetrievalForPrompt(hits, 8000);
+        const hits = await hybridRetrieveV2(query, p.chunks, names, tfidf, vectors, {
+          limit: budget.hitLimit,
+        });
+        return formatRetrievalForPrompt(hits, budget.maxChars);
       } catch {
         return "";
       }
     });
     return () => registerCorpusRagProvider(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id, project?.chunks.length, registerCorpusRagProvider]);
+  }, [project?.id, project?.chunks.length, registerCorpusRagProvider, apiConfig.aiProvider]);
 
   // Register chat-log persister when a project is active (desktop only).
   useEffect(() => {
@@ -496,6 +499,34 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
 
   const importProjectFromFile = useCallback(
     async (file: File) => {
+      if (/\.zip$/i.test(file.name)) {
+        const { importProjectFromZip } = await import("@/lib/research/importProjectArchive");
+        const arch = await importProjectFromZip(file);
+        const now = new Date().toISOString();
+        const p = await createResearchProject(arch.title, {
+          draftTex: arch.draftTex,
+          bibliography: arch.bibliography,
+        });
+        const withFiles = {
+          ...p,
+          projectFiles: arch.projectFiles.map((f, i) => ({
+            id: `imp-${i}-${Date.now()}`,
+            path: f.path,
+            kind: f.kind,
+            content: f.content,
+            addedAt: now,
+            updatedAt: now,
+          })),
+        };
+        await persist(withFiles);
+        setProject(withFiles);
+        await refreshProjects();
+        toast({
+          title: "ZIP imported",
+          description: `${withFiles.title} · ${arch.fileCount} file(s) · Overleaf/Prism/Codex compatible`,
+        });
+        return;
+      }
       const text = await file.text();
       const name = file.name.replace(/\.(tex|bib)$/i, "").trim() || "Imported project";
       const isBib = /\.bib$/i.test(file.name);
@@ -507,7 +538,38 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       await refreshProjects();
       toast({ title: "Project imported", description: p.title });
     },
-    [refreshProjects, toast]
+    [persist, refreshProjects, toast]
+  );
+
+  const importProjectFromFolder = useCallback(
+    async (files: FileList | File[]) => {
+      const { importProjectFromFolderFiles } = await import("@/lib/research/importProjectArchive");
+      const arch = await importProjectFromFolderFiles(files);
+      const now = new Date().toISOString();
+      const p = await createResearchProject(arch.title, {
+        draftTex: arch.draftTex,
+        bibliography: arch.bibliography,
+      });
+      const withFiles = {
+        ...p,
+        projectFiles: arch.projectFiles.map((f, i) => ({
+          id: `imp-${i}-${Date.now()}`,
+          path: f.path,
+          kind: f.kind,
+          content: f.content,
+          addedAt: now,
+          updatedAt: now,
+        })),
+      };
+      await persist(withFiles);
+      setProject(withFiles);
+      await refreshProjects();
+      toast({
+        title: "Folder imported",
+        description: `${withFiles.title} · ${arch.fileCount} file(s)`,
+      });
+    },
+    [persist, refreshProjects, toast]
   );
 
   const removeProject = useCallback(
@@ -623,6 +685,18 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   const bibTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectFileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectFilePendingRef = useRef<{ fileId: string; content: string } | null>(null);
+
+  // Tear down timers / embed work on unmount so navigations don't leak work.
+  useEffect(() => {
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+      if (bibTimerRef.current) clearTimeout(bibTimerRef.current);
+      if (projectFileTimerRef.current) clearTimeout(projectFileTimerRef.current);
+      rebuildRef.current?.abort();
+      rebuildRef.current = null;
+      void import("@/lib/research/embeddingIndex").then((m) => m.shutdownEmbeddingWorker()).catch(() => {});
+    };
+  }, []);
 
   const setBibliography = useCallback(
     (bib: string) => {
@@ -759,6 +833,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       createProject,
       createProjectFromTemplate,
       importProjectFromFile,
+      importProjectFromFolder,
       removeProject,
       updateProject,
       setDraftTex,
@@ -799,7 +874,12 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
           runSemanticRebuild(next.chunks, next.id);
           return;
         }
-        const extracted = await extractNotebookSourceFromPdf(buf);
+        const { extractResearchPdfWithOcr } = await import("@/lib/documents/pdfOcrIngest");
+        const { text: extracted, ocrApplied, ocrAvailable } = await extractResearchPdfWithOcr(
+          buf,
+          file.name,
+          { projectId: project.id },
+        );
         const meta = inferPdfMetadata(extracted);
         const b64 = arrayBufferToBase64(buf);
         let reviewNotes: string[] | undefined;
@@ -814,11 +894,22 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
         await refreshProjects();
         void createProjectSnapshot(project.id, "after-upload");
         const annCount = reviewNotes?.length ?? 0;
+        const bodyOnly = extracted
+          .replace(/--- PDF PAGE \d+ \/ \d+ ---/g, "")
+          .replace(/\[Note:[\s\S]*$/g, "")
+          .trim();
+        const scannedEmpty = bodyOnly.length < 40;
         toast({
           title: "Paper added",
           description:
             displayPaperTitle({ fileName: file.name, metadata: meta }) +
-            (annCount > 0 ? ` · ${annCount} PDF review note(s) captured` : ""),
+            (ocrApplied ? " · OCR applied" : "") +
+            (annCount > 0 ? ` · ${annCount} PDF review note(s) captured` : "") +
+            (scannedEmpty && !ocrApplied
+              ? ocrAvailable
+                ? " · little text extracted (OCR did not improve it)"
+                : " · scanned PDF — install system tesseract for OCR"
+              : ""),
         });
         runSemanticRebuild(next.chunks, next.id);
       },
@@ -866,6 +957,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       createProject,
       createProjectFromTemplate,
       importProjectFromFile,
+      importProjectFromFolder,
       removeProject,
       updateProject,
       setDraftTex,

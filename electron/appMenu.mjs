@@ -105,7 +105,10 @@ export function setupApplicationMenu(opts = {}) {
         { type: "separator" },
         { role: "togglefullscreen" },
         { type: "separator" },
-        { role: "toggleDevTools" },
+        {
+          role: "toggleDevTools",
+          visible: isDev || process.env.OPENBENTT_ENABLE_DEVTOOLS === "1",
+        },
       ],
     },
     {

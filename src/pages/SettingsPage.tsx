@@ -16,8 +16,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ExecutionSetupSection } from "@/components/conversation/ExecutionSetupSection";
+import DesktopUpdateCard from "@/components/DesktopUpdateCard";
 
-/** Phase 9 — Settings: Account, Execution readiness, AI & Models, then full provider panels. */
+/** Phase 9 — Settings: Account, Updates, Execution readiness, AI & Models, then full provider panels. */
 const SettingsPage: React.FC = () => {
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 py-6">
@@ -29,9 +30,12 @@ const SettingsPage: React.FC = () => {
           <FeedbackDialog />
         </span>
       </div>
-      <p className="mt-1 text-sm text-muted-foreground">Account, execution, local AI, providers and privacy.</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Account, desktop updates, execution agents, local AI, providers and privacy.
+      </p>
       <div className="mt-5 flex flex-col gap-4 pb-10">
         <AccountCard />
+        {isDesktopApp() && <DesktopUpdateCard />}
         {isDesktopApp() && <ExecutionReadinessCard />}
         <LocalAICard />
         <AgentVoiceCard />
@@ -58,10 +62,11 @@ function ExecutionReadinessCard() {
     <Card className="border-border/60 shadow-sm">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Bot size={16} className="text-primary" /> Execution — OpenCode
+          <Bot size={16} className="text-primary" /> Execution — agents
         </CardTitle>
         <CardDescription>
-          OpenCode is the default execution engine underneath every conversation. Status and workspace live here.
+          OpenCode is the default engine; Settings → Agents also auto-detects Claude Code, Codex, Cursor,
+          Aider, and Gemini CLI on PATH. Status and workspace live here.
         </CardDescription>
       </CardHeader>
       <CardContent>

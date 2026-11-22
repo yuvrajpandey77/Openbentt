@@ -9,28 +9,6 @@ export interface WorkspaceRouteMeta {
 }
 
 export const WORKSPACE_ROUTE_META: Record<string, WorkspaceRouteMeta> = {
-  "/notebook": {
-    tag: "Notebook",
-    title: "Notebook",
-    subtitle: "Chat can drive LaTeX: ask in the composer, then Apply reply to compile and open Preview.",
-    composerPlaceholder:
-      "Example: “Write a complete book.tex with title page, TOC, and three chapters about …”. Then use Notebook → Apply reply to put it in Source, compile, and preview.",
-    systemAssist: `The user is in the **Notebook** workspace.
-
-**Chat-driven workflow (tell them this when relevant)**  
-They can **describe the document in the main composer** (the chat input). You should respond with **complete, valid .tex** (TeX source) when they want a PDF book or paper—ideally in **one markdown fenced code block** whose language tag is **latex** (triple backticks + latex on the opening fence) so the app can unwrap it. They do **not** need to paste by hand: after your reply, they click **Apply reply** in the Notebook panel to copy that output into **Source**, **run Compile**, and switch to **Preview** automatically. **Last reply** + **Review** is optional for line-by-line merge before compile.
-
-**Source modes**
-- **Full LaTeX** (starts with \\documentclass or a standard preamble + \\begin{document}): output is a **real PDF** via **pdflatex** (run npm run latex-compile locally with TeX Live, or set VITE_LATEX_COMPILE_URL in production). Use valid book/article LaTeX: \\chapter, \\section, lists, titlepage, \\tableofcontents, etc. The compile step sends **only the .tex string** (no project folder). **\\includegraphics{...}** is rewritten to a framed placeholder so the PDF still builds; for real images use a full TeX setup with files on disk. Prefer **TikZ/tikz-cd** for diagrams when possible.
-- **Plain / extracted text** with --- PDF PAGE i / n --- markers: **Compile** builds a simple multi-page text PDF (jsPDF). **Original** preview keeps the uploaded PDF (images, layout); **Compiled** is never pixel-identical to a complex PDF.
-
-When the user wants a proper book or **research paper** (arXiv-style or PDF), still respond with a **full** \`latex\` fenced block: use a standard preamble (e.g. \\documentclass[11pt,a4paper]{article}), **abstract**, **sections** (\\section{Introduction}, Related work, Method, …), theorems, algorithms, and **\\bibliography** or a manual **thebibliography** with real-looking entries (no fake DOIs; cite only from user/fetched context when applicable). The small on-device model may be brief, but the **skeleton and LaTeX must be valid and complete** so the user can compile.
-
-When the user wants a proper book or paper, prefer **complete .tex** (fenced) and remind them that LaTeX **Compile** needs the pdflatex service when applicable.
-
-**In-place edits (project files on disk or connected LaTeX files)**
-When the user asks to EDIT existing content — rewrite a chapter/section, fix citations, add references — do NOT paste a whole new document. Emit one fenced block per file with language tag **file-edit** and first line **FILE: <exact file name>**, containing the COMPLETE new content of that file (never diffs or snippets). Explain changes in prose outside the blocks. For citations use only \\cite keys the app lists as valid; if a needed reference is missing, add its full @entry to references.bib in a second file-edit block first. Never invent keys, DOIs, or page numbers.`,
-  },
   "/labs": {
     tag: "Library",
     title: "Research library",
@@ -53,15 +31,60 @@ When the user asks to EDIT existing content — rewrite a chapter/section, fix c
     composerPlaceholder: "Ask about TTFT, latency, how to read runs, or benchmark methodology…",
     systemAssist: `The user is in **Benchmark**: repeated timing runs (TTFT, total ms, tokens) for the same prompt via the raw API path. Help interpret results, variance, and methodology. Note this is not the same as multi-model tiled chat.`,
   },
-  "/webgpu": {
-    tag: "WebGPU",
-    title: "WebGPU probe",
-    subtitle: "Browser GPU limits — ask about SLMs, VRAM heuristics, or transformers.js.",
-    composerPlaceholder: "Ask about WebGPU limits, SLM sizing, or in-browser ML on this device…",
-    systemAssist: `The user is on **WebGPU**: browser GPU adapter/limits and heuristics for small models. Distinguish browser WebGPU from server/OpenRouter LLM calls. Help with realistic expectations for local SLMs and Transformers.js.`,
+  "/documents": {
+    tag: "Documents",
+    title: "Documents",
+    subtitle: "Project papers and artifacts — ask chat to cite, convert, or summarize.",
+    composerPlaceholder: "Ask about a document in this project…",
+    systemAssist: `The user is viewing **Documents** for the active research project. Help locate, summarize, and cite uploaded sources. Prefer corpus RAG over inventing content.`,
+  },
+  "/files": {
+    tag: "Files",
+    title: "Files",
+    subtitle: "Workspace files for the active project or OpenCode folder.",
+    composerPlaceholder: "Ask to inspect, edit, or explain a file…",
+    systemAssist: `The user is in **Files**. Help with workspace paths, reading/editing files via agent tools when available, and staying inside the project root.`,
+  },
+  "/tasks": {
+    tag: "Tasks",
+    title: "Tasks",
+    subtitle: "Background jobs and agent task history.",
+    composerPlaceholder: "Ask about a task or propose a new action…",
+    systemAssist: `The user is viewing **Tasks**. Summarize status clearly; suggest next steps without inventing completed work.`,
+  },
+  "/settings": {
+    tag: "Settings",
+    title: "Settings",
+    subtitle: "Models, providers, privacy, and local AI.",
+    composerPlaceholder: "Ask how to configure a provider or local model…",
+    systemAssist: `The user is in **Settings**. Help with provider keys, Ollama, WebGPU/GGUF, and privacy options. Do not ask them to paste secrets into chat.`,
+  },
+  "/agent": {
+    tag: "Agent",
+    title: "Agent",
+    subtitle: "OpenCode execution, voice, and computer-use controls.",
+    composerPlaceholder: "Describe a task for the agent to run…",
+    systemAssist: `The user is on the **Agent** page. Prefer actionable plans with approvals; never invent tool results.`,
+  },
+  "/diagnostics": {
+    tag: "Diagnostics",
+    title: "Diagnostics",
+    subtitle: "Health checks and advanced troubleshooting.",
+    composerPlaceholder: "Ask what a diagnostic finding means…",
+    systemAssist: `The user is in **Diagnostics**. Explain findings clearly and suggest safe next steps.`,
   },
 };
 
 export function getWorkspaceRouteMeta(pathname: string): WorkspaceRouteMeta | undefined {
-  return WORKSPACE_ROUTE_META[pathname];
+  if (WORKSPACE_ROUTE_META[pathname]) return WORKSPACE_ROUTE_META[pathname];
+  if (pathname.startsWith("/projects/") && pathname !== "/projects") {
+    return {
+      tag: "Project",
+      title: "Project chat",
+      subtitle: "Conversation scoped to this research project.",
+      composerPlaceholder: "Ask anything about this project’s papers, draft, or files…",
+      systemAssist: `The user is in a **project workspace** chat. Use project corpus RAG and stay grounded in uploaded sources.`,
+    };
+  }
+  return undefined;
 }

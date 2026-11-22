@@ -545,13 +545,18 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     [recordCompileFailure, toast, sourceText, queuePromptInComposer]
   );
 
+  const previewRenderGenRef = useRef(0);
   const runPreviewRender = useCallback(async () => {
     const el = previewRef.current;
     const scrollEl = pdfScrollRef.current;
     if (!el || !previewBuffer) return;
+    const gen = ++previewRenderGenRef.current;
     el.innerHTML = '<p class="text-sm text-muted-foreground p-6 text-center">Rendering…</p>';
     try {
-      await renderPdfPages(previewBuffer, el, pdfScale);
+      await renderPdfPages(previewBuffer, el, pdfScale, {
+        isStale: () => gen !== previewRenderGenRef.current,
+      });
+      if (gen !== previewRenderGenRef.current) return;
       setLastLatexFailure(null);
       const pending = pendingPdfZoomRef.current;
       if (pending && scrollEl && Math.abs(pending.prevScale - pdfScale) > 1e-6) {
@@ -561,6 +566,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
       }
       pendingPdfZoomRef.current = null;
     } catch (e) {
+      if (gen !== previewRenderGenRef.current) return;
       el.innerHTML = "";
       pendingPdfZoomRef.current = null;
       const msg = e instanceof Error ? e.message : String(e);
@@ -580,6 +586,9 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   useEffect(() => {
     if (isStudio || mainTab !== "preview") return;
     void runPreviewRender();
+    return () => {
+      previewRenderGenRef.current += 1;
+    };
   }, [runPreviewRender, mainTab, isStudio]);
 
   /** Ctrl/Cmd + wheel: zoom toward cursor (requires non-passive listener). */

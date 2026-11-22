@@ -135,17 +135,9 @@ const server = http.createServer(async (req, res) => {
     send(res, 404, "Not found\n", "text/plain; charset=utf-8");
     return;
   }
-  if (!HAVE_PDFLATEX) {
-    send(
-      res,
-      503,
-      "pdflatex not found on PATH. Install TeX Live or MacTeX.\n",
-      "text/plain; charset=utf-8"
-    );
-    return;
-  }
 
-  // Phase 1: only the two content-types the real client sends (latexCompileClient).
+  // Validate request shape before pdflatex availability so CI without TeX
+  // still exercises content-type / body-cap fail-closed behavior.
   const contentType = String(req.headers["content-type"] ?? "");
   const isJson = contentType.includes("application/json");
   const isText = contentType.includes("text/plain");
@@ -163,6 +155,16 @@ const server = http.createServer(async (req, res) => {
     if (!req.destroyed) {
       send(res, 400, "unreadable request body\n", "text/plain; charset=utf-8");
     }
+    return;
+  }
+
+  if (!HAVE_PDFLATEX) {
+    send(
+      res,
+      503,
+      "pdflatex not found on PATH. Install TeX Live or MacTeX.\n",
+      "text/plain; charset=utf-8"
+    );
     return;
   }
 

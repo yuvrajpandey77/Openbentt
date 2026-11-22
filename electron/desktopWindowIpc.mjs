@@ -66,6 +66,9 @@ export function registerDesktopWindowIpc(ipc) {
   });
 
   ipc.handle("desktop:toggleDevTools", (event) => {
+    const allow =
+      !app.isPackaged || process.env.OPENBENTT_ENABLE_DEVTOOLS === "1";
+    if (!allow) return;
     webContentsFromEvent(event)?.toggleDevTools();
   });
 

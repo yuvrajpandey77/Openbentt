@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-label="Openbentt one-click import">
+  <rect width="960" height="640" fill="#f1f5f9"/>
+  <rect x="180" y="80" width="600" height="480" rx="16" fill="#fff" stroke="#e2e8f0"/>
+  <text x="220" y="130" fill="#0f172a" font-family="Georgia, serif" font-size="24">New project</text>
+  <text x="220" y="160" fill="#64748b" font-family="ui-sans-serif, system-ui" font-size="13">Template · Blank · Import</text>
+  <rect x="220" y="190" width="160" height="36" rx="8" fill="#e2e8f0"/>
+  <rect x="392" y="190" width="120" height="36" rx="8" fill="#e2e8f0"/>
+  <rect x="524" y="190" width="120" height="36" rx="8" fill="#0ea5e9"/>
+  <text x="548" y="213" fill="#fff" font-family="ui-sans-serif, system-ui" font-size="13">Import</text>
+  <text x="220" y="260" fill="#475569" font-family="ui-sans-serif, system-ui" font-size="13">One-click from Overleaf / Prism ZIP, Codex folders, .tex / .bib</text>
+  <rect x="220" y="290" width="520" height="48" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="240" y="320" fill="#0f172a" font-family="ui-sans-serif, system-ui" font-size="14">Import .tex / .bib / .zip</text>
+  <rect x="220" y="354" width="520" height="48" rx="10" fill="#e2e8f0"/>
+  <text x="240" y="384" fill="#0f172a" font-family="ui-sans-serif, system-ui" font-size="14">Import folder</text>
+  <text x="220" y="440" fill="#64748b" font-family="ui-sans-serif, system-ui" font-size="12">Prefer Zotero? Connect under Integrations / Notebook Tools.</text>
+  <text x="220" y="500" fill="#0369a1" font-family="Georgia, serif" font-size="14">Switch from OpenAI Prism before Jan 1 shutdown ’ Openbentt</text>
+</svg>

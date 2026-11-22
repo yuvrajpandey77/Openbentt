@@ -15,6 +15,7 @@ import {
 import { registerHfSecretIpc } from "./hfSecretStore.mjs";
 import { registerSecretVaultIpc } from "./secretVault.mjs";
 import { registerDesktopUpdaterIpc, setUpdaterTargetWindow } from "./updater.mjs";
+import { registerExternalAgentDetectIpc } from "./externalAgentDetect.mjs";
 import { registerDesktopWindowIpc } from "./desktopWindowIpc.mjs";
 import { setupApplicationMenu } from "./appMenu.mjs";
 import {
@@ -31,6 +32,7 @@ import { registerOllamaIpc } from "./ollamaService.mjs";
 import { registerOpenCodeIpc, setOpenCodeEventTarget, cleanupOpenCodeOnQuit, reconcileAgentStateOnStartup, shutdownAgentServices } from "./opencodeService.mjs";
 import { registerWorkspaceIpc, setWorkspaceEventTarget, cleanupWorkspaceOnQuit } from "./workspaceService.mjs";
 import { registerLatexIpc } from "./latexService.mjs";
+import { registerOcrIpc } from "./ocrService.mjs";
 import { registerComputerUseIpc } from "./computerUseService.mjs";
 import { setOmniRouteEventTarget, cleanupOmniRouteOnQuit } from "./omniRouteService.mjs";
 import { registerVoiceIpc, setVoiceEventTarget, cleanupVoiceOnQuit, isMicGrantActive } from "./voiceService.mjs";
@@ -347,6 +349,7 @@ function createWindow() {
       additionalArguments: [
         `--openbentt-software-rendering=${gpuSafeMode.enabled ? "1" : "0"}`,
         `--openbentt-safe-mode-reason=${gpuSafeMode.reason ?? ""}`,
+        `--openbentt-packaged=${app.isPackaged ? "1" : "0"}`,
       ],
     },
   });
@@ -458,6 +461,7 @@ if (!gpuSafeMode.enabled) {
 app.whenReady().then(async () => {
   setupApplicationMenu({ isDev: useViteDevServer });
   registerDesktopUpdaterIpc();
+  registerExternalAgentDetectIpc(ipcMain);
   registerDesktopWindowIpc(ipcMain);
   registerHfSecretIpc(ipcMain, app);
   registerSecretVaultIpc(ipcMain, app);
@@ -472,6 +476,7 @@ app.whenReady().then(async () => {
   registerVoiceIpc(ipcMain, app);
   registerWorkspaceIpc(ipcMain, app);
   registerLatexIpc(ipcMain, app);
+  registerOcrIpc(ipcMain, app);
   registerComputerUseIpc(ipcMain, app);
   // Phase 2: reconcile durable agent history (interrupted → UNKNOWN, never completed).
   void reconcileAgentStateOnStartup(app).then(({ reconciled }) => {

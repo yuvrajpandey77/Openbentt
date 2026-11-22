@@ -8,7 +8,12 @@ import {
   Settings,
   Cpu,
   Plus,
-  FlaskConical,
+  FileStack,
+  Files,
+  ListTodo,
+  Bot,
+  Plug,
+  FileType2,
 } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
@@ -16,8 +21,7 @@ import { useLocalAI } from "@/context/LocalAIContext";
 import { friendlyModelLabel } from "@/lib/ollama/selection";
 
 /**
- * Phase 9 — desktop command palette (Cmd/Ctrl+K). Real data only:
- * chats, projects, models, navigation, commands.
+ * Desktop command palette (Cmd/Ctrl+K). Real destinations only.
  */
 export const CommandMenu: React.FC<{ open: boolean; onOpenChange: (v: boolean) => void }> = ({
   open,
@@ -31,7 +35,7 @@ export const CommandMenu: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
 
   useEffect(() => {
     if (open) setQuery("");
-  }, [open ]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -55,8 +59,11 @@ export const CommandMenu: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [projects, q]
   );
-  const modelHits = useMemo(() => modelNames.filter(match).slice(0, 8), // eslint-disable-next-line react-hooks/exhaustive-deps
-    [modelNames, q]);
+  const modelHits = useMemo(
+    () => modelNames.filter(match).slice(0, 8),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [modelNames, q]
+  );
 
   const go = (path: string) => {
     onOpenChange(false);
@@ -87,7 +94,7 @@ export const CommandMenu: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
           className="w-full border-b border-border bg-transparent px-4 py-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
         <div className="max-h-[50vh] overflow-y-auto p-1.5">
-          <Section title="Commands">
+          <Section title="Go to">
             <Item
               icon={<Plus size={15} />}
               label="New chat"
@@ -97,12 +104,21 @@ export const CommandMenu: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                 go("/chat");
               }}
             />
-            <Item icon={<MessageSquare size={15} />} label="Go to Chat" onSelect={() => go("/chat")} />
-            <Item icon={<FolderKanban size={15} />} label="Go to Projects" onSelect={() => go("/projects")} />
-            <Item icon={<BookOpen size={15} />} label="Go to Library" onSelect={() => go("/labs")} />
-            <Item icon={<NotebookPen size={15} />} label="Go to Notebook" onSelect={() => go("/notebook")} />
-            <Item icon={<FlaskConical size={15} />} label="Go to Benchmark" onSelect={() => go("/benchmark")} />
-            <Item icon={<Settings size={15} />} label="Open Settings" hint="⌘," onSelect={() => go("/settings")} />
+            <Item icon={<MessageSquare size={15} />} label="Chat" onSelect={() => go("/chat")} />
+            <Item icon={<FolderKanban size={15} />} label="Projects" onSelect={() => go("/projects")} />
+            <Item
+              icon={<NotebookPen size={15} />}
+              label="Notebook · Compile"
+              onSelect={() => go("/notebook")}
+            />
+            <Item icon={<FileStack size={15} />} label="Documents" onSelect={() => go("/documents")} />
+            <Item icon={<BookOpen size={15} />} label="Research library" onSelect={() => go("/labs")} />
+            <Item icon={<Files size={15} />} label="Files" onSelect={() => go("/files")} />
+            <Item icon={<ListTodo size={15} />} label="Tasks" onSelect={() => go("/tasks")} />
+            <Item icon={<FileType2 size={15} />} label="Math / LaTeX" onSelect={() => go("/write")} />
+            <Item icon={<Bot size={15} />} label="Agent · Voice" onSelect={() => go("/agent")} />
+            <Item icon={<Plug size={15} />} label="Integrations / Setup" onSelect={() => go("/setup")} />
+            <Item icon={<Settings size={15} />} label="Settings" hint="⌘," onSelect={() => go("/settings")} />
           </Section>
           {modelHits.length > 0 && (
             <Section title="Local models">
@@ -126,7 +142,7 @@ export const CommandMenu: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                   label={c.title || "Untitled chat"}
                   onSelect={() => {
                     selectChat(c.id);
-                    go("/chat");
+                    go(c.projectId ? `/projects/${c.projectId}/chat/${c.id}` : `/chat/${c.id}`);
                   }}
                 />
               ))}
@@ -139,7 +155,7 @@ export const CommandMenu: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                   key={p.id}
                   icon={<FolderKanban size={15} />}
                   label={p.title || p.id}
-                  onSelect={() => go("/projects")}
+                  onSelect={() => go(`/projects/${p.id}`)}
                 />
               ))}
             </Section>

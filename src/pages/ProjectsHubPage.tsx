@@ -22,10 +22,8 @@ import {
   loadTemplateCatalog,
   type TemplateCatalogEntry,
 } from "@/lib/research/templateCatalog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   BookOpen,
-  FolderOpen,
   LayoutGrid,
   LayoutTemplate,
   List,
@@ -62,6 +60,7 @@ const ProjectsHubPage: React.FC = () => {
     createProjectFromTemplate,
     removeProject,
     importProjectFromFile,
+    importProjectFromFolder,
   } = useResearchProject();
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"list" | "grid">("list");
@@ -158,6 +157,17 @@ const ProjectsHubPage: React.FC = () => {
     }
   };
 
+  const onImportFolder = async (files: FileList) => {
+    if (!files.length) return;
+    setOpening(true);
+    try {
+      await importProjectFromFolder(files);
+      navigate("/notebook");
+    } finally {
+      setOpening(false);
+    }
+  };
+
   if (loading || opening) {
     return (
       <DesktopOnlyGate>
@@ -172,48 +182,7 @@ const ProjectsHubPage: React.FC = () => {
   return (
     <DesktopOnlyGate>
       <div className="flex h-full min-h-0 w-full overflow-hidden bg-background">
-        <aside className="flex w-[220px] shrink-0 flex-col border-r border-border/60 bg-muted/10">
-          <div className="flex items-center gap-2.5 px-4 py-4">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src="/openbentt-logo.svg" alt="" />
-              <AvatarFallback className="text-xs">OB</AvatarFallback>
-            </Avatar>
-            <span className="font-display text-sm font-semibold tracking-tight">Openbentt</span>
-          </div>
-          <nav className="flex flex-1 flex-col gap-0.5 px-2">
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-primary bg-primary/10"
-            >
-              <FolderOpen className="h-4 w-4 shrink-0" />
-              All projects
-            </button>
-            <Link
-              to="/chat"
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-            >
-              <MessageSquare className="h-4 w-4 shrink-0" />
-              Chat
-            </Link>
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-              onClick={() => setBrowseTemplatesOpen(true)}
-            >
-              <LayoutTemplate className="h-4 w-4 shrink-0" />
-              Templates
-            </button>
-
-            <Link
-              to="/labs"
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-            >
-              <BookOpen className="h-4 w-4 shrink-0" />
-              Library
-            </Link>
-          </nav>
-        </aside>
-
+        {/* Central Sidebar owns primary nav — hub is content-only. */}
         <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
           {!chatReady && (
             <div className="mx-6 mt-4 min-w-0 md:mx-10">
@@ -230,8 +199,23 @@ const ProjectsHubPage: React.FC = () => {
             </div>
           )}
           <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/60 px-6 py-4 md:px-10">
-            <h1 className="font-display text-xl font-semibold tracking-tight md:text-2xl">All projects</h1>
+            <div className="min-w-0">
+              <h1 className="font-display text-xl font-semibold tracking-tight md:text-2xl">All projects</h1>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Open a project, then use Notebook to write and compile.
+              </p>
+            </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5 text-xs"
+                onClick={() => setBrowseTemplatesOpen(true)}
+              >
+                <LayoutTemplate className="h-3.5 w-3.5" />
+                Templates
+              </Button>
               <div className="relative hidden sm:block">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -501,6 +485,7 @@ const ProjectsHubPage: React.FC = () => {
         onCreateBlank={(title) => void handleCreate(title)}
         onCreateFromTemplate={(title, entry) => void handleCreateFromTemplate(title, entry)}
         onImport={(files) => void onImport(files)}
+        onImportFolder={(files) => void onImportFolder(files)}
       />
 
       <TemplateGallery

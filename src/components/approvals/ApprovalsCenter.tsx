@@ -30,9 +30,34 @@ export function ApprovalsCenter() {
   }, []);
 
   useEffect(() => {
+    let t: ReturnType<typeof setInterval> | null = null;
+    const clear = () => {
+      if (t != null) {
+        clearInterval(t);
+        t = null;
+      }
+    };
+    const start = () => {
+      clear();
+      t = setInterval(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        void refresh();
+      }, 15000);
+    };
+    const onVis = () => {
+      if (document.hidden) clear();
+      else {
+        void refresh();
+        start();
+      }
+    };
     void refresh();
-    const t = setInterval(() => void refresh(), 15000);
-    return () => clearInterval(t);
+    if (typeof document === "undefined" || !document.hidden) start();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clear();
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [refresh]);
 
   if (error) return <p className="text-sm text-destructive">{error}</p>;

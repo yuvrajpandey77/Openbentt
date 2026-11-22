@@ -33,10 +33,32 @@ const HomeChatArea: React.FC = () => {
 
   useEffect(() => {
     if (!showCachedWarm) return;
-    const id = window.setInterval(() => {
-      setRamReady(isLocalGemmaWeightsLoaded());
-    }, 500);
-    return () => clearInterval(id);
+    let id: number | null = null;
+    const tick = () => setRamReady(isLocalGemmaWeightsLoaded());
+    const start = () => {
+      if (id != null) return;
+      tick();
+      id = window.setInterval(() => {
+        if (document.hidden) return;
+        tick();
+      }, 1000);
+    };
+    const stop = () => {
+      if (id != null) {
+        clearInterval(id);
+        id = null;
+      }
+    };
+    const onVis = () => {
+      if (document.hidden) stop();
+      else start();
+    };
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [showCachedWarm, isLoading]);
 
   useEffect(() => {

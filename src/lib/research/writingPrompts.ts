@@ -41,3 +41,37 @@ ${context.slice(0, 2000)}`;
 export function missingCitationPrompt(citeKey: string, context: string): string {
   return `The draft cites ${citeKey}. Suggest why a follow-up paper might be missing and one search query. Context:\n${context.slice(0, 1500)}`;
 }
+
+export type ProofreadFocus = "grammar" | "clarity" | "academic" | "all";
+
+/**
+ * Academic proofreading via the user's configured chat model.
+ * Output is numbered so Notebook Review can ingest with parseReviewerComments.
+ */
+export function academicProofreadPrompt(
+  draftExcerpt: string,
+  focus: ProofreadFocus = "all"
+): string {
+  const focusLine =
+    focus === "grammar"
+      ? "Focus on grammar, spelling, punctuation, and agreement."
+      : focus === "clarity"
+        ? "Focus on clarity, redundancy, and sentence structure."
+        : focus === "academic"
+          ? "Focus on academic tone, hedging, undefined jargon, and passive/active voice."
+          : "Cover grammar, clarity, and academic tone.";
+
+  return `You are a ${WRITING_ASSIST_PERSONA} performing a careful proofreading pass on LaTeX draft prose.
+${focusLine}
+Do NOT invent citations, results, or claims. Ignore pure LaTeX commands unless they break readability.
+
+Reply with 5–15 numbered issues. Each item MUST start with a number and a tag, e.g.:
+1. [grammar] …
+2. [clarity] …
+3. [academic] …
+
+For each item: quote a short problematic span, then give a concrete fix (one sentence).
+
+Draft excerpt:
+${draftExcerpt.slice(0, 10_000)}`;
+}

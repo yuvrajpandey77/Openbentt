@@ -28,7 +28,9 @@ export const OnboardingFlow: React.FC = () => {
   return (
     <div className="flex min-h-full flex-1 items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
-        {state === "FIRST_LAUNCH" && <WelcomeStep onContinue={() => send("START")} />}
+        {state === "FIRST_LAUNCH" && (
+          <WelcomeStep onContinue={() => send("START")} onSkipSetup={finish} />
+        )}
         {(state === "AUTH_REQUIRED" || state === "AUTHENTICATING" || state === "AUTHENTICATED") && (
           <AuthStep onFinish={finish} />
         )}
@@ -50,7 +52,7 @@ function Card({ children }: { children: React.ReactNode }) {
   );
 }
 
-function WelcomeStep({ onContinue }: { onContinue: () => void }) {
+function WelcomeStep({ onContinue, onSkipSetup }: { onContinue: () => void; onSkipSetup: () => void }) {
   return (
     <Card>
       <img src="/openbentt-logo.svg" alt="Openbentt" className="h-12 w-12 object-contain" />
@@ -60,6 +62,9 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
       </p>
       <Button className="mt-6 w-full gap-2" onClick={onContinue}>
         Continue <ArrowRight size={16} />
+      </Button>
+      <Button variant="ghost" className="mt-2 w-full text-muted-foreground" onClick={onSkipSetup}>
+        Use without setup
       </Button>
     </Card>
   );

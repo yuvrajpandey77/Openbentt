@@ -19,6 +19,7 @@ type NewProjectDialogProps = {
   onCreateBlank: (title: string) => void | Promise<void>;
   onCreateFromTemplate: (title: string, entry: TemplateCatalogEntry) => void | Promise<void>;
   onImport: (files: FileList | null) => void | Promise<void>;
+  onImportFolder?: (files: FileList) => void | Promise<void>;
   busy?: boolean;
 };
 
@@ -28,12 +29,14 @@ export function NewProjectDialog({
   onCreateBlank,
   onCreateFromTemplate,
   onImport,
+  onImportFolder,
   busy,
 }: NewProjectDialogProps) {
   const [tab, setTab] = useState<"blank" | "template" | "import">("template");
   const [title, setTitle] = useState("");
   const [galleryOpen, setGalleryOpen] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setTitle("");
@@ -97,10 +100,14 @@ export function NewProjectDialog({
               </Button>
             </TabsContent>
             <TabsContent value="import" className="space-y-3 pt-3">
+              <p className="text-xs text-muted-foreground">
+                One-click import from Overleaf / Prism ZIP, Openbentt export, Codex/Cursor folders, or raw{" "}
+                <code className="rounded bg-muted px-1">.tex</code> / <code className="rounded bg-muted px-1">.bib</code>.
+              </p>
               <input
                 ref={importRef}
                 type="file"
-                accept=".tex,.bib,.zip"
+                accept=".tex,.bib,.zip,application/zip"
                 className="hidden"
                 onChange={(e) => {
                   void onImport(e.target.files);
@@ -108,9 +115,41 @@ export function NewProjectDialog({
                   onOpenChange(false);
                 }}
               />
+              <input
+                ref={folderRef}
+                type="file"
+                // @ts-expect-error webkitdirectory is non-standard but widely supported
+                webkitdirectory=""
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  if (onImportFolder && e.target.files?.length) {
+                    void onImportFolder(e.target.files);
+                  } else {
+                    void onImport(e.target.files);
+                  }
+                  e.target.value = "";
+                  onOpenChange(false);
+                }}
+              />
               <Button type="button" variant="outline" className="w-full" disabled={busy} onClick={() => importRef.current?.click()}>
                 <FileUp className="mr-2 h-4 w-4" />
-                Choose .tex or .bib file
+                Import .tex / .bib / .zip
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                disabled={busy}
+                onClick={() => folderRef.current?.click()}
+              >
+                <FileUp className="mr-2 h-4 w-4" />
+                Import folder
+              </Button>
+              <Button type="button" variant="ghost" className="w-full text-xs" asChild>
+                <a href="#zotero" onClick={() => onOpenChange(false)}>
+                  Prefer Zotero? Connect it under Integrations / Notebook Tools.
+                </a>
               </Button>
             </TabsContent>
           </Tabs>
