@@ -43,3 +43,4 @@ resources/llama/win32/*.dll
 # Bombadil property-based browser runs
 bombadil-output/
 
+paper-orchestrator-main
