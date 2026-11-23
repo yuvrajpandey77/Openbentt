@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ChatProviderPicker, needsChatProviderChoice } from "@/components/ChatProviderPicker";
 import { clearChatProviderChoice, loadChatProviderChoice } from "@/lib/agent/chatProviderChoice";
 import { isDesktopApp } from "@/lib/isDesktopApp";
+import ChatInput from "@/components/ChatInput";
 
 /** Empty chat — short prompts only; no instructional clutter. */
 const SUGGESTIONS = [

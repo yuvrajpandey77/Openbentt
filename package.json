@@ -7,7 +7,7 @@
     "email": "openbentt-contributors@users.noreply.github.com"
   },
   "private": true,
-  "version": "2.5.5",
+  "version": "2.5.7",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
@@ -147,7 +147,7 @@
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
-    "electron": "^41.2.1",
+    "electron": "^32.3.3",
     "electron-builder": "^26.8.1",
     "eslint": "^9.9.0",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
@@ -192,7 +192,6 @@
       "build/icon.png",
       "package.json",
       "node_modules/@xenova/**/*",
-      "node_modules/onnxruntime-node/**/*",
       "node_modules/onnxruntime-common/**/*",
       "node_modules/electron-updater/**/*",
       "node_modules/builder-util-runtime/**/*",
