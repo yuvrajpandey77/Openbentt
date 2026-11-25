@@ -458,8 +458,8 @@
   }
 
   .web-message-assistant {
-    @apply mr-auto w-full max-w-full rounded-3xl px-4 py-3 text-[15px] leading-[1.6];
-    color: hsl(211 11% 78%);
+    @apply mr-auto w-full max-w-[min(100%,42rem)] rounded-2xl border border-border/40 bg-muted/25 px-4 py-3 text-[15px] leading-[1.6];
+    color: hsl(211 11% 86%);
   }
 
 

@@ -216,13 +216,13 @@ const ProjectWorkspacePage: React.FC = () => {
                 <span className="sidebar-nav-label truncate">Chat</span>
               </NavLink>
               <NavLink
-                to="/notebook?mode=orchestra"
+                to="/notebook"
                 className={({ isActive }) =>
                   cn("sidebar-nav-item", isActive && "sidebar-nav-item--active")
                 }
               >
                 <NotebookPen className="shrink-0 h-4 w-4" strokeWidth={1.5} />
-                <span className="sidebar-nav-label truncate">Notebook · Compile</span>
+                <span className="sidebar-nav-label truncate">Notebook</span>
               </NavLink>
               <NavLink
                 to="/labs"

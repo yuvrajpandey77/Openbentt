@@ -1,5 +1,19 @@
-import React, { useState } from "react";
-import { Bot, Cpu, Download, Loader2, RefreshCw, Check, Settings as SettingsIcon } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import {
+  Bot,
+  Cpu,
+  Download,
+  Loader2,
+  RefreshCw,
+  Check,
+  Settings as SettingsIcon,
+  Monitor,
+  Shield,
+  KeyRound,
+  BarChart3,
+  FlaskConical,
+  Wrench,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { useAuth } from "@/context/AuthContext";
@@ -8,77 +22,280 @@ import { useChat } from "@/context/ChatContext";
 import { normalizeApiConfig } from "@/types/chat";
 import { defaultOllamaBaseUrl } from "@/lib/modelManager/ollamaProbe";
 import { friendlyModelLabel } from "@/lib/ollama/selection";
-import SettingsPanel from "@/components/SettingsPanel";
+import SettingsPanel, { type SettingsSectionId } from "@/components/SettingsPanel";
 import { FeedbackDialog } from "@/components/FeedbackDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ExecutionSetupSection } from "@/components/conversation/ExecutionSetupSection";
 import DesktopUpdateCard from "@/components/DesktopUpdateCard";
+import { cn } from "@/lib/utils";
 
-/** Phase 9 — Settings: Account, Updates, Execution readiness, AI & Models, then full provider panels. */
+type RailId =
+  | "general"
+  | "computer"
+  | "models"
+  | "permissions"
+  | "vault"
+  | "usage"
+  | "updates"
+  | "more";
+
+const RAIL: Array<{ id: RailId; label: string; icon: React.ElementType; desktopOnly?: boolean }> = [
+  { id: "general", label: "General", icon: SettingsIcon },
+  { id: "computer", label: "Computer", icon: Monitor, desktopOnly: true },
+  { id: "models", label: "Models", icon: Cpu },
+  { id: "permissions", label: "Permissions", icon: Shield },
+  { id: "vault", label: "Vault", icon: KeyRound, desktopOnly: true },
+  { id: "usage", label: "Usage", icon: BarChart3 },
+  { id: "updates", label: "Updates", icon: Download, desktopOnly: true },
+  { id: "more", label: "More", icon: FlaskConical },
+];
+
+function railToPanelSection(rail: RailId): SettingsSectionId {
+  switch (rail) {
+    case "general":
+      return "general";
+    case "computer":
+      return "execution";
+    case "models":
+      return "ai";
+    case "permissions":
+      return "privacy";
+    case "vault":
+      return "privacy";
+    case "usage":
+      return "privacy";
+    case "updates":
+      return "general";
+    case "more":
+      return "research";
+    default:
+      return "general";
+  }
+}
+
+/** Nested settings shell — left rail + content wells (no stacked duplicate cards). */
 const SettingsPage: React.FC = () => {
+  const desktop = isDesktopApp();
+  const [rail, setRail] = useState<RailId>("general");
+  const [panelSection, setPanelSection] = useState<SettingsSectionId>("general");
+
+  const visibleRail = useMemo(
+    () => RAIL.filter((r) => !r.desktopOnly || desktop),
+    [desktop]
+  );
+
+  const selectRail = (id: RailId) => {
+    setRail(id);
+    setPanelSection(railToPanelSection(id));
+  };
+
+  const title =
+    visibleRail.find((r) => r.id === rail)?.label ?? "Settings";
+
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 py-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-          <SettingsIcon className="h-5 w-5 text-primary" /> Settings
-        </h1>
-        <span className="ml-auto">
-          <FeedbackDialog />
-        </span>
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Account, desktop updates, execution agents, local AI, providers and privacy.
-      </p>
-      <div className="mt-5 flex flex-col gap-4 pb-10">
-        <AccountCard />
-        {isDesktopApp() && <DesktopUpdateCard />}
-        {isDesktopApp() && <ExecutionReadinessCard />}
-        <LocalAICard />
-        <AgentVoiceCard />
-        <Card className="border-border/60 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Cpu size={16} className="text-primary" /> AI &amp; models
-            </CardTitle>
-            <CardDescription>Providers, model defaults, reasoning and research depth.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SettingsPanel />
-          </CardContent>
-        </Card>
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="mx-auto flex h-full w-full max-w-5xl flex-1 flex-col overflow-hidden px-3 py-4 md:px-4">
+        <div className="mb-3 flex shrink-0 items-center gap-2">
+          <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
+          <span className="ml-auto">
+            <FeedbackDialog />
+          </span>
+        </div>
+
+        <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/60 bg-card/40 shadow-sm">
+          <nav
+            className="flex w-[9.5rem] shrink-0 flex-col gap-0.5 border-r border-border/50 bg-muted/20 p-2 sm:w-44"
+            aria-label="Settings sections"
+          >
+            {visibleRail.map((item) => {
+              const Icon = item.icon;
+              const active = rail === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => selectRail(item.id)}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors",
+                    active
+                      ? "bg-background font-medium text-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0 opacity-80" />
+                  <span className="truncate">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 md:p-5">
+            <h2 className="mb-4 text-base font-semibold tracking-tight">{title}</h2>
+
+            {rail === "general" && (
+              <div className="space-y-4">
+                <AccountCard />
+                <SettingsPanel
+                  section={panelSection}
+                  onSectionChange={setPanelSection}
+                  hideTabList
+                />
+              </div>
+            )}
+
+            {rail === "computer" && desktop && (
+              <div className="space-y-4">
+                <LocalAICard />
+                <ExecutionReadinessCard />
+                <AgentVoiceCard />
+                <SettingsPanel
+                  section="execution"
+                  onSectionChange={setPanelSection}
+                  hideTabList
+                />
+              </div>
+            )}
+
+            {rail === "models" && (
+              <SettingsPanel
+                section="ai"
+                onSectionChange={setPanelSection}
+                hideTabList
+              />
+            )}
+
+            {rail === "permissions" && (
+              <div className="space-y-4">
+                <SettingsPanel
+                  section="privacy"
+                  onSectionChange={setPanelSection}
+                  hideTabList
+                />
+                {desktop && (
+                  <div className="rounded-xl border border-border/60 bg-background/60 p-4">
+                    <h3 className="mb-2 text-sm font-medium">Approvals & agents</h3>
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      Permission prompts and agent action boundaries.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setRail("more");
+                        setPanelSection("agents");
+                      }}
+                    >
+                      Open agent approvals
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {rail === "vault" && desktop && (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Provider keys and secrets live in the OS-backed vault when available. Manage storage under Permissions
+                  privacy, or in Models for API keys.
+                </p>
+                <SettingsPanel
+                  section="privacy"
+                  onSectionChange={setPanelSection}
+                  hideTabList
+                />
+              </div>
+            )}
+
+            {rail === "usage" && (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Analytics and optional usage signals. Cloud provider quotas appear when a key is configured.
+                </p>
+                <SettingsPanel
+                  section="privacy"
+                  onSectionChange={setPanelSection}
+                  hideTabList
+                />
+              </div>
+            )}
+
+            {rail === "updates" && desktop && (
+              <div className="max-w-xl">
+                <DesktopUpdateCard />
+              </div>
+            )}
+
+            {rail === "more" && (
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-1.5">
+                  {(
+                    [
+                      ["research", "Research"],
+                      ["integrations", "Integrations"],
+                      ...(desktop
+                        ? ([
+                            ["agents", "Agents"],
+                            ["experiments", "Experiments"],
+                          ] as const)
+                        : []),
+                    ] as Array<[SettingsSectionId, string]>
+                  ).map(([id, label]) => (
+                    <Button
+                      key={id}
+                      type="button"
+                      size="sm"
+                      variant={panelSection === id ? "secondary" : "outline"}
+                      className="h-8"
+                      onClick={() => setPanelSection(id)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                <SettingsPanel
+                  section={
+                    panelSection === "research" ||
+                    panelSection === "integrations" ||
+                    panelSection === "agents" ||
+                    panelSection === "experiments"
+                      ? panelSection
+                      : "research"
+                  }
+                  onSectionChange={setPanelSection}
+                  hideTabList
+                />
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
-/** Canonical runtime readiness: authentication, execution, AI, workspace — one place. */
 function ExecutionReadinessCard() {
   const [open, setOpen] = useState(false);
   return (
-    <Card className="border-border/60 shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Bot size={16} className="text-primary" /> Execution — agents
-        </CardTitle>
-        <CardDescription>
-          OpenCode is the default engine; Settings → Agents also auto-detects Claude Code, Codex, Cursor,
-          Aider, and Gemini CLI on PATH. Status and workspace live here.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {!open ? (
-          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-            Check execution status
-          </Button>
-        ) : (
-          <ExecutionSetupSection onContinue={() => setOpen(false)} />
-        )}
-      </CardContent>
-    </Card>
+    <div className="rounded-xl border border-border/60 bg-background/60 p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <Wrench className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-medium">Execution agents</h3>
+      </div>
+      <p className="mb-3 text-xs text-muted-foreground">
+        OpenCode, Claude Code, Codex, Cursor, Aider, and Gemini CLI — detect and start from here or the composer runtime
+        pill.
+      </p>
+      {!open ? (
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          Check status
+        </Button>
+      ) : (
+        <ExecutionSetupSection onContinue={() => setOpen(false)} />
+      )}
+    </div>
   );
 }
 
@@ -86,18 +303,16 @@ function AccountCard() {
   const { status, user, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
   return (
-    <Card className="border-border/60 shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Account</CardTitle>
-        <CardDescription>
-          {status === "signed-in"
-            ? `Signed in as ${user?.email ?? user?.displayName}`
-            : status === "loading"
-              ? "Checking your session…"
-              : "You are using Openbentt without an account (local only)."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-wrap items-center gap-2">
+    <div className="rounded-xl border border-border/60 bg-background/60 p-4">
+      <h3 className="text-sm font-medium">Account</h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {status === "signed-in"
+          ? `Signed in as ${user?.email ?? user?.displayName}`
+          : status === "loading"
+            ? "Checking session…"
+            : "Local-only — no account required."}
+      </p>
+      <div className="mt-3">
         {status === "signed-in" ? (
           <Button
             variant="outline"
@@ -114,47 +329,32 @@ function AccountCard() {
           >
             {signingOut ? "Signing out…" : "Sign out"}
           </Button>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            No sign-in required. Use Openbentt locally with OpenCode and Ollama.
-          </p>
-        )}
-      </CardContent>
-    </Card>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
-/** Local agent + voice live in the desktop Agent workspace, not in Settings. */
 function AgentVoiceCard() {
   const navigate = useNavigate();
-  const desktop = isDesktopApp();
   return (
-    <Card className="border-border/60 shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Bot size={16} className="text-primary" /> Agent &amp; voice — local
-        </CardTitle>
-        <CardDescription>
-          Local task execution, on-device speech input/output, and the permission
-          boundary that governs them. The microphone is off until you enable it.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!desktop}
-          onClick={() => navigate("/agent")}
-          title={desktop ? "Open the Agent workspace" : "Available in the desktop app"}
-        >
-          {desktop ? "Open Agent workspace" : "Desktop app only"}
-        </Button>
-      </CardContent>
-    </Card>
+    <div className="rounded-xl border border-border/60 bg-background/60 p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <Bot className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-medium">Agent & voice</h3>
+      </div>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Local task execution and speech live in the Agent workspace.
+      </p>
+      <Button variant="outline" size="sm" onClick={() => navigate("/agent")}>
+        Open Agent workspace
+      </Button>
+    </div>
   );
 }
 
-function formatBytes(bytes: number | null): string {  if (bytes == null) return "—";
+function formatBytes(bytes: number | null): string {
+  if (bytes == null) return "—";
   if (bytes < 1024) return `${bytes} B`;
   const units = ["B", "KB", "MB", "GB", "TB"];
   let v = bytes;
@@ -168,10 +368,22 @@ function formatBytes(bytes: number | null): string {  if (bytes == null) return 
 
 function LocalAICard() {
   const {
-    health, status, modelNames, runningModels, version, error,
-    defaultModel, preferredModel, setPreferredModel,
-    refresh, pullModel, activePulls, installInfo, recommendedModels,
-    checking, desktopAvailable,
+    health,
+    status,
+    modelNames,
+    runningModels,
+    version,
+    error,
+    defaultModel,
+    preferredModel,
+    setPreferredModel,
+    refresh,
+    pullModel,
+    activePulls,
+    installInfo,
+    recommendedModels,
+    checking,
+    desktopAvailable,
     effectiveModel,
   } = useLocalAI();
   const { apiConfig, setApiConfig } = useChat();
@@ -207,42 +419,48 @@ function LocalAICard() {
   };
 
   const healthLabel =
-    health === "ready" ? "Ready" : health === "checking" ? "Checking…" : health === "no-models" ? "No models" : health === "unsupported" ? "Desktop only" : "Unavailable";
+    health === "ready"
+      ? "Ready"
+      : health === "checking"
+        ? "Checking…"
+        : health === "no-models"
+          ? "No models"
+          : health === "unsupported"
+            ? "Desktop only"
+            : "Unavailable";
 
   return (
-    <Card className="border-border/60 shadow-sm">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-base">AI &amp; Models — local</CardTitle>
-          <Badge variant={health === "ready" ? "default" : "secondary"}>{healthLabel}</Badge>
-        </div>
-        <CardDescription>
-          {status?.reachable
-            ? `Ollama ${version ?? ""} at ${status.origin} · ${modelNames.length} model${modelNames.length === 1 ? "" : "s"} installed`
-            : (error ?? "Ollama is not reachable.")}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5" disabled={checking} onClick={() => refresh()}>
-            <RefreshCw size={13} className={checking ? "animate-spin" : ""} /> Check connection
+    <div className="rounded-xl border border-border/60 bg-background/60 p-4">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-medium">Local AI — Ollama</h3>
+        <Badge variant={health === "ready" ? "default" : "secondary"}>{healthLabel}</Badge>
+      </div>
+      <p className="mb-3 text-xs text-muted-foreground">
+        {status?.reachable
+          ? `Ollama ${version ?? ""} · ${modelNames.length} model${modelNames.length === 1 ? "" : "s"}`
+          : (error ?? "Ollama is not reachable.")}
+      </p>
+      <div className="flex flex-col gap-3">
+        <Button variant="outline" size="sm" className="w-fit gap-1.5" disabled={checking} onClick={() => refresh()}>
+          <RefreshCw size={13} className={checking ? "animate-spin" : ""} /> Check connection
+        </Button>
+        {installInfo && !status?.reachable && desktopAvailable && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-fit"
+            onClick={() => {
+              const w = window as unknown as {
+                openbenttDesktop?: { openExternal: (u: string) => Promise<unknown> };
+              };
+              const url = installInfo.downloadUrl;
+              if (w.openbenttDesktop) void w.openbenttDesktop.openExternal(url);
+              else window.open(url, "_blank", "noopener,noreferrer");
+            }}
+          >
+            Install Ollama
           </Button>
-          {installInfo && !status?.reachable && desktopAvailable && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const w = window as unknown as { openbenttDesktop?: { openExternal: (u: string) => Promise<unknown> } };
-                const url = installInfo.downloadUrl;
-                if (w.openbenttDesktop) void w.openbenttDesktop.openExternal(url);
-                else window.open(url, "_blank", "noopener,noreferrer");
-              }}
-            >
-              Install Ollama
-            </Button>
-          )}
-        </div>
-
+        )}
         {modelNames.length > 0 && (
           <div className="flex flex-col gap-1.5">
             {status?.models.map((m) => {
@@ -252,25 +470,31 @@ function LocalAICard() {
               return (
                 <div
                   key={m.name}
-                  className="flex items-center gap-2.5 rounded-lg border border-border/60 px-3 py-2"
+                  className="flex items-center gap-2.5 rounded-lg border border-border/50 px-3 py-2"
                 >
-                  <Cpu size={15} className="shrink-0 text-primary" />
+                  <Cpu size={15} className="shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">
                       {friendlyModelLabel(m.name)}
-                      {running && <span className="ml-2 inline-block h-1.5 w-1.5 rounded-full bg-green-500 align-middle" aria-label="Loaded" />}
+                      {running && (
+                        <span
+                          className="ml-2 inline-block h-1.5 w-1.5 rounded-full bg-green-500 align-middle"
+                          aria-label="Loaded"
+                        />
+                      )}
                     </p>
                     <p className="truncate text-[11px] text-muted-foreground">
-                      Local · Ollama · {formatBytes(m.size)}
+                      {formatBytes(m.size)}
                       {m.details?.parameterSize ? ` · ${m.details.parameterSize}` : ""}
-                      {m.details?.quantization ? ` · ${m.details.quantization}` : ""}
                     </p>
                     {pull && pull.state !== "ready" && (
                       <Progress value={pull.percent ?? undefined} className="mt-1.5 h-1" />
                     )}
                   </div>
                   {preferredModel === m.name && (
-                    <Badge variant="outline" className="shrink-0 text-[10px]">Preferred</Badge>
+                    <Badge variant="outline" className="shrink-0 text-[10px]">
+                      Preferred
+                    </Badge>
                   )}
                   {active ? (
                     <Badge variant="default" className="shrink-0 gap-1 text-[10px]">
@@ -286,17 +510,8 @@ function LocalAICard() {
             })}
           </div>
         )}
-
-        {status?.reachable && modelNames.length === 0 && (
-          <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
-            Ollama is running but no models are installed yet. Download a compact model below —
-            recommended: {recommendedModels[0] ?? "qwen3:1.7b"}.
-          </div>
-        )}
-
         {desktopAvailable && status?.reachable && (
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-medium">Download a model</p>
             <div className="flex flex-wrap gap-1.5">
               {(recommendedModels.length > 0 ? recommendedModels : ["qwen3:1.7b"]).map((m) => (
                 <Button
@@ -305,7 +520,7 @@ function LocalAICard() {
                   size="sm"
                   className="gap-1.5 text-xs"
                   disabled={!!busy}
-                  onClick={() => download(m)}
+                  onClick={() => void download(m)}
                 >
                   {busy === m ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
                   {friendlyModelLabel(m)}
@@ -316,9 +531,8 @@ function LocalAICard() {
               <Input
                 value={custom}
                 onChange={(e) => setCustom(e.target.value)}
-                placeholder="Or any Ollama model name, e.g. gemma3:4b"
+                placeholder="Custom model name"
                 className="h-9 font-mono text-xs"
-                aria-label="Custom Ollama model name"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -326,25 +540,23 @@ function LocalAICard() {
                   }
                 }}
               />
-              <Button size="sm" className="h-9 shrink-0" disabled={!custom.trim() || !!busy} onClick={() => download(custom)}>
-                {busy ? <Loader2 size={14} className="animate-spin" /> : "Download"}
+              <Button
+                size="sm"
+                className="h-9 shrink-0"
+                disabled={!custom.trim() || !!busy}
+                onClick={() => void download(custom)}
+              >
+                Download
               </Button>
             </div>
             {opError && <p className="text-xs text-destructive">{opError}</p>}
             <p className="text-[11px] text-muted-foreground">
-              Downloads run in the background with real progress. Default preference:{" "}
-              {defaultModel ? friendlyModelLabel(defaultModel) : "none yet"}.
+              Default: {defaultModel ? friendlyModelLabel(defaultModel) : "none yet"}.
             </p>
           </div>
         )}
-
-        <p className="border-t border-border pt-3 text-[11px] leading-relaxed text-muted-foreground">
-          Advanced local runtime (GGUF / llama-server files, Hugging Face hub) lives under Settings
-          → AI &amp; models → provider “Local file model”. Cloud providers and keys are managed in
-          the panels below.
-        </p>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 

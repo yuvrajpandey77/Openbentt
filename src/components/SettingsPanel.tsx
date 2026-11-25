@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Moon, Sun, Plus, Trash2, Sparkles, Cpu, Search, FlaskConical, Shield, Plug, Bot, Wrench } from "lucide-react";
+import { Moon, Sun, Plus, Trash2, Settings2, Cpu, Search, FlaskConical, Shield, Plug, Bot, Wrench } from "lucide-react";
 import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRouterModels";
 import { useLocalGgufRegistryModels } from "@/hooks/useLocalGgufRegistryModels";
 import { shortModelLabel } from "@/lib/openrouter";
@@ -47,7 +47,6 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
-import DesktopUpdateCard from "@/components/DesktopUpdateCard";
 import { LocalModelManagerPanel } from "@/components/LocalModelManagerPanel";
 import { isWebClient } from "@/config/platformSurface";
 import { isDesktopApp } from "@/lib/isDesktopApp";
@@ -66,7 +65,29 @@ import { McpServerPanel } from "@/components/mcp/McpServerPanel";
 
 const MAX_COMPARE = 4;
 
-const SettingsPanel: React.FC = () => {
+export type SettingsSectionId =
+  | "general"
+  | "execution"
+  | "privacy"
+  | "ai"
+  | "research"
+  | "integrations"
+  | "agents"
+  | "experiments";
+
+type SettingsPanelProps = {
+  /** Controlled section (left-rail Settings page). */
+  section?: SettingsSectionId;
+  onSectionChange?: (id: SettingsSectionId) => void;
+  /** Hide the horizontal tab strip when the parent provides a rail. */
+  hideTabList?: boolean;
+};
+
+const SettingsPanel: React.FC<SettingsPanelProps> = ({
+  section,
+  onSectionChange,
+  hideTabList = false,
+}) => {
   const webClient = isWebClient();
   const { apiConfig, setApiConfig } = useChat();
   const qc = useQueryClient();
@@ -403,15 +424,22 @@ const SettingsPanel: React.FC = () => {
     setLocalComparisonIds(next);
   };
 
+  const tabValue = section ?? "general";
+
   return (
-    <Tabs defaultValue="ai" className="w-full">
+    <Tabs
+      value={tabValue}
+      onValueChange={(v) => onSectionChange?.(v as SettingsSectionId)}
+      className="w-full"
+    >
+      {!hideTabList && (
       <TabsList
         className={`grid h-auto w-full gap-1 rounded-xl bg-muted/50 p-1 ${
           webClient ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-7"
         }`}
       >
          <TabsTrigger value="general" className="gap-1.5 rounded-lg py-2.5 text-xs font-medium sm:text-sm">
-           <Sparkles className="h-3.5 w-3.5 opacity-80" aria-hidden />
+           <Settings2 className="h-3.5 w-3.5 opacity-80" aria-hidden />
            General
          </TabsTrigger>
          {isDesktop && (
@@ -449,6 +477,7 @@ const SettingsPanel: React.FC = () => {
           </TabsTrigger>
         )}
       </TabsList>
+      )}
 
       <TabsContent value="privacy" className="mt-4 space-y-4 outline-none">
         <Card className="border-border/70 shadow-sm">
@@ -584,7 +613,6 @@ const SettingsPanel: React.FC = () => {
             </p>
           </CardContent>
         </Card>
-        <DesktopUpdateCard />
       </TabsContent>
 
       {isDesktop && (

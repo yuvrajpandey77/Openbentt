@@ -138,6 +138,43 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
     } catch { /* ignore */ }
   }, [venue]);
 
+  // One-shot seed from the live Notebook project so Editor ↔ Paper stay linked.
+  useEffect(() => {
+    if (!project) return;
+    setIdea((prev) => {
+      if (prev.trim()) return prev;
+      const fromTitle = project.title?.trim();
+      const fromKnowledge = project.knowledge?.trim()?.slice(0, 2000);
+      const fromDraft = (project.draftTex ?? "")
+        .replace(/\\[a-zA-Z]+\{?/g, " ")
+        .replace(/[{}%\\]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 1500);
+      const seed = [fromTitle && `Paper: ${fromTitle}`, fromKnowledge, fromDraft]
+        .filter(Boolean)
+        .join("\n\n")
+        .trim();
+      return seed.length >= 20 ? seed : prev;
+    });
+    setLog((prev) => {
+      if (prev.trim() || !project.bibliography?.trim()) return prev;
+      const keys = (project.bibliography.match(/^@\w+\{([^,]+)/gm) ?? [])
+        .slice(0, 24)
+        .map((l) => l.replace(/^@\w+\{/, "").trim());
+      if (!keys.length) return prev;
+      return [
+        "Notes from Notebook library / bibliography:",
+        ...keys.map((k) => `- cite:${k}`),
+        project.papers?.length
+          ? `\n${project.papers.length} PDF(s) attached as evidence materials.`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    });
+  }, [project]);
+
   useEffect(() => {
     if (!api) {
       setEngineHint("PaperOrchestra runs in the Openbentt desktop app.");
@@ -276,12 +313,12 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
 
       <header className="relative z-10 flex shrink-0 items-end justify-between gap-4 border-b border-border/40 px-5 pb-4 pt-5">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Openbentt · PaperOrchestra</p>
+          <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Paper Orchestra</p>
           <h1 className="mt-1 font-[family-name:var(--font-display,ui-serif)] text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
-            Paper canvas
+            {project?.title?.trim() || "Write the paper"}
           </h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Full multi-agent paper writing — outline, literature, sections, refine{usePlotting ? ", plotting" : ""}. Engine stays intact.
+            Uses this project’s draft, bibliography, and library. Apply drops the manuscript into Editor.
           </p>
         </div>
         <div className="hidden text-right text-xs text-muted-foreground sm:block">
@@ -289,6 +326,11 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
           {project?.papers?.length ? (
             <p className="mt-1 flex items-center justify-end gap-1">
               <BookOpen className="h-3 w-3" /> {project.papers.length} library paper(s) attached as evidence
+            </p>
+          ) : null}
+          {(project?.draftTex?.trim().length ?? 0) > 40 ? (
+            <p className="mt-1 flex items-center justify-end gap-1 text-foreground/70">
+              <FileText className="h-3 w-3" /> Editor draft linked
             </p>
           ) : null}
         </div>

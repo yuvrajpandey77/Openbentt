@@ -11,12 +11,11 @@ import {
   Hammer,
   MessageSquare,
   Paperclip,
-  PlusCircle,
+  Plus,
   Search,
   Square,
   FileText,
   Mic,
-  MoreHorizontal,
   FolderKanban,
   Zap,
 } from "lucide-react";
@@ -85,7 +84,6 @@ import { v4 as uuidv4 } from "uuid";
 import { readFileAsDataUrl, extractVideoFrameDataUrl, assertImageSize } from "@/lib/media";
 import { extractTextFromPdfFile } from "@/lib/pdfText";
 import { ToolsPopover } from "@/components/ToolsPopover";
-import { PromptSnippetsMenu } from "@/components/PromptSnippetsMenu";
 import { ModelCapabilityBadges } from "@/components/ModelCapabilityBadges";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import LocalOnDeviceModelBar from "@/components/LocalOnDeviceModelBar";
@@ -98,13 +96,25 @@ import {
   imageUnsupportedMessage,
   modelSupportsImages,
 } from "@/lib/attachmentModelSupport";
-import { ExecutionBadge } from "@/components/conversation/ExecutionBadge";
 import { VoiceInputButton } from "@/components/conversation/VoiceInputButton";
 import { WorkspaceNeededBanner } from "@/components/conversation/WorkspaceNeededBanner";
 import { WorkspaceSelector } from "@/components/conversation/WorkspaceSelector";
 import { PermissionPill } from "@/components/conversation/PermissionPill";
 import { LayerDownBanner } from "@/components/conversation/LayerDownBanner";
-
+import { ComposerRuntimePicker } from "@/components/composer/ComposerRuntimePicker";
+import { ChatProviderPicker } from "@/components/ChatProviderPicker";
+import { ComposerSlashMenu } from "@/components/composer/ComposerSlashMenu";
+import {
+  applySlashPick,
+  buildSlashItems,
+  getSlashQuery,
+  type SlashItem,
+} from "@/lib/composerSlash";
+import {
+  choiceUsesOpenCodeAsk,
+  loadChatProviderChoice,
+} from "@/lib/agent/chatProviderChoice";
+import { Input } from "@/components/ui/input";
 
 interface ChatInputProps {
   isLoading: boolean;
@@ -132,7 +142,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
   const [voiceLevel, setVoiceLevel] = useState(0);
   const [voiceElapsedMs, setVoiceElapsedMs] = useState(0);
-  const [showExtras, setShowExtras] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -172,11 +181,31 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const { workspace: composerWs } = useWorkspace();
   /** OpenCode ask-layer only when not on explicit local Ollama/GGUF/WebGPU. */
   const layerActive = openCodeLayer.available && !prefersLocalOllamaInference(apiConfig);
+  const agentRuntimeChosen = choiceUsesOpenCodeAsk(loadChatProviderChoice()?.id);
   const { effectiveModel } = useLocalAI();
   /** Bumps when localStorage consent changes so web /chat re-reads getLocalWeightsConsent(). */
   const [localConsentTick, setLocalConsentTick] = useState(0);
   const [plusOpen, setPlusOpen] = useState(false);
+  const [slashIndex, setSlashIndex] = useState(0);
   const [modeSuggestion, setModeSuggestion] = useState<ModeSuggestion | null>(null);
+  const isNotebookRoute = pathKey.startsWith("/notebook");
+  const slashQuery = getSlashQuery(message);
+  const slashOpen = slashQuery != null;
+  const slashItems = useMemo(
+    () => (slashOpen ? buildSlashItems({ notebook: isNotebookRoute }) : []),
+    [slashOpen, isNotebookRoute]
+  );
+  const filteredSlashItems = useMemo(() => {
+    if (!slashOpen || slashQuery == null) return [];
+    const q = slashQuery.trim().toLowerCase();
+    if (!q) return slashItems;
+    return slashItems.filter(
+      (i) =>
+        i.command.includes(q) ||
+        i.title.toLowerCase().includes(q) ||
+        i.description.toLowerCase().includes(q)
+    );
+  }, [slashOpen, slashQuery, slashItems]);
   const [agentRoleId, setAgentRoleId] = useState<string>(() => {
     try {
       return localStorage.getItem("openbentt-agent-role") ?? "research-assistant";
@@ -195,6 +224,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const [localDownloadOpen, setLocalDownloadOpen] = useState(false);
   const [localPrewarmPct, setLocalPrewarmPct] = useState<number | null>(null);
   const [localPrewarmBusy, setLocalPrewarmBusy] = useState(false);
+  const [modelFilter, setModelFilter] = useState("");
 
   const selectable = useMemo(
     () =>
@@ -223,6 +253,26 @@ const ChatInput: React.FC<ChatInputProps> = ({
     () => models?.find((m) => m.id === apiConfig.model) ?? null,
     [models, apiConfig.model]
   );
+
+  const filteredSelectable = useMemo(() => {
+    const q = modelFilter.trim().toLowerCase();
+    if (!q) return selectable;
+    return selectable.filter(
+      (m) =>
+        m.id.toLowerCase().includes(q) ||
+        (m.name && m.name.toLowerCase().includes(q))
+    );
+  }, [selectable, modelFilter]);
+
+  const filteredOpenCodeModels = useMemo(() => {
+    const q = modelFilter.trim().toLowerCase();
+    if (!q) return openCodeLayer.models;
+    return openCodeLayer.models.filter(
+      (m) =>
+        m.id.toLowerCase().includes(q) ||
+        (m.displayName && m.displayName.toLowerCase().includes(q))
+    );
+  }, [openCodeLayer.models, modelFilter]);
 
   const currentChat = useMemo(
     () => chats.find((c) => c.id === currentChatId),
@@ -454,7 +504,40 @@ const ChatInput: React.FC<ChatInputProps> = ({
     }
   };
 
+  const pickSlashItem = useCallback(
+    (item: SlashItem) => {
+      setMessage((prev) => applySlashPick(prev, item.body));
+      setSlashIndex(0);
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    },
+    []
+  );
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashOpen && filteredSlashItems.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashIndex((i) => (i + 1) % filteredSlashItems.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashIndex((i) => (i - 1 + filteredSlashItems.length) % filteredSlashItems.length);
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        const item = filteredSlashItems[slashIndex] ?? filteredSlashItems[0];
+        if (item) pickSlashItem(item);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMessage((prev) => prev.replace(/(?:^|\s)\/[^\s]*$/, "").trimEnd());
+        setSlashIndex(0);
+        return;
+      }
+    }
     if (e.key === "Escape" && isLoading) {
       e.preventDefault();
       stopStreaming();
@@ -462,7 +545,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      void handleSendMessage();
     }
   };
 
@@ -726,7 +809,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         {/* Unified execution: workspace prompt appears inline, same composer. */}
         {!isStudio && <WorkspaceNeededBanner />}
         {/* Desktop layer-down: one banner, one click — never the maze. */}
-        {!isStudio && <LayerDownBanner />}
+        <LayerDownBanner />
         {!isStudio && modeSuggestion && isDesktopApp() && (
           <div
             className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-[11px]"
@@ -759,149 +842,34 @@ const ChatInput: React.FC<ChatInputProps> = ({
             </Button>
           </div>
         )}
-        {/* Always-visible working folder / project control (desktop). */}
-        {!isStudio && (
-          <div className="flex items-center gap-1.5">
-            <WorkspaceSelector />
-            <PermissionPill />
-            {isDesktopApp() && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-auto min-w-[110px] gap-1.5 px-2.5 py-1 text-left text-[11px] transition-colors border-border/60 bg-background/80 hover:bg-muted/50"
-                        aria-label={`Execution mode: ${executionMode}`}
-                      >
-                        {executionMode === "chat" && <MessageSquare className="h-3.5 w-3.5 shrink-0 text-primary" />}
-                        {executionMode === "plan" && <Search className="h-3.5 w-3.5 shrink-0 text-blue-500" />}
-                        {executionMode === "build" && <Hammer className="h-3.5 w-3.5 shrink-0 text-amber-500" />}
-                        {executionMode === "task" && <Zap className="h-3.5 w-3.5 shrink-0 text-purple-500" />}
-                        <span className="min-w-0 truncate font-medium capitalize hidden sm:inline">
-                          {executionMode}
-                        </span>
-                        <ChevronDown size={12} className="shrink-0" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-56 p-1">
-                      {([
-                        { mode: "chat" as ExecutionMode, label: "Chat", desc: "Conversation and general assistance", icon: MessageSquare, color: "text-primary" },
-                        { mode: "plan" as ExecutionMode, label: "Plan", desc: "Analyze and create an implementation plan", icon: Search, color: "text-blue-500" },
-                        { mode: "build" as ExecutionMode, label: "Build", desc: "Implement changes in the project", icon: Hammer, color: "text-amber-500" },
-                        { mode: "task" as ExecutionMode, label: "Task", desc: "Run multi-step autonomous work", icon: Zap, color: "text-purple-500" },
-                      ]).map(({ mode, label, desc, icon: Icon, color }) => (
-                        <DropdownMenuItem
-                          key={mode}
-                          onClick={() => setExecutionMode(mode)}
-                          className={cn(
-                            "group flex cursor-pointer items-center gap-2 py-1.5 px-2 text-sm",
-                            executionMode === mode && "bg-primary/10"
-                          )}
-                        >
-                          <Icon className={cn("h-4 w-4 shrink-0", color)} />
-                          <div className="flex-1 text-left">
-                            <span className="font-medium block">{label}</span>
-                            <span className="text-[11px] text-muted-foreground block">{desc}</span>
-                          </div>
-                          {executionMode === mode && <span className="shrink-0 text-primary">✓</span>}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" align="start" className="max-w-xs">
-                  <p className="text-xs text-muted-foreground">
-                    Select how OpenBentt should handle your request. Chat is the default for questions and discussion.
-                    Plan analyzes and creates a plan. Build implements changes. Task runs multi-step autonomous work.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {isDesktopApp() && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant={agentMode ? "outline" : "ghost"}
-                        size="sm"
-                        className="h-8 w-auto min-w-[100px] gap-1.5 px-2.5 py-1 text-left text-[11px] border-border/60"
-                        aria-label={`Agent role: ${agentRoles.find((r) => r.id === agentRoleId)?.name ?? agentRoleId}`}
-                      >
-                        <Bot className="h-3.5 w-3.5 shrink-0 text-primary" />
-                        <span className="min-w-0 truncate font-medium hidden sm:inline">
-                          {agentMode
-                            ? agentRoles.find((r) => r.id === agentRoleId)?.name ?? "Agent"
-                            : "Roles"}
-                        </span>
-                        <ChevronDown size={12} className="shrink-0" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-64 p-1">
-                      <DropdownMenuItem
-                        onClick={() => setAgentMode(false)}
-                        className={cn("text-sm", !agentMode && "bg-primary/10")}
-                      >
-                        Off — normal chat / execution
-                      </DropdownMenuItem>
-                      {agentRoles.map((r) => (
-                        <DropdownMenuItem
-                          key={r.id}
-                          onClick={() => chooseAgentRole(r.id)}
-                          className={cn(
-                            "flex flex-col items-start gap-0.5 py-1.5 text-sm",
-                            agentMode && agentRoleId === r.id && "bg-primary/10"
-                          )}
-                        >
-                          <span className="font-medium">{r.name}</span>
-                          <span className="text-[11px] text-muted-foreground line-clamp-2">{r.description}</span>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" align="start" className="max-w-xs">
-                  <p className="text-xs text-muted-foreground">
-                    Runs this role on the agent you connected (OpenCode, Claude, Codex, Cursor, or another detected CLI).
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="hidden gap-1.5 text-xs text-muted-foreground hover:text-foreground md:inline-flex"
-                  onClick={() => window.dispatchEvent(new CustomEvent("navigate", { detail: "/projects" }))}
-                  aria-label="Go to Projects panel"
-                >
-                  <FolderKanban className="h-3 w-3" />
-                  <span>Projects</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Go to Projects panel</TooltipContent>
-            </Tooltip>
-          </div>
-        )}
-
-        {/* Only nudge when nothing can send — never insist on OpenRouter if local/desktop layer works. */}
-        {!layerActive &&
+        {/* First-run AI chooser — home only, never stacked in studio. */}
+        {!isStudio &&
+          !layerActive &&
           !isLoadingConfig &&
+          !agentRuntimeChosen &&
           !canSendMessage(apiConfig) &&
-          !(isDesktopApp() && (apiConfig.aiProvider === "openai_compatible" || apiConfig.aiProvider === "local_gguf" || apiConfig.aiProvider === "webgpu_gemma")) && (
-          <Alert variant="default" className="border-border/60 bg-muted/30 py-2">
-            <AlertTitle className="text-xs">Choose a model in Settings</AlertTitle>
-            <AlertDescription className="text-[11px]">
-              Use Ollama / local GGUF, or add a cloud API key.{" "}
-              <Link to="/settings" className="font-medium text-primary hover:underline">
-                Settings
-              </Link>
-            </AlertDescription>
-          </Alert>
-        )}
+          !(
+            isDesktopApp() &&
+            (apiConfig.aiProvider === "openai_compatible" ||
+              apiConfig.aiProvider === "local_gguf" ||
+              apiConfig.aiProvider === "webgpu_gemma")
+          ) && (
+            <div className="rounded-xl border border-border/50 bg-muted/20 px-2 py-3">
+              {isDesktopApp() ? (
+                <ChatProviderPicker />
+              ) : (
+                <Alert variant="default" className="border-border/60 bg-transparent py-2">
+                  <AlertTitle className="text-xs">Choose AI</AlertTitle>
+                  <AlertDescription className="text-[11px]">
+                    Add a cloud API key, or use Ollama.{" "}
+                    <Link to="/settings" className="font-medium text-primary hover:underline">
+                      Settings
+                    </Link>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
 
         {!isStudio &&
           !layerActive &&
@@ -978,37 +946,41 @@ const ChatInput: React.FC<ChatInputProps> = ({
           />
         )}
 
-        <div
-          className={cn(
-            "composer-shell flex flex-col gap-1.5 p-1.5 md:relative md:p-2",
-            isStudio && "relative gap-0 p-1"
+        <div className="composer-shell relative flex flex-col gap-1.5 rounded-2xl border border-border/50 bg-muted/20 p-1.5 md:p-2">
+          {slashOpen && (
+            <ComposerSlashMenu
+              query={slashQuery ?? ""}
+              notebook={isNotebookRoute}
+              activeIndex={Math.min(slashIndex, Math.max(0, filteredSlashItems.length - 1))}
+              onHoverIndex={setSlashIndex}
+              onPick={pickSlashItem}
+            />
           )}
-        >
           <Textarea
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => {
+              setMessage(e.target.value);
+              setSlashIndex(0);
+            }}
             onKeyDown={handleKeyDown}
             placeholder={
               placeholderOverride ??
               (layerActive
-                ? "Ask anything, or tell the Execution Engine what to build, fix, or plan…"
+                ? "Message…  (type / for commands)"
                 : getComposerPlaceholder(apiConfig, {
                     isLoadingConfig,
                     workspacePlaceholder: workspaceMeta?.composerPlaceholder,
                     comparisonEnabled: apiConfig.comparisonEnabled,
                   }))
             }
-            /* Universal layer: the box is always writable; send-time guards explain. */
             disabled={isLoading}
             className={cn(
-              "resize-none border-0 bg-muted/30 px-3 py-0 text-[15px] leading-6 text-foreground shadow-sm outline-none placeholder:text-muted-foreground/75 focus:outline-none focus-visible:outline-none focus-visible:ring-0 sm:text-base",
-              isStudio
-                ? "min-h-[2.5rem] max-h-24 py-1.5 pb-9 text-sm"
-                : "min-h-[2.5rem] max-h-32 py-1.5"
+              "resize-none border-0 bg-transparent px-3 py-1.5 text-[15px] leading-6 text-foreground shadow-none outline-none placeholder:text-muted-foreground/75 focus:outline-none focus-visible:outline-none focus-visible:ring-0 sm:text-base",
+              isStudio ? "min-h-[2.25rem] max-h-24 text-sm" : "min-h-[2.5rem] max-h-32"
             )}
             style={{
               height: "auto",
-              minHeight: "2.5rem",
+              minHeight: isStudio ? "2.25rem" : "2.5rem",
               maxHeight: isStudio ? "6rem" : "8rem",
               overflowY: message.length > 180 ? "auto" : "hidden",
             }}
@@ -1021,362 +993,322 @@ const ChatInput: React.FC<ChatInputProps> = ({
             ref={textareaRef}
           />
 
-          <div className="flex items-center justify-between gap-1">
-          {/* Toolbar sits under the field so the input stays one line tall. */}
-          <div
-            className={cn(
-              "flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto",
-              isStudio && "absolute bottom-2 left-2 max-w-[calc(100%-3.5rem)] flex-wrap gap-1"
-            )}
-          >
-            {/* Model selector */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-auto shrink-0 border border-border/50 bg-background/90 shadow-sm backdrop-blur hover:bg-muted/90",
-                     isStudio
-                       ? "min-h-8 max-w-[7rem] flex-row items-center gap-1 px-2 py-1 text-xs"
-                       : "h-8 max-w-[6rem] flex-row items-center gap-1 px-1.5 py-0 text-xs md:min-h-9 md:max-w-[min(100%,12rem)] md:gap-1.5 md:px-2 md:py-1.5 md:text-sm"
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
+              <Popover open={plusOpen} onOpenChange={setPlusOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 shrink-0 rounded-full p-0"
+                    aria-label="Add attachment or tools"
+                  >
+                    <Plus size={16} />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-64 p-1.5">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                    onClick={() => {
+                      fileRef.current?.click();
+                      setPlusOpen(false);
+                    }}
+                    disabled={!unifiedChatReady || isLoading}
+                  >
+                    <Paperclip className="h-4 w-4 text-muted-foreground" /> Attach file
+                  </button>
+                  {isDesktopApp() && (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                      onClick={() => {
+                        folderRef.current?.click();
+                        setPlusOpen(false);
+                      }}
+                      disabled={isLoading}
+                    >
+                      <FolderInput className="h-4 w-4 text-muted-foreground" /> Attach folder
+                    </button>
                   )}
-                >
-                  {effectiveModel?.location === "local" ? (
-                    <Bot size={isStudio ? 14 : 14} className="shrink-0 text-primary" />
-                  ) : (
-                    <Bot size={isStudio ? 14 : 14} className="shrink-0 text-muted-foreground" />
+                  {isDesktopApp() && (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                      onClick={() => {
+                        void attachScreenshot();
+                        setPlusOpen(false);
+                      }}
+                      disabled={isLoading || capturing}
+                    >
+                      <Camera className="h-4 w-4 text-muted-foreground" /> Screenshot
+                    </button>
                   )}
-                  <span className="min-w-0 truncate text-left font-medium">
-                    {layerActive
-                      ? `${shortModelLabel(openCodeModel)} · Execution Engine`
-                      : effectiveModel
-                        ? `${shortModelLabel(effectiveModel.modelId || "")} · ${effectiveModel.location === "local" ? "Local" : "Cloud"}`
-                        : shortModelLabel(apiConfig.model)}
-                  </span>
-                  <ChevronDown size={12} className="shrink-0" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="flex max-h-[min(50vh,320px)] w-[min(100vw-2rem,22rem)] flex-col overflow-hidden">
-                {layerActive ? (
-                  <>
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border/60">
-                      {openCodeLayer.checking
-                        ? "Loading Execution Engine models…"
-                        : `${openCodeLayer.models.length} Execution Engine model${openCodeLayer.models.length === 1 ? "" : "s"} · no key needed`}
-                    </div>
-                    <div className="max-h-60 overflow-y-auto p-1">
-                      {openCodeLayer.models.map((m) => (
-                        <DropdownMenuItem
-                          key={m.id}
-                          onClick={() => setOpenCodeModel(m.id)}
-                          className="group flex cursor-pointer items-center gap-2 py-1.5 px-2 text-sm"
-                        >
-                          <span className="flex-1 truncate text-sm group-hover:text-accent-foreground group-focus:text-accent-foreground">
-                            {m.displayName || shortModelLabel(m.id)}
-                          </span>
-                          {openCodeModel === m.id && <span className="shrink-0 text-primary">✓</span>}
-                        </DropdownMenuItem>
-                      ))}
-                      {openCodeLayer.models.length === 0 && !openCodeLayer.checking && (
-                        <p className="px-2 py-3 text-xs text-muted-foreground">
-                          No models reported by the local gateway. Check Setup → Execution.
-                        </p>
+                  {composerWs?.activeFile && (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                      onClick={() => {
+                        void attachActiveFile();
+                        setPlusOpen(false);
+                      }}
+                      disabled={isLoading}
+                    >
+                      <FileCode2 className="h-4 w-4 text-muted-foreground" /> Active file
+                    </button>
+                  )}
+                  <div className="my-1 border-t border-border/50" />
+                  {!isStudio && (
+                    <>
+                      <div className="px-1 py-1">
+                        <WorkspaceSelector />
+                      </div>
+                      <div className="px-1 py-1">
+                        <PermissionPill />
+                      </div>
+                      {isDesktopApp() && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                            >
+                              {executionMode === "chat" && <MessageSquare className="h-4 w-4 text-muted-foreground" />}
+                              {executionMode === "plan" && <Search className="h-4 w-4 text-muted-foreground" />}
+                              {executionMode === "build" && <Hammer className="h-4 w-4 text-muted-foreground" />}
+                              {executionMode === "task" && <Zap className="h-4 w-4 text-muted-foreground" />}
+                              Mode · {executionMode}
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-56">
+                            {([
+                              { mode: "chat" as ExecutionMode, label: "Chat", icon: MessageSquare },
+                              { mode: "plan" as ExecutionMode, label: "Plan", icon: Search },
+                              { mode: "build" as ExecutionMode, label: "Build", icon: Hammer },
+                              { mode: "task" as ExecutionMode, label: "Task", icon: Zap },
+                            ]).map(({ mode, label, icon: Icon }) => (
+                              <DropdownMenuItem key={mode} onClick={() => setExecutionMode(mode)}>
+                                <Icon className="mr-2 h-4 w-4" /> {label}
+                                {executionMode === mode ? <span className="ml-auto text-primary">✓</span> : null}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border/60">
-                      {modelsLoading && "Loading models…"}
-                      {modelsError && "Could not load models — check key or try Settings."}
-                      {!modelsLoading && !modelsError && `${selectable.length} models available`}
-                    </div>
-                    <div className="max-h-60 overflow-y-auto p-1">
-                      {selectable.map((m) => (
-                        <DropdownMenuItem
-                          key={m.id}
-                          onClick={() => handleModelChange(m.id)}
-                          className="group flex cursor-pointer items-center gap-2 py-1.5 px-2 text-sm"
+                      {isDesktopApp() && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                            >
+                              <Bot className="h-4 w-4 text-muted-foreground" />
+                              Role · {agentMode ? agentRoles.find((r) => r.id === agentRoleId)?.name ?? "Agent" : "Off"}
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-64">
+                            <DropdownMenuItem onClick={() => setAgentMode(false)}>Off</DropdownMenuItem>
+                            {agentRoles.map((r) => (
+                              <DropdownMenuItem key={r.id} onClick={() => chooseAgentRole(r.id)}>
+                                {r.name}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent("navigate", { detail: "/projects" }));
+                          setPlusOpen(false);
+                        }}
+                      >
+                        <FolderKanban className="h-4 w-4 text-muted-foreground" /> Projects
+                      </button>
+                      <div className="my-1 border-t border-border/50" />
+                      <div className="px-1 py-1">
+                        <ToolsPopover message={message} setMessage={setMessage} />
+                      </div>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                          >
+                            <Columns2 className="h-4 w-4 text-muted-foreground" />
+                            Compare models
+                            {apiConfig.comparisonEnabled ? (
+                              <span className="ml-auto text-[10px] text-primary">on</span>
+                            ) : null}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-96 p-0" align="start">
+                          <div className="space-y-3 border-b border-border/60 p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <Label htmlFor="compare-switch" className="text-sm">
+                                Tiled comparison
+                              </Label>
+                              <Switch
+                                id="compare-switch"
+                                checked={apiConfig.comparisonEnabled}
+                                onCheckedChange={setComparisonEnabled}
+                              />
+                            </div>
+                          </div>
+                          <ScrollArea className="h-72">
+                            <div className="space-y-2 p-3">
+                              {selectable.map((m) => {
+                                const checked = dedupeModels(apiConfig.comparisonModelIds).includes(m.id);
+                                return (
+                                  <label
+                                    key={`cmp-${m.id}`}
+                                    className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1.5 hover:bg-muted/50"
+                                  >
+                                    <Checkbox
+                                      checked={checked}
+                                      onCheckedChange={(v) => toggleCompareModel(m.id, v === true)}
+                                      className="mt-0.5"
+                                    />
+                                    <span className="text-sm leading-snug">
+                                      <span className="block font-medium">{m.name || shortModelLabel(m.id)}</span>
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </ScrollArea>
+                        </PopoverContent>
+                      </Popover>
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                        onClick={() => setAgentMode(!agentMode)}
+                      >
+                        <Bot className="h-4 w-4 text-muted-foreground" />
+                        Agent tools {agentMode ? "on" : "off"}
+                      </button>
+                      {agentMode && (
+                        <div className="px-1 py-1">
+                          <SourceFilter value={sourceScope} onChange={setSourceScope} />
+                        </div>
+                      )}
+                      {apiConfig.aiProvider === "webgpu_gemma" && (
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                          onClick={() => {
+                            setLocalDownloadOpen(true);
+                            setPlusOpen(false);
+                          }}
                         >
-                          <span className="flex-1 truncate text-sm group-hover:text-accent-foreground group-focus:text-accent-foreground">{m.name || shortModelLabel(m.id)}</span>
-                          <ModelCapabilityBadges modelId={m.id} meta={m} compact className="shrink-0" />
-                        </DropdownMenuItem>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </DropdownMenuContent>
-             </DropdownMenu>
+                          Download on-device model
+                        </button>
+                      )}
+                    </>
+                  )}
+                  <p className="px-2 py-1.5 text-[10px] text-muted-foreground">Type / for commands</p>
+                </PopoverContent>
+              </Popover>
 
-             {/* Single attach button */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <ComposerRuntimePicker compact />
+
+              <DropdownMenu
+                onOpenChange={(open) => {
+                  if (!open) setModelFilter("");
+                }}
+              >
+                <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 shrink-0 p-0 border border-border/60 bg-background/80 md:h-9 md:w-9"
-                    type="button"
-                    onClick={() => fileRef.current?.click()}
-                    disabled={(!unifiedChatReady) || isLoading}
-                  >
-                    <Paperclip size={14} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Attach — image, audio, video, or PDF</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            {/* Folder / screenshot / active-file: same composer, same harness */}
-            {!isStudio && isDesktopApp() && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 shrink-0 p-0 border border-border/60 bg-background/80 md:h-9 md:w-9"
-                      type="button"
-                      onClick={() => folderRef.current?.click()}
-                      disabled={isLoading}
-                      aria-label="Attach folder"
-                    >
-                      <FolderInput size={14} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Attach folder (file references as context)</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-            {!isStudio && isDesktopApp() && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 shrink-0 p-0 border border-border/60 bg-background/80 md:h-9 md:w-9"
-                      type="button"
-                      onClick={() => void attachScreenshot()}
-                      disabled={isLoading || capturing}
-                      aria-label="Attach screenshot"
-                    >
-                      <Camera size={14} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Attach screenshot (computer-use observe)</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-            {!isStudio && composerWs?.activeFile && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 shrink-0 p-0 border border-border/60 bg-background/80 md:h-9 md:w-9"
-                      type="button"
-                      onClick={() => void attachActiveFile()}
-                      disabled={isLoading}
-                      aria-label={`Attach active file ${composerWs.activeFile}`}
-                    >
-                      <FileCode2 size={14} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Attach active file ({composerWs.activeFile})</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-
-            {/* Extras toggle ··· */}
-            {!isStudio && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={showExtras ? "secondary" : "ghost"}
-                    size="sm"
-                    className="h-8 w-8 shrink-0 p-0 border border-border/60 bg-background/80 md:h-9 md:w-9"
-                    type="button"
-                    onClick={() => setShowExtras((v) => !v)}
-                    aria-label="More options"
-                  >
-                    <MoreHorizontal size={14} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Tools, snippets, compare models</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            )}
-
-            {/* Extras row — shown when ··· is active */}
-            {!isStudio && showExtras && (
-              <>
-                <ToolsPopover message={message} setMessage={setMessage} />
-
-                <PromptSnippetsMenu
-                  onInsert={(text) => {
-                    setMessage((prev) => (prev.trim() ? `${prev.trim()}\n\n${text}` : text));
-                  }}
-                />
-
-                {/* Compare models */}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={apiConfig.comparisonEnabled ? "secondary" : "ghost"}
-                      size="sm"
-                      className="h-8 shrink-0 px-2 text-xs border border-border/60 md:h-9 md:px-2.5 md:text-sm"
-                    >
-                      <Columns2 size={14} className="mr-1 shrink-0" />
-                      <span className="hidden sm:inline">Compare</span>
-                      {apiConfig.comparisonEnabled && (
-                        <span className="ml-1 rounded bg-primary/15 px-1.5 text-[10px] text-primary">on</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-96 p-0" align="start">
-                    <div className="p-3 border-b border-border/60 space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <Label htmlFor="compare-switch" className="text-sm">
-                          Tiled comparison
-                        </Label>
-                        <Switch
-                          id="compare-switch"
-                          checked={apiConfig.comparisonEnabled}
-                          onCheckedChange={setComparisonEnabled}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        One prompt → 2–4 models in parallel. Each answer in its own tile with timing metrics.
-                      </p>
-                    </div>
-                    <ScrollArea className="h-72">
-                      <div className="p-3 space-y-2">
-                        {selectable.map((m) => {
-                          const checked = dedupeModels(apiConfig.comparisonModelIds).includes(m.id);
-                          return (
-                            <label
-                              key={`cmp-${m.id}`}
-                              className="flex items-start gap-2 rounded-md border border-transparent px-1 py-1.5 hover:bg-muted/50 cursor-pointer"
-                            >
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={(v) => toggleCompareModel(m.id, v === true)}
-                                className="mt-0.5"
-                              />
-                              <span className="text-sm leading-snug">
-                                <span className="font-medium block">{m.name || shortModelLabel(m.id)}</span>
-                                <span className="text-[11px] text-muted-foreground break-all">{m.id}</span>
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </ScrollArea>
-                    <div className="p-3 text-[11px] text-muted-foreground border-t border-border/60">
-                      Selected: {dedupeModels(apiConfig.comparisonModelIds).length} / {MAX_COMPARE}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-
-                {/* Agent mode: tool-using assistant via the Phase 5 boundary */}
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={agentMode ? "secondary" : "ghost"}
-                        size="sm"
-                        className="h-8 shrink-0 px-2 text-xs border border-border/60 md:h-9 md:px-2.5 md:text-sm"
-                        type="button"
-                        onClick={() => setAgentMode(!agentMode)}
-                        aria-pressed={agentMode}
-                        aria-label="Toggle agent mode"
-                      >
-                        <Bot size={14} className="mr-1 shrink-0" />
-                        <span className="hidden sm:inline">Agent</span>
-                        {agentMode && (
-                          <span className="ml-1 rounded bg-primary/15 px-1.5 text-[10px] text-primary">on</span>
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Agent answers with knowledge, documents, and connectors</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                {/* Phase 7: source scope (agent mode only; trusted app state) */}
-                {agentMode && (
-                  <SourceFilter value={sourceScope} onChange={setSourceScope} />
-                )}
-
-                {/* WebGPU: pre-cache model */}
-                {apiConfig.aiProvider === "webgpu_gemma" && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-9 px-2.5 border border-border/60 text-xs"
-                          type="button"
-                          onClick={() => setLocalDownloadOpen(true)}
-                          disabled={isLoading}
-                        >
-                          Download model
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Download & cache Qwen 0.5B (~400 MB) in this browser</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Bottom-right: send / stop */}
-          <div className={cn("shrink-0", isStudio && "absolute bottom-2 right-2")}>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={isLoading ? () => stopStreaming() : () => void handleSendMessage()}
-                    disabled={
-                      isLoading
-                        ? false
-                        : ((!message.trim() && attachments.length === 0) ||
-                            isLoadingConfig ||
-                            (!layerActive &&
-                              (isStudio
-                                ? !canSendChat(apiConfig) ||
-                                  (apiConfig.aiProvider === "local_gguf" && !canSendMessage(apiConfig)) ||
-                                  (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())
-                                : !canSendMessage(apiConfig) ||
-                                  (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()))))
-                    }
-                    size="sm"
                     className={cn(
-                      "h-8 w-8 p-0 relative z-20 md:h-9 md:w-9",
-                      isLoading
-                        ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                        : "bg-primary hover:bg-primary/90 text-primary-foreground"
+                      "h-8 max-w-[7.5rem] shrink-0 gap-1 rounded-full border border-border/40 px-2 text-xs",
+                      isStudio && "max-w-[6.5rem]"
                     )}
                   >
-                    {isLoading ? <Square size={14} /> : <ArrowUp size={14} />}
+                    <Bot size={14} className="shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 truncate font-medium">
+                      {layerActive
+                        ? shortModelLabel(openCodeModel)
+                        : shortModelLabel(effectiveModel?.modelId || apiConfig.model)}
+                    </span>
+                    <ChevronDown size={12} className="shrink-0 opacity-70" />
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{isLoading ? "Stop (Esc)" : "Send (Enter)"}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            {!isStudio && (
-              <div className="mt-1.5 flex justify-center">
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="flex max-h-[min(55vh,360px)] w-[min(100vw-2rem,22rem)] flex-col overflow-hidden"
+                >
+                  <div className="border-b border-border/60 p-2">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={modelFilter}
+                        onChange={(e) => setModelFilter(e.target.value)}
+                        placeholder="Search models…"
+                        className="h-8 pl-7 text-xs"
+                        onKeyDown={(e) => e.stopPropagation()}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  {layerActive ? (
+                    <div className="max-h-60 overflow-y-auto p-1">
+                      {filteredOpenCodeModels.map((m) => (
+                        <DropdownMenuItem key={m.id} onClick={() => setOpenCodeModel(m.id)}>
+                          <span className="flex-1 truncate">{m.displayName || shortModelLabel(m.id)}</span>
+                          {openCodeModel === m.id ? <span className="text-primary">✓</span> : null}
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="max-h-60 overflow-y-auto p-1">
+                      {filteredSelectable.map((m) => (
+                        <DropdownMenuItem key={m.id} onClick={() => handleModelChange(m.id)}>
+                          <span className="flex-1 truncate">{m.name || shortModelLabel(m.id)}</span>
+                          <ModelCapabilityBadges modelId={m.id} meta={m} compact className="shrink-0" />
+                          {apiConfig.model === m.id ? <span className="text-primary">✓</span> : null}
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-1">
+              {!isStudio && (
                 <VoiceInputButton setComposerMessage={setMessage} level={voiceLevel} elapsedMs={voiceElapsedMs} />
-              </div>
-            )}
-          </div>
+              )}
+              <Button
+                onClick={isLoading ? () => stopStreaming() : () => void handleSendMessage()}
+                disabled={
+                  isLoading
+                    ? false
+                    : (!message.trim() && attachments.length === 0) ||
+                      isLoadingConfig ||
+                      (!layerActive &&
+                        (isStudio
+                          ? !canSendChat(apiConfig) ||
+                            (apiConfig.aiProvider === "local_gguf" && !canSendMessage(apiConfig)) ||
+                            (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())
+                          : !canSendMessage(apiConfig) ||
+                            (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())))
+                }
+                size="sm"
+                className={cn(
+                  "h-8 w-8 rounded-lg p-0",
+                  isLoading
+                    ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    : "bg-primary text-primary-foreground hover:bg-primary/90"
+                )}
+                aria-label={isLoading ? "Stop" : "Send"}
+              >
+                {isLoading ? <Square size={14} /> : <ArrowUp size={14} />}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

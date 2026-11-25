@@ -1,11 +1,9 @@
 import React, { useState } from "react";
-import { FileText, FolderKanban, Search, Sparkles } from "lucide-react";
+import { Brain, FileText, FolderKanban, Search } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
-import { useLocalAI } from "@/context/LocalAIContext";
-import { friendlyModelLabel } from "@/lib/ollama/selection";
 import { Button } from "@/components/ui/button";
 import { ChatProviderPicker, needsChatProviderChoice } from "@/components/ChatProviderPicker";
-import { clearChatProviderChoice, loadChatProviderChoice } from "@/lib/agent/chatProviderChoice";
+import { loadChatProviderChoice } from "@/lib/agent/chatProviderChoice";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import {
   EMPTY_COMPOSER_SLOT_TEST_ID,
@@ -14,34 +12,23 @@ import {
 
 /** Empty chat — short prompts only; no instructional clutter. */
 const SUGGESTIONS = [
-  { icon: FileText, label: "Summarize a document", prompt: "Help me summarize a document." },
-  { icon: Sparkles, label: "Analyze an idea", prompt: "Help me analyze an idea." },
-  { icon: FolderKanban, label: "Start a project", prompt: "Help me start a research project." },
-  { icon: Search, label: "Search my library", prompt: "Search my connected knowledge and papers." },
+  { icon: FileText, label: "Summarize", prompt: "Help me summarize a document." },
+  { icon: Brain, label: "Analyze", prompt: "Help me analyze an idea." },
+  { icon: FolderKanban, label: "New project", prompt: "Help me start a research project." },
+  { icon: Search, label: "Search library", prompt: "Search my connected knowledge and papers." },
 ];
 
-/** Welcome section content for the empty chat state. */
-const WELCOME_HEADING = "Ready when you are.";
-const WELCOME_SUBTEXT = "General AI questions outside a project.";
-
 export const ChatHome: React.FC = () => {
-  const { queuePromptInComposer, createNewChat } = useChat();
-  const { effectiveModel } = useLocalAI();
-  // AppLayout owns the only ChatInput instance. The empty state supplies the
-  // slot it is rendered into; no second composer is mounted here.
+  const { queuePromptInComposer } = useChat();
   const registerComposerSlot = useRegisterEmptyComposerSlot();
   const [version, setVersion] = useState(0);
   const choice = loadChatProviderChoice();
   const showPicker = isDesktopApp() && (!choice || version < 0);
 
-  const modelLabel = effectiveModel?.modelId
-    ? friendlyModelLabel(effectiveModel.modelId)
-    : null;
-
   if (showPicker || (isDesktopApp() && needsChatProviderChoice())) {
     return (
-      <div className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center gap-6 px-4 py-10">
-        <img src="/openbentt-logo.svg" alt="" className="h-10 w-10 object-contain opacity-90" />
+      <div className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center gap-5 px-4 py-10">
+        <img src="/openbentt-logo.svg" alt="" className="h-9 w-9 object-contain opacity-90" />
         <ChatProviderPicker
           onChosen={() => {
             setVersion((n) => Math.abs(n) + 1);
@@ -51,26 +38,11 @@ export const ChatHome: React.FC = () => {
     );
   }
 
-  // Empty state: welcome, the single shared composer's slot, then suggestions.
-  // The composer itself is rendered by AppLayout into the slot below.
   return (
-    <div className="mx-auto flex w-full max-w-[min(100%,58rem)] flex-1 flex-col items-center justify-center gap-6 px-2 py-6 sm:px-4">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <img src="/openbentt-logo.svg" alt="" className="h-10 w-10 object-contain opacity-90" />
-        <h1 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">{WELCOME_HEADING}</h1>
-        {modelLabel && <p className="text-xs text-muted-foreground">{modelLabel}</p>}
-        {isDesktopApp() && choice && (
-          <button
-            type="button"
-            className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
-            onClick={() => {
-              clearChatProviderChoice();
-              setVersion(-1);
-            }}
-          >
-            Change AI provider
-          </button>
-        )}
+    <div className="mx-auto flex w-full max-w-[min(100%,58rem)] flex-1 flex-col items-center justify-center gap-5 px-2 py-6 sm:px-4">
+      <div className="flex flex-col items-center gap-1.5 text-center">
+        <img src="/openbentt-logo.svg" alt="" className="h-9 w-9 object-contain opacity-90" />
+        <h1 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">Ready when you are.</h1>
       </div>
 
       <div
@@ -79,20 +51,20 @@ export const ChatHome: React.FC = () => {
         className="w-full"
       />
 
-      <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2" role="list">
+      <div className="flex w-full flex-wrap items-center justify-center gap-1.5" role="list">
         {SUGGESTIONS.map((s) => (
           <Button
             key={s.label}
-            variant="outline"
+            variant="ghost"
             role="listitem"
-            className="h-auto items-center justify-start gap-2.5 whitespace-normal px-3.5 py-3 text-left"
+            size="sm"
+            className="h-8 gap-1.5 rounded-full border border-border/60 px-3 text-xs text-muted-foreground hover:text-foreground"
             onClick={() => {
-              createNewChat();
               queuePromptInComposer(s.prompt);
             }}
           >
-            <s.icon size={15} className="shrink-0 text-muted-foreground" />
-            <span className="text-sm font-normal">{s.label}</span>
+            <s.icon size={13} className="shrink-0 opacity-70" />
+            {s.label}
           </Button>
         ))}
       </div>

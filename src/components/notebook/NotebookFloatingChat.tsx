@@ -23,9 +23,14 @@ const CONNECTION_HINT_KEY = "openbentt-notebook-connection-hint-seen";
 
 type NotebookFloatingChatProps = {
   containerRef: React.RefObject<HTMLElement | null>;
+  /** Which studio surface is visible — used for context copy only. */
+  studioSurface?: "orchestra" | "editor";
 };
 
-export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps) {
+export function NotebookFloatingChat({
+  containerRef,
+  studioSurface = "editor",
+}: NotebookFloatingChatProps) {
   const {
     chatPanelOpen,
     setChatPanelOpen,
@@ -276,7 +281,9 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
         onPointerCancel={onDragEnd}
       >
         <GripHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate text-xs font-medium">Project chat</span>
+        <span className="min-w-0 flex-1 truncate text-xs font-medium">
+          {project?.title ? `${project.title} · chat` : "Notebook chat"}
+        </span>
         <div className="flex flex-col items-center gap-0.5" title="Context connections">
           <div className="flex items-center gap-2">
             <div className="flex flex-col items-center gap-0.5">
@@ -340,7 +347,25 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
         </Button>
       </div>
 
-      {showConnectionHint && (
+      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5 border-b border-border/40 bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
+        <span>
+          Context:{" "}
+          <span className="text-foreground/80">
+            {studioSurface === "orchestra" ? "Paper Orchestra + draft" : "Editor draft"}
+          </span>
+          {project?.papers?.length ? (
+            <>
+              {" "}
+              · {project.papers.length} library paper{project.papers.length === 1 ? "" : "s"}
+            </>
+          ) : null}
+          {chatConnections.texFileKeys.length === 0 && chatConnections.pdfPaperIds.length === 0 ? (
+            <span className="text-amber-600/90 dark:text-amber-400/90"> · connect LaTeX/PDF for richer asks</span>
+          ) : null}
+        </span>
+      </div>
+
+      {showConnectionHint && studioSurface === "editor" && (
         <div className="flex shrink-0 items-start gap-2 border-b border-primary/30 bg-primary/10 px-2 py-1.5 text-[11px] text-foreground/90">
           <span className="min-w-0 flex-1">
             <strong className="font-medium">Two connection types:</strong>{" "}
@@ -412,19 +437,22 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <ChatMessages messages={messages} isLoading={isLoading} emptyVariant="studio" />
       </div>
-      <div className="relative shrink-0 border-t border-border/40 p-2 pb-3 pr-8">
+      <div className="relative shrink-0 border-t border-border/40 p-1.5">
         <ChatInput
           isLoading={isLoading}
-          placeholderOverride="Ask about your draft, PDFs, or compile errors…"
+          placeholderOverride={
+            studioSurface === "orchestra"
+              ? "Ask about the manuscript plan, idea, or draft…  (/ for commands)"
+              : "Ask about your draft, PDFs, or compile errors…  (/ for commands)"
+          }
           variant="studio"
         />
       </div>
 
       <div
         className={cn(
-          "absolute bottom-0 left-0 z-10 flex h-7 w-7 cursor-se-resize items-end justify-end rounded-tr-md",
-          "bg-muted/40 hover:bg-muted/70",
-          "border-r border-t border-border/50"
+          "absolute bottom-0 right-0 z-10 flex h-5 w-5 cursor-se-resize items-end justify-end rounded-tl-md",
+          "bg-muted/30 hover:bg-muted/60"
         )}
         aria-label="Resize chat panel — drag corner"
         title="Drag to resize chat"
@@ -433,11 +461,11 @@ export function NotebookFloatingChat({ containerRef }: NotebookFloatingChatProps
         onPointerUp={onResizeEnd}
         onPointerCancel={onResizeEnd}
       >
-        <svg viewBox="0 0 16 16" className="m-0.5 h-4 w-4 text-muted-foreground">
+        <svg viewBox="0 0 12 12" className="m-0.5 h-3 w-3 text-muted-foreground/80">
           <path
-            d="M14 14L8 14M14 14L14 8M14 10L10 14M14 12L12 14"
+            d="M11 11L6 11M11 11L11 6M11 8L8 11"
             stroke="currentColor"
-            strokeWidth="1.5"
+            strokeWidth="1.25"
             fill="none"
           />
         </svg>

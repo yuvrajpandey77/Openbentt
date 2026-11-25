@@ -566,6 +566,19 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const createNewChat = (title = "New Chat", projectId?: string | null) => {
+    const targetProject = projectId ?? activeProjectIdRef.current ?? null;
+    const current = chatsRef.current.find((c) => c.id === currentChatId);
+    if (current && current.messages.length === 0 && (current.projectId ?? null) === targetProject) {
+      return current.id;
+    }
+    const existingEmpty = chatsRef.current.find(
+      (c) => c.messages.length === 0 && (c.projectId ?? null) === targetProject
+    );
+    if (existingEmpty) {
+      setCurrentChatId(existingEmpty.id);
+      return existingEmpty.id;
+    }
+
     const now = new Date();
     const newChat: Chat = {
       id: uuidv4(),
@@ -573,7 +586,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       messages: [],
       createdAt: now,
       updatedAt: now,
-      projectId: projectId ?? activeProjectIdRef.current ?? null,
+      projectId: targetProject,
       taskIds: [],
     };
 

@@ -1,11 +1,10 @@
 
-import React, { useEffect } from "react";
+import React from "react";
 import ChatMessages from "./ChatMessages";
 import ChatInput from "./ChatInput";
 import { useChat } from "@/context/ChatContext";
 import { Button } from "@/components/ui/button";
 import { Menu, PanelLeft } from "lucide-react";
-import { canSendChat } from "@/types/chat";
 import { ShareLinkButton } from "@/components/ShareLinkButton";
 import { CapabilitiesSheet } from "@/components/CapabilitiesSheet";
 import { ContextMeter } from "@/components/ContextMeter";
@@ -27,20 +26,14 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
   const {
     currentChatId,
     chats,
-    createNewChat,
     isLoading,
-    apiConfig,
   } = useChat();
 
   const currentChat = chats.find(chat => chat.id === currentChatId);
   const messages = currentChat?.messages || [];
   const activeTaskId = currentChat?.taskIds?.length ? currentChat.taskIds[currentChat.taskIds.length - 1] : undefined;
 
-  useEffect(() => {
-    if (!currentChatId && canSendChat(apiConfig)) {
-      createNewChat();
-    }
-  }, [currentChatId, createNewChat, apiConfig]);
+  // Empty chats are created lazily on send / New chat (reuse in createNewChat).
 
   return (
     <div className="flex h-full flex-col">

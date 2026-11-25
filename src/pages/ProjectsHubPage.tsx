@@ -117,7 +117,7 @@ const ProjectsHubPage: React.FC = () => {
     setOpening(true);
     try {
       await selectProject(id);
-      navigate("/notebook?mode=orchestra");
+      navigate("/notebook");
     } finally {
       setOpening(false);
     }
@@ -129,7 +129,7 @@ const ProjectsHubPage: React.FC = () => {
     try {
       await createProject(t);
       setNewTitle("");
-      navigate("/notebook?mode=orchestra");
+      navigate("/notebook");
     } finally {
       setOpening(false);
     }
@@ -139,7 +139,7 @@ const ProjectsHubPage: React.FC = () => {
     setOpening(true);
     try {
       await createProjectFromTemplate(title.trim() || entry.label, entry);
-      navigate("/notebook?mode=orchestra");
+      navigate("/notebook");
     } finally {
       setOpening(false);
     }
@@ -151,7 +151,7 @@ const ProjectsHubPage: React.FC = () => {
     setOpening(true);
     try {
       await importProjectFromFile(file);
-      navigate("/notebook?mode=orchestra");
+      navigate("/notebook");
     } finally {
       setOpening(false);
     }
@@ -162,7 +162,7 @@ const ProjectsHubPage: React.FC = () => {
     setOpening(true);
     try {
       await importProjectFromFolder(files);
-      navigate("/notebook?mode=orchestra");
+      navigate("/notebook");
     } finally {
       setOpening(false);
     }

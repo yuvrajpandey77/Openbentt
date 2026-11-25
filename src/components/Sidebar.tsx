@@ -28,7 +28,6 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AccountMenu } from "@/components/AccountMenu";
 import { LocalAIStatus } from "@/components/LocalAIStatus";
-import { NotebookPaneSettingsDock } from "@/components/notebook/NotebookPaneSettingsDock";
 import { ChatActionsMenu } from "@/components/ChatActionsMenu";
 import { isWorkspacePathAllowedOnWeb } from "@/config/platformSurface";
 import { sidebarWidthClass } from "@/lib/sidebarLayout";
@@ -53,7 +52,7 @@ const PRIMARY_NAV: NavItem[] = [
   { icon: Plus, label: "New chat", id: "new-chat", shortcut: "⌘N", action: "new-chat" },
   { icon: MessageSquare, label: "Chat", id: "chat", to: "/chat" },
   { icon: FolderKanban, label: "Projects", id: "projects", to: "/projects" },
-  { icon: NotebookPen, label: "Notebook", id: "notebook", to: "/notebook?mode=orchestra" },
+  { icon: NotebookPen, label: "Notebook", id: "notebook", to: "/notebook" },
   { icon: Settings, label: "Settings", id: "settings", to: "/settings" },
 ];
 
@@ -221,7 +220,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           {iconOnly && <TooltipContent side="right">Open conversation</TooltipContent>}
         </Tooltip>
         {showLabels && (
-          <div className="opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <div className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
             <ChatActionsMenu chatId={chat.id} compact />
           </div>
         )}
@@ -466,19 +465,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               collapsed && "items-center"
             )}
           >
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className={cn(collapsed ? "flex justify-center" : "w-full")}>
-                  <NotebookPaneSettingsDock
-                    embedded
-                    layout={collapsed ? "dock" : "sidebar"}
-                    className={collapsed ? "relative h-9 w-9 rounded-lg shadow-none" : undefined}
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="right">Compiler and notebook panes</TooltipContent>
-            </Tooltip>
-
             <Tooltip>
               <TooltipTrigger asChild>
                 <button

@@ -1,8 +1,8 @@
 /**
- * First-message provider picker — short cards, auto-detect, one click to configure.
+ * First-message provider picker — detected system agents + chat backends.
  */
 import { useEffect, useState } from "react";
-import { Bot, Cloud, Cpu, Sparkles, Terminal } from "lucide-react";
+import { Bot, Cloud, Cpu, HardDrive, Sparkles, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useChat } from "@/context/ChatContext";
@@ -15,6 +15,7 @@ import {
   storeChatProviderChoice,
   type ChatProviderChoiceId,
 } from "@/lib/agent/chatProviderChoice";
+import { isLocalGgufDesktopAvailable } from "@/lib/localGguf/desktopApi";
 import { useToast } from "@/components/ui/use-toast";
 
 type Option = {
@@ -24,6 +25,18 @@ type Option = {
   icon: React.ElementType;
   available: boolean;
   detail?: string | null;
+};
+
+const AGENT_META: Record<
+  string,
+  { label: string; hint: string; icon: React.ElementType }
+> = {
+  opencode: { label: "OpenCode", hint: "Local execution", icon: Terminal },
+  claude: { label: "Claude Code", hint: "Detected CLI", icon: Bot },
+  codex: { label: "Codex CLI", hint: "Detected CLI", icon: Sparkles },
+  "cursor-agent": { label: "Cursor Agent", hint: "Detected CLI", icon: Bot },
+  aider: { label: "Aider", hint: "Detected CLI", icon: Terminal },
+  gemini: { label: "Gemini CLI", hint: "Detected CLI", icon: Sparkles },
 };
 
 export function ChatProviderPicker({ onChosen }: { onChosen?: () => void }) {
@@ -45,72 +58,62 @@ export function ChatProviderPicker({ onChosen }: { onChosen?: () => void }) {
 
   const byId = (id: string) => agents?.find((a) => a.id === id);
 
+  const agentOptions: Option[] = (["opencode", "claude", "codex", "cursor-agent", "aider", "gemini"] as const)
+    .map((id) => {
+      const meta = AGENT_META[id];
+      const hit = byId(id);
+      return {
+        id,
+        label: meta.label,
+        hint: meta.hint,
+        icon: meta.icon,
+        available: Boolean(hit?.available) || (id === "opencode" && !isDesktopApp()),
+        detail: hit?.version?.slice(0, 40) ?? (hit?.path ? hit.path.split("/").pop() : null),
+      };
+    })
+    .filter((o) => o.available || o.id === "opencode");
+
   const options: Option[] = [
     {
       id: "ollama",
-      label: "Local Ollama",
-      hint: "Private · no cloud key",
+      label: "Ollama",
+      hint: "Local models",
       icon: Cpu,
       available: health === "ready" || health === "checking" || health === "no-models",
-      detail: defaultModel ? `Model: ${defaultModel}` : health === "ready" ? "Ready" : "Start Ollama if needed",
+      detail: defaultModel ?? null,
     },
-    {
-      id: "opencode",
-      label: "OpenCode",
-      hint: "Execution agent",
-      icon: Terminal,
-      available: Boolean(byId("opencode")?.available) || !isDesktopApp(),
-      detail: byId("opencode")?.version?.slice(0, 48) ?? null,
-    },
-    {
-      id: "claude",
-      label: "Claude Code",
-      hint: "Detected CLI agent",
-      icon: Bot,
-      available: Boolean(byId("claude")?.available),
-      detail: byId("claude")?.version?.slice(0, 48) ?? null,
-    },
-    {
-      id: "codex",
-      label: "Codex CLI",
-      hint: "Detected CLI agent",
-      icon: Sparkles,
-      available: Boolean(byId("codex")?.available),
-      detail: byId("codex")?.version?.slice(0, 48) ?? null,
-    },
-    {
-      id: "cursor-agent",
-      label: "Cursor Agent",
-      hint: "Detected CLI agent",
-      icon: Bot,
-      available: Boolean(byId("cursor-agent")?.available),
-      detail: byId("cursor-agent")?.version?.slice(0, 48) ?? null,
-    },
+    ...agentOptions,
+    ...(isLocalGgufDesktopAvailable()
+      ? [
+          {
+            id: "local_gguf" as const,
+            label: "Local GGUF",
+            hint: "llama-server",
+            icon: HardDrive,
+            available: true,
+            detail: null,
+          },
+        ]
+      : []),
     {
       id: "openrouter",
-      label: "OpenRouter / cloud",
-      hint: "Needs API key in Settings",
+      label: "OpenRouter",
+      hint: "Cloud API key",
       icon: Cloud,
       available: true,
-      detail: apiConfig.apiKey?.trim() ? "Key saved" : "Add key after picking",
+      detail: apiConfig.apiKey?.trim() ? "Key saved" : null,
     },
-  ].filter((o) => o.available || o.id === "ollama" || o.id === "openrouter" || o.id === "opencode");
+  ];
 
   const pick = async (id: ChatProviderChoiceId) => {
     setBusy(id);
     try {
       if (id === "ollama") await refresh({ quiet: true }).catch(() => {});
       storeChatProviderChoice(id);
-      const next = applyChatProviderChoice(id, apiConfig, { ollamaModel: defaultModel });
-      setApiConfig(next);
+      setApiConfig(applyChatProviderChoice(id, apiConfig, { ollamaModel: defaultModel }));
       toast({
-        title: "Provider ready",
-        description:
-          id === "ollama"
-            ? "Using local Ollama for chat."
-            : id === "openrouter"
-              ? "OpenRouter selected — add a key in Settings if you have not."
-              : `${options.find((o) => o.id === id)?.label ?? id} selected.`,
+        title: options.find((o) => o.id === id)?.label ?? id,
+        description: "Selected for chat.",
       });
       onChosen?.();
     } finally {
@@ -119,22 +122,22 @@ export function ChatProviderPicker({ onChosen }: { onChosen?: () => void }) {
   };
 
   return (
-    <div className="mx-auto w-full max-w-xl space-y-4 px-1">
+    <div className="mx-auto w-full max-w-xl space-y-3 px-1">
       <div className="text-center">
-        <h2 className="text-base font-semibold tracking-tight">Which AI do you want to use?</h2>
-        <p className="mt-1 text-xs text-muted-foreground">One click — we configure it. You can change this later in Settings.</p>
+        <h2 className="text-base font-semibold tracking-tight">Choose AI</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">Detected agents on your system + chat backends</p>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {options.map((o) => {
           const Icon = o.icon;
-          const disabled = !o.available && o.id !== "openrouter" && o.id !== "ollama";
+          const disabled = !o.available && o.id !== "openrouter" && o.id !== "ollama" && o.id !== "local_gguf";
           return (
             <Button
               key={o.id}
               type="button"
               variant="outline"
               disabled={disabled || busy != null}
-              className="h-auto flex-col items-start gap-1 whitespace-normal px-3.5 py-3 text-left"
+              className="h-auto flex-col items-start gap-0.5 whitespace-normal px-3 py-2.5 text-left"
               onClick={() => void pick(o.id)}
             >
               <span className="flex w-full items-center gap-2">
@@ -151,9 +154,9 @@ export function ChatProviderPicker({ onChosen }: { onChosen?: () => void }) {
                 )}
               </span>
               <span className="text-[11px] font-normal text-muted-foreground">{o.hint}</span>
-              {o.detail && (
+              {o.detail ? (
                 <span className="truncate font-mono text-[10px] text-muted-foreground/80">{o.detail}</span>
-              )}
+              ) : null}
             </Button>
           );
         })}

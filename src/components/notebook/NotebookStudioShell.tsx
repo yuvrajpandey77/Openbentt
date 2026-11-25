@@ -13,7 +13,6 @@ import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useResearchWorkspace } from "@/context/ResearchWorkspaceContext";
 import { isEditableTarget } from "@/lib/isEditableTarget";
 import {
-  editorFileKey,
   editorFileLabel,
   fileRefEquals,
   notebookExplorerInsetPx,
@@ -27,40 +26,54 @@ import { ResearchTaskStatus } from "@/components/research/ResearchTaskStatus";
 import { ResearchWritingSync } from "@/components/research/ResearchWritingSync";
 import { NotebookExplorerDock, NotebookLeftRail } from "@/components/notebook/NotebookLeftRail";
 import { NotebookFloatingChat } from "@/components/notebook/NotebookFloatingChat";
+import { NotebookStudioAssistBridge } from "@/components/notebook/NotebookStudioAssistBridge";
 import { NotebookConnectionCables } from "@/components/notebook/NotebookConnectionCables";
 import { NotebookEditorTabs } from "@/components/notebook/NotebookEditorTabs";
 import NotebookPdfWorkspace from "@/components/NotebookPdfWorkspace";
 import { NotebookViewerProvider } from "@/context/NotebookViewerContext";
 import { ContextMeter } from "@/components/ContextMeter";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Command, FolderOpen, LayoutGrid, Sparkles, FileCode2 } from "lucide-react";
+import { ChevronDown, Command, FolderOpen, LayoutGrid, PenLine, FileCode2 } from "lucide-react";
 
-const ORCHESTRA_MODE_KEY = "openbentt-notebook-mode";
+const STUDIO_MODE_KEY = "openbentt-notebook-mode";
 
 export function NotebookStudioShell() {
   const { project, draftSaveStatus, setDraftTex, setBibliography, updateProjectFileContent } =
     useResearchProject();
   const { openCommandPalette } = useResearchWorkspace();
-  const { fileNav, activeEditorFile, explorerOpen, explorerWidth, bumpConnectionLayout } = useNotebookStudio();
+  const {
+    fileNav,
+    activeEditorFile,
+    explorerOpen,
+    explorerWidth,
+    bumpConnectionLayout,
+    setChatConnection,
+    chatConnections,
+    openChatPanel,
+  } = useNotebookStudio();
   const studioMainRef = useRef<HTMLDivElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const modeParam = searchParams.get("mode");
   const [studioMode, setStudioMode] = useState<"orchestra" | "editor">(() => {
-    if (modeParam === "editor") return "editor";
     if (modeParam === "orchestra") return "orchestra";
+    if (modeParam === "editor") return "editor";
     try {
-      return localStorage.getItem(ORCHESTRA_MODE_KEY) === "editor" ? "editor" : "orchestra";
+      const saved = localStorage.getItem(STUDIO_MODE_KEY);
+      if (saved === "orchestra" || saved === "editor") return saved;
     } catch {
-      return "orchestra";
+      /* ignore */
     }
+    return "editor";
   });
 
   useEffect(() => {
     if (modeParam === "editor" || modeParam === "orchestra") {
       setStudioMode(modeParam);
       try {
-        localStorage.setItem(ORCHESTRA_MODE_KEY, modeParam);
-      } catch { /* ignore */ }
+        localStorage.setItem(STUDIO_MODE_KEY, modeParam);
+      } catch {
+        /* ignore */
+      }
     }
   }, [modeParam]);
 
@@ -68,8 +81,10 @@ export function NotebookStudioShell() {
     (next: "orchestra" | "editor") => {
       setStudioMode(next);
       try {
-        localStorage.setItem(ORCHESTRA_MODE_KEY, next);
-      } catch { /* ignore */ }
+        localStorage.setItem(STUDIO_MODE_KEY, next);
+      } catch {
+        /* ignore */
+      }
       const nextParams = new URLSearchParams(searchParams);
       nextParams.set("mode", next);
       setSearchParams(nextParams, { replace: true });
@@ -82,7 +97,13 @@ export function NotebookStudioShell() {
   useEffect(() => {
     const id = requestAnimationFrame(() => bumpConnectionLayout());
     return () => cancelAnimationFrame(id);
-  }, [explorerOpen, explorerWidth, bumpConnectionLayout]);
+  }, [explorerOpen, explorerWidth, bumpConnectionLayout, studioMode]);
+
+  // Default: chat is wired to the project draft so asks always see notebook context.
+  useEffect(() => {
+    if (chatConnections.texFileKeys.length > 0) return;
+    setChatConnection("tex", "draft");
+  }, [chatConnections.texFileKeys.length, setChatConnection]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -136,6 +157,12 @@ export function NotebookStudioShell() {
     [activeEditorFile, setBibliography, setDraftTex, updateProjectFileContent]
   );
 
+  const onOrchestraApplied = useCallback(() => {
+    setMode("editor");
+    setChatConnection("tex", "draft");
+    openChatPanel();
+  }, [setMode, setChatConnection, openChatPanel]);
+
   if (!project) return null;
 
   const saveLabel =
@@ -157,74 +184,98 @@ export function NotebookStudioShell() {
         data-explorer-open={explorerOpen ? "true" : undefined}
       >
         <ResearchWritingSync />
-        <header className="flex shrink-0 items-center gap-2 border-b border-border/60 bg-card/95 px-3 py-2">
-          <Button type="button" variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" asChild>
-            <Link to="/projects">
-              <FolderOpen className="h-3.5 w-3.5" />
-              Projects
-            </Link>
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" size="sm" className="h-8 max-w-[200px] gap-1 truncate font-medium">
-                {project.title}
-                <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem asChild>
-                <Link to="/projects">All projects…</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/documents">Documents</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/labs">Research library</Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link to="/chat">Open full chat</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/settings">Settings</Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {saveLabel && (
-            <span
+        <NotebookStudioAssistBridge surface={studioMode} />
+        <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-border/60 bg-card/95 px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button type="button" variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" asChild>
+              <Link to="/projects">
+                <FolderOpen className="h-3.5 w-3.5" />
+                Projects
+              </Link>
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 max-w-[160px] gap-1 truncate font-medium md:max-w-[220px]"
+                >
+                  {project.title}
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem asChild>
+                  <Link to="/projects">All projects…</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/documents">Documents</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/labs">Research library</Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/chat">Open full chat</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/settings">Settings</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {saveLabel && (
+              <span
+                className={cn(
+                  "hidden text-[10px] tabular-nums sm:inline",
+                  draftSaveStatus === "dirty" && "text-primary",
+                  draftSaveStatus === "error" && "text-destructive",
+                  draftSaveStatus === "saved" && "text-muted-foreground"
+                )}
+              >
+                {saveLabel}
+              </span>
+            )}
+          </div>
+
+          <div
+            className="flex items-center rounded-full border border-border bg-muted/50 p-1 shadow-sm"
+            role="tablist"
+            aria-label="Notebook surface"
+          >
+            <Button
+              type="button"
+              size="sm"
+              role="tab"
+              aria-selected={studioMode === "editor"}
+              variant={studioMode === "editor" ? "default" : "ghost"}
               className={cn(
-                "hidden text-[10px] tabular-nums sm:inline",
-                draftSaveStatus === "dirty" && "text-primary",
-                draftSaveStatus === "error" && "text-destructive",
-                draftSaveStatus === "saved" && "text-muted-foreground"
+                "h-8 gap-1.5 rounded-full px-4 text-xs font-medium",
+                studioMode === "editor" && "shadow-sm"
               )}
+              onClick={() => setMode("editor")}
             >
-              {saveLabel}
-            </span>
-          )}
-          <div className="ml-auto flex items-center gap-1">
-            <div className="mr-1 flex rounded-full border border-border/60 p-0.5">
-              <Button
-                type="button"
-                size="sm"
-                variant={studioMode === "orchestra" ? "secondary" : "ghost"}
-                className="h-7 gap-1 rounded-full px-2.5 text-[11px]"
-                onClick={() => setMode("orchestra")}
-              >
-                <Sparkles className="h-3 w-3" />
-                Paper
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={studioMode === "editor" ? "secondary" : "ghost"}
-                className="h-7 gap-1 rounded-full px-2.5 text-[11px]"
-                onClick={() => setMode("editor")}
-              >
-                <FileCode2 className="h-3 w-3" />
-                Editor
-              </Button>
-            </div>
+              <FileCode2 className="h-3.5 w-3.5" />
+              Editor
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              role="tab"
+              aria-selected={studioMode === "orchestra"}
+              variant={studioMode === "orchestra" ? "default" : "ghost"}
+              className={cn(
+                "h-8 gap-1.5 rounded-full px-4 text-xs font-medium",
+                studioMode === "orchestra" && "shadow-sm"
+              )}
+              onClick={() => setMode("orchestra")}
+            >
+              <PenLine className="h-3.5 w-3.5" />
+              Paper
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-end gap-1">
             <ContextMeter />
             <ResearchTaskStatus />
             <Button type="button" size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={openCommandPalette}>
@@ -240,7 +291,7 @@ export function NotebookStudioShell() {
         <div ref={studioMainRef} className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {studioMode === "orchestra" ? (
             <div className="min-h-0 flex-1 overflow-hidden">
-              <PaperOrchestraCanvas onApplied={() => setMode("editor")} />
+              <PaperOrchestraCanvas onApplied={onOrchestraApplied} />
             </div>
           ) : (
             <>
@@ -274,9 +325,9 @@ export function NotebookStudioShell() {
                 </div>
               </div>
               <NotebookConnectionCables containerRef={studioMainRef} />
-              <NotebookFloatingChat containerRef={studioMainRef} />
             </>
           )}
+          <NotebookFloatingChat containerRef={studioMainRef} studioSurface={studioMode} />
         </div>
         <ResearchCommandPalette />
       </div>

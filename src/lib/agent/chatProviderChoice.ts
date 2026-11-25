@@ -15,7 +15,9 @@ export type ChatProviderChoiceId =
   | "local_gguf"
   | "claude"
   | "codex"
-  | "cursor-agent";
+  | "cursor-agent"
+  | "aider"
+  | "gemini";
 
 export type ChatProviderChoice = {
   id: ChatProviderChoiceId;
@@ -38,8 +40,8 @@ export function storeChatProviderChoice(id: ChatProviderChoiceId): ChatProviderC
   const choice: ChatProviderChoice = { id, chosenAt: new Date().toISOString() };
   try {
     localStorage.setItem(CHAT_PROVIDER_CHOICE_KEY, JSON.stringify(choice));
-    localStorage.setItem(PREFERRED_AGENT_KEY, id === "ollama" || id === "openrouter" || id === "local_gguf" ? "opencode" : id);
-    if (id === "opencode") localStorage.setItem(PREFERRED_AGENT_KEY, "opencode");
+    const chatOnly = id === "ollama" || id === "openrouter" || id === "local_gguf";
+    localStorage.setItem(PREFERRED_AGENT_KEY, chatOnly ? "opencode" : id);
   } catch {
     /* ignore */
   }
@@ -85,6 +87,8 @@ export function applyChatProviderChoice(
     case "claude":
     case "codex":
     case "cursor-agent":
+    case "aider":
+    case "gemini":
       // Chat ask path uses OpenCode layer when available; execution agents are preferred separately.
       return normalizeApiConfig({
         ...current,
@@ -100,5 +104,12 @@ export function applyChatProviderChoice(
 /** Whether OpenCode ask-layer should own conversational turns for this choice. */
 export function choiceUsesOpenCodeAsk(id: ChatProviderChoiceId | null | undefined): boolean {
   if (!id) return false;
-  return id === "opencode" || id === "claude" || id === "codex" || id === "cursor-agent";
+  return (
+    id === "opencode" ||
+    id === "claude" ||
+    id === "codex" ||
+    id === "cursor-agent" ||
+    id === "aider" ||
+    id === "gemini"
+  );
 }
