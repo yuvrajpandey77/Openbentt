@@ -1,14 +1,19 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { extractChartBlocks } from "@/lib/chartSpec";
-import { OpenbenttChartViews } from "@/components/OpenbenttChartViews";
+// Recharts is only needed when a reply actually contains a chart.
+const OpenbenttChartViews = React.lazy(async () => {
+  const module = await import("@/components/OpenbenttChartViews");
+  return { default: module.OpenbenttChartViews };
+});
 import type { Components } from "react-markdown";
 import { MarkdownCodeBlock } from "@/components/MarkdownCodeBlock";
 import { highlightInReactChildren } from "@/lib/highlightSearch";
 import type { ReactNode } from "react";
 import { ChatStreamingCursor, ChatThinkingIndicator } from "@/components/ChatThinkingIndicator";
 import type { NarrationChunk } from "@/lib/narration/script";
+import { useToast } from "@/components/ui/use-toast";
 
 interface AssistantContentProps {
   content: string;
@@ -20,7 +25,7 @@ interface AssistantContentProps {
   readAlong?: { chunkIndex: number; wordIndex: number; chunks: NarrationChunk[] } | null;
 }
 
-function makeMarkdownComponents(highlightQuery: string | undefined): Components {
+function makeMarkdownComponents(highlightQuery: string | undefined, toast: ReturnType<typeof useToast>['toast']): Components {
   const q = highlightQuery?.trim() ?? "";
   const H = (children: ReactNode) => (q ? highlightInReactChildren(children, q) : children);
 
@@ -62,8 +67,29 @@ function makeMarkdownComponents(highlightQuery: string | undefined): Components 
     code: ({ className, children, ...props }) => {
       const isBlock = typeof className === "string" && className.includes("language-");
       if (isBlock) {
+        const codeText = children?.toString() || "";
         return (
-          <code className={`font-mono text-[0.85em] text-foreground ${className ?? ""}`} {...props}>
+          <code
+            className={`font-mono text-[0.85em] text-foreground ${className ?? ""} rounded-md px-2 py-1 hover:bg-primary/20 transition-colors cursor-pointer`}
+            {...props}
+            onClick={() => {
+              // Copy code text to clipboard
+              try {
+                navigator.clipboard.writeText(codeText);
+                toast({
+                  title: "Copied",
+                  description: "Code block copied to clipboard",
+                  variant: "default",
+                });
+              } catch {
+                toast({
+                  title: "Copy failed",
+                  description: "Clipboard is not available.",
+                  variant: "destructive",
+                });
+              }
+            }}
+          >
             {children}
           </code>
         );
@@ -146,7 +172,8 @@ export const AssistantContent: React.FC<AssistantContentProps> = ({
   readAlong,
 }) => {
   const { displayText, charts } = extractChartBlocks(content);
-  const markdownComponents = useMemo(() => makeMarkdownComponents(highlightQuery), [highlightQuery]);
+  const { toast } = useToast();
+  const markdownComponents = useMemo(() => makeMarkdownComponents(highlightQuery, toast), [highlightQuery, toast]);
   const waitingForTokens = streaming && !displayText.trim();
 
   if (waitingForTokens) {
@@ -188,7 +215,11 @@ export const AssistantContent: React.FC<AssistantContentProps> = ({
             </div>
           );
         })}
-        {charts.length > 0 && <OpenbenttChartViews charts={charts} />}
+        {charts.length > 0 && (
+          <React.Suspense fallback={<div className="text-xs text-muted-foreground">Loading chart…</div>}>
+            <OpenbenttChartViews charts={charts} />
+          </React.Suspense>
+        )}
       </div>
     );
   }
@@ -200,7 +231,11 @@ export const AssistantContent: React.FC<AssistantContentProps> = ({
           {displayText || "\u00a0"}
         </ReactMarkdown>
       </div>
-      {charts.length > 0 && <OpenbenttChartViews charts={charts} />}
+      {charts.length > 0 && (
+        <React.Suspense fallback={<div className="text-xs text-muted-foreground">Loading chart…</div>}>
+          <OpenbenttChartViews charts={charts} />
+        </React.Suspense>
+      )}
     </div>
   );
 };

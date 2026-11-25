@@ -114,7 +114,7 @@ function DesktopTitleBarMenus() {
           <DropdownMenuItem className={menuItemClass} onSelect={() => go("/projects")}>
             Projects
           </DropdownMenuItem>
-          <DropdownMenuItem className={menuItemClass} onSelect={() => go("/notebook")}>
+          <DropdownMenuItem className={menuItemClass} onSelect={() => go("/notebook?mode=orchestra")}>
             Notebook Studio
           </DropdownMenuItem>
           <DropdownMenuSeparator />

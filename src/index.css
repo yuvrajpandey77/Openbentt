@@ -500,6 +500,40 @@
     transform-origin: center bottom;
   }
 
+  .orchestra-canvas {
+    --orchestra-ink: hsl(var(--foreground));
+    background:
+      radial-gradient(1200px 600px at 12% -10%, hsl(160 40% 18% / 0.35), transparent 55%),
+      radial-gradient(900px 500px at 88% 110%, hsl(210 30% 16% / 0.4), transparent 50%),
+      hsl(var(--background));
+  }
+
+  .orchestra-atmosphere {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at center, black 20%, transparent 75%);
+    opacity: 0.5;
+  }
+
+  .orchestra-node {
+    animation: orchestraFadeUp 0.55s ease-out both;
+  }
+
+  .orchestra-node-active .orchestra-node {
+    transform: scale(1.02);
+  }
+
+  @keyframes orchestraFadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .orchestra-node { animation: none; }
+  }
+
   .voice-bar {
     height: 6px;
     transform-origin: center bottom;

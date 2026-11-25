@@ -209,7 +209,7 @@ export function WorkspaceChrome() {
             size="sm"
             variant="secondary"
             className="h-7 gap-1 text-xs"
-            onClick={() => window.open("/notebook", "_blank")}
+            onClick={() => window.open("/notebook?mode=orchestra", "_blank")}
             title="Open notebook in popup"
           >
             <Maximize className="h-3 w-3" />

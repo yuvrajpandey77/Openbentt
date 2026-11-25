@@ -216,7 +216,7 @@ const ProjectWorkspacePage: React.FC = () => {
                 <span className="sidebar-nav-label truncate">Chat</span>
               </NavLink>
               <NavLink
-                to="/notebook"
+                to="/notebook?mode=orchestra"
                 className={({ isActive }) =>
                   cn("sidebar-nav-item", isActive && "sidebar-nav-item--active")
                 }
@@ -330,7 +330,6 @@ const ProjectWorkspacePage: React.FC = () => {
                             entry={entry}
                             expandedDirs={expandedDirs}
                             onToggleDir={toggleDir}
-                            isMobile={false}
                           />
                         ))
                       )}

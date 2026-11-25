@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { useQueueResearchPrompt } from "@/hooks/useQueueResearchPrompt";
 import {
@@ -19,6 +20,7 @@ const SLASH_ACTIONS = [
 export function NotebookAssistantPanel() {
   const { project, setDraftTex } = useResearchProject();
   const { queueResearchPrompt, researchPromptBusy } = useQueueResearchPrompt();
+  const navigate = useNavigate();
 
   if (!project) return null;
 
@@ -30,9 +32,23 @@ export function NotebookAssistantPanel() {
         <Sparkles className="h-4 w-4 text-primary" aria-hidden />
         <p className="text-sm font-medium">Contextual AI</p>
       </div>
+      <Button
+        type="button"
+        size="sm"
+        className="h-auto w-full justify-start gap-2 py-2.5 text-left text-xs"
+        onClick={() => navigate("/notebook?mode=orchestra")}
+      >
+        <Sparkles className="h-3.5 w-3.5 shrink-0" />
+        <span>
+          <span className="font-medium">Write full paper with PaperOrchestra</span>
+          <span className="mt-0.5 block text-[10px] font-normal text-primary-foreground/80">
+            Outline → literature → sections → refine (intact engine)
+          </span>
+        </span>
+      </Button>
       <p className="text-xs text-muted-foreground">
-        Actions queue prompts in chat — use the workspace split to keep editor visible. Type slash commands in the
-        composer: <code className="font-mono text-[10px]">/abstract</code>,{" "}
+        Light tweaks still queue in chat. Full manuscripts use PaperOrchestra. Slash:{" "}
+        <code className="font-mono text-[10px]">/abstract</code>,{" "}
         <code className="font-mono text-[10px]">/keywords</code>.
       </p>
       <ul className="space-y-1.5">

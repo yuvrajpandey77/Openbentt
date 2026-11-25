@@ -47,6 +47,7 @@ function normalizeProject(data: Partial<ResearchProjectData>): ResearchProjectDa
     draftTex,
     bibliography: data.bibliography ?? "",
     bibEntries: Array.isArray(data.bibEntries) ? data.bibEntries : [],
+    knowledge: typeof data.knowledge === "string" ? data.knowledge : "",
     papers,
     chunks,
     chunkEmbeddings:

@@ -1,14 +1,17 @@
 /**
  * Real LaTeX execution (Electron main only).
  *
- * Detect → compile (latexmk when present, else pdflatex+bibtex passes) →
+ * Detect → compile (tectonic preferred, else latexmk, else pdflatex+bibtex) →
  * parse diagnostics → verify PDF. No fake builds: completion requires the
  * PDF artifact on disk. All paths resolve through the workspace authority.
+ *
+ * Tectonic is the lightweight default: one-pass, no TeX Live install, matches
+ * research:compileProjectLatex used by Notebook.
  */
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
-import { execFile, execSync } from "node:child_process";
+import { execFile, execSync, spawnSync } from "node:child_process";
 import { createLogger } from "./log.mjs";
 import { resolveWorkspaceRoot, resolveInWorkspace } from "./workspaceService.mjs";
 
@@ -23,6 +26,15 @@ function hasBinary(name) {
     return true;
   } catch {
     return false;
+  }
+}
+
+function tectonicOnPath() {
+  try {
+    const r = spawnSync("tectonic", ["--version"], { encoding: "utf8", timeout: 8000, windowsHide: true });
+    return r.status === 0 ? "tectonic" : null;
+  } catch {
+    return null;
   }
 }
 
@@ -67,6 +79,7 @@ export async function detectLatex(root) {
     bibliography: bibFiles.slice(0, 20),
     buildDir: "build",
     engines: {
+      tectonic: Boolean(tectonicOnPath()),
       latexmk: hasBinary("latexmk"),
       pdflatex: hasBinary("pdflatex"),
       bibtex: hasBinary("bibtex"),
@@ -106,37 +119,58 @@ export async function compileLatex(root, opts = {}) {
   if (!det.isLatex || !det.mainTex) throw new Error("No LaTeX main file detected");
   const buildDir = path.join(rootReal, det.buildDir);
   await fsp.mkdir(buildDir, { recursive: true });
-  const useLatexmk = opts.engine === "latexmk" ? det.engines.latexmk : det.engines.latexmk && opts.engine !== "pdflatex";
+  const wantEngine = String(opts.engine ?? "auto");
+  const tectonicBin = det.engines.tectonic ? tectonicOnPath() : null;
+  const preferTectonic =
+    wantEngine === "tectonic" ||
+    (wantEngine === "auto" && tectonicBin) ||
+    (wantEngine !== "latexmk" && wantEngine !== "pdflatex" && tectonicBin && !det.engines.latexmk && !det.engines.pdflatex);
+  const useLatexmk =
+    !preferTectonic &&
+    (wantEngine === "latexmk" ? det.engines.latexmk : det.engines.latexmk && wantEngine !== "pdflatex" && wantEngine !== "tectonic");
   const combined = [];
-  if (useLatexmk && det.engines.latexmk) {
+
+  if (preferTectonic && tectonicBin) {
+    // One-pass lightweight engine (same family as Notebook research:compileProjectLatex).
+    const r = await runBin(tectonicBin, ["--keep-logs", "--outdir", det.buildDir, det.mainTex], rootReal);
+    combined.push(r.log);
+  } else if (useLatexmk && det.engines.latexmk) {
     const r = await runBin("latexmk", ["-pdf", "-interaction=nonstopmode", `-output-directory=${det.buildDir}`, det.mainTex], rootReal);
     combined.push(r.log);
   } else {
-    if (!det.engines.pdflatex) throw new Error("No LaTeX engine available (need latexmk or pdflatex)");
-    const base = det.mainTex.replace(/\.tex$/i, "");
-    const needsBib = det.bibliography.length > 0;
-    const pass = async (args) => {
-      const r = await runBin("pdflatex", ["-interaction=nonstopmode", "-halt-on-error", `-output-directory=${det.buildDir}`, ...args, det.mainTex], rootReal);
-      combined.push(r.log);
-      return r;
-    };
-    let r = await pass([]);
-    if (r.code !== 0 && needsBib) {
-      // Missing .bbl on first pass is normal; continue to bibtex.
-    }
-    if (needsBib && det.engines.bibtex) {
-      const b = await new Promise((resolve) => {
-        execFile("bibtex", [`${det.buildDir}/${base}`], { cwd: rootReal, timeout: 60000, windowsHide: true }, (err, stdout, stderr) => {
-          resolve({ log: `${stdout ?? ""}\n${stderr ?? ""}`.slice(0, 10000) });
-        });
-      });
-      combined.push(b.log);
-      r = await pass([]);
-      r = await pass([]);
+    if (!det.engines.pdflatex) {
+      if (tectonicBin) {
+        const r = await runBin(tectonicBin, ["--keep-logs", "--outdir", det.buildDir, det.mainTex], rootReal);
+        combined.push(r.log);
+      } else {
+        throw new Error("No LaTeX engine available (need tectonic, latexmk, or pdflatex)");
+      }
     } else {
-      r = await pass([]);
+      const base = det.mainTex.replace(/\.tex$/i, "");
+      const needsBib = det.bibliography.length > 0;
+      const pass = async (args) => {
+        const r = await runBin("pdflatex", ["-interaction=nonstopmode", "-halt-on-error", `-output-directory=${det.buildDir}`, ...args, det.mainTex], rootReal);
+        combined.push(r.log);
+        return r;
+      };
+      let r = await pass([]);
+      if (r.code !== 0 && needsBib) {
+        // Missing .bbl on first pass is normal; continue to bibtex.
+      }
+      if (needsBib && det.engines.bibtex) {
+        const b = await new Promise((resolve) => {
+          execFile("bibtex", [`${det.buildDir}/${base}`], { cwd: rootReal, timeout: 60000, windowsHide: true }, (err, stdout, stderr) => {
+            resolve({ log: `${stdout ?? ""}\n${stderr ?? ""}`.slice(0, 10000) });
+          });
+        });
+        combined.push(b.log);
+        r = await pass([]);
+        r = await pass([]);
+      } else {
+        r = await pass([]);
+      }
+      void r;
     }
-    void r;
   }
   const fullLog = combined.join("\n").slice(0, MAX_LOG_CHARS);
   const { errors, warnings } = parseLatexLog(fullLog);
@@ -153,8 +187,9 @@ export async function compileLatex(root, opts = {}) {
     errors,
     warnings,
     logTail: fullLog.slice(-4000),
+    engine: preferTectonic ? "tectonic" : useLatexmk ? "latexmk" : "pdflatex",
   };
-  log.info("latex compile finished", { main: det.mainTex, ok, errors: errors.length });
+  log.info("latex compile finished", { main: det.mainTex, ok, errors: errors.length, engine: result.engine });
   return result;
 }
 

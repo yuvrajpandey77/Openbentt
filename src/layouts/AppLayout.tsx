@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useLayoutEffect, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PanelRightOpen, PanelRightClose } from "lucide-react";
@@ -11,6 +12,7 @@ import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useLocalAI } from "@/context/LocalAIContext";
 import { PrivacyAnalytics } from "@/components/PrivacyAnalytics";
 import { DesktopUpdateNotifier } from "@/components/DesktopUpdateNotifier";
+import { PersistenceStatusBanner } from "@/components/PersistenceStatusBanner";
 import { useChat } from "@/context/ChatContext";
 import { canSendChat } from "@/types/chat";
 import { cn } from "@/lib/utils";
@@ -27,6 +29,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useIsMobile } from "@/hooks/use-mobile";
 import { NarrationProvider } from "@/context/NarrationContext";
 import { VoiceDock } from "@/components/narration/VoiceDock";
+import {
+  ComposerSlotContext,
+  DOCKED_COMPOSER_SLOT_TEST_ID,
+} from "@/components/composer/ComposerSlots";
 
 const WORKSPACE_PANEL_KEY = "openbentt-workspace-panel-open";
 
@@ -122,6 +128,10 @@ const AppLayout: React.FC = () => {
 
   useEffect(() => {
     const handleNavigate = (e: CustomEvent<string>) => {
+      // Phase 3/C: authoritative navigation-start mark for Notebook readiness.
+      if (e.detail?.startsWith("/notebook")) {
+        window.__openbenttNotebookMarks?.navigationInitiated?.({ source: "AppLayout sidebar" });
+      }
       navigate(e.detail);
     };
     window.addEventListener("navigate", handleNavigate as EventListener);
@@ -149,6 +159,35 @@ const AppLayout: React.FC = () => {
   const currentChat = chats.find((c) => c.id === currentChatId);
   const messages = currentChat?.messages ?? [];
   const activeTaskId = currentChat?.taskIds?.length ? currentChat.taskIds[currentChat.taskIds.length - 1] : undefined;
+
+  // One composer for the whole shell. The route/chat state decides which
+  // layout slot hosts it; the composer itself is never mounted twice.
+  const hasComposerSurface = !isFullBleedStudio && !isStandalonePage;
+  const isChatRoute = location.pathname === "/chat" || location.pathname.startsWith("/chat/");
+  const isEmptyChat = isChatRoute && messages.length === 0 && !isLoading;
+  const [emptyComposerSlot, setEmptyComposerSlot] = useState<HTMLDivElement | null>(null);
+  const [dockedComposerSlot, setDockedComposerSlot] = useState<HTMLDivElement | null>(null);
+  // Stable portal host: moving this DOM node keeps ChatInput mounted (and its
+  // draft/focus/state intact) when the composer changes position.
+  const [composerHost] = useState<HTMLDivElement | null>(() => {
+    if (typeof document === "undefined") return null;
+    const host = document.createElement("div");
+    host.className = "w-full";
+    return host;
+  });
+  const composerSlot = hasComposerSurface
+    ? isEmptyChat
+      ? emptyComposerSlot
+      : dockedComposerSlot
+    : null;
+
+  useLayoutEffect(() => {
+    if (!composerHost || !composerSlot || composerHost.parentElement === composerSlot) return;
+    const focused = document.activeElement as HTMLElement | null;
+    const restoreFocus = Boolean(focused && composerHost.contains(focused));
+    composerSlot.appendChild(composerHost);
+    if (restoreFocus) focused?.focus({ preventScroll: true });
+  }, [composerHost, composerSlot]);
 
   if (isLoadingConfig) {
     return (
@@ -185,6 +224,7 @@ const AppLayout: React.FC = () => {
       />
       <PrivacyAnalytics />
       <DesktopUpdateNotifier />
+      <PersistenceStatusBanner />
       <CommandMenu open={commandMenuOpen} onOpenChange={setCommandMenuOpen} />
       <TaskCenterToasts />
 
@@ -291,16 +331,30 @@ const AppLayout: React.FC = () => {
               </div>
             </div>
           ) : (
-            <Outlet />
+            <ComposerSlotContext.Provider value={setEmptyComposerSlot}>
+              <Outlet />
+            </ComposerSlotContext.Provider>
           )}
         </div>
 
         {/* Composer stays on chat. Settings and tools are full pages. */}
-        {!isFullBleedStudio && !isStandalonePage && (
-          <div className="shrink-0 bg-gradient-to-t from-card/90 to-background/95 backdrop-blur-sm">
-            <ChatInput isLoading={isLoading} workspaceMeta={workspaceMeta} />
-          </div>
+        {hasComposerSurface && !isEmptyChat && (
+          <div
+            ref={setDockedComposerSlot}
+            data-testid={DOCKED_COMPOSER_SLOT_TEST_ID}
+            className="shrink-0 bg-gradient-to-t from-card/90 to-background/95 backdrop-blur-sm"
+          />
         )}
+        {hasComposerSurface &&
+          composerHost &&
+          createPortal(
+            <ChatInput
+              isLoading={isLoading}
+              workspaceMeta={workspaceMeta}
+              placeholderOverride={isEmptyChat ? "Ask anything..." : undefined}
+            />,
+            composerHost
+          )}
       </main>
       {/* Right sidebar: Files, Activity, Tools, Settings */}
       <RightSidebar isOpen={rightSidebarOpen} onClose={() => setRightSidebarOpen(false)} />

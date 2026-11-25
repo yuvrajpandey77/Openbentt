@@ -106,10 +106,10 @@ export const ToolsPopover: React.FC<ToolsPopoverProps> = ({
   const [calcError, setCalcError] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const runLocalCalc = () => {
+  const runLocalCalc = async () => {
     if (!calcExpr.trim()) return;
     try {
-      const merged = substituteInlineCalc(`[[calc:${calcExpr}]]`);
+      const merged = await substituteInlineCalc(`[[calc:${calcExpr}]]`);
       setCalcResult(merged);
       setCalcError(false);
     } catch {

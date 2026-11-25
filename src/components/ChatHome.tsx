@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { ChatProviderPicker, needsChatProviderChoice } from "@/components/ChatProviderPicker";
 import { clearChatProviderChoice, loadChatProviderChoice } from "@/lib/agent/chatProviderChoice";
 import { isDesktopApp } from "@/lib/isDesktopApp";
-import ChatInput from "@/components/ChatInput";
+import {
+  EMPTY_COMPOSER_SLOT_TEST_ID,
+  useRegisterEmptyComposerSlot,
+} from "@/components/composer/ComposerSlots";
 
 /** Empty chat — short prompts only; no instructional clutter. */
 const SUGGESTIONS = [
@@ -24,6 +27,9 @@ const WELCOME_SUBTEXT = "General AI questions outside a project.";
 export const ChatHome: React.FC = () => {
   const { queuePromptInComposer, createNewChat } = useChat();
   const { effectiveModel } = useLocalAI();
+  // AppLayout owns the only ChatInput instance. The empty state supplies the
+  // slot it is rendered into; no second composer is mounted here.
+  const registerComposerSlot = useRegisterEmptyComposerSlot();
   const [version, setVersion] = useState(0);
   const choice = loadChatProviderChoice();
   const showPicker = isDesktopApp() && (!choice || version < 0);
@@ -45,11 +51,10 @@ export const ChatHome: React.FC = () => {
     );
   }
 
-  // When there are no messages, show the welcome state with composer and suggestions
-  // When there are messages, render nothing (ChatMessages handles the conversation)
+  // Empty state: welcome, the single shared composer's slot, then suggestions.
+  // The composer itself is rendered by AppLayout into the slot below.
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center gap-8 px-4 py-10">
-      {/* Welcome section — shown only when conversation is empty */}      
+    <div className="mx-auto flex w-full max-w-[min(100%,58rem)] flex-1 flex-col items-center justify-center gap-6 px-2 py-6 sm:px-4">
       <div className="flex flex-col items-center gap-2 text-center">
         <img src="/openbentt-logo.svg" alt="" className="h-10 w-10 object-contain opacity-90" />
         <h1 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">{WELCOME_HEADING}</h1>
@@ -68,15 +73,13 @@ export const ChatHome: React.FC = () => {
         )}
       </div>
 
-      {/* Composer — always visible in empty state */}      
-      <ChatInput 
-        isLoading={false} 
-        placeholderOverride="Ask anything..."
-        variant="default"
+      <div
+        ref={registerComposerSlot ?? undefined}
+        data-testid={EMPTY_COMPOSER_SLOT_TEST_ID}
+        className="w-full"
       />
 
-      {/* Suggested actions — only shown when conversation is empty */}      
-      <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2" role="list" style={{ marginTop: '12px' }}>
+      <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2" role="list">
         {SUGGESTIONS.map((s) => (
           <Button
             key={s.label}

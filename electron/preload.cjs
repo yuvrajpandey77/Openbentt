@@ -130,6 +130,19 @@ contextBridge.exposeInMainWorld("openbenttNarration", {
   },
 });
 
+contextBridge.exposeInMainWorld("openbenttPaperOrchestra", {
+  status: () => ipcRenderer.invoke("paperOrchestra:status"),
+  listVenues: () => ipcRenderer.invoke("paperOrchestra:listVenues"),
+  start: (opts) => ipcRenderer.invoke("paperOrchestra:start", opts),
+  cancel: () => ipcRenderer.invoke("paperOrchestra:cancel"),
+  importArtifacts: (outputDir) => ipcRenderer.invoke("paperOrchestra:importArtifacts", outputDir),
+  onProgress: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on("paperOrchestra:progress", handler);
+    return () => ipcRenderer.removeListener("paperOrchestra:progress", handler);
+  },
+});
+
 contextBridge.exposeInMainWorld("openbenttSecrets", {
   status: () => ipcRenderer.invoke("secretVault:status"),
   load: () => ipcRenderer.invoke("secretVault:load"),
@@ -164,6 +177,7 @@ contextBridge.exposeInMainWorld("openbenttZotero", {
 
 contextBridge.exposeInMainWorld("openbenttResearch", {
   init: () => ipcRenderer.invoke("research:init"),
+  persistenceStatus: () => ipcRenderer.invoke("research:persistenceStatus"),
   listProjects: () => ipcRenderer.invoke("research:listProjects"),
   getActiveProjectId: () => ipcRenderer.invoke("research:getActiveProjectId"),
   setActiveProjectId: (id) => ipcRenderer.invoke("research:setActiveProjectId", id),

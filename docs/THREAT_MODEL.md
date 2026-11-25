@@ -14,24 +14,65 @@ High-level trust boundaries for the research workspace. See also [SECURITY.md](.
 
 ## Electron IPC surface
 
-Renderer reaches main only through **`electron/preload.cjs`** (`contextBridge`). Audited surfaces (7):
+Renderer reaches main only through **`electron/preload.cjs`** (`contextBridge`). Audited surfaces (9):
 
 | Global | Purpose |
 |--------|---------|
 | `openbenttDesktop` | Version, auto-update |
 | `openbenttLocalGguf` | llama-server, HF downloads |
+| `openbenttNarration` | Phase 12: read-aloud status/model ensure/synthesize + progress event only; no filesystem, exec or generic IPC |
+| `openbenttPaperOrchestra` | Intact PaperOrchestra Python CLI: status/venues/start/cancel/importArtifacts + progress events; spawn confined to vendored tree; no generic exec |
 | `openbenttSecrets` | Provider / Brave vault |
 | `openbenttResearch` | SQLite projects, jobs, embeddings, snapshots |
 | `openbenttZotero` | Zotero sync, BBT watch |
 | `openbenttOllama` | Phase 9: Ollama status/tags/ps/pull on loopback only; model-name allowlist; installer flow opens the official download URL and verifies — never downloads+executes binaries |
 | `openbenttAgent` | Phase 10/11: OpenCode task/session/permission IPC + OmniRoute runtime/model IPC; capability-specific only — no `execute`/`spawn`/`readFile`/`writeFile`/`request`; every sensitive op goes through `actionStore` approvals. Phase 12 adds narrow `voice:*` methods on the same surface (sessions, PCM16 chunks ≤256 KiB, speak ≤4000 chars); transcripts are untrusted input; voice cannot approve |
-| `userData/voice-models/` | transformers cache (Whisper ONNX) | Post-consent download only; missing/corrupt → DEGRADED, never executed as code |
+
+Related asset (not a preload global): `userData/voice-models/` — transformers cache (Whisper ONNX); post-consent download only; missing/corrupt → DEGRADED, never executed as code.
 
 **Not exposed to renderer** (main-only): `research:storePaperPdfPath` — path copy with `userData` allowlist.
 
 Validation: `electron/ipcValidate.mjs` (IDs, PDF base64 size, dist-root paths, llama binary allowlist).
 
-CI gate: `npm run lint:electron-security` — asserts `nodeIntegration: false`, `contextIsolation: true`, preload bridge count.
+CI gate: `npm run lint:electron-security` — asserts `nodeIntegration: false`, `contextIsolation: true`, the 9-bridge count, that IPC authorization is installed before service registration, that the trusted window is registered, and that all IPC registrations/channels have a policy entry (plus `npm run test:security` for the 16 runtime enforcement tests and `npm run audit:ipc` for the generated coverage report).
+
+### Renderer-origin authorization: enforced (Phase 3)
+
+Every `ipcMain.handle`/`on`/`once`/`handleOnce` registration is wrapped by `installIpcAuthorization(ipcMain)` before services register. Requests must come from the single main-owned `BrowserWindow`, from its main frame, from `app://openbentt` (or the configured Vite loopback origin in development), with a policy-listed channel, valid payload schema, and a main-issued channel-scoped capability grant. There is no renderer API or IPC channel that can add or escalate a capability. Unknown channels, child frames, wrong origins, unregistered windows, invalid/oversized payloads, unapproved execution evidence, and unauthorized workspace roots are rejected before the service runs. See [IPC_AUTHORIZATION_ARCHITECTURE.md](./IPC_AUTHORIZATION_ARCHITECTURE.md) and the generated [IPC_SECURITY_COVERAGE.md](./IPC_SECURITY_COVERAGE.md).
+
+Compensating controls still enforced in main:
+
+- `desktop:openPath` accepts only absolute paths and requires an explicit native confirmation dialog naming the target; the OS handler result is returned to the caller.
+- `documents:ocr` accepts renderer-named image files only inside `userData` or the OS temp directory; base64 byte input is the normal path.
+- LaTeX `mainPath` is confined to the project directory (no traversal); llama `binaryOverride` must match the bundled-binary allowlist.
+- External URLs and navigation are restricted by `externalUrlPolicy.mjs` / `navigationPolicy.mjs`.
+- Approval-gated writes use single-use `actionStore` approvals; workspace roots must be vouched for by a main-owned picker/resolve/default/task result and are canonicalized with `realpath()` before comparison.
+- The bridge exposes no generic `execute`, `spawn`, `readFile`, `writeFile` or `request` primitive.
+
+Residual risk: a compromised *trusted* renderer can still invoke the intentionally exposed channels. Origin/frame authorization does not make the trusted UI itself trustworthy; further reduction requires moving more user-mediated operations into main.
+
+### Persistence integrity (Phase B)
+
+Research writes use an explicit `clean → pending → saving → failed` state
+machine, serialized atomic temp-write + fsync + rename, generation-based
+coalescing, bounded retries, and a main-owned `flushPersistence()` /
+`retryPersistence()` path. Failures preserve in-memory state, surface a UI
+banner via `research:persistenceStatus`, and never fall back to destructive
+overwrites. Backups are validated before use. Fault injection for disk-full,
+permission-denied, interrupted write, invalid DB, backup corruption, shutdown
+mid-write, repeated failures, and concurrent modifications is covered by 17
+tests in `electron/researchDb.test.mjs`. Remaining risk: filesystem-level
+power-loss durability and non-research writers are not covered.
+
+### Packaged recovery evidence (Phase E)
+
+The packaged Linux runtime was exercised with strictly isolated profiles:
+clean first start, synthetic v5→v14 migration, SIGKILL during in-flight draft
+writes followed by successful reopen, and invalid-DB recovery from a validated
+`.bak` all passed (19/19 checks). No real user profile was used. AppImage
+self-execution, `.deb`, and Windows/macOS installers remain unverified here;
+the exact artifact and limitations are recorded in
+[PACKAGED_INSTALLATION_UPGRADE_REPORT.md](./PACKAGED_INSTALLATION_UPGRADE_REPORT.md).
 
 ## Filesystem
 
@@ -39,7 +80,7 @@ CI gate: `npm run lint:electron-security` — asserts `nodeIntegration: false`, 
 |------|--------|------|
 | `userData/research-projects/{id}/papers/` | `storePaperPdf` (base64) | PDF bomb → size cap in IPC |
 | `userData/.secrets/` | secret vault IPC | Renderer can set keys user supplies |
-| `dist/` via `app://` | static handler only | Traversal blocked by `resolveUnderDistRoot` |
+| `dist/` via `app://` | static handler only | Traversal blocked by `resolveUnderDistRoot`; assets are read from disk with explicit MIME types instead of `net.fetch(file://…)`, removing intermittent `ERR_FAILED` on lazy route chunks under sustained navigation |
 | GGUF models | local GGUF IPC | Downloads from user-selected HF repos |
 
 ## PDF parsing

@@ -1,17 +1,9 @@
 /**
  * PDF page text + raster helpers for scanned-document OCR (renderer / pdf.js).
  */
-import * as pdfjs from "pdfjs-dist";
+import { getPdfJs } from "@/lib/pdfText";
 import { DOCUMENT_LIMITS } from "@/lib/documents/limits";
 import type { PdfPageInput } from "@/lib/documents/extractors";
-
-const isVitest = import.meta.env.VITEST === true || import.meta.env.VITEST === "true";
-if (!isVitest && typeof document !== "undefined") {
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url,
-  ).toString();
-}
 
 const LINE_Y_EPS = 4;
 
@@ -53,6 +45,7 @@ export async function extractPdfPageInputs(
   bytes: Uint8Array,
   maxPages: number = DOCUMENT_LIMITS.maxPages,
 ): Promise<{ pages: PdfPageInput[]; totalPages: number; truncated: boolean }> {
+  const pdfjs = await getPdfJs();
   const loading = pdfjs.getDocument({ data: bytes.slice(0) });
   let doc: Awaited<ReturnType<typeof loading.promise>> | null = null;
   try {
@@ -97,6 +90,7 @@ export async function renderPdfPagePng(
   if (typeof document === "undefined") {
     throw new Error("ocr-render-unavailable");
   }
+  const pdfjs = await getPdfJs();
   const loading = pdfjs.getDocument({ data: bytes.slice(0) });
   let doc: Awaited<ReturnType<typeof loading.promise>> | null = null;
   try {

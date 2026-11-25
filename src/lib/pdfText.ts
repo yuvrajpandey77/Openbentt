@@ -1,13 +1,34 @@
-/** Extract plaintext from PDF in the browser (pdf.js). */
-import * as pdfjs from "pdfjs-dist";
+/** Extract plaintext from PDF in the browser (pdf.js, loaded on first use). */
 import { sanitizeDocumentTextForPrompt } from "@/lib/security/documentPromptGuard";
+import { markOnce } from "@/lib/perf/notebookMarks";
 
 const isVitest = import.meta.env.VITEST === true || import.meta.env.VITEST === "true";
-if (!isVitest) {
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url
-  ).toString();
+
+type PdfJsModule = typeof import("pdfjs-dist");
+let pdfJsPromise: Promise<PdfJsModule> | null = null;
+
+/** pdf.js + its worker are only needed when a PDF is actually opened. */
+export async function getPdfJs(): Promise<PdfJsModule> {
+  if (!pdfJsPromise) {
+    pdfJsPromise = import("pdfjs-dist")
+      .then((mod) => {
+        if (!isVitest) {
+          mod.GlobalWorkerOptions.workerSrc = new URL(
+            "pdfjs-dist/build/pdf.worker.min.mjs",
+            import.meta.url
+          ).toString();
+        }
+        // Real module-load boundary for extraction/PDF-import paths. The
+        // studio viewer has its own import in pdfViewer.ts (outside this batch).
+        markOnce("pdfJsLoaded", { source: "pdfText.getPdfJs" });
+        return mod;
+      })
+      .catch((err) => {
+        pdfJsPromise = null;
+        throw err;
+      });
+  }
+  return pdfJsPromise;
 }
 
 /** Chat composer attachment: text merged into the user message (balance context vs payload). */
@@ -72,6 +93,7 @@ export async function extractTextFromPdfFile(
   maxPages: number = MAX_PAGES_CHAT_PDF
 ): Promise<string> {
   const buf = await file.arrayBuffer();
+  const pdfjs = await getPdfJs();
   const loading = pdfjs.getDocument({ data: new Uint8Array(buf) });
   let doc: Awaited<ReturnType<typeof loading.promise>> | null = null;
   try {
@@ -114,6 +136,7 @@ export async function extractNotebookSourceFromPdf(
   maxPages: number = MAX_PAGES_NOTEBOOK
 ): Promise<string> {
   const buf = await pdfBytesFromInput(file);
+  const pdfjs = await getPdfJs();
   const loading = pdfjs.getDocument({ data: buf });
   let doc: Awaited<ReturnType<typeof loading.promise>> | null = null;
   try {

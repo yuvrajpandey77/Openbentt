@@ -41,6 +41,7 @@ const required = [
   "src/lib/agent/agentRolesCore.mjs",
   "src/lib/agent/openCodeCore.mjs",
   "src/lib/agent/voiceCore.mjs",
+  "node_modules/sql.js/dist/sql-wasm.wasm",
 ];
 
 const missing = required.filter((rel) => !isCoveredByFiles(rel));

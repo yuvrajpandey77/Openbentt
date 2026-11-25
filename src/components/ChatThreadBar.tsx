@@ -51,7 +51,7 @@ export const ChatThreadBar: React.FC<ChatThreadBarProps> = ({ searchQuery, onSea
       : undefined;
     void setDraftTex(threadToLatexDraft(chat, preamble));
     void linkThread(chat.id);
-    navigate("/notebook");
+    navigate("/notebook?mode=orchestra");
     toast({ title: "Thread exported", description: "Open Notebook → Write to edit the draft." });
   };
 

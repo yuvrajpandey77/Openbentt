@@ -3,10 +3,10 @@
  * - Dev (hot reload): set OPENBENTT_ELECTRON_DEV=1 → http://127.0.0.1:8080 (Vite must be running)
  * - Packaged / local dist: custom app:// protocol → dist/ with SPA fallback (no src/ changes)
  */
-import { app, BrowserWindow, protocol, net, ipcMain } from "electron";
+import { app, BrowserWindow, protocol, ipcMain } from "electron";
 import path from "node:path";
 import fs from "node:fs";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import {
   cleanupLocalGgufOnQuit,
   registerLocalGgufIpc,
@@ -37,11 +37,40 @@ import { registerComputerUseIpc } from "./computerUseService.mjs";
 import { setOmniRouteEventTarget, cleanupOmniRouteOnQuit } from "./omniRouteService.mjs";
 import { registerVoiceIpc, setVoiceEventTarget, cleanupVoiceOnQuit, isMicGrantActive } from "./voiceService.mjs";
 import { registerNarrationIpc, cleanupNarration } from "./narrationVoice.mjs";
+import {
+  registerPaperOrchestraIpc,
+  setPaperOrchestraProgressTarget,
+  cleanupPaperOrchestra,
+} from "./paperOrchestraService.mjs";
 import { resolveUnderDistRoot } from "./ipcValidate.mjs";
 import { registerNavigationPolicy, setVoiceGrantChecker } from "./navigationPolicy.mjs";
 import { getGpuSafeMode } from "./gpuSafeMode.mjs";
+import {
+  installIpcAuthorization,
+  registerTrustedWindow,
+  unregisterTrustedWindow,
+} from "./ipcAuthorization.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/** Phase 3: install the IPC guard before any service registers a channel. */
+installIpcAuthorization(ipcMain);
+
+/** Startup critical-path instrumentation (main process). */
+const startupTimings = [];
+function timedStartup(name, fn) {
+  const start = process.hrtime.bigint();
+  const result = fn();
+  const ms = Number(process.hrtime.bigint() - start) / 1e6;
+  startupTimings.push({ name, ms: Math.round(ms * 100) / 100 });
+  return result;
+}
+function logStartupTimings() {
+  const total = startupTimings.reduce((sum, step) => sum + step.ms, 0);
+  console.info(
+    "[startup][main] " + JSON.stringify({ totalMs: Math.round(total * 100) / 100, steps: startupTimings })
+  );
+}
 
 const gpuSafeMode = getGpuSafeMode();
 if (gpuSafeMode.enabled) {
@@ -163,6 +192,14 @@ function noteGpuCrashBurst() {
 
 function relaunchInGpuSafeMode(reason) {
   if (gpuSafeMode.enabled || gpuRecoveryAttempted) return false;
+  // A GPU crash while the user is working must never terminate the whole app.
+  // Software-render relaunch is only safe before a window exists (startup).
+  if (app.isReady() && BrowserWindow.getAllWindows().length > 0) {
+    console.error(
+      `[electron] ${reason}. GPU process crashed during an active session; keeping the app alive. Restart with OPENBENTT_DISABLE_GPU=1 if it recurs.`
+    );
+    return false;
+  }
   console.error(`[electron] ${reason}. Relaunching once with OPENBENTT_DISABLE_GPU=1 for compatibility.`);
   app.relaunch({
     args: process.argv.slice(1),
@@ -209,8 +246,31 @@ function getDistRoot() {
   return path.resolve(__dirname, "..", "dist");
 }
 
+const APP_PROTOCOL_MIME = {
+  ".html": "text/html; charset=UTF-8",
+  ".js": "text/javascript; charset=UTF-8",
+  ".mjs": "text/javascript; charset=UTF-8",
+  ".css": "text/css; charset=UTF-8",
+  ".json": "application/json",
+  ".map": "application/json",
+  ".wasm": "application/wasm",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
+  ".pdf": "application/pdf",
+  ".txt": "text/plain; charset=UTF-8",
+};
+
 function registerAppProtocolHandler() {
-  protocol.handle("app", (request) => {
+  protocol.handle("app", async (request) => {
     const distRoot = getDistRoot();
     const url = new URL(request.url);
     let pathname = decodeURIComponent(url.pathname);
@@ -225,7 +285,18 @@ function registerAppProtocolHandler() {
     } catch {
       filePath = path.join(path.resolve(distRoot), "index.html");
     }
-    return net.fetch(pathToFileURL(filePath).href);
+    // Read from disk directly instead of net.fetch(file://…). Under sustained
+    // load the file:// network path intermittently returned ERR_FAILED for
+    // lazy route chunks (e.g. SettingsPage-*.js), which surfaced as a render
+    // error. A direct read has no network socket pool to exhaust.
+    try {
+      const data = await fs.promises.readFile(filePath);
+      const contentType = APP_PROTOCOL_MIME[path.extname(filePath).toLowerCase()] ?? "application/octet-stream";
+      return new Response(data, { status: 200, headers: { "Content-Type": contentType } });
+    } catch (error) {
+      console.error("[app-protocol] failed to read", filePath, error);
+      return new Response("Not Found", { status: 404, headers: { "Content-Type": "text/plain" } });
+    }
   });
 }
 
@@ -366,6 +437,12 @@ function createWindow() {
   // Phase 1: deny arbitrary navigation/window creation + default-deny permissions.
   registerNavigationPolicy(win);
 
+  // Phase 3 IPC security: only this main-process-owned window may invoke IPC.
+  // Capture the id now: the BrowserWindow/webContents are destroyed by the
+  // time the "closed" event fires.
+  const trustedWebContentsId = registerTrustedWindow(win);
+  win.once("closed", () => unregisterTrustedWindow(trustedWebContentsId));
+
   setLocalGgufProgressTarget(win);
   setZoteroProgressTarget(win);
   setUpdaterTargetWindow(win);
@@ -373,6 +450,7 @@ function createWindow() {
   setOmniRouteEventTarget(win);
   setVoiceEventTarget(win);
   setWorkspaceEventTarget(win);
+  setPaperOrchestraProgressTarget(win);
   // Phase 3: microphone granted only while a voice session is live.
   setVoiceGrantChecker(() => isMicGrantActive());
 
@@ -460,41 +538,66 @@ if (!gpuSafeMode.enabled) {
 }
 
 app.whenReady().then(async () => {
-  setupApplicationMenu({ isDev: useViteDevServer });
-  registerDesktopUpdaterIpc();
-  registerExternalAgentDetectIpc(ipcMain);
-  registerDesktopWindowIpc(ipcMain);
-  registerHfSecretIpc(ipcMain, app);
-  registerSecretVaultIpc(ipcMain, app);
-  registerLocalGgufIpc(ipcMain, app);
-  registerResearchProjectIpc(ipcMain, app);
-  registerZoteroSecretIpc(ipcMain, app);
-  registerZoteroIpc(ipcMain, app);
-  registerOllamaIpc(ipcMain, {
-    getWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
-  });
-  registerOpenCodeIpc(ipcMain, app);
-  registerVoiceIpc(ipcMain, app);
-  registerNarrationIpc(ipcMain, app);
-  registerWorkspaceIpc(ipcMain, app);
-  registerLatexIpc(ipcMain, app);
-  registerOcrIpc(ipcMain, app);
-  registerComputerUseIpc(ipcMain, app);
+  timedStartup("setupApplicationMenu", () => setupApplicationMenu({ isDev: useViteDevServer }));
+  timedStartup("registerDesktopUpdaterIpc", () => registerDesktopUpdaterIpc());
+  timedStartup("registerExternalAgentDetectIpc", () => registerExternalAgentDetectIpc(ipcMain));
+  timedStartup("registerDesktopWindowIpc", () => registerDesktopWindowIpc(ipcMain));
+  timedStartup("registerHfSecretIpc", () => registerHfSecretIpc(ipcMain, app));
+  timedStartup("registerSecretVaultIpc", () => registerSecretVaultIpc(ipcMain, app));
+  timedStartup("registerLocalGgufIpc", () => registerLocalGgufIpc(ipcMain, app));
+  timedStartup("registerResearchProjectIpc", () => registerResearchProjectIpc(ipcMain, app));
+  timedStartup("registerZoteroSecretIpc", () => registerZoteroSecretIpc(ipcMain, app));
+  timedStartup("registerZoteroIpc", () => registerZoteroIpc(ipcMain, app));
+  timedStartup("registerOllamaIpc", () =>
+    registerOllamaIpc(ipcMain, {
+      getWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
+    })
+  );
+  timedStartup("registerOpenCodeIpc", () => registerOpenCodeIpc(ipcMain, app));
+  timedStartup("registerVoiceIpc", () => registerVoiceIpc(ipcMain, app));
+  timedStartup("registerNarrationIpc", () => registerNarrationIpc(ipcMain, app));
+  timedStartup("registerPaperOrchestraIpc", () => registerPaperOrchestraIpc(ipcMain, app));
+  timedStartup("registerWorkspaceIpc", () => registerWorkspaceIpc(ipcMain, app));
+  timedStartup("registerLatexIpc", () => registerLatexIpc(ipcMain, app));
+  timedStartup("registerOcrIpc", () => registerOcrIpc(ipcMain, app));
+  timedStartup("registerComputerUseIpc", () => registerComputerUseIpc(ipcMain, app));
   // Phase 2: reconcile durable agent history (interrupted → UNKNOWN, never completed).
   void reconcileAgentStateOnStartup(app).then(({ reconciled }) => {
     if (reconciled > 0) console.info(`[electron] Reconciled ${reconciled} interrupted agent task(s).`);
   }).catch(() => {});
   if (!useViteDevServer) {
-    registerAppProtocolHandler();
+    timedStartup("registerAppProtocolHandler", () => registerAppProtocolHandler());
   }
-  createWindow();
+  timedStartup("createWindow", () => createWindow());
+  logStartupTimings();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+}).catch((error) => {
+  // Without this, a startup registration/IPC failure surfaces only as an
+  // opaque unhandled rejection and no window is ever created.
+  console.error("[electron] startup failed:", error);
 });
 
-app.on("before-quit", () => {
+async function flushResearchPersistenceOnQuit() {
+  try {
+    const mod = await import("./researchDb.mjs");
+    if (typeof mod.flushPersistence === "function") {
+      const status = await mod.flushPersistence();
+      if (status?.state === "failed") {
+        console.error(
+          "[electron] research persistence is FAILED; unsaved in-memory changes were preserved:",
+          status.lastError
+        );
+      }
+    }
+  } catch (error) {
+    console.error("[electron] final persistence flush failed:", error);
+  }
+}
+
+app.on("before-quit", (_event) => {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
       win.webContents.send("research:beforeQuit");
@@ -506,6 +609,7 @@ app.on("before-quit", () => {
   cleanupOmniRouteOnQuit();
   cleanupVoiceOnQuit();
   cleanupNarration();
+  cleanupPaperOrchestra();
   cleanupWorkspaceOnQuit();
   // Bounded agent shutdown (tasks → OpenCode → OmniRoute) before DB close.
   // before-quit cannot block long; best-effort async with hard timeout.
@@ -513,9 +617,12 @@ app.on("before-quit", () => {
     void Promise.race([
       shutdownAgentServices(),
       new Promise((r) => setTimeout(r, 8000)),
-    ]).catch(() => {}).finally(() => shutdownResearchServices());
+    ])
+      .catch(() => {})
+      .then(flushResearchPersistenceOnQuit)
+      .finally(() => shutdownResearchServices());
   } catch {
-    shutdownResearchServices();
+    void flushResearchPersistenceOnQuit().finally(() => shutdownResearchServices());
   }
 });
 

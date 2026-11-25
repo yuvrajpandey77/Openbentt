@@ -76,6 +76,7 @@ import { pushDraftHistoryDesktop } from "@/lib/research/researchDesktopApi";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { shouldReplaceEditorSourceOnPdfLoad } from "@/lib/notebookPdfLoad";
 import { estimateTokensFromText } from "@/lib/contextMeter";
+import { markOnce } from "@/lib/perf/notebookMarks";
 
 type MainTab = "preview" | "source";
 /** Which PDF bytes drive the canvas — original upload vs text-compiled (images/layout only on Original). */
@@ -184,6 +185,22 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   const sourceTextRef = useRef(sourceText);
   sourceTextRef.current = sourceText;
 
+  /* Phase C: notebook startup marks. Route mount is the authoritative fallback
+   * when the sidebar `navigation initiated` hook is not wired yet. */
+  useEffect(() => {
+    markOnce("routeMounted", { source: "NotebookPdfWorkspace", layoutMode });
+  }, [layoutMode]);
+
+  const projectId = researchProject?.id;
+  useEffect(() => {
+    if (!projectId) return;
+    markOnce("projectDataHydrated", { projectId });
+  }, [projectId]);
+
+  const [perfEditorReady, setPerfEditorReady] = useState(false);
+  const [perfContentReady, setPerfContentReady] = useState(false);
+  const [perfFirstPageReady, setPerfFirstPageReady] = useState(false);
+
   useEffect(() => {
     if (!externalChange || !activeWs?.rootPath) return;
     const api = getDesktopApi();
@@ -269,12 +286,13 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     onProjectDraftChangeRef.current?.(sourceText);
   }, [sourceText]);
 
+  const setSectionHeadings = workspace?.setSectionHeadings;
   useEffect(() => {
     const t = window.setTimeout(() => {
-      workspace?.setSectionHeadings(parseSectionHeadings(sourceText));
+      setSectionHeadings?.(parseSectionHeadings(sourceText));
     }, 700);
     return () => window.clearTimeout(t);
-  }, [sourceText, workspace]);
+  }, [sourceText, setSectionHeadings]);
 
   const debouncedSourceForHistory = useDebouncedValue(sourceText, 2500);
 
@@ -323,6 +341,52 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
   useEffect(() => {
     if (!originalBytes && compiledBytes) setPreviewVariant("compiled");
   }, [originalBytes, compiledBytes]);
+
+  /* First meaningful content: only after React has committed a real editor /
+   * preview / draft and the browser has had a frame to paint it. */
+  const firstContentMarkedRef = useRef(false);
+  useEffect(() => {
+    if (firstContentMarkedRef.current || !projectId) return;
+    const hasEditor = isStudio ? perfEditorReady : mainTab === "source";
+    const hasPreview = !!previewBuffer;
+    const hasText = sourceText.trim().length > 0;
+    if (!hasEditor && !hasPreview && !hasText) return;
+    let innerFrame = 0;
+    const outerFrame = requestAnimationFrame(() => {
+      innerFrame = requestAnimationFrame(() => {
+        if (firstContentMarkedRef.current) return;
+        firstContentMarkedRef.current = true;
+        markOnce("firstMeaningfulNotebookContentDisplayed", {
+          source: "NotebookPdfWorkspace",
+          hasEditor,
+          hasPreview,
+          hasText,
+        });
+        setPerfContentReady(true);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(outerFrame);
+      if (innerFrame) cancelAnimationFrame(innerFrame);
+    };
+  }, [projectId, isStudio, perfEditorReady, mainTab, previewBuffer, sourceText]);
+
+  /* Interactive means: content painted, editor mounted, and (when a PDF is
+   * actually open) its first page rendered. Never gates user input. */
+  useEffect(() => {
+    if (!perfContentReady) return;
+    if (isStudio && !perfEditorReady) return;
+    if (previewBuffer && !perfFirstPageReady) return;
+    const frame = requestAnimationFrame(() => {
+      markOnce("notebookInteractive", { source: "NotebookPdfWorkspace", pdfOpen: !!previewBuffer });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [perfContentReady, perfEditorReady, perfFirstPageReady, previewBuffer, isStudio]);
+
+  const onStudioFirstPageRendered = useCallback((detail: { page: number; numPages: number }) => {
+    markOnce("firstPageRendered", { source: "studio-preview", ...detail });
+    setPerfFirstPageReady(true);
+  }, []);
 
   const proposedLines = useMemo(() => (proposedText ?? "").split("\n"), [proposedText]);
 
@@ -561,6 +625,9 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
         isStale: () => gen !== previewRenderGenRef.current,
       });
       if (gen !== previewRenderGenRef.current) return;
+      // Canvases are appended by renderPdfPages before it resolves.
+      markOnce("firstPageRendered", { source: "tabs-preview" });
+      setPerfFirstPageReady(true);
       setLastLatexFailure(null);
       const pending = pendingPdfZoomRef.current;
       if (pending && scrollEl && Math.abs(pending.prevScale - pdfScale) > 1e-6) {
@@ -909,52 +976,78 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     toast({ title: "Proposal loaded", description: "Review panel → fenced ```latex blocks unwrapped." });
   };
 
-  useEffect(() => {
-    if (!workspace) return;
-    workspace.registerNotebookActions({
-      compilePdf: () => void compilePdf(),
-      openPdf: () => fileRef.current?.click(),
-      openTex: () => texRef.current?.click(),
-      loadLastReplyToReview: () => pullLastAssistant(),
-      focusSource: () => setMainTab("source"),
-      focusPreview: () => setMainTab("preview"),
-      insertCitation: (key) => {
-        const k = key ?? researchProject?.bibEntries[0]?.key;
-        if (!k || !researchProject) return;
-        const insert = `\\cite{${k}}`;
-        const tex = researchProject.draftTex.includes(insert)
-          ? researchProject.draftTex
-          : researchProject.draftTex.replace(/\\end\{document\}/, `${insert}\n\\end{document}`);
-        void updateResearchProject({ draftTex: tex });
-      },
-      compareDrafts: () => {
-        if (proposedText) {
-          setMainTab("source");
-          return;
-        }
-        pullLastAssistant();
-      },
-      openPaperPicker: () => window.dispatchEvent(new CustomEvent("openbentt-open-paper-picker")),
-    });
-  }, [
-    workspace,
+  // Keep volatile editor values readable by stable action callbacks. Registering
+  // a fresh object on every render made the provider context change identity,
+  // which re-ran this effect in a self-sustaining loop.
+  const registerNotebookActions = workspace?.registerNotebookActions;
+  const notebookActionStateRef = useRef({
+    compilePdf,
+    pullLastAssistant,
     researchProject,
     proposedText,
     updateResearchProject,
-    lastAssistantPlain,
-    sourceText,
-  ]);
+  });
+  notebookActionStateRef.current = {
+    compilePdf,
+    pullLastAssistant,
+    researchProject,
+    proposedText,
+    updateResearchProject,
+  };
+
+  useEffect(() => {
+    if (!registerNotebookActions) return;
+    registerNotebookActions({
+      compilePdf: () => void notebookActionStateRef.current.compilePdf(),
+      openPdf: () => fileRef.current?.click(),
+      openTex: () => texRef.current?.click(),
+      loadLastReplyToReview: () => notebookActionStateRef.current.pullLastAssistant(),
+      focusSource: () => setMainTab("source"),
+      focusPreview: () => setMainTab("preview"),
+      insertCitation: (key) => {
+        const state = notebookActionStateRef.current;
+        const k = key ?? state.researchProject?.bibEntries[0]?.key;
+        if (!k || !state.researchProject) return;
+        const insert = `\\cite{${k}}`;
+        const tex = state.researchProject.draftTex.includes(insert)
+          ? state.researchProject.draftTex
+          : state.researchProject.draftTex.replace(/\\end\{document\}/, `${insert}\n\\end{document}`);
+        void state.updateResearchProject({ draftTex: tex });
+      },
+      compareDrafts: () => {
+        if (notebookActionStateRef.current.proposedText) {
+          setMainTab("source");
+          return;
+        }
+        notebookActionStateRef.current.pullLastAssistant();
+      },
+      openPaperPicker: () => window.dispatchEvent(new CustomEvent("openbentt-open-paper-picker")),
+    });
+  }, [registerNotebookActions]);
 
   const notebookEditorRef = useRef<NotebookEditorHandle>(null);
   const sourceTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  /* Callback refs fire with the real editor DOM, not just a render pass. */
+  const markEditorMounted = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    markOnce("editorInitialized", { source: "NotebookLatexEditor", mode: "studio" });
+    setPerfEditorReady(true);
+  }, []);
+  const markTextareaMounted = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    markOnce("editorInitialized", { source: "Source textarea", mode: "tabs" });
+    setPerfEditorReady(true);
+  }, []);
+
+  const clearFocusSection = workspace?.clearFocusSection;
   useEffect(() => {
     const line = workspace?.focusSectionLine;
     if (line == null) return;
     setMainTab("source");
     notebookEditorRef.current?.goToLine(line);
-    workspace.clearFocusSection();
-  }, [workspace?.focusSectionLine, workspace]);
+    clearFocusSection?.();
+  }, [workspace?.focusSectionLine, clearFocusSection]);
 
   const applyLastReplyAndPreview = async () => {
     if (!lastAssistantPlain.trim()) {
@@ -1194,7 +1287,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
             className="h-full min-h-0"
           >
             <ResizablePanel defaultSize={50} minSize={24} className="min-h-0 min-w-0">
-              <div className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-2">
+              <div ref={markEditorMounted} className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-2">
                 <div className="flex shrink-0 items-center gap-2 border-b border-border/40 px-1 pb-1 pt-0.5">
                   <FileCode2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="truncate text-xs font-medium text-foreground">{editorFileLabel}</span>
@@ -1254,6 +1347,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
                   activePaperId={studioCtx?.activePaperId ?? null}
                   onChoosePdf={() => fileRef.current?.click()}
                   busy={busy}
+                  onFirstPageRendered={onStudioFirstPageRendered}
                 />
               </div>
             </ResizablePanel>
@@ -1379,7 +1473,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
             )}
 
             {mainTab === "source" && (
-              <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden px-3 py-3">
+              <div ref={markTextareaMounted} className="flex h-full min-h-0 flex-col gap-2 overflow-hidden px-3 py-3">
                 <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">
                   <strong className="text-foreground">From chat:</strong> ask for <code className="font-mono text-[10px]">.tex</code> (e.g.{" "}
                   <code className="font-mono text-[10px]">```latex</code>), then <strong className="text-foreground">Apply reply</strong> on the toolbar.

@@ -18,6 +18,8 @@ import {
   deleteProject,
   getActiveProjectId,
   getDraftHistoryEntry,
+  getPersistenceError,
+  getPersistenceStatus,
   getSchemaVersion,
   listChatLogs,
   listDraftHistory,
@@ -172,11 +174,18 @@ export async function initResearchStorage(app) {
   // schedule-triggered workflows. No polling, no actions without config.
   startSyncScheduler(app);
   startWorkflowScheduler(app);
-  return { migrated, schemaVersion: getSchemaVersion(), resumed };
+  return {
+    migrated,
+    schemaVersion: getSchemaVersion(),
+    resumed,
+    persistenceError: getPersistenceError(),
+  };
 }
 
 export function registerResearchProjectIpc(ipcMain, app) {
   ipcMain.handle("research:init", async () => initResearchStorage(app));
+
+  ipcMain.handle("research:persistenceStatus", async () => getPersistenceStatus());
 
   ipcMain.handle("research:listProjects", async () => listProjectSummaries(app));
 
@@ -280,9 +289,31 @@ export function registerResearchProjectIpc(ipcMain, app) {
     }
   });
 
+  /** Compile paths must stay inside the temporary compile directory. */
+  const safeCompileRelativePath = (value, label) => {
+    if (typeof value !== "string") throw new Error(`Invalid ${label}`);
+    const normalized = value.replace(/\\/g, "/").trim();
+    if (
+      !normalized ||
+      normalized.length > 200 ||
+      normalized.startsWith("/") ||
+      /^[a-z]:/i.test(normalized) ||
+      /[\0\n\r]/.test(normalized) ||
+      !/^[\w./-]+$/i.test(normalized)
+    ) {
+      throw new Error(`Invalid ${label}`);
+    }
+    const rel = path.posix.normalize(normalized);
+    if (rel === ".." || rel.startsWith("../") || path.posix.isAbsolute(rel)) {
+      throw new Error(`Invalid ${label}`);
+    }
+    return rel;
+  };
+
   ipcMain.handle("research:compileProjectLatex", async (_e, payload) => {
     const { mainTex, mainPath = "main.tex", files = [], bibtex = false } = payload ?? {};
     if (!mainTex || typeof mainTex !== "string") throw new Error("Missing mainTex");
+    const safeMainPath = safeCompileRelativePath(mainPath, "mainPath");
 
     const binOk = (name) => spawnSync(name, ["--version"], { encoding: "utf8", timeout: 8000 }).status === 0;
     const engine = await resolveTexBinary(app);
@@ -295,20 +326,16 @@ export function registerResearchProjectIpc(ipcMain, app) {
 
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openbentt-proj-tex-"));
     try {
-      await fs.writeFile(path.join(dir, mainPath), mainTex, "utf8");
+      await fs.writeFile(path.join(dir, safeMainPath), mainTex, "utf8");
       for (const f of files) {
         if (!f?.path || typeof f.path !== "string") continue;
-        const safe = f.path.replace(/\\/g, "/").replace(/^(\.\.\/)+/, "").trim();
-        if (
-          !safe ||
-          safe.length > 200 ||
-          safe.startsWith("/") ||
-          /[\0\n\r]/.test(safe) ||
-          /^documentclass|^\\documentclass|^usepackage|^\\usepackage/i.test(safe) ||
-          !/^[\w./-]+$/i.test(safe)
-        ) {
+        let safe;
+        try {
+          safe = safeCompileRelativePath(f.path, "file path");
+        } catch {
           continue;
         }
+        if (/^documentclass|^\\documentclass|^usepackage|^\\usepackage/i.test(safe)) continue;
         const fp = path.join(dir, safe);
         await fs.mkdir(path.dirname(fp), { recursive: true });
         if (f.encoding === "base64") {
@@ -318,7 +345,7 @@ export function registerResearchProjectIpc(ipcMain, app) {
         }
       }
 
-      const baseName = mainPath.replace(/\.tex$/i, "") || "main";
+      const baseName = safeMainPath.replace(/\.tex$/i, "") || "main";
       const run = (bin, args, timeout = 90000) =>
         new Promise((resolve) => {
           execFile(
@@ -338,11 +365,11 @@ export function registerResearchProjectIpc(ipcMain, app) {
       let status = 1;
       // tectonic is one pass and stays off the UI thread (async). The app downloads it when missing.
       if (engine.kind === "tectonic") {
-        const r = await run(engine.bin, ["--keep-logs", "--outdir", dir, mainPath], 180000);
+        const r = await run(engine.bin, ["--keep-logs", "--outdir", dir, safeMainPath], 180000);
         log += r.log;
         status = r.status;
       } else {
-        const args = ["-interaction=nonstopmode", "-halt-on-error", mainPath];
+        const args = ["-interaction=nonstopmode", "-halt-on-error", safeMainPath];
         const runPdf = async () => {
           const r = await run("pdflatex", args, 90000);
           log += r.log;

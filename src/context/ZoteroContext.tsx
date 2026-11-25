@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type {
@@ -69,6 +70,11 @@ export function ZoteroProvider({ children }: { children: React.ReactNode }) {
 
   const [status, setStatus] = useState<ZoteroConnectionStatus>(defaultStatus);
   const [snapshot, setSnapshot] = useState<ZoteroLibrarySnapshot | null>(null);
+  // Keep the latest snapshot readable without making refreshStatus depend on it.
+  // A fresh IPC snapshot object previously re-created the callback on every
+  // refresh, re-ran the effect and could loop indefinitely.
+  const snapshotRef = useRef<ZoteroLibrarySnapshot | null>(null);
+  snapshotRef.current = snapshot;
   const [syncing, setSyncing] = useState(false);
   const [progress, setProgress] = useState<ZoteroSyncProgress | null>(null);
   const [lastSyncResult, setLastSyncResult] = useState<ZoteroSyncResult | null>(null);
@@ -100,17 +106,19 @@ export function ZoteroProvider({ children }: { children: React.ReactNode }) {
         setStatus((prev) => ({
           ...prev,
           mode: "web",
-          connected: Boolean(snapshot),
+          connected: Boolean(snapshotRef.current),
           userId,
         }));
       } catch {
         /* ignore */
       }
     }
-  }, [api, snapshot]);
+  }, [api]);
 
   useEffect(() => {
-    void refreshStatus();
+    void refreshStatus().catch(() => {
+      // Status is advisory — a failed probe must not break the app or loop.
+    });
   }, [refreshStatus]);
 
   useEffect(() => {

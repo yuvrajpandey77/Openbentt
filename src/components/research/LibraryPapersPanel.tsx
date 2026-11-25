@@ -14,7 +14,7 @@ export function LibraryPapersPanel() {
   const [justAdded, setJustAdded] = useState<{ id: string; title: string } | null>(null);
 
   const openInNotebook = (paperId: string) => {
-    navigate(`/notebook?paper=${encodeURIComponent(paperId)}`);
+    navigate(`/notebook?mode=orchestra&paper=${encodeURIComponent(paperId)}`);
   };
 
   if (!project) return null;

@@ -31,7 +31,7 @@ export function CompareUseInNotebook({ model, content, disabled }: CompareUseInN
     } else {
       requestNotebookLatexInsert(tex, { autoCompile: false });
     }
-    navigate("/notebook");
+    navigate("/notebook?mode=orchestra");
     toast({ title: "Inserted in Notebook", description: `Section from ${model}` });
   };
 

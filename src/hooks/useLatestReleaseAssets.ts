@@ -10,12 +10,18 @@ export function useLatestReleaseAssets(): {
 
   useEffect(() => {
     let cancelled = false;
-    void fetchLatestReleaseAssets().then((r) => {
-      if (!cancelled) {
-        setRelease(r);
-        setLoading(false);
+    void fetchLatestReleaseAssets().then(
+      (r) => {
+        if (!cancelled) {
+          setRelease(r);
+          setLoading(false);
+        }
+      },
+      () => {
+        // Offline/network failures must not leave consumers stuck loading.
+        if (!cancelled) setLoading(false);
       }
-    });
+    );
     return () => {
       cancelled = true;
     };

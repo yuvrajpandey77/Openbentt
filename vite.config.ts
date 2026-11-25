@@ -149,10 +149,28 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     chunkSizeWarningLimit: 1800,
+    /**
+     * Vite otherwise injects <link rel=modulepreload> for every direct dynamic
+     * import of the entry chunk. In the Electron app (local app:// files) that
+     * fetches mathjs/pdf.js/chart code before the user needs them. Dynamic
+     * imports still load on demand; the preload helper is simply disabled.
+     */
+    modulePreload: false,
     rollupOptions: {
       output: {
         manualChunks(id: string) {
           if (!id.includes("node_modules")) return undefined;
+          // Keep React/scheduler in one chunk. Otherwise Rollup duplicates its
+          // helpers into feature chunks, making the entry statically import
+          // (and modulepreload) heavy chunks like recharts and mathjs.
+          if (
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/react-dom/") ||
+            id.includes("node_modules/scheduler/") ||
+            id.includes("node_modules/react-is/")
+          ) {
+            return "react-vendor";
+          }
           if (id.includes("@huggingface/transformers") || id.includes("@xenova/transformers") || id.includes("onnxruntime"))
             return "transformers";
           if (id.includes("texlyre-busytex") || id.includes("busytex")) return "busytex";

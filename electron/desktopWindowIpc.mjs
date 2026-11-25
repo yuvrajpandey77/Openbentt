@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, shell } from "electron";
+import path from "node:path";
 import { isAllowedExternalUrl } from "./externalUrlPolicy.mjs";
 
 const EDIT_ROLES = new Set(["undo", "redo", "cut", "copy", "paste", "selectAll"]);
@@ -93,12 +94,27 @@ export function registerDesktopWindowIpc(ipc) {
     return { ok: true };
   });
 
-  ipc.handle("desktop:openPath", async (_event, path) => {
-    // Open a file or folder in the system file manager / associated app.
-    if (typeof path !== "string" || !path.trim()) return { ok: false };
-    const { shell } = await import("electron");
-    await shell.openPath(path.trim());
-    return { ok: true };
+  ipc.handle("desktop:openPath", async (event, rawPath) => {
+    // Agent-generated paths are untrusted: opening arbitrary files can launch
+    // associated applications. Require an absolute path and explicit confirmation.
+    if (typeof rawPath !== "string" || !rawPath.trim()) return { ok: false };
+    const target = rawPath.trim();
+    if (!path.isAbsolute(target) || target.length > 4096 || /[\0\n\r]/.test(target)) {
+      return { ok: false };
+    }
+    const win = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+    const answer = await dialog.showMessageBox(win ?? null, {
+      type: "question",
+      title: "Open file?",
+      message: "Open this path with the system handler?",
+      detail: target,
+      buttons: ["Cancel", "Open"],
+      cancelId: 0,
+      defaultId: 0,
+    });
+    if (answer.response !== 1) return { ok: false, canceled: true };
+    const result = await shell.openPath(target);
+    return { ok: !result, error: result || undefined };
   });
 
   ipc.handle("desktop:pickWorkspaceFolder", async (event, currentPath) => {

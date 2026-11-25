@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -83,8 +83,18 @@ function WelcomeOrChatRedirect() {
   );
 }
 
+function StartupMark() {
+  useEffect(() => {
+    (
+      window as Window & { __openbenttStartupMarks?: { mark?: (name: string) => void } }
+    ).__openbenttStartupMarks?.mark?.("openbentt:providersMounted");
+  }, []);
+  return null;
+}
+
 const App = () => (
   <ErrorBoundary>
+    <StartupMark />
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>

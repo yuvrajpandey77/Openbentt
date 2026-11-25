@@ -109,7 +109,7 @@ export const CommandMenu: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
             <Item
               icon={<NotebookPen size={15} />}
               label="Notebook · Compile"
-              onSelect={() => go("/notebook")}
+              onSelect={() => go("/notebook?mode=orchestra")}
             />
             <Item icon={<FileStack size={15} />} label="Documents" onSelect={() => go("/documents")} />
             <Item icon={<BookOpen size={15} />} label="Research library" onSelect={() => go("/labs")} />

@@ -46,7 +46,7 @@ describe("getComposerPlaceholder", () => {
       apiKey: "sk-test",
       comparisonEnabled: true,
     });
-    expect(getComposerPlaceholder(cfg)).toContain("each selected model");
+    expect(getComposerPlaceholder(cfg)).toBe("Message all selected models…");
   });
 
   it("shows webgpu consent hint when provider is webgpu without consent", () => {
@@ -61,7 +61,7 @@ describe("getComposerPlaceholder", () => {
       aiProvider: "openrouter",
       apiKey: "sk-test",
     });
-    expect(getComposerPlaceholder(cfg)).toContain("Ask anything");
+    expect(getComposerPlaceholder(cfg)).toBe("Message…");
   });
 
   it("shows short web placeholder when ready to chat", () => {
@@ -70,7 +70,7 @@ describe("getComposerPlaceholder", () => {
       aiProvider: "openrouter",
       apiKey: "sk-test",
     });
-    expect(getComposerPlaceholder(cfg, { webChat: true })).toBe("Ask Cobentt");
+    expect(getComposerPlaceholder(cfg, { webChat: true })).toBe("Message…");
   });
 
   it("uses default prompt for openai_compatible when base URL is set", () => {
@@ -79,6 +79,6 @@ describe("getComposerPlaceholder", () => {
       openAiCompatibleBaseUrl: "http://127.0.0.1:11434/v1",
       model: "llama3.2",
     });
-    expect(getComposerPlaceholder(cfg)).toContain("Ask anything");
+    expect(getComposerPlaceholder(cfg)).toBe("Message…");
   });
 });

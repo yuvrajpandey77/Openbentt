@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFile, execSync } from "node:child_process";
 import { createLogger } from "./log.mjs";
+import { assertPathUnderRoots } from "./ipcValidate.mjs";
 
 const log = createLogger("ocr");
 
@@ -130,6 +131,19 @@ export function registerOcrIpc(ipcMain, app) {
   ipcMain.handle("documents:ocrStatus", async () => getOcrStatus());
   ipcMain.handle("documents:ocr", async (_e, payload) => {
     if (!payload || typeof payload !== "object") throw new Error("Invalid payload");
-    return runOcr(payload);
+    let safePayload = payload;
+    if (typeof payload.imagePath === "string" && payload.imagePath) {
+      // Avoid reading arbitrary renderer-named files; OCR inputs normally
+      // arrive as bytes, and path inputs must stay in app-owned storage.
+      safePayload = {
+        ...payload,
+        imagePath: assertPathUnderRoots(
+          payload.imagePath,
+          [app.getPath("userData"), os.tmpdir()],
+          "imagePath"
+        ),
+      };
+    }
+    return runOcr(safePayload);
   });
 }

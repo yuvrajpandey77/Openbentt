@@ -127,6 +127,7 @@ interface Window {
     synthesize: (text: string) => Promise<{ voice: string; wavBase64: string }>;
     onProgress: (cb: (payload: { label?: string; received?: number; total?: number }) => void) => () => void;
   };
+  readonly openbenttPaperOrchestra?: import("@/lib/paperOrchestra/desktopApi").OpenbenttPaperOrchestraApi;
   readonly openbenttLocalGguf?: import("@/lib/localGguf/desktopApi").OpenbenttLocalGgufApi;
   readonly openbenttSecrets?: import("@/lib/privacy/desktopSecrets").OpenbenttSecretsApi;
   readonly openbenttResearch?: OpenbenttResearchApi;

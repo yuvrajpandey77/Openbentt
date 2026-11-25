@@ -32,6 +32,14 @@ import { requestSemanticIndexRebuild } from "@/lib/research/embeddingPipeline";
 export const OPEN_PAPER_KEY = "openbentt-open-paper";
 export const ASK_HINT_KEY = "openbentt-ask-hint";
 
+/** Phase 3/C: instrument the real project-load path used by Notebook. */
+async function loadProjectWithMarks(projectId: string) {
+  window.__openbenttNotebookMarks?.projectLoadingStarted?.({ projectId });
+  const project = await loadResearchProject(projectId);
+  window.__openbenttNotebookMarks?.databaseResponseReceived?.({ projectId });
+  return project;
+}
+
 function notePaperReady(paperId: string | null) {
   if (!paperId) return;
   try {
@@ -296,33 +304,38 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       setProject(null);
       return;
     }
-    const p = await loadResearchProject(activeId);
+    const p = await loadProjectWithMarks(activeId);
     setProject(p);
   }, []);
 
   useEffect(() => {
     ;(async () => {
-      if (isDesktopApp()) {
-        try {
-          await initResearchDesktop();
-        } catch {
-          /* non-fatal */
+      try {
+        if (isDesktopApp()) {
+          try {
+            await initResearchDesktop();
+          } catch {
+            /* non-fatal */
+          }
         }
-      }
-      const list = await listResearchProjects();
-      setProjects(list);
-      if (list.length === 0) {
-        const created = await createResearchProject("My research");
-        setProject(created);
+        const list = await listResearchProjects();
+        setProjects(list);
+        if (list.length === 0) {
+          const created = await createResearchProject("My research");
+          setProject(created);
+          return;
+        }
+        await loadActive();
+        if (!(await getActiveProjectId())) {
+          await setActiveProjectId(list[0].id);
+          setProject(await loadProjectWithMarks(list[0].id));
+        }
+      } catch (e) {
+        // A failed DB/IPC call must never leave the Notebook stuck on its loader.
+        console.error("[research] startup failed:", e);
+      } finally {
         setLoading(false);
-        return;
       }
-      await loadActive();
-      if (!(await getActiveProjectId())) {
-        await setActiveProjectId(list[0].id);
-        setProject(await loadResearchProject(list[0].id));
-      }
-      setLoading(false);
     })();
   }, [loadActive]);
 
@@ -443,7 +456,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
     async (id: string) => {
       cancelSemanticIndexRebuildInner();
       await setActiveProjectId(id);
-      const p = await loadResearchProject(id);
+      const p = await loadProjectWithMarks(id);
       setProject(p);
       // Do not auto-embed on open — MiniLM on Notebook enter froze the whole app.
     },
@@ -753,6 +766,7 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       if (bgClearTimerRef.current) clearTimeout(bgClearTimerRef.current);
       if (bibTimerRef.current) clearTimeout(bibTimerRef.current);
       if (projectFileTimerRef.current) clearTimeout(projectFileTimerRef.current);
+      if (resumeIndexTimerRef.current) clearTimeout(resumeIndexTimerRef.current);
       rebuildRef.current?.abort();
       rebuildRef.current = null;
       void import("@/lib/research/embeddingIndex").then((m) => m.shutdownEmbeddingWorker()).catch(() => {});

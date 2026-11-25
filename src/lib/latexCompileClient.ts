@@ -1,12 +1,11 @@
 /**
- * LaTeX → PDF: **defaults to client-side WASM** (BusyTeX via texlyre-busytex).
- * Optional HTTP fallback: same-origin `/api/latex-compile` or `VITE_LATEX_COMPILE_URL`.
- * Electron: `compileProjectLatexDesktop` for full TeX Live on project folder.
+ * LaTeX → PDF for Notebook / write.
+ * Electron: `compileProjectLatexDesktop` (tectonic preferred — lightweight one-pass).
+ * Browser fallback: BusyTeX WASM. Optional HTTP via `VITE_LATEX_COMPILE_URL`.
  *
- * **Auto (default):** BusyTeX first for simple docs; local pdflatex first when the
- * document needs full TeX Live (IEEE, TikZ, …). Missing pdflatex falls back to WASM.
- *
- * Set `VITE_LATEX_REMOTE=1` to force HTTP-only (no WASM).
+ * **Auto (default):** local tectonic/pdflatex first when Electron compile IPC is
+ * available; otherwise BusyTeX WASM. Remote HTTP is opt-in (`VITE_LATEX_REMOTE=1`
+ * or Compiler → Remote).
  */
 
 import type { CompileBundle } from "@/lib/research/compileBundle";
@@ -71,8 +70,8 @@ export function documentNeedsFullTexLive(tex: string, bundle?: CompileBundle): b
 
 /**
  * Compile engine order for **auto** mode.
- * - Simple docs: BusyTeX → local pdflatex → HTTP
- * - Full-TeX docs (IEEE, TikZ, …): local pdflatex → BusyTeX → HTTP
+ * Desktop: local tectonic (fast/light) → BusyTeX only if local fails.
+ * Browser: BusyTeX only (no HTTP hang on app://).
  */
 export function autoCompileEngineOrder(_needsFullTex: boolean, localAvailable: boolean): CompileEngine[] {
   // Never try the HTTP helper in auto mode — in the desktop app that request

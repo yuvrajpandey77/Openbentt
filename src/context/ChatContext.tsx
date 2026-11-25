@@ -511,7 +511,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!isLoadingConfig) {
-      void persistDesktopSecretsFromConfig(apiConfig);
+      void persistDesktopSecretsFromConfig(apiConfig).catch(() => {
+        // Secret-vault persistence is best-effort; config is still saved locally.
+      });
       // Phase 1: memory-only keys (web opt-in) blank secrets before localStorage
       // persistence. In-memory state keeps working until reload.
       const toStore = loadPrivacyPreferences().memoryOnlyApiKeys
@@ -2191,7 +2193,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const sendMessage = async (
+  // React state updates are not synchronous: double Enter, voice+click races or
+  // programmatic calls could otherwise create two chats, two assistant bubbles
+  // and two provider/task requests for one user intent.
+  const sendInFlightRef = useRef(false);
+
+  const sendMessageInner = async (
     content: string,
     attachments: MessageAttachment[] = [],
     options?: { workspaceAssistBlock?: string; projectId?: string | null; inputSource?: "text" | "voice"; executionMode?: ExecutionMode }
@@ -2251,7 +2258,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const mergedPdf = mergePdfIntoContent(trimmed, attachments);
-    const body = substituteInlineCalc(mergedPdf) || (attachments.length ? " " : "");
+    const body = (await substituteInlineCalc(mergedPdf)) || (attachments.length ? " " : "");
 
     const inputSource = options?.inputSource ?? "text";
     const projectId = options?.projectId ?? activeProjectIdRef.current ?? null;
@@ -2363,6 +2370,20 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const sendMessage = async (
+    content: string,
+    attachments: MessageAttachment[] = [],
+    options?: { workspaceAssistBlock?: string; projectId?: string | null; inputSource?: "text" | "voice"; executionMode?: ExecutionMode }
+  ) => {
+    if (sendInFlightRef.current) return;
+    sendInFlightRef.current = true;
+    try {
+      await sendMessageInner(content, attachments, options);
+    } finally {
+      sendInFlightRef.current = false;
+    }
+  };
+
   /** Voice transcripts enter the SAME canonical conversation as typed text. */
   const submitVoiceTranscript = async (transcript: string) => {
     const clean = transcript.trim().slice(0, 4000);
@@ -2442,7 +2463,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     []
   );
 
-  const sendAgentMessage = async (content: string, opts?: { projectId?: string; roleId?: string }) => {
+  const sendAgentMessageInner = async (content: string, opts?: { projectId?: string; roleId?: string }) => {
       const trimmed = content.trim();
       if (!trimmed) return;
       let roleId = opts?.roleId;
@@ -2653,6 +2674,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } finally {
         setIsLoading(false);
       }
+  };
+
+  const sendAgentMessage = async (content: string, opts?: { projectId?: string; roleId?: string }) => {
+    if (sendInFlightRef.current) return;
+    sendInFlightRef.current = true;
+    try {
+      await sendAgentMessageInner(content, opts);
+    } finally {
+      sendInFlightRef.current = false;
+    }
   };
 
   const confirmAgentRun = useCallback(

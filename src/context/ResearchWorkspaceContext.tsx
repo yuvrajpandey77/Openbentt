@@ -14,6 +14,7 @@ import {
   loadWorkspaceLayout,
   saveWorkspaceLayout,
 } from "@/lib/research/workspaceLayout";
+import { markOnce } from "@/lib/perf/notebookMarks";
 
 export type SaveStatus = "saved" | "saving" | "unsaved";
 
@@ -68,12 +69,21 @@ const ResearchWorkspaceContext = createContext<ResearchWorkspaceContextValue | n
 
 const MAX_HISTORY = 50;
 
+function headingsEqual(
+  a: { label: string; line: number }[],
+  b: { label: string; line: number }[]
+): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((h, i) => h.label === b[i].label && h.line === b[i].line);
+}
+
 export function ResearchWorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [layout, setLayout] = useState<WorkspaceLayoutState>(() => loadWorkspaceLayout());
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [notebookActions, setNotebookActions] = useState<NotebookWorkspaceActions>({});
-  const [sectionHeadings, setSectionHeadings] = useState<{ label: string; line: number }[]>([]);
+  const [sectionHeadings, setSectionHeadingsState] = useState<{ label: string; line: number }[]>([]);
   const [focusSectionLine, setFocusSectionLine] = useState<number | null>(null);
   const [sidePanelDrawerOpen, setSidePanelDrawerOpen] = useState(false);
   const undoStack = useRef<string[]>([]);
@@ -83,6 +93,17 @@ export function ResearchWorkspaceProvider({ children }: { children: React.ReactN
   useEffect(() => {
     saveWorkspaceLayout(layout);
   }, [layout]);
+
+  /*
+   * Phase C: earliest reliable "route mounted" signal inside the Notebook
+   * route. The provider mounts before NotebookPdfWorkspace; markOnce() keeps
+   * the later workspace fallback from overwriting this timestamp.
+   */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!/^\/(notebook|webgpu)(\/|$)/.test(window.location.pathname)) return;
+    markOnce("routeMounted", { source: "ResearchWorkspaceProvider" });
+  }, []);
 
   const setMode = useCallback((mode: WorkspaceMode) => {
     setLayout((prev) => ({ ...prev, mode }));
@@ -152,9 +173,23 @@ export function ResearchWorkspaceProvider({ children }: { children: React.ReactN
 
   const openCommandPalette = useCallback(() => setCommandPaletteOpen(true), []);
 
+  // Notebook registers these actions from effects that close over volatile
+  // editor state. Keeping state identity when nothing changed prevents a
+  // register → context change → effect → register loop.
   const registerNotebookActions = useCallback((actions: NotebookWorkspaceActions) => {
-    setNotebookActions((prev) => ({ ...prev, ...actions }));
+    setNotebookActions((prev) => {
+      const keys = Object.keys(actions) as (keyof NotebookWorkspaceActions)[];
+      if (keys.every((key) => prev[key] === actions[key])) return prev;
+      return { ...prev, ...actions };
+    });
   }, []);
+
+  const setSectionHeadings = useCallback(
+    (headings: { label: string; line: number }[]) => {
+      setSectionHeadingsState((prev) => (headingsEqual(prev, headings) ? prev : headings));
+    },
+    []
+  );
 
   const pushDraftHistory = useCallback((tex: string) => {
     const stack = undoStack.current;
@@ -249,6 +284,7 @@ export function ResearchWorkspaceProvider({ children }: { children: React.ReactN
       canUndo,
       canRedo,
       sectionHeadings,
+      setSectionHeadings,
       focusSectionLine,
       requestFocusSection,
       clearFocusSection,

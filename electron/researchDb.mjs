@@ -7,7 +7,35 @@
 import fs from "node:fs";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
+import { randomBytes } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import initSqlJs from "sql.js";
+
+/** sql.js initialises asynchronously, but every caller of openDb() is
+ * synchronous (and expects a node:sqlite-style DatabaseSync object).
+ * Initialise the wasm once at module load so openDb() can stay synchronous.
+ * Failures are captured and reported by openDb() as normal IPC errors instead
+ * of killing the whole Electron main process during module evaluation. */
+const SQL_INIT = await (async () => {
+  try {
+    const wasmPath = path.join(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "..",
+      "node_modules",
+      "sql.js",
+      "dist",
+      "sql-wasm.wasm"
+    );
+    if (!fs.existsSync(wasmPath)) {
+      throw new Error(`sql.js WASM binary is missing: ${wasmPath}`);
+    }
+    return { sql: await initSqlJs({ wasmBinary: fs.readFileSync(wasmPath) }) };
+  } catch (error) {
+    console.error("[researchDb] sql.js initialization failed:", error);
+    return { sql: null, error };
+  }
+})();
+const SQL = SQL_INIT.sql;
 
 const SCHEMA_VERSION = 14;
 
@@ -35,6 +63,32 @@ function backupPath(app) {
 
 // Lazy-loaded database singleton
 let dbSingleton = null;
+/** @type {import("electron").App | null} */
+let dbAppRef = null;
+
+/**
+ * Explicit persistence state machine. sql.js holds the whole database in
+ * memory, so a failed write must leave `hasUnsavedChanges` true: no in-memory
+ * state is ever silently discarded. Writes are coalesced into one next-tick
+ * flush and serialized through `writeChain`; each attempt is itself atomic.
+ * @type {"clean" | "pending" | "saving" | "failed"}
+ */
+let persistenceState = "clean";
+let persistenceLastError = null;
+let persistenceLastSuccessAt = null;
+let persistenceLastAttemptAt = null;
+let persistenceRetryCount = 0;
+let hasUnsavedChanges = false;
+let scheduledFlush = false;
+let writeChain = Promise.resolve();
+let retryGeneration = 0;
+let shutdownRequested = false;
+
+const SQLITE_HEADER = Buffer.from("SQLite format 3\u0000", "latin1");
+const PERSISTENCE_RETRY_BASE_MS = 40;
+const PERSISTENCE_RETRY_MAX_MS = 500;
+const PERSISTENCE_MAX_RETRIES = 3;
+const FLUSH_TIMEOUT_MS = 2000;
 
 const BACKUP_DEBOUNCE_MS = 5000;
 const BACKUP_EVERY_N_SAVES = 10;
@@ -44,54 +98,383 @@ let savesSinceBackup = 0;
 /** @type {import("electron").App | null} */
 let backupAppRef = null;
 
-/**
- * Initialize a sql.js database connection from a file.
- * sql.js databases are created from binary data, so we read the file
- * and pass it to the SQL.Database constructor.
- */
-function loadDbBinary(file) {
+function persistenceErrorMessage(error) {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+/** Serializable snapshot for IPC diagnostics and the renderer banner. */
+export function getPersistenceStatus() {
+  return {
+    state: persistenceState,
+    lastError: persistenceLastError,
+    lastSuccessAt: persistenceLastSuccessAt,
+    lastAttemptAt: persistenceLastAttemptAt,
+    retryCount: persistenceRetryCount,
+    hasUnsavedChanges,
+  };
+}
+
+/** Compatibility accessor: null means the last attempt wrote everything. */
+export function getPersistenceError() {
+  return persistenceLastError;
+}
+
+function recordFailure(error, { unsaved = true } = {}) {
+  persistenceLastError = persistenceErrorMessage(error);
+  persistenceState = "failed";
+  if (unsaved) {
+    hasUnsavedChanges = true;
+    persistenceRetryCount = Math.min(persistenceRetryCount + 1, PERSISTENCE_MAX_RETRIES);
+  }
+  // This can run in nextTick/quit handlers: never let it throw into the process.
+  console.error(
+    "[researchDb] persistence failed; in-memory changes are NOT safely written:",
+    error
+  );
+}
+
+function recordSuccess() {
+  persistenceLastError = null;
+  persistenceState = "clean";
+  hasUnsavedChanges = false;
+  persistenceRetryCount = 0;
+  persistenceLastSuccessAt = new Date().toISOString();
+}
+
+function tempPathFor(file) {
+  return `${file}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
+}
+
+/** Remove orphaned temp files from this process (unique name per write). */
+function cleanupStaleTemps(file, keepPath) {
+  const dir = path.dirname(file);
+  const prefix = `${path.basename(file)}.${process.pid}.`;
   try {
-    const data = fs.readFileSync(file);
-    return new initSqlJs.default().then(SQL => new SQL.Database(data));
+    for (const name of fs.readdirSync(dir)) {
+      if (!name.startsWith(prefix) || !name.endsWith(".tmp")) continue;
+      const candidate = path.join(dir, name);
+      if (candidate !== keepPath) fs.unlinkSync(candidate);
+    }
   } catch {
-    // File doesn't exist or is invalid - create new
-    return new initSqlJs.default().then(SQL => new SQL.Database());
+    /* best effort: a stale temp is never a reason to fail a write */
   }
 }
 
-/**
- * Initialize the database connection, running migrations.
- * Returns a promise that resolves to the database instance.
- */
-async function initDbConnection(file) {
-  const SQL = await initSqlJs.default();
-  const db = new SQL.Database();
-  db.exec("PRAGMA journal_mode = WAL;");
-  db.exec("PRAGMA foreign_keys = ON;");
+function fsyncDirectory(dir) {
+  let fd = null;
+  try {
+    fd = fs.openSync(dir, "r");
+    fs.fsyncSync(fd);
+  } catch {
+    /* directory fsync is best-effort (not supported on every platform) */
+  } finally {
+    if (fd !== null) {
+      try { fs.closeSync(fd); } catch { /* ignore */ }
+    }
+  }
+}
+
+function isSqliteBytes(bytes) {
+  return (
+    Buffer.isBuffer(bytes) &&
+    bytes.length >= SQLITE_HEADER.length &&
+    bytes.subarray(0, SQLITE_HEADER.length).equals(SQLITE_HEADER)
+  );
+}
+
+function isSqliteFile(file) {
+  try {
+    const fd = fs.openSync(file, "r");
+    try {
+      const header = Buffer.alloc(SQLITE_HEADER.length);
+      fs.readSync(fd, header, 0, header.length, 0);
+      return header.equals(SQLITE_HEADER);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return false;
+  }
+}
+
+/** One atomic write: unique temp, header validation, fsync, rename, cleanup.
+ * `fs.writeSync` may write fewer bytes than requested, so loop until complete. */
+function writeSqliteFileAtomically(file, bytes) {
+  if (!isSqliteBytes(bytes)) throw new Error("Refusing to write invalid SQLite database export");
+  const dir = path.dirname(file);
+  fs.mkdirSync(dir, { recursive: true });
+  cleanupStaleTemps(file, null);
+  const tmp = tempPathFor(file);
+  let fd = null;
+  let renamed = false;
+  try {
+    fd = fs.openSync(tmp, "wx", 0o600);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const written = fs.writeSync(fd, bytes, offset, bytes.length - offset);
+      if (!Number.isInteger(written) || written <= 0) {
+        throw new Error(`Incomplete database write: ${offset}/${bytes.length} bytes`);
+      }
+      offset += written;
+    }
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+    if (!isSqliteFile(tmp)) throw new Error("Temp database failed SQLite header validation");
+    fs.renameSync(tmp, file);
+    renamed = true;
+    fsyncDirectory(dir);
+  } finally {
+    if (fd !== null) {
+      try { fs.closeSync(fd); } catch { /* ignore */ }
+    }
+    if (!renamed) {
+      try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch { /* ignore */ }
+    }
+    cleanupStaleTemps(file, null);
+  }
+}
+
+function writeExportAtomically() {
+  if (!dbSingleton || !dbAppRef) return;
+  persistenceLastAttemptAt = new Date().toISOString();
+  writeSqliteFileAtomically(dbPath(dbAppRef), Buffer.from(dbSingleton.export()));
+}
+
+/** Always records success/failure; never throws into nextTick or quit code. */
+function attemptWrite() {
+  if (!dbSingleton || !dbAppRef) return getPersistenceStatus();
+  persistenceState = "saving";
+  try {
+    writeExportAtomically();
+    recordSuccess();
+  } catch (error) {
+    recordFailure(error);
+    scheduleRetry();
+  }
+  return getPersistenceStatus();
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function enqueueWrite(task) {
+  const next = writeChain.then(async () => {
+    try {
+      await task();
+    } catch (error) {
+      recordFailure(error);
+      scheduleRetry();
+    }
+  });
+  writeChain = next;
+  return next;
+}
+
+/** Bounded exponential backoff; manual retry invalidates queued attempts. */
+function scheduleRetry() {
+  if (shutdownRequested) return;
+  if (!dbSingleton || !dbAppRef || !hasUnsavedChanges) return;
+  if (persistenceRetryCount >= PERSISTENCE_MAX_RETRIES) return;
+  const generation = ++retryGeneration;
+  const delayMs = Math.min(
+    PERSISTENCE_RETRY_BASE_MS * 2 ** Math.max(0, persistenceRetryCount - 1),
+    PERSISTENCE_RETRY_MAX_MS
+  );
+  void enqueueWrite(async () => {
+    await wait(delayMs);
+    if (generation !== retryGeneration || !hasUnsavedChanges) return;
+    if (persistenceRetryCount >= PERSISTENCE_MAX_RETRIES) return;
+    if (!dbSingleton || !dbAppRef) return;
+    attemptWrite();
+  });
+}
+
+function runScheduledFlush() {
+  scheduledFlush = false;
+  if (!dbSingleton || !dbAppRef || !hasUnsavedChanges) return;
+  void enqueueWrite(async () => {
+    if (!dbSingleton || !dbAppRef || !hasUnsavedChanges) return;
+    attemptWrite();
+  });
+}
+
+function schedulePersist() {
+  if (!dbAppRef) return;
+  // Any new mutation means the app is still alive after a failed shutdown
+  // write, so automatic retries become valid again.
+  shutdownRequested = false;
+  hasUnsavedChanges = true;
+  if (persistenceState !== "saving") persistenceState = "pending";
+  if (scheduledFlush) return;
+  scheduledFlush = true;
+  process.nextTick(() => {
+    try {
+      runScheduledFlush();
+    } catch (error) {
+      recordFailure(error);
+      scheduleRetry();
+    }
+  });
+}
+
+/** Wait for queued writes/retries, bounded; returns the final explicit state. */
+export async function flushPersistence(timeoutMs = FLUSH_TIMEOUT_MS) {
+  if (dbSingleton && dbAppRef && hasUnsavedChanges) attemptWrite();
+  const limit = Number.isFinite(timeoutMs) && timeoutMs >= 0 ? timeoutMs : FLUSH_TIMEOUT_MS;
+  let timer = null;
+  const timedOut = new Promise((resolve) => {
+    // Keep this timer referenced so it reliably bounds the wait even when
+    // the queued write chain is stalled.
+    timer = setTimeout(resolve, limit);
+  });
+  try {
+    await Promise.race([writeChain, timedOut]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  return getPersistenceStatus();
+}
+
+/** Manual retry: cancels queued automatic retries and resets the backoff. */
+export async function retryPersistence() {
+  retryGeneration += 1;
+  scheduledFlush = false;
+  shutdownRequested = false;
+  persistenceRetryCount = 0;
+  return flushPersistence();
+}
+
+const MUTATING_SQL_RE = /^\s*(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|REPLACE)\b/i;
+
+/** Adapt sql.js statements to the small node:sqlite API the app uses. */
+function wrapStatement(rawDb, sql) {
+  function bind(stmt, params) {
+    if (!params.length) return;
+    stmt.bind(
+      params.map((value) => {
+        if (value === undefined) return null;
+        if (typeof value === "boolean") return value ? 1 : 0;
+        return value;
+      })
+    );
+  }
+
+  return {
+    get(...params) {
+      const stmt = rawDb.prepare(sql);
+      try {
+        bind(stmt, params);
+        return stmt.step() ? stmt.getAsObject() : undefined;
+      } finally {
+        stmt.free();
+      }
+    },
+    all(...params) {
+      const stmt = rawDb.prepare(sql);
+      const rows = [];
+      try {
+        bind(stmt, params);
+        while (stmt.step()) rows.push(stmt.getAsObject());
+        return rows;
+      } finally {
+        stmt.free();
+      }
+    },
+    run(...params) {
+      const stmt = rawDb.prepare(sql);
+      try {
+        bind(stmt, params);
+        stmt.step();
+        schedulePersist();
+        return { changes: rawDb.getRowsModified?.() ?? 0 };
+      } finally {
+        stmt.free();
+      }
+    },
+  };
+}
+
+function wrapDatabase(rawDb) {
+  return {
+    prepare: (sql) => wrapStatement(rawDb, sql),
+    exec(sql, params) {
+      const result = rawDb.exec(sql, params);
+      if (MUTATING_SQL_RE.test(sql)) schedulePersist();
+      return result;
+    },
+    export: () => rawDb.export(),
+    close: () => rawDb.close(),
+  };
+}
+
+function initDbConnection(file) {
+  let rawDb;
+  if (fs.existsSync(file)) {
+    rawDb = new SQL.Database(new Uint8Array(fs.readFileSync(file)));
+    // sql.js opens lazily: force a read so corrupt files throw here and
+    // openDb() can restore the backup instead of failing mid-migration.
+    rawDb.exec("SELECT name FROM sqlite_master LIMIT 1");
+  } else {
+    rawDb = new SQL.Database();
+  }
+  rawDb.run("PRAGMA foreign_keys = ON;");
+  const db = wrapDatabase(rawDb);
   runMigrations(db);
   return db;
 }
 
-export async function openDb(app) {
+export function openDb(app) {
   if (dbSingleton) return dbSingleton;
+  shutdownRequested = false;
+  if (!SQL) {
+    throw new Error(
+      `Research database cannot start: ${
+        SQL_INIT.error?.message ?? "sql.js failed to initialize"
+      }`
+    );
+  }
 
+  dbAppRef = app;
   const root = projectsRoot(app);
   fs.mkdirSync(root, { recursive: true });
   const file = dbPath(app);
   const bak = backupPath(app);
 
   try {
-    dbSingleton = await initDbConnection(file);
+    dbSingleton = initDbConnection(file);
   } catch (err) {
-    if (fs.existsSync(bak)) {
-      fs.copyFileSync(bak, file);
-      dbSingleton = await initDbConnection(file);
-      console.warn("[researchDb] Recovered from backup after open failure:", err?.message);
+    // A backup is only usable after header validation; copying an invalid
+    // backup over a corrupt DB would fabricate a successful recovery.
+    if (fs.existsSync(bak) && isSqliteFile(bak)) {
+      const restoreTmp = tempPathFor(file);
+      try {
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.copyFileSync(bak, restoreTmp);
+        if (!isSqliteFile(restoreTmp)) throw new Error("Backup failed SQLite header validation");
+        fs.renameSync(restoreTmp, file);
+        dbSingleton = initDbConnection(file);
+        console.warn("[researchDb] Recovered from backup after open failure:", err?.message);
+      } catch (restoreError) {
+        try { if (fs.existsSync(restoreTmp)) fs.unlinkSync(restoreTmp); } catch { /* ignore */ }
+        recordFailure(restoreError, { unsaved: false });
+        throw err;
+      }
     } else {
+      recordFailure(new Error("Research database is corrupt and no valid backup is available"), {
+        unsaved: false,
+      });
       throw err;
     }
   }
 
+  // Migrations may have created/changed schema before dbAppRef was usable.
+  hasUnsavedChanges = true;
+  attemptWrite();
   return dbSingleton;
 }
 
@@ -745,12 +1128,24 @@ export function getDb(app) {
 }
 
 export function backupDatabase(app) {
-  const db = openDb(app);
-  db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
-  const file = dbPath(app);
-  const bak = backupPath(app);
-  if (fs.existsSync(file)) {
-    fs.copyFileSync(file, bak);
+  // Back up a validated SQLite snapshot. Prefer the in-memory export (the
+  // backup then also captures changes whose main write is still queued), but
+  // fall back to an already-valid on-disk DB for other app instances.
+  try {
+    const bak = backupPath(app);
+    let bytes;
+    if (dbSingleton && dbAppRef === app) {
+      bytes = Buffer.from(dbSingleton.export());
+    } else {
+      const file = dbPath(app);
+      if (!isSqliteFile(file)) return;
+      bytes = fs.readFileSync(file);
+    }
+    if (!isSqliteBytes(bytes)) return;
+    writeSqliteFileAtomically(bak, bytes);
+  } catch (error) {
+    // Backup is a recovery aid, not a reason to terminate the running app.
+    console.error("[researchDb] backup failed:", error);
   }
 }
 
@@ -764,7 +1159,11 @@ export function scheduleBackupDatabase(app) {
   }
   if (backupTimer) return;
   backupTimer = setTimeout(() => {
-    flushScheduledBackup();
+    try {
+      flushScheduledBackup();
+    } catch (error) {
+      console.error("[researchDb] scheduled backup failed:", error);
+    }
   }, BACKUP_DEBOUNCE_MS);
 }
 
@@ -1240,14 +1639,39 @@ export async function migrateLegacyProjects(app) {
   return { migrated };
 }
 
-export function closeDb() {
-  flushScheduledBackup();
-  if (dbSingleton) {
+export function closeDb(force = false) {
+  try {
+    flushScheduledBackup();
+  } catch (error) {
+    console.error("[researchDb] final backup failed:", error);
+  }
+  // All fs work is synchronous, so this starts (and completes) the final write
+  // before returning. The returned promise resolves to the final status; main
+  // can also await flushPersistence() directly before quitting. No retry timer
+  // from a failed write should keep running after shutdown.
+  retryGeneration += 1;
+  scheduledFlush = false;
+  shutdownRequested = true;
+  const flushed = flushPersistence(FLUSH_TIMEOUT_MS);
+  // If the shutdown write failed, keep the in-memory database alive for a
+  // retry instead of silently throwing away unsaved changes. `force` is only
+  // for test teardown, where discarding leftover in-memory state is safe.
+  if (dbSingleton && (!hasUnsavedChanges || force)) {
     try {
       dbSingleton.close();
     } catch {
       /* ignore */
     }
     dbSingleton = null;
+    dbAppRef = null;
+    retryGeneration += 1;
+    scheduledFlush = false;
+    if (force) {
+      persistenceState = "clean";
+      persistenceLastError = null;
+      persistenceRetryCount = 0;
+      hasUnsavedChanges = false;
+    }
   }
+  return flushed;
 }

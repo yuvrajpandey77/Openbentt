@@ -37,6 +37,7 @@ import {
 import type { PdfAnnotation } from "@/types/researchProject";
 import { PdfSearchPanel } from "@/components/notebook/PdfSearchPanel";
 import { PdfAnnotationList } from "@/components/notebook/PdfAnnotationList";
+import { markOnce } from "@/lib/perf/notebookMarks";
 
 type PdfJsDoc = Awaited<ReturnType<typeof openPdfDocument>>["doc"];
 
@@ -47,6 +48,8 @@ type NotebookStudioPreviewProps = {
   activePaperId: string | null;
   onChoosePdf: () => void;
   busy: boolean;
+  /** Phase C: notified once after the first PDF page is actually rasterized. */
+  onFirstPageRendered?: (info: { page: number; numPages: number }) => void;
 };
 
 const ZOOM_MIN = 0.65;
@@ -60,6 +63,7 @@ export function NotebookStudioPreview({
   activePaperId,
   onChoosePdf,
   busy,
+  onFirstPageRendered,
 }: NotebookStudioPreviewProps) {
   const { project, updatePaperReview } = useResearchProject();
   const {
@@ -137,6 +141,11 @@ export function NotebookStudioPreview({
           await handle.destroy();
           return;
         }
+        // openPdfDocument() owns the pdf.js dynamic import plus getDocument().
+        // The exact module-load boundary lives in pdfViewer.ts (outside this
+        // batch), so this is a co-located upper bound, not a fabricated split.
+        markOnce("pdfJsLoaded", { source: "pdfViewer.openPdfDocument" });
+        markOnce("pdfDocumentOpened", { numPages: handle.numPages });
         docRef.current = doc;
         destroyRef.current = handle.destroy;
         let startPage = resumePageRef.current;
@@ -195,6 +204,14 @@ export function NotebookStudioPreview({
         scale = computeFitWidthScale(baseVp.width, width);
       }
       await renderPdfPage(doc, pdfPage, canvas, scale);
+      if (gen === renderGenRef.current) {
+        markOnce("firstPageRendered", {
+          source: "studio-preview",
+          page: pdfPage,
+          numPages: pdfNumPages,
+        });
+        onFirstPageRendered?.({ page: pdfPage, numPages: pdfNumPages });
+      }
     } catch (err) {
       if (gen === renderGenRef.current) {
         console.warn("[NotebookStudioPreview] page render failed", err);
@@ -205,7 +222,7 @@ export function NotebookStudioPreview({
         setFirstPagePainted(true);
       }
     }
-  }, [pdfPage, pdfNumPages, pdfScale, fitWidth]);
+  }, [pdfPage, pdfNumPages, pdfScale, fitWidth, onFirstPageRendered]);
 
   useEffect(() => {
     if (!docReady || !docRef.current || !pdfNumPages) return;
@@ -216,6 +233,21 @@ export function NotebookStudioPreview({
       if (canvas) cancelCanvasRender(canvas);
     };
   }, [docReady, pdfPage, pdfScale, fitWidth, pdfNumPages, renderCurrentPage]);
+
+  // Route changes/unmounts must release the pdf.js document. Its worker holds
+  // the decoded page data and ArrayBuffer copies; without this, repeated
+  // Notebook visits accumulate one worker + document per visit.
+  useEffect(() => {
+    return () => {
+      renderGenRef.current += 1;
+      const canvas = canvasRef.current;
+      if (canvas) cancelCanvasRender(canvas);
+      const destroy = destroyRef.current;
+      destroyRef.current = null;
+      docRef.current = null;
+      if (destroy) void destroy().catch(() => {});
+    };
+  }, []);
 
   useEffect(() => {
     const doc = docRef.current;

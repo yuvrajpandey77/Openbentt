@@ -53,7 +53,7 @@ const PRIMARY_NAV: NavItem[] = [
   { icon: Plus, label: "New chat", id: "new-chat", shortcut: "⌘N", action: "new-chat" },
   { icon: MessageSquare, label: "Chat", id: "chat", to: "/chat" },
   { icon: FolderKanban, label: "Projects", id: "projects", to: "/projects" },
-  { icon: NotebookPen, label: "Notebook", id: "notebook", to: "/notebook" },
+  { icon: NotebookPen, label: "Notebook", id: "notebook", to: "/notebook?mode=orchestra" },
   { icon: Settings, label: "Settings", id: "settings", to: "/settings" },
 ];
 

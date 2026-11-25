@@ -15,6 +15,7 @@ import { isWebClient } from "@/config/platformSurface";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 import { appHomePath } from "@/lib/appHomePath";
 import { isLocalGgufDesktopAvailable } from "@/lib/localGguf/desktopApi";
+import { GGUF_MODEL_NONE } from "@/lib/localGguf/ids";
 import { ExecutionSetupSection } from "@/components/conversation/ExecutionSetupSection";
 
 type Provider = "ondevice" | "openrouter" | "local" | "local_gguf";

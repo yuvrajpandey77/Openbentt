@@ -43,4 +43,9 @@ resources/llama/win32/*.dll
 # Bombadil property-based browser runs
 bombadil-output/
 
-paper-orchestrator-main
+# Keep paper-orchestra-main in the repo (runtime engine). Ignore only local venvs/outputs.
+paper-orchestra-main/.venv/
+paper-orchestra-main/**/__pycache__/
+paper-orchestra-main/paper_output_*/
+paper-orchestra-main/.env
+paper-orchestrator-main/

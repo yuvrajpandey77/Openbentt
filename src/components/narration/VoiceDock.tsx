@@ -101,9 +101,9 @@ export function VoiceDock() {
     >
       {showPill ? (
         <div className="flex flex-col items-center gap-2">
-          {liveMessage && currentLine ? (
+          {status !== "idle" && currentLine ? (
             <div className="max-w-md rounded-2xl border border-border/70 bg-background/95 px-4 py-3 shadow-lg backdrop-blur">
-              <LinePreview line={currentLine} wordIndex={status === "paused" ? wordIndex : wordIndex} />
+              <LinePreview line={currentLine} wordIndex={wordIndex} />
             </div>
           ) : null}
           <div className="flex items-center gap-2 rounded-full border border-border/80 bg-background/95 py-1.5 pl-3 pr-1.5 shadow-lg backdrop-blur">

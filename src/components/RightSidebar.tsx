@@ -292,7 +292,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ isOpen, onClose }) => {
                     {[
                       { id: "research", icon: Brain, label: "Research", to: "/labs" },
                       { id: "docs", icon: FileStack, label: "Documents", to: "/documents" },
-                      { id: "notebook", icon: NotebookPen, label: "Notebook · Compile", to: "/notebook" },
+                      { id: "notebook", icon: NotebookPen, label: "Notebook · Orchestra", to: "/notebook?mode=orchestra" },
                       { id: "tasks", icon: ListTodo, label: "Tasks", to: "/tasks" },
                       { id: "agent", icon: Bot, label: "Agent · Voice", to: "/agent" },
                     ].map((item) => (

@@ -18,10 +18,16 @@
     "lint": "eslint . && npm run lint:electron-security && npm run lint:electron-pack",
     "lint:electron-security": "node scripts/check-electron-security.mjs",
     "lint:electron-pack": "node scripts/check-electron-pack-files.mjs",
+    "audit:ipc": "node scripts/inventory-ipc.mjs",
+    "test:security": "node scripts/check-electron-security.mjs && node --test electron/ipcAuthorization.test.mjs",
+    "profile:notebook": "node scripts/perf/notebook-profile.mjs",
+    "profile:startup": "node scripts/perf/startup-profile.mjs",
+    "test:endurance": "node scripts/perf/endurance.mjs",
+    "test:packaged": "node scripts/perf/packaged-app-check.mjs",
     "preview": "vite preview",
     "test": "vitest run && npm run test:electron",
     "test:unit": "vitest run",
-    "test:electron": "node --test electron/gpuSafeMode.test.mjs electron/llamaBinary.test.mjs electron/researchDb.test.mjs electron/researchVectorStore.test.mjs electron/researchJobQueue.test.mjs electron/researchProjectService.test.mjs electron/researchWorkers/chunkWorker.test.mjs electron/compileArtifactStore.test.mjs electron/externalUrlPolicy.test.mjs electron/navigationPolicy.test.mjs electron/log.test.mjs electron/documentsStore.test.mjs electron/knowledgeStore.test.mjs electron/connectorStore.test.mjs electron/toolStore.test.mjs electron/phase7Store.test.mjs electron/phase8Store.test.mjs electron/agentAudit.test.mjs electron/opencodeService.test.mjs electron/opencodeServer.test.mjs electron/omniRouteService.test.mjs electron/taskStore.test.mjs electron/agentChain.test.mjs electron/voiceService.test.mjs electron/voiceChain.test.mjs electron/ocrService.test.mjs server/httpPolicy.test.mjs server/research-proxy.test.mjs server/latex-compile.test.mjs src/lib/research/embedCore.test.mjs",
+    "test:electron": "node --test electron/ipcAuthorization.test.mjs electron/gpuSafeMode.test.mjs electron/llamaBinary.test.mjs electron/researchDb.test.mjs electron/researchVectorStore.test.mjs electron/researchJobQueue.test.mjs electron/researchProjectService.test.mjs electron/researchWorkers/chunkWorker.test.mjs electron/compileArtifactStore.test.mjs electron/externalUrlPolicy.test.mjs electron/navigationPolicy.test.mjs electron/log.test.mjs electron/documentsStore.test.mjs electron/knowledgeStore.test.mjs electron/connectorStore.test.mjs electron/toolStore.test.mjs electron/phase7Store.test.mjs electron/phase8Store.test.mjs electron/agentAudit.test.mjs electron/opencodeService.test.mjs electron/opencodeServer.test.mjs electron/omniRouteService.test.mjs electron/taskStore.test.mjs electron/agentChain.test.mjs electron/voiceService.test.mjs electron/voiceChain.test.mjs electron/ocrService.test.mjs server/httpPolicy.test.mjs server/research-proxy.test.mjs server/latex-compile.test.mjs src/lib/research/embedCore.test.mjs",
     "bench:documents": "vitest run src/lib/documents/benchmark.test.ts",
     "bench:knowledge": "vitest run src/lib/knowledge/benchmark.test.ts",
     "test:e2e": "playwright test",
@@ -155,7 +161,7 @@
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.9",
     "globals": "^15.9.0",
-    "jsdom": "^30.1.0",
+    "jsdom": "^29.1.1",
     "lovable-tagger": "^1.1.7",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.11",
@@ -194,6 +200,7 @@
       "build/icon.png",
       "package.json",
       "node_modules/@xenova/**/*",
+      "node_modules/sql.js/**/*",
       "node_modules/onnxruntime-common/**/*",
       "node_modules/electron-updater/**/*",
       "node_modules/builder-util-runtime/**/*",
@@ -236,6 +243,17 @@
             "llama-server",
             ".gitkeep"
           ]
+        },
+        {
+          "from": "paper-orchestra-main",
+          "to": "paper-orchestra",
+          "filter": [
+            "**/*",
+            "!.venv/**",
+            "!**/__pycache__/**",
+            "!paper_output_*/**",
+            "!.env"
+          ]
         }
       ]
     },
@@ -257,6 +275,17 @@
             "llama-server",
             ".gitkeep"
           ]
+        },
+        {
+          "from": "paper-orchestra-main",
+          "to": "paper-orchestra",
+          "filter": [
+            "**/*",
+            "!.venv/**",
+            "!**/__pycache__/**",
+            "!paper_output_*/**",
+            "!.env"
+          ]
         }
       ]
     },
@@ -273,6 +302,17 @@
             "llama-server.exe",
             "*.dll",
             ".gitkeep"
+          ]
+        },
+        {
+          "from": "paper-orchestra-main",
+          "to": "paper-orchestra",
+          "filter": [
+            "**/*",
+            "!.venv/**",
+            "!**/__pycache__/**",
+            "!paper_output_*/**",
+            "!.env"
           ]
         }
       ]

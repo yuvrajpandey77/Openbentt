@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { readHfTokenMaybe } from "./hfSecretStore.mjs";
 import { assertGgufDownloadAllowed } from "./ggufGuardrails.mjs";
+import { assertLlamaBinaryAllowlisted } from "./ipcValidate.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -188,6 +189,20 @@ async function writeRegistry(registryPath, reg) {
   await fsp.writeFile(registryPath, JSON.stringify(reg, null, 2), "utf8");
 }
 
+/** Renderer-supplied binary paths must stay inside app-managed or PATH directories. */
+function llamaBinaryAllowPrefixes(app) {
+  const resourcesRoot = app.isPackaged
+    ? process.resourcesPath
+    : path.join(__dirname, "..", "resources");
+  const prefixes = [app.getPath("userData"), path.join(resourcesRoot, "llama")];
+  const envPath = process.env.OPENBENTT_LLAMA_SERVER_PATH?.trim();
+  if (envPath) prefixes.push(path.dirname(path.resolve(envPath)));
+  for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
+    if (dir) prefixes.push(path.resolve(dir));
+  }
+  return prefixes;
+}
+
 /**
  * Resolve llama-server binary.
  * Order: OPENBENTT_LLAMA_SERVER_PATH → userData override file → bundled resources → PATH.
@@ -201,8 +216,14 @@ export function resolveLlamaServerBinary(app, configuredPath) {
   if (envPath && fs.existsSync(envPath)) {
     return { path: envPath, source: "env" };
   }
-  if (configuredPath && fs.existsSync(configuredPath)) {
-    return { path: configuredPath, source: "settings" };
+  if (configuredPath) {
+    const allowed = assertLlamaBinaryAllowlisted(
+      configuredPath,
+      llamaBinaryAllowPrefixes(app)
+    );
+    if (allowed && fs.existsSync(allowed)) {
+      return { path: allowed, source: "settings" };
+    }
   }
   const bundled = app.isPackaged
     ? path.join(process.resourcesPath, "llama", process.platform, exe)

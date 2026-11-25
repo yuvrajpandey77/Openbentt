@@ -1,6 +1,7 @@
-import { Link } from "react-router-dom";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { PaperOrchestraCanvas } from "@/components/paperOrchestra/PaperOrchestraCanvas";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +33,9 @@ import NotebookPdfWorkspace from "@/components/NotebookPdfWorkspace";
 import { NotebookViewerProvider } from "@/context/NotebookViewerContext";
 import { ContextMeter } from "@/components/ContextMeter";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Command, FolderOpen, LayoutGrid } from "lucide-react";
+import { ChevronDown, Command, FolderOpen, LayoutGrid, Sparkles, FileCode2 } from "lucide-react";
+
+const ORCHESTRA_MODE_KEY = "openbentt-notebook-mode";
 
 export function NotebookStudioShell() {
   const { project, draftSaveStatus, setDraftTex, setBibliography, updateProjectFileContent } =
@@ -40,6 +43,39 @@ export function NotebookStudioShell() {
   const { openCommandPalette } = useResearchWorkspace();
   const { fileNav, activeEditorFile, explorerOpen, explorerWidth, bumpConnectionLayout } = useNotebookStudio();
   const studioMainRef = useRef<HTMLDivElement>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const modeParam = searchParams.get("mode");
+  const [studioMode, setStudioMode] = useState<"orchestra" | "editor">(() => {
+    if (modeParam === "editor") return "editor";
+    if (modeParam === "orchestra") return "orchestra";
+    try {
+      return localStorage.getItem(ORCHESTRA_MODE_KEY) === "editor" ? "editor" : "orchestra";
+    } catch {
+      return "orchestra";
+    }
+  });
+
+  useEffect(() => {
+    if (modeParam === "editor" || modeParam === "orchestra") {
+      setStudioMode(modeParam);
+      try {
+        localStorage.setItem(ORCHESTRA_MODE_KEY, modeParam);
+      } catch { /* ignore */ }
+    }
+  }, [modeParam]);
+
+  const setMode = useCallback(
+    (next: "orchestra" | "editor") => {
+      setStudioMode(next);
+      try {
+        localStorage.setItem(ORCHESTRA_MODE_KEY, next);
+      } catch { /* ignore */ }
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set("mode", next);
+      setSearchParams(nextParams, { replace: true });
+    },
+    [searchParams, setSearchParams]
+  );
   const explorerInset = explorerOpen ? notebookExplorerInsetPx(explorerWidth) : 0;
   const explorerTabsPadding = explorerOpen ? notebookExplorerTabsPaddingOpenPx(explorerWidth) : undefined;
 
@@ -167,6 +203,28 @@ export function NotebookStudioShell() {
             </span>
           )}
           <div className="ml-auto flex items-center gap-1">
+            <div className="mr-1 flex rounded-full border border-border/60 p-0.5">
+              <Button
+                type="button"
+                size="sm"
+                variant={studioMode === "orchestra" ? "secondary" : "ghost"}
+                className="h-7 gap-1 rounded-full px-2.5 text-[11px]"
+                onClick={() => setMode("orchestra")}
+              >
+                <Sparkles className="h-3 w-3" />
+                Paper
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={studioMode === "editor" ? "secondary" : "ghost"}
+                className="h-7 gap-1 rounded-full px-2.5 text-[11px]"
+                onClick={() => setMode("editor")}
+              >
+                <FileCode2 className="h-3 w-3" />
+                Editor
+              </Button>
+            </div>
             <ContextMeter />
             <ResearchTaskStatus />
             <Button type="button" size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={openCommandPalette}>
@@ -180,37 +238,45 @@ export function NotebookStudioShell() {
         </header>
 
         <div ref={studioMainRef} className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <NotebookLeftRail />
-          <div
-            className="flex shrink-0 items-center border-b border-border/60 bg-muted/25 pr-2 shadow-sm"
-            style={{ minHeight: NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX + 4 }}
-          >
-            <NotebookExplorerDock className="shrink-0" style={{ marginLeft: NOTEBOOK_EXPLORER_LEFT_PX }} />
-            <div
-              className="min-w-0 flex-1 overflow-hidden py-1.5 pl-3 transition-[padding-left] duration-200 ease-out"
-              style={{
-                paddingLeft: explorerTabsPadding,
-              }}
-            >
-              <NotebookEditorTabs embedded />
-            </div>
-          </div>
-          <div
-            className="flex min-h-0 min-w-0 flex-1 flex-col transition-[padding-left] duration-200 ease-out"
-            style={{ paddingLeft: explorerInset }}
-          >
+          {studioMode === "orchestra" ? (
             <div className="min-h-0 flex-1 overflow-hidden">
-              <NotebookPdfWorkspace
-                layoutMode="studio"
-                chromeMode="studio"
-                editorFileLabel={editorLabel}
-                projectDraftTex={editorContent}
-                onProjectDraftChange={onProjectDraftChange}
-              />
+              <PaperOrchestraCanvas onApplied={() => setMode("editor")} />
             </div>
-          </div>
-          <NotebookConnectionCables containerRef={studioMainRef} />
-          <NotebookFloatingChat containerRef={studioMainRef} />
+          ) : (
+            <>
+              <NotebookLeftRail />
+              <div
+                className="flex shrink-0 items-center border-b border-border/60 bg-muted/25 pr-2 shadow-sm"
+                style={{ minHeight: NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX + 4 }}
+              >
+                <NotebookExplorerDock className="shrink-0" style={{ marginLeft: NOTEBOOK_EXPLORER_LEFT_PX }} />
+                <div
+                  className="min-w-0 flex-1 overflow-hidden py-1.5 pl-3 transition-[padding-left] duration-200 ease-out"
+                  style={{
+                    paddingLeft: explorerTabsPadding,
+                  }}
+                >
+                  <NotebookEditorTabs embedded />
+                </div>
+              </div>
+              <div
+                className="flex min-h-0 min-w-0 flex-1 flex-col transition-[padding-left] duration-200 ease-out"
+                style={{ paddingLeft: explorerInset }}
+              >
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <NotebookPdfWorkspace
+                    layoutMode="studio"
+                    chromeMode="studio"
+                    editorFileLabel={editorLabel}
+                    projectDraftTex={editorContent}
+                    onProjectDraftChange={onProjectDraftChange}
+                  />
+                </div>
+              </div>
+              <NotebookConnectionCables containerRef={studioMainRef} />
+              <NotebookFloatingChat containerRef={studioMainRef} />
+            </>
+          )}
         </div>
         <ResearchCommandPalette />
       </div>

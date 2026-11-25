@@ -60,7 +60,7 @@ export const MarkdownCodeBlock: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const onInsertLatex = useCallback(() => {
     requestNotebookLatexInsert(codeText, { autoCompile: true });
-    navigate("/notebook");
+    navigate("/notebook?mode=orchestra");
   }, [codeText, navigate, requestNotebookLatexInsert]);
 
   return (
