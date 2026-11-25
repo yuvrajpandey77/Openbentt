@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom";
 import { DesktopAppFrame } from "@/components/DesktopTitleBar";
 import { ThemeProvider } from "./context/ThemeContext";
+import { GentlefaceProvider } from "@/components/icons";
 import { AuthProvider } from "./context/AuthContext";
 import { OnboardingProvider, useOnboarding } from "./context/OnboardingContext";
 import { TaskCenterProvider } from "./context/TaskCenterContext";
@@ -97,6 +98,7 @@ const App = () => (
     <StartupMark />
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
+        <GentlefaceProvider variant="line-round">
         <AuthProvider>
           <OnboardingProvider>
             <TooltipProvider>
@@ -190,6 +192,7 @@ const App = () => (
             </TooltipProvider>
           </OnboardingProvider>
         </AuthProvider>
+        </GentlefaceProvider>
       </ThemeProvider>
     </QueryClientProvider>
   </ErrorBoundary>

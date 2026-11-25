@@ -7,10 +7,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import {
   Wrench,
@@ -18,10 +16,6 @@ import {
   Globe,
   FlaskConical,
   Bug,
-  ShieldAlert,
-  Activity,
-  BarChart3,
-  BookOpen,
   Sigma,
   Copy,
   Check,
@@ -32,23 +26,15 @@ import { substituteInlineCalc } from "@/lib/mathInline";
 import { isWebClient } from "@/config/platformSurface";
 import { cn } from "@/lib/utils";
 
-const CHART_TEMPLATE = `Use quantitative comparisons where helpful. Valid JSON inside:
-
-\`\`\`openbentt-chart
-{"kind":"bar","title":"Example","xKey":"x","series":[{"key":"y","name":"Y"}],"rows":[{"x":"A","y":1},{"x":"B","y":2}]}
-\`\`\`
-`;
-
 interface ModeRowProps {
   icon: React.ReactNode;
   label: string;
   description: string;
   checked: boolean;
   onCheckedChange: (v: boolean) => void;
-  badge?: string;
 }
 
-function ModeRow({ icon, label, description, checked, onCheckedChange, badge }: ModeRowProps) {
+function ModeRow({ icon, label, description, checked, onCheckedChange }: ModeRowProps) {
   return (
     <div
       className={cn(
@@ -61,14 +47,7 @@ function ModeRow({ icon, label, description, checked, onCheckedChange, badge }: 
           {icon}
         </span>
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium leading-none">{label}</span>
-            {badge && (
-              <Badge variant="secondary" className="h-4 px-1.5 text-[9px] font-medium">
-                {badge}
-              </Badge>
-            )}
-          </div>
+          <span className="text-sm font-medium leading-none">{label}</span>
           <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{description}</p>
         </div>
       </div>
@@ -90,8 +69,6 @@ interface ToolsPopoverProps {
 }
 
 export const ToolsPopover: React.FC<ToolsPopoverProps> = ({
-  message,
-  setMessage,
   open: controlledOpen,
   onOpenChange,
   showTrigger = true,
@@ -126,11 +103,6 @@ export const ToolsPopover: React.FC<ToolsPopoverProps> = ({
     });
   };
 
-  const insertChartTemplate = () => {
-    setMessage(message ? `${message}\n\n${CHART_TEMPLATE}` : CHART_TEMPLATE);
-    setOpen(false);
-  };
-
   return (
     <>
       {showTrigger && (
@@ -148,7 +120,6 @@ export const ToolsPopover: React.FC<ToolsPopoverProps> = ({
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] w-full max-w-xl overflow-y-auto p-0">
-          {/* Header */}
           <div className="flex items-center gap-3 border-b border-border/60 px-6 py-4">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
               <Wrench className="h-4 w-4 text-primary" />
@@ -157,14 +128,13 @@ export const ToolsPopover: React.FC<ToolsPopoverProps> = ({
               <DialogHeader>
                 <DialogTitle className="text-base">Tools &amp; Modes</DialogTitle>
                 <DialogDescription className="text-xs">
-                  Toggle AI capabilities and use built-in utilities.
+                  Toggle capabilities that change how the model answers.
                 </DialogDescription>
               </DialogHeader>
             </div>
           </div>
 
           <div className="space-y-6 px-6 py-5">
-            {/* ── AI Modes ── */}
             <section>
               <h3 className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <FlaskConical className="h-3.5 w-3.5" />
@@ -175,7 +145,7 @@ export const ToolsPopover: React.FC<ToolsPopoverProps> = ({
                   <ModeRow
                     icon={<Globe className="h-4 w-4" />}
                     label="Research"
-                    description="Fetches Wikipedia, Semantic Scholar, web URLs, and optional Brave Search results before responding."
+                    description="Fetches Wikipedia, Semantic Scholar, and HTTPS URLs before responding."
                     checked={apiConfig.researchEnabled}
                     onCheckedChange={(v) =>
                       setApiConfig(normalizeApiConfig({ ...apiConfig, researchEnabled: v }))
@@ -185,154 +155,91 @@ export const ToolsPopover: React.FC<ToolsPopoverProps> = ({
                 <ModeRow
                   icon={<Sigma className="h-4 w-4" />}
                   label="Math mode"
-                  description="Strengthens step-by-step reasoning and symbolic calculation in responses."
+                  description="Strengthens step-by-step reasoning and symbolic calculation."
                   checked={apiConfig.mathModeEnabled}
                   onCheckedChange={(v) =>
                     setApiConfig(normalizeApiConfig({ ...apiConfig, mathModeEnabled: v }))
                   }
                 />
                 {!webClient && (
-                  <>
-                    <ModeRow
-                      icon={<Bug className="h-4 w-4" />}
-                      label="Debug / Code"
-                      description="Adds detailed code-analysis and debugging instructions to the system prompt."
-                      checked={apiConfig.debugModeEnabled}
-                      onCheckedChange={(v) =>
-                        setApiConfig(normalizeApiConfig({ ...apiConfig, debugModeEnabled: v }))
-                      }
-                    />
-                    <ModeRow
-                      icon={<ShieldAlert className="h-4 w-4" />}
-                      label="Red-team eval"
-                      description="Safety evaluation preset for adversarial prompt testing."
-                      badge="Advanced"
-                      checked={apiConfig.redTeamModeEnabled}
-                      onCheckedChange={(v) =>
-                        setApiConfig(normalizeApiConfig({ ...apiConfig, redTeamModeEnabled: v }))
-                      }
-                    />
-                    <ModeRow
-                      icon={<Activity className="h-4 w-4" />}
-                      label="Research trace UI"
-                      description="Shows collapsible agent-step traces on assistant messages when Research is on."
-                      checked={apiConfig.showAgentTraces}
-                      onCheckedChange={(v) =>
-                        setApiConfig(normalizeApiConfig({ ...apiConfig, showAgentTraces: v }))
-                      }
-                    />
-                  </>
+                  <ModeRow
+                    icon={<Bug className="h-4 w-4" />}
+                    label="Debug / Code"
+                    description="Adds detailed code-analysis instructions to the system prompt."
+                    checked={apiConfig.debugModeEnabled}
+                    onCheckedChange={(v) =>
+                      setApiConfig(normalizeApiConfig({ ...apiConfig, debugModeEnabled: v }))
+                    }
+                  />
                 )}
               </div>
             </section>
 
             <Separator />
 
-            {/* ── Utilities ── */}
             <section>
               <h3 className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <Wrench className="h-3.5 w-3.5" />
-                Utilities
+                <Calculator className="h-3.5 w-3.5" />
+                Calculator
               </h3>
-              <div className="space-y-4">
-                {/* Chart template */}
-                <div className="flex items-start gap-3 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
-                  <BarChart3 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">Chart template</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      Inserts a JSON chart block into your message. The AI will populate it with real data.
-                    </p>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="mt-2.5 h-7 text-xs"
-                      onClick={insertChartTemplate}
-                    >
-                      <BarChart3 className="mr-1.5 h-3 w-3" />
-                      Insert into message
-                    </Button>
-                  </div>
+              <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+                <div className="flex gap-2">
+                  <Input
+                    value={calcExpr}
+                    onChange={(e) => {
+                      setCalcExpr(e.target.value);
+                      setCalcResult(null);
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && void runLocalCalc()}
+                    placeholder="e.g. sin(pi/4) * 2  or  2^10"
+                    className="h-8 font-mono text-sm"
+                    autoComplete="off"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 shrink-0 px-3"
+                    onClick={() => void runLocalCalc()}
+                    disabled={!calcExpr.trim()}
+                  >
+                    =
+                  </Button>
                 </div>
 
-                {/* Calculator */}
-                <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
-                  <div className="mb-3 flex items-center gap-2">
-                    <Calculator className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <p className="text-sm font-medium">Calculator</p>
+                {calcResult !== null && (
+                  <div
+                    className={cn(
+                      "mt-2 flex items-center justify-between gap-2 rounded-lg px-3 py-2",
+                      calcError
+                        ? "bg-destructive/10 text-destructive"
+                        : "bg-primary/5 text-foreground"
+                    )}
+                  >
+                    <span className="min-w-0 break-all font-mono text-sm">{calcResult}</span>
+                    {!calcError && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 shrink-0"
+                        onClick={copyResult}
+                        title="Copy result"
+                      >
+                        {copied ? (
+                          <Check className="h-3 w-3 text-green-500" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                      </Button>
+                    )}
                   </div>
-                  <div className="flex gap-2">
-                    <Input
-                      value={calcExpr}
-                      onChange={(e) => {
-                        setCalcExpr(e.target.value);
-                        setCalcResult(null);
-                      }}
-                      onKeyDown={(e) => e.key === "Enter" && runLocalCalc()}
-                      placeholder="e.g. sin(pi/4) * 2  or  2^10"
-                      className="h-8 font-mono text-sm"
-                      autoComplete="off"
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-8 shrink-0 px-3"
-                      onClick={runLocalCalc}
-                      disabled={!calcExpr.trim()}
-                    >
-                      =
-                    </Button>
-                  </div>
+                )}
 
-                  {calcResult !== null && (
-                    <div
-                      className={cn(
-                        "mt-2 flex items-center justify-between gap-2 rounded-lg px-3 py-2",
-                        calcError
-                          ? "bg-destructive/10 text-destructive"
-                          : "bg-primary/5 text-foreground"
-                      )}
-                    >
-                      <span className="min-w-0 break-all font-mono text-sm">{calcResult}</span>
-                      {!calcError && (
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="h-6 w-6 shrink-0"
-                          onClick={copyResult}
-                          title="Copy result"
-                        >
-                          {copied ? (
-                            <Check className="h-3 w-3 text-green-500" />
-                          ) : (
-                            <Copy className="h-3 w-3" />
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  )}
-
-                  <p className="mt-2.5 text-[10px] leading-relaxed text-muted-foreground">
-                    Tip: you can also write{" "}
-                    <code className="rounded bg-muted px-1 py-0.5">[[calc:2^10]]</code> directly in
-                    your message — it expands before sending.
-                  </p>
-                </div>
-
-                {/* Research prompt info */}
-                <div className="flex items-start gap-3 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
-                  <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">Research sources</p>
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                      When Research mode is on, the AI fetches Wikipedia, Semantic Scholar, and any
-                      HTTPS URLs you paste. Add a Brave Search API key in{" "}
-                      <strong>Settings → Research</strong> for broader web results.
-                    </p>
-                  </div>
-                </div>
+                <p className="mt-2.5 text-[10px] leading-relaxed text-muted-foreground">
+                  Tip: write{" "}
+                  <code className="rounded bg-muted px-1 py-0.5">[[calc:2^10]]</code> in a message —
+                  it expands before sending.
+                </p>
               </div>
             </section>
           </div>

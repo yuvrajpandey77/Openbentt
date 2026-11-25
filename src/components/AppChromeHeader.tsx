@@ -1,16 +1,11 @@
 import React from "react";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, PanelRight } from "lucide-react";
-import { ShareLinkButton } from "@/components/ShareLinkButton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { PermissionPill } from "@/components/conversation/PermissionPill";
-import { useChat } from "@/context/ChatContext";
-import { FeedbackDialog } from "@/components/FeedbackDialog";
 import { NavBackButton } from "@/components/NavBackButton";
+import { ChromeCenterPill } from "@/components/ChromeCenterPill";
+import { MenuIcon } from "@/components/icons";
 import type { WorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
-import { cn } from "@/lib/utils";
 
 interface AppChromeHeaderProps {
   onOpenMobileSidebar: () => void;
@@ -27,15 +22,13 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
   rightSidebarOpen,
   onToggleRightSidebar,
 }) => {
-  const { currentChatId, chats } = useChat();
   const location = useLocation();
-  const activeChat = chats.find((c) => c.id === currentChatId);
   const showBack =
     Boolean(workspaceMeta) ||
     (location.pathname.startsWith("/projects/") && location.pathname !== "/projects");
 
   return (
-    <header className="flex shrink-0 items-center justify-between gap-2 bg-background/90 px-3 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 md:px-3">
+    <header className="relative grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 bg-background px-3 py-2.5 md:px-3">
       <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
         <Button
           variant="ghost"
@@ -44,52 +37,28 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
           onClick={onOpenMobileSidebar}
           aria-label="Open menu"
         >
-          <Menu size={20} />
+          <MenuIcon size={20} />
         </Button>
 
         {showBack ? <NavBackButton fallback="/chat" className="hidden sm:inline-flex" /> : null}
 
-        <div className="flex min-w-0 items-center gap-2">
-          {workspaceMeta ? (
-            <>
-              <Badge variant="secondary" className="font-display text-[10px] uppercase tracking-wide">
-                {workspaceMeta.tag}
-              </Badge>
-              <span className="truncate text-xs font-medium text-foreground md:text-sm">
-                {workspaceMeta.title}
-              </span>
-            </>
-          ) : (
+        {workspaceMeta ? (
+          <div className="flex min-w-0 items-center gap-2">
+            <Badge variant="secondary" className="font-display text-[10px] uppercase tracking-wide">
+              {workspaceMeta.tag}
+            </Badge>
             <span className="truncate text-xs font-medium text-foreground md:text-sm">
-              {activeChat?.title || "Chat"}
+              {workspaceMeta.title}
             </span>
-          )}
-        </div>
-
+          </div>
+        ) : null}
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5 md:gap-1.5">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn("h-9 w-9 shrink-0 rounded-lg transition-colors", rightSidebarOpen && "bg-muted")}
-              onClick={onToggleRightSidebar}
-              aria-label={rightSidebarOpen ? "Close right sidebar" : "Open right sidebar (⌘J)"}
-              aria-pressed={rightSidebarOpen}
-            >
-              <PanelRight className={cn("h-4 w-4", rightSidebarOpen && "text-primary")} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            {rightSidebarOpen ? "Close right sidebar" : "Open right sidebar (⌘J)"}
-          </TooltipContent>
-        </Tooltip>
-        <FeedbackDialog compact />
-        <ShareLinkButton />
-        <PermissionPill />
+      <div className="flex justify-center">
+        <ChromeCenterPill open={rightSidebarOpen} onToggle={onToggleRightSidebar} />
       </div>
+
+      <div className="min-w-0" aria-hidden />
     </header>
   );
 };

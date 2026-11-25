@@ -7,7 +7,7 @@
     "email": "openbentt-contributors@users.noreply.github.com"
   },
   "private": true,
-  "version": "2.5.9",
+  "version": "2.6.1",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
@@ -49,7 +49,7 @@
     "download:busytex": "texlyre-busytex download-assets public/core",
     "download:llama-server": "node scripts/download-llama-server.mjs",
     "download:llama-server:all": "node scripts/download-llama-server.mjs --all",
-    "predownload:llama-server": "node -e \"console.log('Fetching llama-server from ggml-org/llama.cpp releases…')\"",
+    "predownload:llama-server": "node -e \"console.log('Fetching llama-server from ggml-org/llama.cpp releases\u2026')\"",
     "electron:dev": "concurrently -k \"npm run dev\" \"node scripts/wait-for-http.mjs http://127.0.0.1:8080 http://127.0.0.1:8080/src/main.tsx && cross-env OPENBENTT_ELECTRON_DEV=1 VITE_DEV_SERVER_URL=http://127.0.0.1:8080 node electron/launch.mjs\"",
     "electron:start": "npm run build && node electron/launch.mjs",
     "electron:build": "npm run build && npm run download:llama-server && electron-builder",
@@ -66,6 +66,9 @@
     "@clerk/clerk-react": "^5.61.9",
     "@codemirror/language": "^6.12.3",
     "@codemirror/legacy-modes": "^6.5.3",
+    "@gentleface/react": "^0.8.0",
+    "@gentleface/react-20": "^0.8.0",
+    "@gentleface/react-24": "^0.8.0",
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.9.0",
     "@huggingface/transformers": "^4.0.1",
@@ -175,7 +178,7 @@
   "build": {
     "appId": "com.openbentt.desktop",
     "productName": "Openbentt",
-    "copyright": "Copyright © Openbentt contributors",
+    "copyright": "Copyright \u00a9 Openbentt contributors",
     "icon": "build/icon.png",
     "directories": {
       "output": "release"

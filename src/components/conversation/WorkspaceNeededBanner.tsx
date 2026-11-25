@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useChat, AGENT_WORKSPACE_KEY, resolveExecutionWorkspace } from "@/context/ChatContext";
 import { useWorkspaceFolderPicker } from "@/hooks/useWorkspaceFolderPicker";
+import { rememberWorkspacePath } from "@/lib/workspaceHistory";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ export const WorkspaceNeededBanner: React.FC = () => {
       /* ignore */
     }
     if (activeProjectId) setProjectWorkspace(activeProjectId, v);
+    rememberWorkspacePath(v);
     setWorkspaceNeeded(false);
   };
 

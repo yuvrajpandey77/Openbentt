@@ -20,6 +20,57 @@ export type ReleaseNote = {
 
 export const releaseNotes: ReleaseNote[] = [
   {
+    version: "2.6.1",
+    date: "Nov 26, 2026",
+    title: "OpenCode connection fix · model list · title bar chrome",
+    summary:
+      "Chat through OpenCode works again when another OpenCode service holds the default port; the model picker lists real OpenCode models (free first); Edit/View/Help stay visible above the sidebar.",
+    highlight:
+      "OpenCode ask/models use --standalone so a busy managed port no longer yields empty replies or a stuck “auto” model",
+    sections: [
+      {
+        heading: "Fixes",
+        bullets: [
+          "agent:ask and model listing no longer fail silently when OpenCode’s managed port is in use",
+          "Provider/auth budget errors surface as clear messages instead of “returned no answer”",
+          "Default model prefers opencode/* free ids when the list loads",
+          "Left/right sidebars start below the frameless title bar so Edit / View / Help are never covered",
+        ],
+      },
+    ],
+    cta: { label: "Download 2.6.1", to: "/download" },
+  },
+  {
+    version: "2.6.0",
+    date: "Nov 26, 2026",
+    title: "Calmer chrome · center status pill · workspace history",
+    summary:
+      "Less clutter in chat and notebook: one status pill opens controls, the composer + menu stays lean, workspace picks show recent folders, and the empty chat greets you with a bigger Ready when you are.",
+    highlight:
+      "Center status pill for runtime / approvals — click to open Controls, Files, and Activity",
+    sections: [
+      {
+        heading: "What’s new for you",
+        bullets: [
+          "Header and notebook chat decluttered: one intelligent center pill instead of Approvals / bug / sidebar icon clusters",
+          "Composer + menu: attach and Tools only — Mode, Approvals, and runtime live in the right Controls card",
+          "Set workspace shows recent folders under Browse; Browse is a high-contrast action",
+          "Empty chat: larger “Ready when you are.” — logo removed from the composer welcome",
+          "Gentleface icons for chrome and sidebar (line idle / solid when selected)",
+          "Tools dialog trimmed to Research, Math, Debug, and Calculator",
+        ],
+      },
+      {
+        heading: "Stability",
+        bullets: [
+          "Local install launcher no longer overwrites the Electron binary via symlink",
+          "Permission and question prompts stay in chat — nothing is auto-approved",
+        ],
+      },
+    ],
+    cta: { label: "Download 2.6.0", to: "/download" },
+  },
+  {
     version: "2.5.9",
     date: "Nov 26, 2026",
     title: "Unified desktop chrome · agent picker · clearer approvals",

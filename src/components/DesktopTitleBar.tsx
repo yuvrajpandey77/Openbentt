@@ -221,7 +221,7 @@ export function DesktopTitleBar() {
 
   return (
     <header
-      className="app-shell dark flex h-8 shrink-0 items-stretch bg-background text-foreground select-none"
+      className="app-shell dark relative z-[var(--z-titlebar,60)] flex h-8 shrink-0 items-stretch bg-background text-foreground select-none"
       style={{ height: DESKTOP_TITLE_BAR_HEIGHT_PX + 4 }}
       data-desktop-titlebar="unified"
     >

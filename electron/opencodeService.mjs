@@ -1150,26 +1150,30 @@ export function looksLikeCliHelp(text) {
   );
 }
 
-/** Extract assistant text from `opencode run --format json` event lines (best-effort). */
-export function extractAskText(stdout) {
-  const raw = stripAnsi(stdout).slice(0, ASK_MAX_OUTPUT_CHARS * 2);
-  if (looksLikeCliHelp(raw)) return "";
+/**
+ * Extract assistant text (and structured errors) from `opencode run --format json`.
+ * Returns { text, error } — caller throws on error so the UI shows a real cause.
+ */
+export function extractAskResult(stdout, stderr = "") {
+  const raw = stripAnsi(`${stdout ?? ""}\n${stderr ?? ""}`).slice(0, ASK_MAX_OUTPUT_CHARS * 2);
+  if (looksLikeCliHelp(raw)) return { text: "", error: "" };
   const lines = raw.split("\n").filter((l) => l.trim());
   const parts = [];
   let sawJson = false;
+  let errorMsg = "";
   for (const line of lines.slice(0, 2000)) {
     const t = line.trim();
     if (!(t.startsWith("{") && t.endsWith("}"))) continue;
     sawJson = true;
     try {
       const evt = JSON.parse(t);
-      // Prefer structured error messages over dumping CLI help.
       if (evt?.type === "error" || evt?.error) {
         const msg =
           (typeof evt.error?.message === "string" && evt.error.message) ||
           (typeof evt.message === "string" && evt.message) ||
           "";
-        if (msg) return redactSecretsFromText(msg).slice(0, ASK_MAX_OUTPUT_CHARS).trim();
+        if (msg && !errorMsg) errorMsg = redactSecretsFromText(msg).slice(0, ASK_MAX_OUTPUT_CHARS).trim();
+        continue;
       }
       const texts = [];
       const walk = (v, depth) => {
@@ -1202,13 +1206,25 @@ export function extractAskText(stdout) {
   }
   if (parts.length) {
     const joined = redactSecretsFromText(parts.join("")).slice(0, ASK_MAX_OUTPUT_CHARS).trim();
-    if (looksLikeCliHelp(joined)) return "";
-    return joined;
+    if (looksLikeCliHelp(joined)) return { text: "", error: errorMsg };
+    return { text: joined, error: "" };
   }
-  if (sawJson) return "";
-  // Non-JSON output (formatted default): return as plain text — never CLI help.
-  if (looksLikeCliHelp(raw)) return "";
-  return redactSecretsFromText(raw).slice(0, ASK_MAX_OUTPUT_CHARS).trim();
+  if (errorMsg) return { text: "", error: errorMsg };
+  if (sawJson) return { text: "", error: "" };
+  if (looksLikeCliHelp(raw)) return { text: "", error: "" };
+  // Port / service failures often land on stderr as plain text.
+  if (/port \d+ .* already in use/i.test(raw) || /Failed to start server/i.test(raw)) {
+    return {
+      text: "",
+      error: "OpenCode service port is busy. Retry — Openbentt will use a private --standalone runtime.",
+    };
+  }
+  return { text: redactSecretsFromText(raw).slice(0, ASK_MAX_OUTPUT_CHARS).trim(), error: "" };
+}
+
+/** @deprecated use extractAskResult — kept for unit tests */
+export function extractAskText(stdout) {
+  return extractAskResult(stdout).text;
 }
 
 /**
@@ -1234,13 +1250,15 @@ export async function askOpenCode(app, { message, model, workspaceRoot, title, s
   if (!det.installed) throw new Error("OpenCode is not installed. See Setup → Execution.");
   // OpenCode v2.x dropped `--dir`; set process cwd instead (unknown flags dump USAGE into chat).
   const cwd = workspaceRoot ? await resolveWorkspaceRoot(workspaceRoot) : askSandboxDir();
-  const args = ["run", "--format", "json"];
+  // --standalone: private server — avoids "managed service port already in use"
+  // when another OpenCode/service holds the default port (common on desktop).
+  const args = ["run", "--standalone", "--format", "json"];
   if (cleanModel) args.push("--model", cleanModel);
   if (cleanSession) args.push("--session", cleanSession);
   if (typeof title === "string" && title.trim()) args.push("--title", title.trim().slice(0, 120));
   args.push(clean);
   const startedAt = Date.now();
-  const { text, session, permissionRequests, timedOut, helpLeak } = await new Promise((resolve) => {
+  const { text, error, session, permissionRequests, timedOut, helpLeak } = await new Promise((resolve) => {
     const child = execFile(det.executablePath, args, {
       cwd,
       timeout: ASK_TIMEOUT_MS,
@@ -1251,6 +1269,7 @@ export async function askOpenCode(app, { message, model, workspaceRoot, title, s
       if (err && err.killed) {
         resolve({
           text: "",
+          error: "",
           session: cleanSession,
           permissionRequests: [],
           timedOut: true,
@@ -1259,8 +1278,10 @@ export async function askOpenCode(app, { message, model, workspaceRoot, title, s
         return;
       }
       const combined = `${stdout ?? ""}\n${stderr ?? ""}`;
+      const extracted = extractAskResult(stdout ?? "", stderr ?? "");
       resolve({
-        text: extractAskText(stdout ?? ""),
+        text: extracted.text,
+        error: extracted.error,
         session: extractAskSession(stdout ?? "") ?? cleanSession,
         permissionRequests: extractAskPermissions(stderr ?? ""),
         timedOut: false,
@@ -1285,6 +1306,9 @@ export async function askOpenCode(app, { message, model, workspaceRoot, title, s
     throw new Error(
       "OpenCode CLI rejected the request (unsupported flags). Update Openbentt or pick Local Ollama / another provider."
     );
+  }
+  if (error && !text) {
+    throw new Error(error.slice(0, 500));
   }
   if (!text && permissionRequests.length === 0) {
     throw new Error("OpenCode returned no answer. Check Setup → Execution for runtime status.");
@@ -1328,19 +1352,32 @@ export async function listOpenCodeModels() {
   const det = await detectOpenCode();
   if (!det.installed) return { models: [], detected: false };
   const out = await new Promise((resolve) => {
-    execFile(det.executablePath, ["models"], {
+    // --standalone avoids managed-service port collisions that empty the list.
+    execFile(det.executablePath, ["models", "--standalone"], {
       timeout: 30000,
       maxBuffer: 2 * 1024 * 1024,
       windowsHide: true,
       env: buildChildEnv(),
-    }, (err, stdout) => {
-      resolve(err ? "" : String(stdout ?? ""));
+    }, (err, stdout, stderr) => {
+      if (!err && String(stdout ?? "").trim()) {
+        resolve(String(stdout ?? ""));
+        return;
+      }
+      // Fallback without standalone (older CLIs).
+      execFile(det.executablePath, ["models"], {
+        timeout: 30000,
+        maxBuffer: 2 * 1024 * 1024,
+        windowsHide: true,
+        env: buildChildEnv(),
+      }, (err2, stdout2) => {
+        resolve(err2 ? String(stderr ?? stdout ?? "") : String(stdout2 ?? ""));
+      });
     });
   });
   const models = [];
   for (const line of stripAnsi(out).split("\n")) {
     const id = line.trim();
-    if (!id || !/^[-\w.:/@+]+$/.test(id) || id.length > 200) continue;
+    if (!id || !/^[-\w.:/@+~]+$/.test(id) || id.length > 200) continue;
     if (id.startsWith("-") || id.includes(" ")) continue;
     models.push({ id, displayName: id, available: true });
     if (models.length >= 300) break;

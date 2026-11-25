@@ -92,12 +92,22 @@ export const heroPrinciples: HeroPrinciple[] = [
 
 /** Landing header pill — keep short and client-readable (version + what changed). */
 export const meridianAnnouncement = {
-  eyebrow: "v2.5.9",
-  title: "Same dark window edge-to-edge · pick any local agent in chat · clearer approvals",
+  eyebrow: "v2.6.1",
+  title: "OpenCode ask fixed · real model list · Edit/View/Help stay visible",
   href: "/news",
 } as const;
 
 export const latestNews: NewsItem[] = [
+  {
+    title: "v2.6.1: OpenCode standalone ask/models + title bar no longer covered by sidebar",
+    date: "Nov 26, 2026",
+    to: "/news",
+  },
+  {
+    title: "v2.6.0: Center status pill, lean composer, workspace recent folders",
+    date: "Nov 26, 2026",
+    to: "/news",
+  },
   {
     title: "v2.5.9: Unified window chrome, composer agent picker, clearer approvals",
     date: "Nov 26, 2026",

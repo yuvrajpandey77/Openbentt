@@ -1506,6 +1506,7 @@
 :root {
   --z-base: 0;
   --z-sidebar: 50;
+  --z-titlebar: 60;
   --z-header: 40;
   --z-content: 0;
   --z-floating: 45;
@@ -1513,6 +1514,15 @@
   --z-modal: 100;
   --z-notification: 200;
   --z-critical: 300;
+
+  /* Icon accents — OpenAI-style dots + Grok warm accents */
+  --icon-openai: #10a37f;
+  --icon-openai-teal: #1ec8b0;
+  --icon-openai-violet: #7c6af5;
+  --icon-openai-blue: #4b9bff;
+  --icon-grok: #e8e8e8;
+  --icon-grok-amber: #f5a524;
+  --icon-grok-orange: #fe640b;
 }
 
 .app-shell :focus-visible {

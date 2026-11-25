@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { GripHorizontal, Maximize2, MessageSquare, Minimize2, Minimize, X } from "lucide-react";
+import { GripHorizontal, Link2, Maximize2, MessageSquare, Minimize2, Minimize, X } from "lucide-react";
 import ChatMessages from "@/components/ChatMessages";
 import ChatInput from "@/components/ChatInput";
 import { ConnectionHandle } from "@/components/notebook/ConnectionHandle";
@@ -12,6 +12,7 @@ import {
 } from "@/context/NotebookStudioContext";
 import { ContextSourcesPopover } from "@/components/notebook/ContextSourcesPopover";
 import { useResearchProject } from "@/context/ResearchProjectContext";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 const MIN_W = 300;
@@ -58,6 +59,7 @@ export function NotebookFloatingChat({
   const [searchParams] = useSearchParams();
   const [askHint, setAskHint] = useState(false);
   const [wiggle, setWiggle] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
 
   useEffect(() => {
     const fromUrl = searchParams.get("paper");
@@ -224,6 +226,16 @@ export function NotebookFloatingChat({
     bumpConnectionLayout();
   };
 
+  const sourceCount =
+    chatConnections.texFileKeys.length + chatConnections.pdfPaperIds.length;
+
+  const statusLabel = useMemo(() => {
+    const surface = studioSurface === "orchestra" ? "Orchestra" : "Editor";
+    if (sourceCount === 0) return `${surface} · no sources`;
+    if (sourceCount === 1) return `${surface} · 1 source`;
+    return `${surface} · ${sourceCount} sources`;
+  }, [sourceCount, studioSurface]);
+
   if (!chatPanelOpen) {
     return (
       <div className="absolute bottom-4 right-4 z-40 flex items-end gap-2">
@@ -262,7 +274,7 @@ export function NotebookFloatingChat({
     <div
       ref={panelRef}
       className={cn(
-        "absolute z-50 flex flex-col overflow-hidden rounded-xl border border-border/70 bg-background/95 shadow-2xl backdrop-blur-md",
+        "absolute z-50 flex flex-col overflow-hidden rounded-xl border border-border/60 bg-background shadow-2xl",
         "ring-1 ring-white/5"
       )}
       style={{
@@ -274,104 +286,161 @@ export function NotebookFloatingChat({
       data-notebook-chat-panel
     >
       <div
-        className="flex shrink-0 cursor-grab items-center gap-2 border-b border-border/50 bg-muted/30 px-2 py-1.5 active:cursor-grabbing"
+        className="relative grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-1 px-2 py-1.5"
         onPointerDown={onDragStart}
         onPointerMove={onDragMove}
         onPointerUp={onDragEnd}
         onPointerCancel={onDragEnd}
       >
-        <GripHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate text-xs font-medium">
-          {project?.title ? `${project.title} · chat` : "Notebook chat"}
-        </span>
-        <div className="flex flex-col items-center gap-0.5" title="Context connections">
-          <div className="flex items-center gap-2">
-            <div className="flex flex-col items-center gap-0.5">
-              <ConnectionHandle
-                id="chat-tex"
-                kind="chat-tex"
-                label="Connect chat to LaTeX tab"
-                tooltip="LaTeX: drag to a green tab dot, or click both ends"
-                connected={chatConnections.texFileKeys.length > 0}
-                active={pendingConnection?.from === "chat-tex"}
-                registerAnchor={registerConnectionAnchor}
-                onPointerDown={(e) => startConnectionDrag("chat-tex", e)}
-              />
-              <span className="text-[8px] font-medium uppercase tracking-wide text-primary/90">LaTeX</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <ConnectionHandle
-                id="chat-pdf"
-                kind="chat-pdf"
-                label="Connect chat to PDF preview"
-                tooltip="PDF: drag to the amber preview dot, or click both ends"
-                connected={chatConnections.pdfPaperIds.length > 0}
-                active={pendingConnection?.from === "chat-pdf"}
-                registerAnchor={registerConnectionAnchor}
-                onPointerDown={(e) => startConnectionDrag("chat-pdf", e)}
-              />
-              <span className="text-[8px] font-medium uppercase tracking-wide text-primary/90">PDF</span>
-            </div>
-          </div>
-        </div>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7"
-          aria-label={isExpanded ? "Restore chat size" : "Expand chat panel"}
-          title={isExpanded ? "Restore size" : "Expand chat"}
-          onClick={toggleExpanded}
-        >
-          {isExpanded ? <Minimize className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7"
-          aria-label="Minimize chat"
-          onClick={() => setChatPanelOpen(false)}
-        >
-          <Minimize2 className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7"
-          aria-label="Close chat"
-          onClick={() => setChatPanelOpen(false)}
-        >
-          <X className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-
-      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5 border-b border-border/40 bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
-        <span>
-          Context:{" "}
-          <span className="text-foreground/80">
-            {studioSurface === "orchestra" ? "Paper Orchestra + draft" : "Editor draft"}
+        <div className="flex min-w-0 cursor-grab items-center gap-1.5 active:cursor-grabbing">
+          <GripHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 truncate text-xs font-medium">
+            {project?.title ? `${project.title} · chat` : "Notebook chat"}
           </span>
-          {project?.papers?.length ? (
-            <>
-              {" "}
-              · {project.papers.length} library paper{project.papers.length === 1 ? "" : "s"}
-            </>
-          ) : null}
-          {chatConnections.texFileKeys.length === 0 && chatConnections.pdfPaperIds.length === 0 ? (
-            <span className="text-amber-600/90 dark:text-amber-400/90"> · connect LaTeX/PDF for richer asks</span>
-          ) : null}
-        </span>
+        </div>
+
+        <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "inline-flex max-w-[11rem] items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors",
+                sourceCount > 0
+                  ? "border-primary/35 bg-primary/10 text-foreground"
+                  : "border-border/60 bg-muted/30 text-muted-foreground hover:text-foreground"
+              )}
+              onPointerDown={(e) => e.stopPropagation()}
+              aria-label={`Context status: ${statusLabel}`}
+            >
+              <Link2 className="h-3 w-3 shrink-0 opacity-80" />
+              <span className="min-w-0 truncate">{statusLabel}</span>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="center"
+            className="w-72 space-y-3 p-3"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <div>
+              <p className="text-xs font-medium text-foreground">Chat context</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                {studioSurface === "orchestra" ? "Paper Orchestra + draft" : "Editor draft"}
+                {project?.papers?.length
+                  ? ` · ${project.papers.length} library paper${project.papers.length === 1 ? "" : "s"}`
+                  : ""}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-4 py-1">
+              <div className="flex flex-col items-center gap-0.5">
+                <ConnectionHandle
+                  id="chat-tex"
+                  kind="chat-tex"
+                  label="Connect chat to LaTeX tab"
+                  tooltip="LaTeX: drag to a green tab dot, or click both ends"
+                  connected={chatConnections.texFileKeys.length > 0}
+                  active={pendingConnection?.from === "chat-tex"}
+                  registerAnchor={registerConnectionAnchor}
+                  onPointerDown={(e) => startConnectionDrag("chat-tex", e)}
+                />
+                <span className="text-[8px] font-medium uppercase tracking-wide text-primary/90">LaTeX</span>
+              </div>
+              <div className="flex flex-col items-center gap-0.5">
+                <ConnectionHandle
+                  id="chat-pdf"
+                  kind="chat-pdf"
+                  label="Connect chat to PDF preview"
+                  tooltip="PDF: drag to the amber preview dot, or click both ends"
+                  connected={chatConnections.pdfPaperIds.length > 0}
+                  active={pendingConnection?.from === "chat-pdf"}
+                  registerAnchor={registerConnectionAnchor}
+                  onPointerDown={(e) => startConnectionDrag("chat-pdf", e)}
+                />
+                <span className="text-[8px] font-medium uppercase tracking-wide text-primary/90">PDF</span>
+              </div>
+            </div>
+
+            {sourceCount > 0 ? (
+              <div className="space-y-1.5">
+                <ContextSourcesPopover
+                  texFileKeys={chatConnections.texFileKeys}
+                  pdfPaperIds={chatConnections.pdfPaperIds}
+                  texLabel={(key) => {
+                    if (key === "draft") return "main.tex";
+                    if (key === "bib") return "references.bib";
+                    return key;
+                  }}
+                  pdfLabel={(id) =>
+                    id === "compiled"
+                      ? "Compiled preview"
+                      : project?.papers.find((p) => p.id === id)?.fileName ?? id
+                  }
+                  onDisconnectTex={(key) => toggleChatConnection("tex", key)}
+                  onDisconnectPdf={(id) => toggleChatConnection("pdf", id)}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Connected:{" "}
+                  {[
+                    ...chatConnections.texFileKeys.map((k) =>
+                      k === "draft" ? "LaTeX" : `LaTeX (${k})`
+                    ),
+                    ...chatConnections.pdfPaperIds.map((id) =>
+                      id === "compiled" ? "PDF (compiled)" : "PDF"
+                    ),
+                  ].join(" · ")}
+                </p>
+              </div>
+            ) : (
+              <p className="text-[11px] text-amber-600/90 dark:text-amber-400/90">
+                Connect LaTeX or PDF for richer asks — drag a dot to its matching target.
+              </p>
+            )}
+          </PopoverContent>
+        </Popover>
+
+        <div className="flex items-center justify-end gap-0.5">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            aria-label={isExpanded ? "Restore chat size" : "Expand chat panel"}
+            title={isExpanded ? "Restore size" : "Expand chat"}
+            onClick={toggleExpanded}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {isExpanded ? <Minimize className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            aria-label="Minimize chat"
+            onClick={() => setChatPanelOpen(false)}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <Minimize2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            aria-label="Close chat"
+            onClick={() => setChatPanelOpen(false)}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       {showConnectionHint && studioSurface === "editor" && (
-        <div className="flex shrink-0 items-start gap-2 border-b border-primary/30 bg-primary/10 px-2 py-1.5 text-[11px] text-foreground/90">
+        <div className="flex shrink-0 items-start gap-2 border-y border-primary/20 bg-primary/5 px-2 py-1.5 text-[11px] text-foreground/90">
           <span className="min-w-0 flex-1">
-            <strong className="font-medium">Two connection types:</strong>{" "}
-            <span className="text-primary">LaTeX</span> sends source text from editor tabs;{" "}
-            <span className="text-primary">PDF</span> sends the open preview page. Drag a dot to its matching
-            target, or click both ends. Release near a target to snap.
+            Tap the center pill to connect <span className="text-primary">LaTeX</span> or{" "}
+            <span className="text-primary">PDF</span> context.
           </span>
           <Button
             type="button"
@@ -385,59 +454,10 @@ export function NotebookFloatingChat({
         </div>
       )}
 
-      {(chatConnections.texFileKeys.length > 0 || chatConnections.pdfPaperIds.length > 0) && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-border/40 bg-primary/5 px-2 py-1 text-[10px] text-muted-foreground">
-          <ContextSourcesPopover
-            texFileKeys={chatConnections.texFileKeys}
-            pdfPaperIds={chatConnections.pdfPaperIds}
-            texLabel={(key) => {
-              if (key === "draft") return "main.tex";
-              if (key === "bib") return "references.bib";
-              return key;
-            }}
-            pdfLabel={(id) =>
-              id === "compiled"
-                ? "Compiled preview"
-                : project?.papers.find((p) => p.id === id)?.fileName ?? id
-            }
-            onDisconnectTex={(key) => toggleChatConnection("tex", key)}
-            onDisconnectPdf={(id) => toggleChatConnection("pdf", id)}
-          />
-          <span className="min-w-0 truncate">
-          Connected:
-          {chatConnections.texFileKeys.map((key, i) => (
-            <span key={key}>
-              {i > 0 && " · "}
-              <button
-                type="button"
-                className="text-primary hover:underline"
-                onClick={() => toggleChatConnection("tex", key)}
-              >
-                LaTeX{chatConnections.texFileKeys.length > 1 ? ` (${key === "draft" ? "main.tex" : key})` : ""}
-              </button>
-            </span>
-          ))}
-          {chatConnections.texFileKeys.length > 0 && chatConnections.pdfPaperIds.length > 0 && " · "}
-          {chatConnections.pdfPaperIds.map((id, i) => (
-            <span key={id}>
-              {(i > 0 || chatConnections.texFileKeys.length > 0) && i === 0 && chatConnections.texFileKeys.length === 0 ? "" : i > 0 ? " · " : ""}
-              <button
-                type="button"
-                className="text-primary hover:underline"
-                onClick={() => toggleChatConnection("pdf", id)}
-              >
-                PDF{id === "compiled" ? " (compiled)" : ""}
-              </button>
-            </span>
-          ))}
-          </span>
-        </div>
-      )}
-
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <ChatMessages messages={messages} isLoading={isLoading} emptyVariant="studio" />
       </div>
-      <div className="relative shrink-0 border-t border-border/40 p-1.5">
+      <div className="relative shrink-0 p-1.5">
         <ChatInput
           isLoading={isLoading}
           placeholderOverride={

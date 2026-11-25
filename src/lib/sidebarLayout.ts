@@ -6,6 +6,9 @@ export const SIDEBAR_WIDTH_EXPANDED_PX = 272;
 export const SIDEBAR_WIDTH_COLLAPSED_PX = 64;
 export const RIGHT_SIDEBAR_WIDTH_PX = 320;
 
+/** Match DesktopTitleBar height (28 + 4 padding) so fixed sidebars don't cover Edit/View/Help. */
+export const DESKTOP_CHROME_TOP_OFFSET_CLASS = "top-8";
+
 /** Tailwind width classes for the fixed left nav. */
 export function sidebarWidthClass(collapsed: boolean): string {
   return collapsed ? "w-[64px]" : "w-[272px]";

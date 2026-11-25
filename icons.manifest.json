@@ -1,0 +1,52 @@
+{
+  "library": "gentleface",
+  "style": "line-round",
+  "activeStyle": "solid-round",
+  "sizes": [16, 20, 24],
+  "colorTones": {
+    "openai": ["#10A37F", "#1EC8B0", "#7C6AF5", "#4B9BFF"],
+    "grok": ["#E8E8E8", "#F5A524", "#FE640B"]
+  },
+  "concepts": {
+    "menu": { "icon": "menu", "why": "hamburger / main menu", "by": "agent" },
+    "close": { "icon": "x", "why": "dismiss", "by": "agent" },
+    "add": { "icon": "plus", "why": "create / new", "by": "agent" },
+    "chat": { "icon": "message", "why": "primary chat surface", "by": "agent" },
+    "projects": { "icon": "kanban", "why": "project boards", "by": "agent" },
+    "notebook": { "icon": "notebook", "why": "notebook studio", "by": "agent" },
+    "search": { "icon": "search", "why": "find", "by": "agent" },
+    "apps-grid": { "icon": "grid", "why": "projects grid in collapsed rail", "by": "agent" },
+    "sidebar": { "icon": "sidebar", "why": "left sidebar toggle", "by": "agent" },
+    "inspector": { "icon": "sidebar-right", "why": "right inspector card", "by": "agent" },
+    "back": { "icon": "arrow-left", "why": "navigate back", "by": "agent" },
+    "bot": { "icon": "bot", "why": "agent runtime", "by": "agent" },
+    "approvals-ok": { "icon": "shield-check", "why": "no pending approvals", "by": "agent" },
+    "approvals-needed": { "icon": "shield-alert", "why": "pending permission", "by": "agent" },
+    "bug-report": { "icon": "bug", "why": "feedback / bug", "by": "agent" },
+    "share": { "icon": "share", "why": "share link", "by": "agent" },
+    "send": { "icon": "arrow-up", "why": "send message (composer)", "by": "agent" },
+    "stop": { "icon": "stop", "why": "stop streaming", "by": "agent" },
+    "attach": { "icon": "paperclip", "why": "attachments", "by": "agent" },
+    "mic": { "icon": "mic", "why": "voice input", "by": "agent" },
+    "link": { "icon": "link", "why": "context sources", "by": "agent" },
+    "expand": { "icon": "maximize", "why": "expand panel", "by": "agent" },
+    "collapse": { "icon": "minimize", "why": "minimize panel", "by": "agent" },
+    "drag": { "icon": "grip-horizontal", "why": "drag handle", "by": "agent" },
+    "settings": { "icon": "settings", "why": "preferences", "by": "agent" },
+    "controls": { "icon": "sliders", "why": "session controls tab", "by": "agent" },
+    "files": { "icon": "folder-tree", "why": "workspace files", "by": "agent" },
+    "activity": { "icon": "activity", "why": "agent activity", "by": "agent" },
+    "refresh": { "icon": "refresh", "why": "reload files", "by": "agent" },
+    "chevron": { "icon": "chevron-down", "why": "dropdown", "by": "agent" },
+    "sparkles": { "icon": "sparkles", "why": "AI accent", "by": "agent" },
+    "check": { "icon": "check", "why": "confirm", "by": "agent" },
+    "bolt": { "icon": "bolt", "why": "quick / task mode", "by": "agent" },
+    "hammer": { "icon": "hammer", "why": "build mode", "by": "agent" }
+  },
+  "motifs": {
+    "message": ["chat"],
+    "bot": ["bot"],
+    "shield": ["approvals-ok", "approvals-needed"],
+    "sidebar": ["sidebar", "inspector"]
+  }
+}

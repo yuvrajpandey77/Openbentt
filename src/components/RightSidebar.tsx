@@ -11,19 +11,28 @@ import {
   Activity,
   FolderOpen,
   ListTodo,
+  PanelLeft,
+  Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { getDesktopApi } from "@/lib/desktopApi";
 import { openCodeAgentApi } from "@/lib/agent/openCodeAgentApi";
-import { RIGHT_SIDEBAR_WIDTH_PX } from "@/lib/sidebarLayout";
+import { DESKTOP_CHROME_TOP_OFFSET_CLASS, RIGHT_SIDEBAR_WIDTH_PX } from "@/lib/sidebarLayout";
+import { isDesktopApp } from "@/lib/isDesktopApp";
+import { FeedbackDialog } from "@/components/FeedbackDialog";
+import { ShareLinkButton } from "@/components/ShareLinkButton";
+import { PermissionPill } from "@/components/conversation/PermissionPill";
+import { ComposerRuntimePicker } from "@/components/composer/ComposerRuntimePicker";
 
-type TabId = "files" | "activity";
+type TabId = "files" | "activity" | "more";
 
 interface RightSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  onExpandLeftSidebar?: () => void;
+  leftSidebarCollapsed?: boolean;
 }
 
 type FsEntry = { path: string; kind: string };
@@ -32,10 +41,15 @@ function isDirectory(kind: string): boolean {
   return kind === "dir" || kind === "directory";
 }
 
-const RightSidebar: React.FC<RightSidebarProps> = ({ isOpen, onClose }) => {
-  const { activeProjectId, executionTasks } = useChat();
+const RightSidebar: React.FC<RightSidebarProps> = ({
+  isOpen,
+  onClose,
+  onExpandLeftSidebar,
+  leftSidebarCollapsed,
+}) => {
+  const { activeProjectId, executionTasks, executionMode, setExecutionMode } = useChat();
   const { project } = useResearchProject();
-  const [activeTab, setActiveTab] = useState<TabId>("files");
+  const [activeTab, setActiveTab] = useState<TabId>("more");
   const [entries, setEntries] = useState<FsEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,13 +116,17 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ isOpen, onClose }) => {
   return (
     <TooltipProvider>
       <aside
-        className="fixed inset-y-0 right-0 z-[var(--z-sidebar)] flex flex-col border-l border-border bg-background"
+        className={cn(
+          "fixed bottom-0 right-0 z-[var(--z-sidebar)] flex flex-col border-l border-border bg-background",
+          isDesktopApp() ? DESKTOP_CHROME_TOP_OFFSET_CLASS : "top-0"
+        )}
         style={{ width: RIGHT_SIDEBAR_WIDTH_PX }}
         aria-label="Inspector"
       >
         <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border/60 px-2">
           {(
             [
+              { id: "more" as const, label: "Controls", icon: Settings2 },
               { id: "files" as const, label: "Files", icon: FolderTree },
               { id: "activity" as const, label: "Activity", icon: Activity },
             ] as const
@@ -146,6 +164,92 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ isOpen, onClose }) => {
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           <FeatureErrorBoundary feature="right-sidebar">
+            {activeTab === "more" && (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Session controls</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Agent, approvals, feedback, and layout — opened from the center status pill.
+                  </p>
+                </div>
+
+                <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Agent runtime
+                  </p>
+                  <ComposerRuntimePicker />
+                </div>
+
+                <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Mode
+                  </p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {([
+                      { id: "chat" as const, label: "Chat" },
+                      { id: "plan" as const, label: "Plan" },
+                      { id: "build" as const, label: "Build" },
+                      { id: "task" as const, label: "Task" },
+                    ]).map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setExecutionMode(m.id)}
+                        className={cn(
+                          "rounded-lg border px-2 py-1.5 text-xs transition-colors",
+                          executionMode === m.id
+                            ? "border-primary/40 bg-primary/10 font-medium text-foreground"
+                            : "border-border/50 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                        )}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Approvals
+                  </p>
+                  <PermissionPill />
+                  <p className="text-[11px] text-muted-foreground">
+                    When the agent needs permission or an answer, review it here or from the task drawer.
+                  </p>
+                </div>
+
+                <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Layout
+                  </p>
+                  {leftSidebarCollapsed && onExpandLeftSidebar ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-full cursor-pointer justify-start gap-2 text-xs"
+                      onClick={onExpandLeftSidebar}
+                    >
+                      <PanelLeft className="h-3.5 w-3.5" />
+                      Show left sidebar
+                    </Button>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">Left sidebar is visible.</p>
+                  )}
+                </div>
+
+                <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Share & feedback
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ShareLinkButton />
+                    <FeedbackDialog />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === "files" && (
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-2">

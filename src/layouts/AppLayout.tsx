@@ -379,7 +379,12 @@ const AppLayout: React.FC = () => {
           )}
       </main>
       {/* Right sidebar: Files, Activity, Tools, Settings */}
-      <RightSidebar isOpen={rightSidebarOpen} onClose={() => setRightSidebarOpen(false)} />
+      <RightSidebar
+        isOpen={rightSidebarOpen}
+        onClose={() => setRightSidebarOpen(false)}
+        leftSidebarCollapsed={sidebarCollapsed}
+        onExpandLeftSidebar={() => setSidebarCollapsed(false)}
+      />
       {/* Secondary execution inspector: conversation primary, internals secondary. */}
       <ExecutionInspector />
       <VoiceDock />

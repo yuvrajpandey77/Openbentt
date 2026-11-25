@@ -7,17 +7,11 @@ import {
   ArrowUp,
   Bot,
   ChevronDown,
-  Columns2,
-  Hammer,
-  MessageSquare,
   Paperclip,
   Plus,
   Search,
   Square,
-  FileText,
-  Mic,
-  FolderKanban,
-  Zap,
+  Wrench,
 } from "lucide-react";
 import { useChat, ExecutionMode } from "@/context/ChatContext";
 import {
@@ -27,10 +21,8 @@ import {
   isInternalTaskStep,
   type ModeSuggestion,
 } from "@/lib/agent/modeDetection";
-import { listAgentRoles } from "@/lib/agent/agentRoles";
 import { prefersLocalOllamaInference } from "@/lib/ollama/origin";
 import { useLocalAI } from "@/context/LocalAIContext";
-import { SourceFilter } from "@/components/integrations/SourceFilter";
 import {
   Tooltip,
   TooltipContent,
@@ -44,10 +36,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRouterModels";
 import { useLocalGgufRegistryModels } from "@/hooks/useLocalGgufRegistryModels";
 import { shortModelLabel } from "@/lib/openrouter";
@@ -99,7 +87,6 @@ import {
 import { VoiceInputButton } from "@/components/conversation/VoiceInputButton";
 import { WorkspaceNeededBanner } from "@/components/conversation/WorkspaceNeededBanner";
 import { WorkspaceSelector } from "@/components/conversation/WorkspaceSelector";
-import { PermissionPill } from "@/components/conversation/PermissionPill";
 import { AgentAwaitingBar } from "@/components/conversation/AgentAwaitingBar";
 import { LayerDownBanner } from "@/components/conversation/LayerDownBanner";
 import { ComposerRuntimePicker } from "@/components/composer/ComposerRuntimePicker";
@@ -198,6 +185,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   /** Bumps when localStorage consent changes so web /chat re-reads getLocalWeightsConsent(). */
   const [localConsentTick, setLocalConsentTick] = useState(0);
   const [plusOpen, setPlusOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
   const [modeSuggestion, setModeSuggestion] = useState<ModeSuggestion | null>(null);
   const isNotebookRoute = pathKey.startsWith("/notebook");
@@ -225,7 +213,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
       return "research-assistant";
     }
   });
-  const agentRoles = useMemo(() => listAgentRoles(), []);
   const { toast } = useToast();
   const { data: models, isLoading: modelsLoading, isError: modelsError } = useOpenRouterModels(
     apiConfig.apiKey,
@@ -443,16 +430,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
     attachments.length,
   ]);
 
-  const chooseAgentRole = useCallback((id: string) => {
-    setAgentRoleId(id);
-    try {
-      localStorage.setItem("openbentt-agent-role", id);
-    } catch {
-      /* non-critical */
-    }
-    if (!agentMode) setAgentMode(true);
-  }, [agentMode, setAgentMode]);
-
   const handleSendMessage = async () => {
     // Local Ollama: block send when runtime/model is unavailable (don't fall through to OpenCode).
     if (
@@ -474,7 +451,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     if (!layerActive && apiConfig.comparisonEnabled && dedupeModels(apiConfig.comparisonModelIds).length < 2) {
       toast({
         title: "Pick at least two models",
-        description: "Open Compare in the extras menu and select 2–4 models.",
+        description: "Enable model comparison in Settings and select 2–4 models.",
         variant: "destructive",
       });
       return;
@@ -621,48 +598,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
     );
   };
 
-  const setComparisonEnabled = (enabled: boolean) => {
-    if (enabled) {
-      const ids = dedupeModels(apiConfig.comparisonModelIds);
-      let nextIds = ids.length >= 2 ? ids : [];
-      if (nextIds.length < 2) {
-        const rest = selectable.map((m) => m.id).filter((id) => id !== apiConfig.model);
-        nextIds = dedupeModels([apiConfig.model, rest[0] || apiConfig.model]).slice(0, MAX_COMPARE);
-      }
-      setApiConfig(
-        normalizeApiConfig({
-          ...apiConfig,
-          comparisonEnabled: true,
-          comparisonModelIds: nextIds.length >= 2 ? nextIds : [apiConfig.model],
-        })
-      );
-      if (nextIds.length < 2) {
-        toast({
-          title: "Add models in settings",
-          description: "Load the model list or add custom IDs, then pick two or more for tiling.",
-        });
-      }
-    } else {
-      setApiConfig(normalizeApiConfig({ ...apiConfig, comparisonEnabled: false }));
-    }
-  };
-
-  const toggleCompareModel = (id: string, checked: boolean) => {
-    let next = dedupeModels(apiConfig.comparisonModelIds);
-    if (checked) {
-      if (next.includes(id)) return;
-      if (next.length >= MAX_COMPARE) {
-        toast({ title: "Limit reached", description: `You can compare up to ${MAX_COMPARE} models.` });
-        return;
-      }
-      next.push(id);
-    } else {
-      next = next.filter((x) => x !== id);
-    }
-    if (next.length === 0) next = [apiConfig.model];
-    setApiConfig(normalizeApiConfig({ ...apiConfig, comparisonModelIds: next }));
-  };
-
   const rejectVisionAttachment = (): boolean => {
     if (modelSupportsImages(apiConfig, currentModelMeta)) return false;
     toast({
@@ -797,7 +732,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   return (
-    <div className={cn("bg-background", isStudio ? "px-2 pb-2 pt-2" : "px-2 pb-2 pt-2 md:px-3 md:pb-4 md:pt-3")}>
+    <div className={cn(isStudio ? "bg-transparent px-1 pb-1 pt-1" : "bg-background px-2 pb-2 pt-2 md:px-3 md:pb-4 md:pt-3")}>
       <input
         ref={fileRef}
         type="file"
@@ -822,7 +757,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         {!isStudio && <WorkspaceNeededBanner />}
         {!isStudio && <AgentAwaitingBar />}
         {/* Desktop layer-down: one banner, one click — never the maze. */}
-        <LayerDownBanner />
+        {!isStudio && <LayerDownBanner />}
         {!isStudio && modeSuggestion && isDesktopApp() && (
           <div
             className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-[11px]"
@@ -1020,7 +955,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     <Plus size={16} />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="start" className="w-64 p-1.5">
+                <PopoverContent align="start" className="w-56 p-1.5">
                   <button
                     type="button"
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
@@ -1071,142 +1006,71 @@ const ChatInput: React.FC<ChatInputProps> = ({
                       <FileCode2 className="h-4 w-4 text-muted-foreground" /> Active file
                     </button>
                   )}
-                  <div className="my-1 border-t border-border/50" />
-                  {!isStudio && (
+                  {isStudio && (
                     <>
-                      <div className="px-1 py-1">
-                        <WorkspaceSelector />
-                      </div>
-                      <div className="px-1 py-1">
-                        <PermissionPill />
-                      </div>
-                      {isDesktopApp() && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              type="button"
-                              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
-                            >
-                              {executionMode === "chat" && <MessageSquare className="h-4 w-4 text-muted-foreground" />}
-                              {executionMode === "plan" && <Search className="h-4 w-4 text-muted-foreground" />}
-                              {executionMode === "build" && <Hammer className="h-4 w-4 text-muted-foreground" />}
-                              {executionMode === "task" && <Zap className="h-4 w-4 text-muted-foreground" />}
-                              Mode · {executionMode}
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="w-56">
-                            {([
-                              { mode: "chat" as ExecutionMode, label: "Chat", icon: MessageSquare },
-                              { mode: "plan" as ExecutionMode, label: "Plan", icon: Search },
-                              { mode: "build" as ExecutionMode, label: "Build", icon: Hammer },
-                              { mode: "task" as ExecutionMode, label: "Task", icon: Zap },
-                            ]).map(({ mode, label, icon: Icon }) => (
-                              <DropdownMenuItem key={mode} onClick={() => setExecutionMode(mode)}>
-                                <Icon className="mr-2 h-4 w-4" /> {label}
-                                {executionMode === mode ? <span className="ml-auto text-primary">✓</span> : null}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                      {isDesktopApp() && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              type="button"
-                              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
-                            >
-                              <Bot className="h-4 w-4 text-muted-foreground" />
-                              Role · {agentMode ? agentRoles.find((r) => r.id === agentRoleId)?.name ?? "Agent" : "Off"}
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="w-64">
-                            <DropdownMenuItem onClick={() => setAgentMode(false)}>Off</DropdownMenuItem>
-                            {agentRoles.map((r) => (
-                              <DropdownMenuItem key={r.id} onClick={() => chooseAgentRole(r.id)}>
-                                {r.name}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
-                        onClick={() => {
-                          window.dispatchEvent(new CustomEvent("navigate", { detail: "/projects" }));
-                          setPlusOpen(false);
-                        }}
-                      >
-                        <FolderKanban className="h-4 w-4 text-muted-foreground" /> Projects
-                      </button>
                       <div className="my-1 border-t border-border/50" />
                       <div className="px-1 py-1">
-                        <ToolsPopover message={message} setMessage={setMessage} />
+                        <p className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Runtime
+                        </p>
+                        <ComposerRuntimePicker />
                       </div>
-                      <Popover>
-                        <PopoverTrigger asChild>
+                      <DropdownMenu
+                        onOpenChange={(open) => {
+                          if (!open) setModelFilter("");
+                        }}
+                      >
+                        <DropdownMenuTrigger asChild>
                           <button
                             type="button"
                             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
                           >
-                            <Columns2 className="h-4 w-4 text-muted-foreground" />
-                            Compare models
-                            {apiConfig.comparisonEnabled ? (
-                              <span className="ml-auto text-[10px] text-primary">on</span>
-                            ) : null}
+                            <Bot className="h-4 w-4 text-muted-foreground" />
+                            Model ·{" "}
+                            {layerActive
+                              ? shortModelLabel(openCodeModel)
+                              : shortModelLabel(effectiveModel?.modelId || apiConfig.model)}
                           </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-96 p-0" align="start">
-                          <div className="space-y-3 border-b border-border/60 p-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <Label htmlFor="compare-switch" className="text-sm">
-                                Tiled comparison
-                              </Label>
-                              <Switch
-                                id="compare-switch"
-                                checked={apiConfig.comparisonEnabled}
-                                onCheckedChange={setComparisonEnabled}
-                              />
-                            </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-64 max-h-60 overflow-y-auto">
+                          {layerActive
+                            ? filteredOpenCodeModels.map((m) => (
+                                <DropdownMenuItem key={m.id} onClick={() => setOpenCodeModel(m.id)}>
+                                  <span className="flex-1 truncate">{m.displayName || shortModelLabel(m.id)}</span>
+                                  {openCodeModel === m.id ? <span className="text-primary">✓</span> : null}
+                                </DropdownMenuItem>
+                              ))
+                            : filteredSelectable.map((m) => (
+                                <DropdownMenuItem key={m.id} onClick={() => handleModelChange(m.id)}>
+                                  <span className="flex-1 truncate">{m.name || shortModelLabel(m.id)}</span>
+                                  {apiConfig.model === m.id ? <span className="text-primary">✓</span> : null}
+                                </DropdownMenuItem>
+                              ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </>
+                  )}
+                  {!isStudio && (
+                    <>
+                      {isDesktopApp() && (
+                        <>
+                          <div className="my-1 border-t border-border/50" />
+                          <div className="px-1 py-1">
+                            <WorkspaceSelector />
                           </div>
-                          <ScrollArea className="h-72">
-                            <div className="space-y-2 p-3">
-                              {selectable.map((m) => {
-                                const checked = dedupeModels(apiConfig.comparisonModelIds).includes(m.id);
-                                return (
-                                  <label
-                                    key={`cmp-${m.id}`}
-                                    className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1.5 hover:bg-muted/50"
-                                  >
-                                    <Checkbox
-                                      checked={checked}
-                                      onCheckedChange={(v) => toggleCompareModel(m.id, v === true)}
-                                      className="mt-0.5"
-                                    />
-                                    <span className="text-sm leading-snug">
-                                      <span className="block font-medium">{m.name || shortModelLabel(m.id)}</span>
-                                    </span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </ScrollArea>
-                        </PopoverContent>
-                      </Popover>
+                        </>
+                      )}
+                      <div className="my-1 border-t border-border/50" />
                       <button
                         type="button"
                         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
-                        onClick={() => setAgentMode(!agentMode)}
+                        onClick={() => {
+                          setPlusOpen(false);
+                          setToolsOpen(true);
+                        }}
                       >
-                        <Bot className="h-4 w-4 text-muted-foreground" />
-                        Agent tools {agentMode ? "on" : "off"}
+                        <Wrench className="h-4 w-4 text-muted-foreground" /> Tools &amp; modes
                       </button>
-                      {agentMode && (
-                        <div className="px-1 py-1">
-                          <SourceFilter value={sourceScope} onChange={setSourceScope} />
-                        </div>
-                      )}
                       {apiConfig.aiProvider === "webgpu_gemma" && (
                         <button
                           type="button"
@@ -1224,71 +1088,81 @@ const ChatInput: React.FC<ChatInputProps> = ({
                   <p className="px-2 py-1.5 text-[10px] text-muted-foreground">Type / for commands</p>
                 </PopoverContent>
               </Popover>
+              {!isStudio && (
+                <ToolsPopover
+                  message={message}
+                  setMessage={setMessage}
+                  open={toolsOpen}
+                  onOpenChange={setToolsOpen}
+                  showTrigger={false}
+                />
+              )}
 
-              <ComposerRuntimePicker compact />
+              {!isStudio && (
+                <>
+                  <ComposerRuntimePicker compact />
 
-              <DropdownMenu
-                onOpenChange={(open) => {
-                  if (!open) setModelFilter("");
-                }}
-              >
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "h-8 max-w-[7.5rem] shrink-0 gap-1 rounded-full border border-border/40 px-2 text-xs",
-                      isStudio && "max-w-[6.5rem]"
-                    )}
+                  <DropdownMenu
+                    onOpenChange={(open) => {
+                      if (!open) setModelFilter("");
+                    }}
                   >
-                    <Bot size={14} className="shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 truncate font-medium">
-                      {layerActive
-                        ? shortModelLabel(openCodeModel)
-                        : shortModelLabel(effectiveModel?.modelId || apiConfig.model)}
-                    </span>
-                    <ChevronDown size={12} className="shrink-0 opacity-70" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="start"
-                  className="flex max-h-[min(55vh,360px)] w-[min(100vw-2rem,22rem)] flex-col overflow-hidden"
-                >
-                  <div className="border-b border-border/60 p-2">
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={modelFilter}
-                        onChange={(e) => setModelFilter(e.target.value)}
-                        placeholder="Search models…"
-                        className="h-8 pl-7 text-xs"
-                        onKeyDown={(e) => e.stopPropagation()}
-                        autoFocus
-                      />
-                    </div>
-                  </div>
-                  {layerActive ? (
-                    <div className="max-h-60 overflow-y-auto p-1">
-                      {filteredOpenCodeModels.map((m) => (
-                        <DropdownMenuItem key={m.id} onClick={() => setOpenCodeModel(m.id)}>
-                          <span className="flex-1 truncate">{m.displayName || shortModelLabel(m.id)}</span>
-                          {openCodeModel === m.id ? <span className="text-primary">✓</span> : null}
-                        </DropdownMenuItem>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="max-h-60 overflow-y-auto p-1">
-                      {filteredSelectable.map((m) => (
-                        <DropdownMenuItem key={m.id} onClick={() => handleModelChange(m.id)}>
-                          <span className="flex-1 truncate">{m.name || shortModelLabel(m.id)}</span>
-                          <ModelCapabilityBadges modelId={m.id} meta={m} compact className="shrink-0" />
-                          {apiConfig.model === m.id ? <span className="text-primary">✓</span> : null}
-                        </DropdownMenuItem>
-                      ))}
-                    </div>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 max-w-[7.5rem] shrink-0 gap-1 rounded-full border border-border/40 px-2 text-xs"
+                      >
+                        <Bot size={14} className="shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 truncate font-medium">
+                          {layerActive
+                            ? shortModelLabel(openCodeModel)
+                            : shortModelLabel(effectiveModel?.modelId || apiConfig.model)}
+                        </span>
+                        <ChevronDown size={12} className="shrink-0 opacity-70" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="start"
+                      className="flex max-h-[min(55vh,360px)] w-[min(100vw-2rem,22rem)] flex-col overflow-hidden"
+                    >
+                      <div className="border-b border-border/60 p-2">
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={modelFilter}
+                            onChange={(e) => setModelFilter(e.target.value)}
+                            placeholder="Search models…"
+                            className="h-8 pl-7 text-xs"
+                            onKeyDown={(e) => e.stopPropagation()}
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                      {layerActive ? (
+                        <div className="max-h-60 overflow-y-auto p-1">
+                          {filteredOpenCodeModels.map((m) => (
+                            <DropdownMenuItem key={m.id} onClick={() => setOpenCodeModel(m.id)}>
+                              <span className="flex-1 truncate">{m.displayName || shortModelLabel(m.id)}</span>
+                              {openCodeModel === m.id ? <span className="text-primary">✓</span> : null}
+                            </DropdownMenuItem>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="max-h-60 overflow-y-auto p-1">
+                          {filteredSelectable.map((m) => (
+                            <DropdownMenuItem key={m.id} onClick={() => handleModelChange(m.id)}>
+                              <span className="flex-1 truncate">{m.name || shortModelLabel(m.id)}</span>
+                              <ModelCapabilityBadges modelId={m.id} meta={m} compact className="shrink-0" />
+                              {apiConfig.model === m.id ? <span className="text-primary">✓</span> : null}
+                            </DropdownMenuItem>
+                          ))}
+                        </div>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              )}
             </div>
 
             <div className="flex shrink-0 items-center gap-1">

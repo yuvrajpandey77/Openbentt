@@ -3,22 +3,23 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useChat } from "@/context/ChatContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
 import { FeatureErrorBoundary } from "@/components/FeatureErrorBoundary";
+import { ChevronRight } from "lucide-react";
 import {
-  Plus,
-  MessageSquare,
-  FolderKanban,
-  NotebookPen,
-  Search,
-  LayoutGrid,
-  ChevronRight,
-  PanelLeft,
-} from "lucide-react";
+  PlusIcon,
+  MessageIcon,
+  KanbanIcon,
+  NotebookIcon,
+  SearchIcon,
+  GridIcon,
+  SidebarIcon,
+} from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AccountMenu } from "@/components/AccountMenu";
 import { ChatActionsMenu } from "@/components/ChatActionsMenu";
-import { sidebarWidthClass } from "@/lib/sidebarLayout";
+import { DESKTOP_CHROME_TOP_OFFSET_CLASS, sidebarWidthClass } from "@/lib/sidebarLayout";
+import { isDesktopApp } from "@/lib/isDesktopApp";
 
 type NavItem = {
   icon: React.ElementType;
@@ -29,9 +30,9 @@ type NavItem = {
 };
 
 const PRIMARY_NAV: NavItem[] = [
-  { icon: MessageSquare, label: "Chat", id: "chat", to: "/chat" },
-  { icon: FolderKanban, label: "Projects", id: "projects", to: "/projects" },
-  { icon: NotebookPen, label: "Notebook", id: "notebook", to: "/notebook" },
+  { icon: MessageIcon, label: "Chat", id: "chat", to: "/chat" },
+  { icon: KanbanIcon, label: "Projects", id: "projects", to: "/projects" },
+  { icon: NotebookIcon, label: "Notebook", id: "notebook", to: "/notebook" },
 ];
 
 function projectAccent(id: string): string {
@@ -138,7 +139,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       <TooltipProvider>
         <aside
           className={cn(
-            "fixed inset-y-0 left-0 z-[var(--z-sidebar)] flex flex-col items-center",
+            "fixed bottom-0 left-0 z-[var(--z-sidebar)] flex flex-col items-center",
+            isDesktopApp() ? DESKTOP_CHROME_TOP_OFFSET_CLASS : "top-0",
             "border-r border-border bg-background",
             "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
             sidebarWidthClass(true),
@@ -194,7 +196,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
                   aria-label="New chat"
                 >
-                  <Plus className="h-5 w-5" strokeWidth={1.75} />
+                  <PlusIcon size={20} />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right">New chat</TooltipContent>
@@ -214,7 +216,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   )}
                   aria-label="Projects"
                 >
-                  <LayoutGrid className="h-5 w-5" strokeWidth={1.75} />
+                  <GridIcon size={20} active={pathActive("/projects")} />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right">Projects</TooltipContent>
@@ -232,7 +234,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     <TooltipProvider>
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-[var(--z-sidebar)] flex flex-col",
+          "fixed bottom-0 left-0 z-[var(--z-sidebar)] flex flex-col",
+          isMobile || !isDesktopApp() ? "top-0" : DESKTOP_CHROME_TOP_OFFSET_CLASS,
           "border-r border-border bg-background",
           "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
           isMobile ? "w-full border-0" : cn(sidebarWidthClass(false), "border-r border-border"),
@@ -259,7 +262,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
               aria-label="Search (⌘K)"
             >
-              <Search className="h-4 w-4" />
+              <SearchIcon size={16} />
             </button>
             <button
               type="button"
@@ -267,7 +270,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
               aria-label="New chat"
             >
-              <Plus className="h-4 w-4" />
+              <PlusIcon size={16} />
             </button>
             {!isMobile && (
               <button
@@ -276,7 +279,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label="Collapse sidebar"
               >
-                <PanelLeft className="h-4 w-4" />
+                <SidebarIcon size={16} />
               </button>
             )}
           </div>
@@ -345,7 +348,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     }}
                     className="flex w-full items-center gap-2 border-t border-border/50 px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
-                    <LayoutGrid className="h-4 w-4 shrink-0" />
+                    <GridIcon size={16} className="shrink-0" />
                     <span>All projects</span>
                   </button>
                 </div>
@@ -377,7 +380,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                           : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                       )}
                     >
-                      <Icon className="h-5 w-5 shrink-0" strokeWidth={1.75} />
+                      <Icon
+                        size={20}
+                        active={active}
+                        className="shrink-0"
+                      />
                       <span className="truncate text-[15px]">{item.label}</span>
                     </button>
                   );
@@ -406,7 +413,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             )}
                             aria-current={active ? "page" : undefined}
                           >
-                            <MessageSquare className="h-4 w-4 shrink-0 opacity-70" strokeWidth={1.5} />
+                            <MessageIcon size={16} active={active} className="shrink-0 opacity-70" />
                             <span className="truncate">{chat.title || "Untitled chat"}</span>
                           </button>
                           <div className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">

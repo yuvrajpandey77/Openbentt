@@ -52,7 +52,13 @@ export function sortOpenCodeModels(models: RuntimeModel[]): RuntimeModel[] {
 }
 
 export function defaultOpenCodeModel(models: RuntimeModel[]): string {
-  const sorted = sortOpenCodeModels(models.filter((m) => m.available !== false));
+  const usable = models.filter((m) => m.available !== false);
+  // Prefer OpenCode free/zen ids — they work without OpenRouter workspace budget.
+  const preferred = usable.find((m) => /^opencode\//i.test(m.id) && isFreeOpenCodeModel(m));
+  if (preferred) return preferred.id;
+  const anyOpenCode = usable.find((m) => /^opencode\//i.test(m.id));
+  if (anyOpenCode) return anyOpenCode.id;
+  const sorted = sortOpenCodeModels(usable);
   return sorted[0]?.id ?? models[0]?.id ?? "auto";
 }
 
@@ -114,13 +120,24 @@ export async function fetchOpenCodeLayer(): Promise<Omit<OpenCodeLayerSnapshot, 
       noteError(e, "Could not list gateway models");
       gatewayModels = [];
     }
-    // Picker source: gateway models when present, else the binary's own
-    // (Zen) list. Merged by id, gateway first.
+    // Always pull the binary's own model list (OpenCode free + OpenRouter ids).
+    // Gateway models (if any) merge in first; binary list fills / replaces when empty.
     let models = [...gatewayModels];
-    if (models.length === 0 && empty.askReady) {
+    if (empty.askReady) {
       try {
         const bin = await openCodeAgentApi.listOpenCodeModels();
-        if (Array.isArray(bin.models)) models = bin.models;
+        const binModels = Array.isArray(bin.models) ? bin.models : [];
+        if (binModels.length) {
+          const seen = new Set(models.map((m) => m.id));
+          for (const m of binModels) {
+            if (!seen.has(m.id)) {
+              models.push(m);
+              seen.add(m.id);
+            }
+          }
+          // If gateway returned nothing useful, prefer binary order (free first via sort).
+          if (gatewayModels.length === 0) models = binModels;
+        }
       } catch (e) {
         noteError(e, "Could not list OpenCode models");
       }
