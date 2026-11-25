@@ -12,7 +12,7 @@ permissions:
 jobs:
   # Web zip + Linux AppImage/deb (single runner to avoid duplicate BusyTeX + Vite work for Linux).
   build-linux-web:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -123,15 +123,31 @@ jobs:
       - name: Bundle llama-server (Windows)
         run: npm run download:llama-server
 
+      # Empty CSC_* from missing secrets is treated as a cert path ("… not a file").
       - name: Package Electron (Windows)
-        run: npm run electron:pack:win
+        shell: bash
         env:
-          # When CSC_LINK / CSC_KEY_PASSWORD are set in repo secrets, electron-builder signs NSIS.
-          # Without them, builds remain unsigned (SmartScreen warnings expected).
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          RAW_CSC_LINK: ${{ secrets.CSC_LINK }}
+          RAW_CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          RAW_WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          RAW_WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${RAW_CSC_LINK:-}" && -n "${RAW_CSC_KEY_PASSWORD:-}" ]]; then
+            export CSC_LINK="$RAW_CSC_LINK"
+            export CSC_KEY_PASSWORD="$RAW_CSC_KEY_PASSWORD"
+          else
+            unset CSC_LINK CSC_KEY_PASSWORD || true
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "Windows packaging unsigned (CSC secrets unset)"
+          fi
+          if [[ -n "${RAW_WIN_CSC_LINK:-}" && -n "${RAW_WIN_CSC_KEY_PASSWORD:-}" ]]; then
+            export WIN_CSC_LINK="$RAW_WIN_CSC_LINK"
+            export WIN_CSC_KEY_PASSWORD="$RAW_WIN_CSC_KEY_PASSWORD"
+          else
+            unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD || true
+          fi
+          npm run electron:pack:win
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -141,15 +157,6 @@ jobs:
 
   build-macos:
     runs-on: macos-latest
-    env:
-      # Sign/notarize when Apple + CSC secrets are present; otherwise stay unsigned.
-      CSC_LINK: ${{ secrets.CSC_LINK }}
-      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      # Disable auto-discovery only when no cert secret is configured.
-      CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK == '' && 'false' || 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -196,8 +203,30 @@ jobs:
       - name: Bundle llama-server (macOS)
         run: npm run download:llama-server
 
+      # Empty CSC_LINK="" makes electron-builder treat the workspace as a p12 → "not a file".
       - name: Package Electron (macOS)
-        run: npm run electron:pack:mac
+        shell: bash
+        env:
+          RAW_CSC_LINK: ${{ secrets.CSC_LINK }}
+          RAW_CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          RAW_APPLE_ID: ${{ secrets.APPLE_ID }}
+          RAW_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          RAW_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${RAW_CSC_LINK:-}" && -n "${RAW_CSC_KEY_PASSWORD:-}" ]]; then
+            export CSC_LINK="$RAW_CSC_LINK"
+            export CSC_KEY_PASSWORD="$RAW_CSC_KEY_PASSWORD"
+            [[ -n "${RAW_APPLE_ID:-}" ]] && export APPLE_ID="$RAW_APPLE_ID"
+            [[ -n "${RAW_APPLE_APP_SPECIFIC_PASSWORD:-}" ]] && export APPLE_APP_SPECIFIC_PASSWORD="$RAW_APPLE_APP_SPECIFIC_PASSWORD"
+            [[ -n "${RAW_APPLE_TEAM_ID:-}" ]] && export APPLE_TEAM_ID="$RAW_APPLE_TEAM_ID"
+            echo "macOS packaging with code signature"
+          else
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID || true
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "macOS packaging unsigned (CSC secrets unset)"
+          fi
+          npm run electron:pack:mac
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -207,7 +236,7 @@ jobs:
 
   publish:
     needs: [build-linux-web, build-windows, build-macos]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Download all build artifacts
         uses: actions/download-artifact@v4

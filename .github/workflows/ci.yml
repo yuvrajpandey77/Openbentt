@@ -12,7 +12,8 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Pin 24.04 — Playwright 1.60 does not support ubuntu26.04-x64 yet.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
