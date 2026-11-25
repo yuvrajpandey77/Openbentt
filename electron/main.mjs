@@ -500,8 +500,16 @@ function createWindow() {
     /** Show window unconditionally after 3 s so a silent load failure never leaves it invisible. */
     sleep(3000).then(() => { if (!win.isDestroyed() && !win.isVisible()) win.show(); });
   } else {
+    // Show the shell immediately (bg color) — do not wait on full renderer boot.
+    ensureWindowVisible(win);
     win.once("ready-to-show", () => ensureWindowVisible(win));
-    win.webContents.on("did-finish-load", () => ensureWindowVisible(win));
+    win.webContents.on("did-finish-load", () => {
+      ensureWindowVisible(win);
+      console.info("[startup][renderer] did-finish-load");
+    });
+    win.webContents.on("dom-ready", () => {
+      console.info("[startup][renderer] dom-ready");
+    });
     win.webContents.on("did-fail-load", (_event, code, desc, url, isMainFrame) => {
       if (isMainFrame) {
         console.error(`[electron] Production load failed (${code}): ${url} — ${desc}`);
@@ -509,8 +517,7 @@ function createWindow() {
       }
     });
     win.loadURL(`app://openbentt${START_PATH}`);
-    sleep(2000).then(() => ensureWindowVisible(win));
-    sleep(5000).then(() => ensureWindowVisible(win));
+    sleep(1500).then(() => ensureWindowVisible(win));
   }
 }
 
@@ -547,38 +554,61 @@ if (!gpuSafeMode.enabled) {
 }
 
 app.whenReady().then(async () => {
+  // Critical path only: show the window as soon as possible.
   timedStartup("setupApplicationMenu", () => setupApplicationMenu({ isDev: useViteDevServer }));
-  timedStartup("registerDesktopUpdaterIpc", () => registerDesktopUpdaterIpc());
-  timedStartup("registerExternalAgentDetectIpc", () => registerExternalAgentDetectIpc(ipcMain));
   timedStartup("registerDesktopWindowIpc", () => registerDesktopWindowIpc(ipcMain));
-  timedStartup("registerHfSecretIpc", () => registerHfSecretIpc(ipcMain, app));
-  timedStartup("registerSecretVaultIpc", () => registerSecretVaultIpc(ipcMain, app));
-  timedStartup("registerLocalGgufIpc", () => registerLocalGgufIpc(ipcMain, app));
-  timedStartup("registerResearchProjectIpc", () => registerResearchProjectIpc(ipcMain, app));
-  timedStartup("registerZoteroSecretIpc", () => registerZoteroSecretIpc(ipcMain, app));
-  timedStartup("registerZoteroIpc", () => registerZoteroIpc(ipcMain, app));
-  timedStartup("registerOllamaIpc", () =>
-    registerOllamaIpc(ipcMain, {
-      getWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
-    })
-  );
-  timedStartup("registerOpenCodeIpc", () => registerOpenCodeIpc(ipcMain, app));
-  timedStartup("registerVoiceIpc", () => registerVoiceIpc(ipcMain, app));
-  timedStartup("registerNarrationIpc", () => registerNarrationIpc(ipcMain, app));
-  timedStartup("registerPaperOrchestraIpc", () => registerPaperOrchestraIpc(ipcMain, app));
-  timedStartup("registerWorkspaceIpc", () => registerWorkspaceIpc(ipcMain, app));
-  timedStartup("registerLatexIpc", () => registerLatexIpc(ipcMain, app));
-  timedStartup("registerOcrIpc", () => registerOcrIpc(ipcMain, app));
-  timedStartup("registerComputerUseIpc", () => registerComputerUseIpc(ipcMain, app));
-  // Phase 2: reconcile durable agent history (interrupted → UNKNOWN, never completed).
-  void reconcileAgentStateOnStartup(app).then(({ reconciled }) => {
-    if (reconciled > 0) console.info(`[electron] Reconciled ${reconciled} interrupted agent task(s).`);
-  }).catch(() => {});
   if (!useViteDevServer) {
     timedStartup("registerAppProtocolHandler", () => registerAppProtocolHandler());
   }
   timedStartup("createWindow", () => createWindow());
   logStartupTimings();
+
+  // Defer heavier IPC/services to the next turn so first paint is not blocked.
+  setImmediate(() => {
+    const deferred = [];
+    const run = (name, fn) => {
+      const start = process.hrtime.bigint();
+      try {
+        fn();
+      } catch (err) {
+        console.error(`[electron] deferred ${name} failed:`, err);
+      }
+      deferred.push({ name, ms: Math.round(Number(process.hrtime.bigint() - start) / 1e4) / 100 });
+    };
+    run("registerDesktopUpdaterIpc", () => registerDesktopUpdaterIpc());
+    run("registerExternalAgentDetectIpc", () => registerExternalAgentDetectIpc(ipcMain));
+    run("registerHfSecretIpc", () => registerHfSecretIpc(ipcMain, app));
+    run("registerSecretVaultIpc", () => registerSecretVaultIpc(ipcMain, app));
+    run("registerLocalGgufIpc", () => registerLocalGgufIpc(ipcMain, app));
+    run("registerResearchProjectIpc", () => registerResearchProjectIpc(ipcMain, app));
+    run("registerZoteroSecretIpc", () => registerZoteroSecretIpc(ipcMain, app));
+    run("registerZoteroIpc", () => registerZoteroIpc(ipcMain, app));
+    run("registerOllamaIpc", () =>
+      registerOllamaIpc(ipcMain, {
+        getWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
+      })
+    );
+    run("registerOpenCodeIpc", () => registerOpenCodeIpc(ipcMain, app));
+    run("registerVoiceIpc", () => registerVoiceIpc(ipcMain, app));
+    run("registerNarrationIpc", () => registerNarrationIpc(ipcMain, app));
+    run("registerPaperOrchestraIpc", () => registerPaperOrchestraIpc(ipcMain, app));
+    run("registerWorkspaceIpc", () => registerWorkspaceIpc(ipcMain, app));
+    run("registerLatexIpc", () => registerLatexIpc(ipcMain, app));
+    run("registerOcrIpc", () => registerOcrIpc(ipcMain, app));
+    run("registerComputerUseIpc", () => registerComputerUseIpc(ipcMain, app));
+    console.info(
+      "[startup][deferred] " +
+        JSON.stringify({
+          totalMs: Math.round(deferred.reduce((s, x) => s + x.ms, 0) * 100) / 100,
+          steps: deferred,
+        })
+    );
+    void reconcileAgentStateOnStartup(app)
+      .then(({ reconciled }) => {
+        if (reconciled > 0) console.info(`[electron] Reconciled ${reconciled} interrupted agent task(s).`);
+      })
+      .catch(() => {});
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
