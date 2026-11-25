@@ -8,12 +8,9 @@ import {
   Settings,
   Cpu,
   Plus,
-  FileStack,
-  Files,
   ListTodo,
   Bot,
   Plug,
-  FileType2,
 } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import { useResearchProject } from "@/context/ResearchProjectContext";
@@ -111,14 +108,18 @@ export const CommandMenu: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
               label="Notebook · Compile"
               onSelect={() => go("/notebook?mode=orchestra")}
             />
-            <Item icon={<FileStack size={15} />} label="Documents" onSelect={() => go("/documents")} />
             <Item icon={<BookOpen size={15} />} label="Research library" onSelect={() => go("/labs")} />
-            <Item icon={<Files size={15} />} label="Files" onSelect={() => go("/files")} />
             <Item icon={<ListTodo size={15} />} label="Tasks" onSelect={() => go("/tasks")} />
-            <Item icon={<FileType2 size={15} />} label="Math / LaTeX" onSelect={() => go("/write")} />
-            <Item icon={<Bot size={15} />} label="Agent · Voice" onSelect={() => go("/agent")} />
-            <Item icon={<Plug size={15} />} label="Integrations / Setup" onSelect={() => go("/setup")} />
-            <Item icon={<Settings size={15} />} label="Settings" hint="⌘," onSelect={() => go("/settings")} />
+            <Item icon={<Bot size={15} />} label="Agent" onSelect={() => go("/agent")} />
+            <Item icon={<Plug size={15} />} label="Setup" onSelect={() => go("/setup")} />
+            <Item
+              icon={<Settings size={15} />}
+              label="Settings"
+              hint="⌘,"
+              onSelect={() => {
+                window.dispatchEvent(new Event("openbentt-open-settings"));
+              }}
+            />
           </Section>
           {modelHits.length > 0 && (
             <Section title="Local models">
@@ -128,7 +129,9 @@ export const CommandMenu: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                   icon={<Cpu size={15} />}
                   label={friendlyModelLabel(m)}
                   sub="Local · Ollama"
-                  onSelect={() => go("/settings")}
+                  onSelect={() => {
+                    window.dispatchEvent(new Event("openbentt-open-settings"));
+                  }}
                 />
               ))}
             </Section>

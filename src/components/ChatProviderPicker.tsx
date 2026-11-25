@@ -16,6 +16,7 @@ import {
   type ChatProviderChoiceId,
 } from "@/lib/agent/chatProviderChoice";
 import { isLocalGgufDesktopAvailable } from "@/lib/localGguf/desktopApi";
+import { openCodeAgentApi } from "@/lib/agent/openCodeAgentApi";
 import { useToast } from "@/components/ui/use-toast";
 
 type Option = {
@@ -40,7 +41,7 @@ const AGENT_META: Record<
 };
 
 export function ChatProviderPicker({ onChosen }: { onChosen?: () => void }) {
-  const { apiConfig, setApiConfig } = useChat();
+  const { apiConfig, setApiConfig, openCodeLayer, refreshOpenCodeLayer } = useChat();
   const { health, defaultModel, refresh } = useLocalAI();
   const { toast } = useToast();
   const [agents, setAgents] = useState<DetectedExternalAgent[] | null>(null);
@@ -54,7 +55,8 @@ export function ChatProviderPicker({ onChosen }: { onChosen?: () => void }) {
     void detectExternalAgents()
       .then((r) => setAgents(r.agents))
       .catch(() => setAgents([]));
-  }, []);
+    void refreshOpenCodeLayer();
+  }, [refreshOpenCodeLayer]);
 
   const byId = (id: string) => agents?.find((a) => a.id === id);
 
@@ -62,13 +64,18 @@ export function ChatProviderPicker({ onChosen }: { onChosen?: () => void }) {
     .map((id) => {
       const meta = AGENT_META[id];
       const hit = byId(id);
+      const fromLayer =
+        id === "opencode" && (openCodeLayer.opencodeInstalled || openCodeLayer.available || openCodeLayer.askReady);
       return {
         id,
         label: meta.label,
         hint: meta.hint,
         icon: meta.icon,
-        available: Boolean(hit?.available) || (id === "opencode" && !isDesktopApp()),
-        detail: hit?.version?.slice(0, 40) ?? (hit?.path ? hit.path.split("/").pop() : null),
+        available: Boolean(hit?.available) || fromLayer || (id === "opencode" && !isDesktopApp()),
+        detail:
+          hit?.version?.slice(0, 40) ??
+          (fromLayer ? openCodeLayer.opencodeVersion : null) ??
+          (hit?.path ? hit.path.split("/").pop() : null),
       };
     })
     .filter((o) => o.available || o.id === "opencode");
@@ -109,6 +116,21 @@ export function ChatProviderPicker({ onChosen }: { onChosen?: () => void }) {
     setBusy(id);
     try {
       if (id === "ollama") await refresh({ quiet: true }).catch(() => {});
+      if (
+        id === "opencode" ||
+        id === "claude" ||
+        id === "codex" ||
+        id === "cursor-agent" ||
+        id === "aider" ||
+        id === "gemini"
+      ) {
+        try {
+          await openCodeAgentApi.ensureRuntime();
+        } catch {
+          /* layer status still refreshes */
+        }
+        await refreshOpenCodeLayer();
+      }
       storeChatProviderChoice(id);
       setApiConfig(applyChatProviderChoice(id, apiConfig, { ollamaModel: defaultModel }));
       toast({

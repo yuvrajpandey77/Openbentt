@@ -1,7 +1,7 @@
 import React from "react";
-import { Link } from "react-router-dom";
 import { useChat } from "@/context/ChatContext";
 import { Badge } from "@/components/ui/badge";
+import { NavBackButton } from "@/components/NavBackButton";
 import { shortModelLabel } from "@/lib/openrouter";
 import { cn } from "@/lib/utils";
 
@@ -38,9 +38,7 @@ export const PlaygroundShell: React.FC<PlaygroundShellProps> = ({ tag, title, su
       <div className="border-b border-border/70 bg-muted/15">
         <div className="mx-auto flex max-w-4xl flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <Link to="/chat" className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
-              ← Home chat
-            </Link>
+            <NavBackButton fallback="/chat" label="Back" className="-ml-2" />
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Badge variant="secondary" className="font-display text-[10px] uppercase tracking-wide">
                 {tag}

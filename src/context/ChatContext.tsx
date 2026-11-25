@@ -80,17 +80,33 @@ import {
   streamOpenCodeLayerChat,
   type OpenCodeLayerSnapshot,
 } from "@/lib/agent/openCodeChat";
-import { choiceUsesOpenCodeAsk, loadChatProviderChoice, PREFERRED_AGENT_KEY } from "@/lib/agent/chatProviderChoice";
+import {
+  choiceIsChatBackend,
+  choiceUsesOpenCodeAsk,
+  loadChatProviderChoice,
+  storeChatProviderChoice,
+  PREFERRED_AGENT_KEY,
+} from "@/lib/agent/chatProviderChoice";
 import { getAgentRole } from "@/lib/agent/agentRoles";
 
 export type ExecutionMode = "chat" | "plan" | "build" | "task";
 
-/** OpenCode ask-layer for cloud/default chat; never steal explicit local Ollama/GGUF/WebGPU. */
-function shouldUseOpenCodeAskLayer(cfg: ApiKeyConfig, layerAvailable: boolean): boolean {
-  if (!hasOpenCodeDesktopApi() || !layerAvailable) return false;
+/** OpenCode ask-layer for desktop chat; never steal explicit local Ollama/GGUF/WebGPU or OpenRouter. */
+function shouldUseOpenCodeAskLayer(
+  cfg: ApiKeyConfig,
+  layer: Pick<OpenCodeLayerSnapshot, "available" | "askReady" | "opencodeInstalled"> | boolean
+): boolean {
+  if (!hasOpenCodeDesktopApi()) return false;
   if (prefersLocalOllamaInference(cfg)) return false;
-  // Only when user explicitly picked an OpenCode/CLI agent — never auto-dump CLI help.
-  return choiceUsesOpenCodeAsk(loadChatProviderChoice()?.id);
+  const choice = loadChatProviderChoice()?.id;
+  if (choiceIsChatBackend(choice)) return false;
+  const layerReady =
+    typeof layer === "boolean"
+      ? layer
+      : Boolean(layer.available || layer.askReady || layer.opencodeInstalled);
+  if (!layerReady) return false;
+  // Explicit agent pick, or no pick yet → use local agents (no API key maze).
+  return choiceUsesOpenCodeAsk(choice) || choice == null;
 }
 
 function formatChatProviderError(cfg: ApiKeyConfig, err: unknown, fallback: string): string {
@@ -996,9 +1012,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       agentCli?: string;
       roleId?: string;
     }): Promise<boolean> => {
-      const mode = args.executionMode ?? executionModeRef.current;
-      
-      // Chat mode never routes to execution
+      let mode = args.executionMode ?? executionModeRef.current;
+      // External CLIs (Claude, Codex, …) only run via createTask — when the
+      // composer is still on Chat mode but the user picked one of those agents,
+      // promote to build so chat can drive that agent without losing permissions.
+      const externalCli =
+        args.agentCli &&
+        args.agentCli !== "opencode" &&
+        ["claude", "codex", "cursor-agent", "aider", "gemini"].includes(args.agentCli);
+      if (mode === "chat" && externalCli) {
+        mode = "build";
+      }
+      // Pure chat + OpenCode ask path stays conversational (no task routing).
       if (mode === "chat") return false;
       
       let decision: { category: string; routeToOpenCode: boolean; mode: "plan" | "build"; reason: string };
@@ -1233,6 +1258,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setOpenCodeLayer((prev) => ({ ...prev, checking: true }));
     const snap = await fetchOpenCodeLayer();
     setOpenCodeLayer({ ...snap, checking: false });
+    // Desktop default: prefer OpenCode when installed and user has not picked a chat backend.
+    if (snap.available || snap.opencodeInstalled) {
+      const existing = loadChatProviderChoice()?.id;
+      if (!existing || choiceUsesOpenCodeAsk(existing)) {
+        if (!existing) storeChatProviderChoice("opencode");
+      }
+    }
     // Adopt stored/default model once models are known.
     setOpenCodeModelState((prev) => {
       if (prev && prev !== "auto" && snap.models.some((m) => m.id === prev)) return prev;
@@ -1291,7 +1323,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       opts?: { projectId?: string | null }
     ) => {
       const layer = openCodeLayerRef.current;
-      if (!layer.available) throw new Error("OpenCode layer unavailable.");
+      if (!(layer.available || layer.askReady || layer.opencodeInstalled)) {
+        throw new Error("OpenCode layer unavailable.");
+      }
       const model = openCodeModelRef.current?.trim() || defaultOpenCodeModel(layer.models);
       const controller = new AbortController();
       abortControllersRef.current = [controller];
@@ -1543,15 +1577,24 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const chatProjectId =
           chatsRef.current.find((c) => c.id === chatId)?.projectId ?? null;
-        await tryRouteToExecution({
-          chatId,
-          assistantMessageId,
-          text: esc.prompt,
-          projectId: chatProjectId,
-          inputSource: "text",
-          model: openCodeModelRef.current,
-          executionMode: "task",
-        });
+        {
+          let preferredCli = "opencode";
+          try {
+            preferredCli = localStorage.getItem(PREFERRED_AGENT_KEY) || "opencode";
+          } catch {
+            /* default */
+          }
+          await tryRouteToExecution({
+            chatId,
+            assistantMessageId,
+            text: esc.prompt,
+            projectId: chatProjectId,
+            inputSource: "text",
+            model: openCodeModelRef.current,
+            executionMode: "task",
+            agentCli: preferredCli,
+          });
+        }
       } catch {
         patchMessageById(chatId, assistantMessageId, (m) => ({
           ...m,
@@ -1787,7 +1830,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     extras: PipelineExtras
   ) => {
     // Regenerate honors OpenCode ask-layer unless user chose local Ollama/GGUF/WebGPU.
-    if (shouldUseOpenCodeAskLayer(cfg, openCodeLayerRef.current.available)) {
+    if (shouldUseOpenCodeAskLayer(cfg, openCodeLayerRef.current)) {
       const chatProjectId = chatsRef.current.find((c) => c.id === activeChatId)?.projectId ?? null;
       await runLayerPipeline(activeChatId, chatMessages, extras, { projectId: chatProjectId });
       return;
@@ -2218,16 +2261,35 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     const trimmed = content.trim();
     if (!trimmed && attachments.length === 0) return;
-    // OpenCode ask-layer for cloud/default; explicit local Ollama/GGUF/WebGPU uses apiConfig stream.
-    const useLayer = shouldUseOpenCodeAskLayer(apiConfig, openCodeLayerRef.current.available);
+    // Prefer local agents on desktop; only fall through to cloud/local backends when chosen.
+    let useLayer = shouldUseOpenCodeAskLayer(apiConfig, openCodeLayerRef.current);
+    const choiceId = loadChatProviderChoice()?.id;
+    const wantsAgent =
+      hasOpenCodeDesktopApi() &&
+      !prefersLocalOllamaInference(apiConfig) &&
+      !choiceIsChatBackend(choiceId);
+    if (!useLayer && wantsAgent) {
+      if (!loadChatProviderChoice()?.id) storeChatProviderChoice("opencode");
+      try {
+        await openCodeAgentApi.ensureRuntime();
+      } catch {
+        /* refresh below surfaces status */
+      }
+      await refreshOpenCodeLayer();
+      useLayer = shouldUseOpenCodeAskLayer(apiConfig, openCodeLayerRef.current);
+    }
     if (!useLayer) {
       if (!canSendChat(apiConfig)) {
         toastKeyMissing(
-          apiConfig.aiProvider === "webgpu_gemma"
-            ? "WebGPU is not available in this browser. Use Chrome/Edge or the desktop build, or switch to OpenRouter in Settings."
-            : apiConfig.aiProvider === "local_gguf"
-              ? "Use the Openbentt desktop app, install llama-server on PATH (or set a binary path), download a GGUF in Labs, and pick it in Settings."
-              : "Add an OpenRouter API key or set an OpenAI-compatible base URL (e.g. Ollama) in Settings."
+          wantsAgent
+            ? openCodeLayerRef.current.opencodeInstalled || openCodeLayerRef.current.askReady
+              ? "Local agent runtime is starting. Wait a moment, then send again — or Rescan in the composer runtime menu."
+              : "No local agent ready. Install OpenCode / Claude Code (or another CLI), then Rescan in the composer runtime menu — or choose Ollama / OpenRouter."
+            : apiConfig.aiProvider === "webgpu_gemma"
+              ? "WebGPU is not available in this browser. Use Chrome/Edge or the desktop build, or switch to OpenRouter in Settings."
+              : apiConfig.aiProvider === "local_gguf"
+                ? "Use the Openbentt desktop app, install llama-server on PATH (or set a binary path), download a GGUF in Labs, and pick it in Settings."
+                : "Pick a local agent (OpenCode, Claude Code, …) in the composer, or add Ollama / an OpenRouter key in Settings."
         );
         return;
       }
@@ -2328,15 +2390,24 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
       let absorbed = false;
       try {
-        absorbed = await tryRouteToExecution({
-          chatId: activeChatId,
-          assistantMessageId: seamAssistantId,
-          text: body,
-          projectId,
-          inputSource,
-          model: openCodeModelRef.current,
-          executionMode: options?.executionMode ?? executionModeRef.current,
-        });
+        {
+          let preferredCli = "opencode";
+          try {
+            preferredCli = localStorage.getItem(PREFERRED_AGENT_KEY) || "opencode";
+          } catch {
+            /* default */
+          }
+          absorbed = await tryRouteToExecution({
+            chatId: activeChatId,
+            assistantMessageId: seamAssistantId,
+            text: body,
+            projectId,
+            inputSource,
+            model: openCodeModelRef.current,
+            executionMode: options?.executionMode ?? executionModeRef.current,
+            agentCli: preferredCli,
+          });
+        }
       } catch {
         absorbed = false;
       }
@@ -2774,7 +2845,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const unifiedChatReady =
-    (!prefersLocalOllamaInference(apiConfig) && openCodeLayer.available) || canSendMessage(apiConfig);
+    (!prefersLocalOllamaInference(apiConfig) &&
+      !choiceIsChatBackend(loadChatProviderChoice()?.id) &&
+      (openCodeLayer.available || openCodeLayer.askReady || openCodeLayer.opencodeInstalled)) ||
+    canSendMessage(apiConfig);
 
   // Memoize so token-stream setState does not rebuild a new context object every
   // render for consumers that only need stable actions (Sidebar, Settings, etc.).

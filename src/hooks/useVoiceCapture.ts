@@ -11,8 +11,8 @@ export type VoiceCaptureState =
 
 const MAX_RECORD_MS = 60_000;
 const CHUNK_B64 = 300_000; // under the 400k main-process payload cap
-const SILENCE_PEAK = 0.015; // below this the mic captured (near-)silence
-const MIN_SPEECH_MS = 400;
+const SILENCE_PEAK = 0.008; // below this the mic captured (near-)silence
+const MIN_SPEECH_MS = 350;
 
 function floatPeak(float32: Float32Array): number {
   let peak = 0;
@@ -373,5 +373,15 @@ export function useVoiceCapture() {
     setError(null);
   }, [cleanup]);
 
-  return { state, progress, error, start, stop, cancel, clearError: () => setError(null) };
+  return {
+    state,
+    progress,
+    error,
+    level,
+    elapsedMs,
+    start,
+    stop,
+    cancel,
+    clearError: () => setError(null),
+  };
 }

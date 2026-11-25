@@ -180,6 +180,7 @@ export default defineConfig(({ mode }) => ({
           if (id.includes("mathjs")) return "mathjs";
           if (id.includes("react-markdown") || id.includes("remark-") || id.includes("micromark")) return "markdown";
           if (id.includes("@radix-ui") || id.includes("lucide-react") || id.includes("cmdk")) return "ui-vendor";
+          if (id.includes("@a2ui/")) return "a2ui";
           return undefined;
         },
       },

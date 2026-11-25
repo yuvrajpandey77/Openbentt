@@ -1,44 +1,47 @@
 import React, { useState } from "react";
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import SettingsPanel from "@/components/SettingsPanel";
+import { SettingsShell } from "@/pages/SettingsPage";
 import { cn } from "@/lib/utils";
 
-function AppSettingsDialogBody() {
-  return (
-    <>
-      <DialogHeader className="space-y-1 px-5 py-4 text-left sm:border-b sm:border-border/40">
-        <DialogTitle className="font-display text-lg font-semibold">Settings</DialogTitle>
-        <p className="text-sm text-muted-foreground">
-          AI providers, appearance, and tools — stored locally.
-        </p>
-      </DialogHeader>
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-        <SettingsPanel />
-      </div>
-    </>
-  );
-}
+const dialogContentClassName =
+  "app-shell z-[100] flex h-[100dvh] max-h-[100dvh] w-full max-w-full flex-col gap-0 overflow-hidden rounded-none border-0 bg-card p-0 shadow-2xl sm:h-[min(88vh,820px)] sm:max-h-[min(88vh,820px)] sm:w-[calc(100vw-2rem)] sm:max-w-4xl sm:rounded-2xl sm:border sm:border-border";
 
-type AppSettingsDialogProps = {
+type ControlledProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+type TriggerProps = {
   trigger: React.ReactNode;
   tooltip?: string;
   tooltipSide?: "top" | "right" | "bottom" | "left";
 };
 
-const dialogContentClassName =
-  "app-shell dark z-[100] flex h-[100dvh] max-h-[100dvh] w-full max-w-full flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-auto sm:max-h-[min(92vh,860px)] sm:w-[calc(100vw-1.25rem)] sm:max-w-3xl sm:rounded-xl";
+function SettingsDialogFrame({
+  open,
+  onOpenChange,
+}: ControlledProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className={dialogContentClassName} aria-describedby={undefined}>
+        <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-4 py-3 pr-12">
+          <DialogTitle className="text-base font-semibold tracking-tight">Settings</DialogTitle>
+        </div>
+        <SettingsShell className="min-h-0 flex-1" />
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function mergeTrigger(
   trigger: React.ReactNode,
   onOpen: () => void
 ): React.ReactNode {
   if (!React.isValidElement(trigger)) return trigger;
-
   const originalOnClick = trigger.props.onClick as React.MouseEventHandler | undefined;
-
   return React.cloneElement(trigger, {
     type: "button",
     onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -48,13 +51,18 @@ function mergeTrigger(
   });
 }
 
-/** Main app settings (AI providers, appearance, dev tools) — same dialog as chat sidebar. */
-export function AppSettingsDialog({ trigger, tooltip, tooltipSide = "right" }: AppSettingsDialogProps) {
+/** Controlled floating settings card (preferred from AppLayout). */
+export function AppSettingsDialogControlled({ open, onOpenChange }: ControlledProps) {
+  return <SettingsDialogFrame open={open} onOpenChange={onOpenChange} />;
+}
+
+/** Trigger-owned settings dialog (dock / one-off buttons). */
+export function AppSettingsDialog({ trigger, tooltip, tooltipSide = "right" }: TriggerProps) {
   const [open, setOpen] = useState(false);
   const triggerNode = mergeTrigger(trigger, () => setOpen(true));
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <>
       {tooltip ? (
         <Tooltip>
           <TooltipTrigger asChild>{triggerNode}</TooltipTrigger>
@@ -63,14 +71,12 @@ export function AppSettingsDialog({ trigger, tooltip, tooltipSide = "right" }: A
       ) : (
         triggerNode
       )}
-      <DialogContent className={dialogContentClassName}>
-        <AppSettingsDialogBody />
-      </DialogContent>
-    </Dialog>
+      <SettingsDialogFrame open={open} onOpenChange={setOpen} />
+    </>
   );
 }
 
-/** Icon trigger styled for the global bottom-left dock. Must forward ref/props for Radix + controlled open. */
+/** Icon trigger styled for the global bottom-left dock. */
 export const AppSettingsDockButton = React.forwardRef<
   HTMLButtonElement,
   React.ComponentPropsWithoutRef<typeof Button>

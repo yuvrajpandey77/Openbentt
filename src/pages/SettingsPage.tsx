@@ -76,8 +76,8 @@ function railToPanelSection(rail: RailId): SettingsSectionId {
   }
 }
 
-/** Nested settings shell — left rail + content wells (no stacked duplicate cards). */
-const SettingsPage: React.FC = () => {
+/** Nested settings shell — left rail + content wells (shared by page + floating dialog). */
+export function SettingsShell({ className }: { className?: string }) {
   const desktop = isDesktopApp();
   const [rail, setRail] = useState<RailId>("general");
   const [panelSection, setPanelSection] = useState<SettingsSectionId>("general");
@@ -96,18 +96,10 @@ const SettingsPage: React.FC = () => {
     visibleRail.find((r) => r.id === rail)?.label ?? "Settings";
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="mx-auto flex h-full w-full max-w-5xl flex-1 flex-col overflow-hidden px-3 py-4 md:px-4">
-        <div className="mb-3 flex shrink-0 items-center gap-2">
-          <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
-          <span className="ml-auto">
-            <FeedbackDialog />
-          </span>
-        </div>
-
-        <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/60 bg-card/40 shadow-sm">
+    <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
           <nav
-            className="flex w-[9.5rem] shrink-0 flex-col gap-0.5 border-r border-border/50 bg-muted/20 p-2 sm:w-44"
+            className="flex w-[9.5rem] shrink-0 flex-col gap-0.5 border-r border-border/50 bg-muted/15 p-2 sm:w-44"
             aria-label="Settings sections"
           >
             {visibleRail.map((item) => {
@@ -270,7 +262,23 @@ const SettingsPage: React.FC = () => {
               </div>
             )}
           </div>
+      </div>
+    </div>
+  );
+}
+
+/** Deep-link /settings — thin page shell; primary UX is the floating card dialog. */
+const SettingsPage: React.FC = () => {
+  return (
+    <div className="flex h-full min-h-0 flex-1 items-stretch justify-center overflow-hidden bg-background/80 p-3 md:p-6">
+      <div className="flex min-h-0 w-full max-w-4xl flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-4 py-3">
+          <h1 className="text-base font-semibold tracking-tight">Settings</h1>
+          <span className="ml-auto">
+            <FeedbackDialog />
+          </span>
         </div>
+        <SettingsShell />
       </div>
     </div>
   );

@@ -100,6 +100,7 @@ import { VoiceInputButton } from "@/components/conversation/VoiceInputButton";
 import { WorkspaceNeededBanner } from "@/components/conversation/WorkspaceNeededBanner";
 import { WorkspaceSelector } from "@/components/conversation/WorkspaceSelector";
 import { PermissionPill } from "@/components/conversation/PermissionPill";
+import { AgentAwaitingBar } from "@/components/conversation/AgentAwaitingBar";
 import { LayerDownBanner } from "@/components/conversation/LayerDownBanner";
 import { ComposerRuntimePicker } from "@/components/composer/ComposerRuntimePicker";
 import { ChatProviderPicker } from "@/components/ChatProviderPicker";
@@ -111,6 +112,7 @@ import {
   type SlashItem,
 } from "@/lib/composerSlash";
 import {
+  choiceIsChatBackend,
   choiceUsesOpenCodeAsk,
   loadChatProviderChoice,
 } from "@/lib/agent/chatProviderChoice";
@@ -140,8 +142,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
-  const [voiceLevel, setVoiceLevel] = useState(0);
-  const [voiceElapsedMs, setVoiceElapsedMs] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -179,9 +179,21 @@ const ChatInput: React.FC<ChatInputProps> = ({
     executionEvents,
   } = useChat();
   const { workspace: composerWs } = useWorkspace();
-  /** OpenCode ask-layer only when not on explicit local Ollama/GGUF/WebGPU. */
-  const layerActive = openCodeLayer.available && !prefersLocalOllamaInference(apiConfig);
-  const agentRuntimeChosen = choiceUsesOpenCodeAsk(loadChatProviderChoice()?.id);
+  const providerChoiceId = loadChatProviderChoice()?.id;
+  /**
+   * Agent / OpenCode path owns chat when the user did not pick a chat backend
+   * (Ollama / OpenRouter / GGUF) and the layer is installed or live.
+   */
+  const layerActive =
+    isDesktopApp() &&
+    !prefersLocalOllamaInference(apiConfig) &&
+    !choiceIsChatBackend(providerChoiceId) &&
+    (choiceUsesOpenCodeAsk(providerChoiceId) || providerChoiceId == null) &&
+    (openCodeLayer.available ||
+      openCodeLayer.askReady ||
+      openCodeLayer.opencodeInstalled ||
+      openCodeLayer.checking);
+  const agentRuntimeChosen = choiceUsesOpenCodeAsk(providerChoiceId);
   const { effectiveModel } = useLocalAI();
   /** Bumps when localStorage consent changes so web /chat re-reads getLocalWeightsConsent(). */
   const [localConsentTick, setLocalConsentTick] = useState(0);
@@ -808,6 +820,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         {!isStudio && !layerActive && <LocalOnDeviceModelBar />}
         {/* Unified execution: workspace prompt appears inline, same composer. */}
         {!isStudio && <WorkspaceNeededBanner />}
+        {!isStudio && <AgentAwaitingBar />}
         {/* Desktop layer-down: one banner, one click — never the maze. */}
         <LayerDownBanner />
         {!isStudio && modeSuggestion && isDesktopApp() && (
@@ -946,7 +959,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
           />
         )}
 
-        <div className="composer-shell relative flex flex-col gap-1.5 rounded-2xl border border-border/50 bg-muted/20 p-1.5 md:p-2">
+        <div className="composer-shell relative flex flex-col gap-1.5 rounded-2xl border border-border bg-card p-1.5 shadow-sm ring-1 ring-border/70 md:p-2">
           {slashOpen && (
             <ComposerSlashMenu
               query={slashQuery ?? ""}
@@ -1280,7 +1293,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
             <div className="flex shrink-0 items-center gap-1">
               {!isStudio && (
-                <VoiceInputButton setComposerMessage={setMessage} level={voiceLevel} elapsedMs={voiceElapsedMs} />
+                <VoiceInputButton setComposerMessage={setMessage} />
               )}
               <Button
                 onClick={isLoading ? () => stopStreaming() : () => void handleSendMessage()}

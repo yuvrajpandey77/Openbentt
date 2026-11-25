@@ -29,10 +29,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useIsMobile } from "@/hooks/use-mobile";
 import { NarrationProvider } from "@/context/NarrationContext";
 import { VoiceDock } from "@/components/narration/VoiceDock";
+import { AppSettingsDialogControlled } from "@/components/AppSettingsDialog";
 import {
   ComposerSlotContext,
   DOCKED_COMPOSER_SLOT_TEST_ID,
 } from "@/components/composer/ComposerSlots";
+
+export const OPEN_SETTINGS_EVENT = "openbentt-open-settings";
 
 const WORKSPACE_PANEL_KEY = "openbentt-workspace-panel-open";
 
@@ -69,14 +72,28 @@ const AppLayout: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const toggleRightSidebar = useCallback(() => {
     setRightSidebarOpen((prev) => !prev);
   }, []);
 
   const openSearch = () => setCommandMenuOpen(true);
-  const openSettings = () => navigate("/settings");
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
   useGlobalShortcuts({ onOpenSearch: openSearch, onOpenSettings: openSettings, onToggleRightSidebar: toggleRightSidebar });
+
+  useEffect(() => {
+    const onOpen = () => setSettingsOpen(true);
+    window.addEventListener(OPEN_SETTINGS_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_SETTINGS_EVENT, onOpen);
+  }, []);
+
+  // Deep-link /settings → floating card over the previous workspace route.
+  useEffect(() => {
+    if (location.pathname !== "/settings") return;
+    setSettingsOpen(true);
+    navigate("/chat", { replace: true });
+  }, [location.pathname, navigate]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
@@ -206,7 +223,11 @@ const AppLayout: React.FC = () => {
   // While any layer is still being detected, render the workspace instead of
   // bouncing the user away.
   const localAIUsable = localAIHealth === "ready" || localAIHealth === "checking";
-  const layerUsable = openCodeLayer.available || openCodeLayer.checking;
+  const layerUsable =
+    openCodeLayer.available ||
+    openCodeLayer.askReady ||
+    openCodeLayer.opencodeInstalled ||
+    openCodeLayer.checking;
   if (!canSendChat(apiConfig) && !localAIUsable && !layerUsable) {
     return <Navigate to="/setup" replace />;
   }
@@ -220,8 +241,9 @@ const AppLayout: React.FC = () => {
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
         onOpenSearch={openSearch}
-        onOpenLocalAI={() => navigate("/settings")}
+        onOpenSettings={openSettings}
       />
+      <AppSettingsDialogControlled open={settingsOpen} onOpenChange={setSettingsOpen} />
       <PrivacyAnalytics />
       <DesktopUpdateNotifier />
       <PersistenceStatusBanner />

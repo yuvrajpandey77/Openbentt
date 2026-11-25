@@ -20,6 +20,36 @@ export type ReleaseNote = {
 
 export const releaseNotes: ReleaseNote[] = [
   {
+    version: "2.5.9",
+    date: "Nov 26, 2026",
+    title: "Unified desktop chrome · agent picker · clearer approvals",
+    summary:
+      "One dark surface from title bar to chat, window controls in the app, pick OpenCode or Claude from the composer, and approvals that stay visible when an agent needs you.",
+    highlight:
+      "Frameless Linux title bar with minimize / maximize / close on the same background as the rest of the workspace",
+    sections: [
+      {
+        heading: "What’s new for you",
+        bullets: [
+          "Window looks like one piece: same background from the top strip through chat and sidebar",
+          "Close, minimize, and maximize sit in the app header (Linux) — no separate system title color strip",
+          "Composer runtime menu: choose OpenCode, Claude Code, Codex, and other local agents for chat work",
+          "When an agent asks for permission or options, a sticky bar appears above the composer so you never miss it",
+          "Voice capture and Paper Orchestra screens updated to the same card / border language as the rest of the app",
+          "Projects hub and menus use a proper pointer cursor on actions",
+        ],
+      },
+      {
+        heading: "Stability",
+        bullets: [
+          "Fixed a white-screen crash on startup caused by an experimental UI package loading too early",
+          "Permission and question prompts stay in chat — nothing is auto-approved",
+        ],
+      },
+    ],
+    cta: { label: "Download 2.5.9", to: "/download" },
+  },
+  {
     version: "2.5.3",
     date: "Nov 23, 2026",
     title: "Desktop UX overhaul · native window integration · chat experience",

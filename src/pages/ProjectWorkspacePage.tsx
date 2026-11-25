@@ -12,6 +12,7 @@ import { getDesktopApi } from "@/lib/desktopApi";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ChatActionsMenu } from "@/components/ChatActionsMenu";
+import { NavBackButton } from "@/components/NavBackButton";
 
 /**
  * Project workspace: the primary context boundary.
@@ -140,9 +141,7 @@ const ProjectWorkspacePage: React.FC = () => {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Project context header */}
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-3 py-2 md:px-4">
-          <Link to="/projects" className="text-[11px] text-muted-foreground hover:text-foreground hover:underline">
-            ← Projects
-          </Link>
+          <NavBackButton fallback="/projects" label="Projects" className="-ml-1" />
           <div className="flex-1 flex items-center gap-2">
             <Tooltip>
               <TooltipTrigger asChild>

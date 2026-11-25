@@ -55,7 +55,7 @@ export function ChatActionsMenu({ chatId, compact = false }: Props) {
           type="button"
           variant="ghost"
           size={compact ? "icon" : "sm"}
-          className={compact ? "h-7 w-7 shrink-0" : "h-8 gap-1.5 px-2 text-xs"}
+          className={compact ? "h-7 w-7 shrink-0 cursor-pointer" : "h-8 cursor-pointer gap-1.5 px-2 text-xs"}
           aria-label="Chat actions"
           onClick={(e) => e.stopPropagation()}
         >

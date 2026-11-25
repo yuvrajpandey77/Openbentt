@@ -1,4 +1,5 @@
 import React from "react";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, PanelRight } from "lucide-react";
 import { ShareLinkButton } from "@/components/ShareLinkButton";
@@ -7,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { PermissionPill } from "@/components/conversation/PermissionPill";
 import { useChat } from "@/context/ChatContext";
 import { FeedbackDialog } from "@/components/FeedbackDialog";
+import { NavBackButton } from "@/components/NavBackButton";
 import type { WorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +28,11 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
   onToggleRightSidebar,
 }) => {
   const { currentChatId, chats } = useChat();
+  const location = useLocation();
   const activeChat = chats.find((c) => c.id === currentChatId);
+  const showBack =
+    Boolean(workspaceMeta) ||
+    (location.pathname.startsWith("/projects/") && location.pathname !== "/projects");
 
   return (
     <header className="flex shrink-0 items-center justify-between gap-2 bg-background/90 px-3 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 md:px-3">
@@ -40,6 +46,8 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
         >
           <Menu size={20} />
         </Button>
+
+        {showBack ? <NavBackButton fallback="/chat" className="hidden sm:inline-flex" /> : null}
 
         <div className="flex min-w-0 items-center gap-2">
           {workspaceMeta ? (

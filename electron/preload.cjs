@@ -23,6 +23,14 @@ function getIsPackaged() {
   return arg ? arg.split("=")[1] === "1" : false;
 }
 
+function getFramelessTitleBar() {
+  const args = process.argv.slice(1);
+  const arg = args.find((a) => a.startsWith("--openbentt-frameless="));
+  if (arg) return arg.split("=")[1] === "1";
+  // Linux defaults to in-app chrome; Win/mac use OS overlay / traffic lights.
+  return process.platform === "linux";
+}
+
 function devToolsAllowed() {
   if (!getIsPackaged()) return true;
   return process.env.OPENBENTT_ENABLE_DEVTOOLS === "1";
@@ -35,8 +43,8 @@ contextBridge.exposeInMainWorld("openbenttDesktop", {
   devToolsAllowed: devToolsAllowed(),
   softwareRenderingMode: getSoftwareRenderingMode(),
   safeModeReason: getSafeModeReason(),
-  framelessTitleBar: false,
-  nativeMenuBar: true,
+  framelessTitleBar: getFramelessTitleBar(),
+  nativeMenuBar: !getFramelessTitleBar(),
   windowMinimize: () => ipcRenderer.invoke("desktop:windowMinimize"),
   windowToggleMaximize: () => ipcRenderer.invoke("desktop:windowToggleMaximize"),
   windowClose: () => ipcRenderer.invoke("desktop:windowClose"),

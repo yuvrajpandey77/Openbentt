@@ -355,29 +355,28 @@ const visible = showAll ? trace : trace.slice(-6);
         <div
           role="dialog"
           aria-label="Permission request"
-          className="mt-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-2.5"
+          className="mt-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 ring-1 ring-amber-500/15"
         >
-          <p className="text-xs font-medium text-foreground">Agent is requesting permission</p>
+          <p className="text-xs font-medium text-foreground">Agent needs your permission</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {String(pendingPerm.description ?? pendingPerm.serverAction ?? pendingPerm.capability ?? "")}
           </p>
-          {pendingPerm.target != null &&
-            String(pendingPerm.target) && (
-              <p className="mt-0.5 break-all font-mono text-[11px] text-muted-foreground">
-                Target: {String(pendingPerm.target)}
-              </p>
-            )}
-          {pendingPerm.serverAction != null && String(pendingPerm.serverAction) && (
+          {pendingPerm.target != null && String(pendingPerm.target) ? (
+            <p className="mt-0.5 break-all font-mono text-[11px] text-muted-foreground">
+              Target: {String(pendingPerm.target)}
+            </p>
+          ) : null}
+          {pendingPerm.serverAction != null && String(pendingPerm.serverAction) ? (
             <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
               Engine action: {String(pendingPerm.serverAction)}
               {pendingPerm.risk != null && String(pendingPerm.risk) ? ` · risk ${String(pendingPerm.risk)}` : ""}
             </p>
-          )}
+          ) : null}
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Button
               type="button"
               size="sm"
-              className="h-7 text-xs"
+              className="h-7 cursor-pointer text-xs"
               disabled={!approvalId}
               onClick={() => approvalId && void respondToExecutionPermission(taskId, approvalId, "allow-once")}
             >
@@ -387,7 +386,7 @@ const visible = showAll ? trace : trace.slice(-6);
               type="button"
               size="sm"
               variant="outline"
-              className="h-7 text-xs"
+              className="h-7 cursor-pointer text-xs"
               disabled={!approvalId}
               title="Saves a rule with the engine — persists across sessions"
               onClick={() => approvalId && void respondToExecutionPermission(taskId, approvalId, "allow-task")}
@@ -398,7 +397,7 @@ const visible = showAll ? trace : trace.slice(-6);
               type="button"
               size="sm"
               variant="outline"
-              className="h-7 text-xs"
+              className="h-7 cursor-pointer text-xs"
               disabled={!approvalId}
               onClick={() => approvalId && void respondToExecutionPermission(taskId, approvalId, "deny")}
             >
@@ -406,8 +405,7 @@ const visible = showAll ? trace : trace.slice(-6);
             </Button>
           </div>
           <p className="mt-1.5 text-[10px] text-muted-foreground">
-            Allow once approves this request only. Allow for task saves an engine rule that persists —
-            manage saved rules in Setup → Execution. Nothing is ever auto-approved.
+            Nothing runs until you choose. Allow once is one-shot; Allow for task saves a rule for this run.
           </p>
         </div>
       )}

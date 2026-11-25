@@ -48,10 +48,10 @@ function StageNode({
     >
       <div
         className={cn(
-          "flex h-12 w-12 items-center justify-center rounded-full border text-xs font-semibold tracking-wide transition-all duration-500",
-          state === "pending" && "border-border/60 bg-background/40 text-muted-foreground",
-          state === "active" && "border-emerald-400/80 bg-emerald-500/15 text-emerald-200 shadow-[0_0_24px_rgba(52,211,153,0.25)]",
-          state === "done" && "border-emerald-500/50 bg-emerald-500/20 text-foreground",
+          "flex h-11 w-11 items-center justify-center rounded-xl border text-xs font-semibold tracking-wide transition-all duration-300",
+          state === "pending" && "border-border bg-muted/30 text-muted-foreground",
+          state === "active" && "border-primary/50 bg-primary/10 text-foreground ring-1 ring-primary/30",
+          state === "done" && "border-border bg-muted text-foreground",
           state === "error" && "border-destructive/70 bg-destructive/15 text-destructive"
         )}
       >
@@ -308,28 +308,26 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
   }, [lastArtifacts, project, setDraftTex, setBibliography, venue, toast, onApplied]);
 
   return (
-    <div className="orchestra-canvas relative flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="orchestra-atmosphere pointer-events-none absolute inset-0" aria-hidden />
-
-      <header className="relative z-10 flex shrink-0 items-end justify-between gap-4 border-b border-border/40 px-5 pb-4 pt-5">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      <header className="relative z-10 flex shrink-0 items-end justify-between gap-4 border-b border-border px-5 pb-4 pt-5">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Paper Orchestra</p>
-          <h1 className="mt-1 font-[family-name:var(--font-display,ui-serif)] text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Paper Orchestra</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
             {project?.title?.trim() || "Write the paper"}
           </h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
             Uses this project’s draft, bibliography, and library. Apply drops the manuscript into Editor.
           </p>
         </div>
-        <div className="hidden text-right text-xs text-muted-foreground sm:block">
-          <p className={cn(engineReady ? "text-emerald-400/90" : "text-amber-400/90")}>{engineHint}</p>
+        <div className="hidden rounded-xl border border-border bg-card px-3 py-2 text-right text-xs sm:block">
+          <p className={cn("font-medium", engineReady ? "text-foreground" : "text-amber-500")}>{engineHint}</p>
           {project?.papers?.length ? (
-            <p className="mt-1 flex items-center justify-end gap-1">
-              <BookOpen className="h-3 w-3" /> {project.papers.length} library paper(s) attached as evidence
+            <p className="mt-1 flex items-center justify-end gap-1 text-muted-foreground">
+              <BookOpen className="h-3 w-3" /> {project.papers.length} library paper(s)
             </p>
           ) : null}
           {(project?.draftTex?.trim().length ?? 0) > 40 ? (
-            <p className="mt-1 flex items-center justify-end gap-1 text-foreground/70">
+            <p className="mt-1 flex items-center justify-end gap-1 text-muted-foreground">
               <FileText className="h-3 w-3" /> Editor draft linked
             </p>
           ) : null}
@@ -337,8 +335,7 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
       </header>
 
       <div className="relative z-10 grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-[minmax(280px,340px)_1fr]">
-        {/* Materials dock */}
-        <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto border-r border-border/40 bg-background/40 p-4 backdrop-blur-sm">
+        <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto border-r border-border bg-card/40 p-4">
           <div className="space-y-1.5">
             <Label htmlFor="orch-idea">Idea</Label>
             <Textarea
@@ -346,7 +343,7 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
               value={idea}
               onChange={(e) => setIdea(e.target.value)}
               placeholder="Sparse or dense idea — contributions, method, claims…"
-              className="min-h-[8rem] resize-y bg-background/60 font-mono text-xs"
+              className="min-h-[8rem] resize-y border-border bg-card font-mono text-xs shadow-sm ring-1 ring-border/50"
             />
           </div>
           <div className="space-y-1.5">
@@ -356,7 +353,7 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
               value={log}
               onChange={(e) => setLog(e.target.value)}
               placeholder="Tables, ablations, metrics, figure notes…"
-              className="min-h-[8rem] resize-y bg-background/60 font-mono text-xs"
+              className="min-h-[8rem] resize-y border-border bg-card font-mono text-xs shadow-sm ring-1 ring-border/50"
             />
           </div>
           <div className="space-y-1.5">
@@ -368,8 +365,10 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
                   type="button"
                   onClick={() => setVenue(v)}
                   className={cn(
-                    "rounded-full border px-3 py-1 text-xs transition-colors",
-                    venue === v ? "border-foreground/40 bg-foreground/10 text-foreground" : "border-border/50 text-muted-foreground hover:bg-muted/40"
+                    "cursor-pointer rounded-xl border px-3 py-1.5 text-xs transition-colors",
+                    venue === v
+                      ? "border-border bg-muted font-medium text-foreground"
+                      : "border-border/60 text-muted-foreground hover:bg-muted/50"
                   )}
                 >
                   {v === "cvpr2025" ? "CVPR 2025" : "ICLR 2025"}
@@ -377,11 +376,11 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
               ))}
             </div>
           </div>
-          <label className="flex items-center gap-2 text-sm text-foreground">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
             <Checkbox checked={usePlotting} onCheckedChange={(c) => setUsePlotting(c === true)} />
             Enable plotting agent
           </label>
-          <details className="rounded-lg border border-border/40 bg-background/30 px-3 py-2 text-xs">
+          <details className="rounded-xl border border-border bg-card px-3 py-2 text-xs shadow-sm">
             <summary className="cursor-pointer font-medium text-foreground">Model overrides (optional)</summary>
             <div className="mt-2 space-y-2">
               <div className="space-y-1">
@@ -391,7 +390,7 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
                   value={writerModel}
                   onChange={(e) => setWriterModel(e.target.value)}
                   placeholder="Orchestra default"
-                  className="w-full rounded-md border border-border/50 bg-background/60 px-2 py-1.5 font-mono text-[11px]"
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 font-mono text-[11px]"
                 />
               </div>
               <div className="space-y-1">
@@ -401,20 +400,20 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
                   value={reflectionModel}
                   onChange={(e) => setReflectionModel(e.target.value)}
                   placeholder="Orchestra default"
-                  className="w-full rounded-md border border-border/50 bg-background/60 px-2 py-1.5 font-mono text-[11px]"
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 font-mono text-[11px]"
                 />
               </div>
             </div>
           </details>
           <div className="mt-auto flex flex-wrap gap-2 pt-2">
             {running ? (
-              <Button type="button" variant="destructive" className="gap-1.5" onClick={() => void cancel()}>
+              <Button type="button" variant="destructive" className="cursor-pointer gap-1.5" onClick={() => void cancel()}>
                 <Square className="h-3.5 w-3.5" /> Cancel
               </Button>
             ) : (
               <Button
                 type="button"
-                className="gap-1.5"
+                className="cursor-pointer gap-1.5"
                 disabled={!engineReady || idea.trim().length < 20 || log.trim().length < 10}
                 onClick={() => void run()}
               >
@@ -424,6 +423,7 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
             <Button
               type="button"
               variant="outline"
+              className="cursor-pointer"
               disabled={!lastArtifacts?.draftTex || busyApply}
               onClick={() => void applyToNotebook()}
             >
@@ -432,17 +432,16 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
           </div>
         </aside>
 
-        {/* Stage canvas + log */}
         <section className="flex min-h-0 flex-col overflow-hidden p-4 md:p-6">
-          <div className="orchestra-stage-rail relative flex flex-wrap items-center justify-center gap-3 py-8 md:gap-6 md:py-12">
+          <div className="relative flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-border bg-card px-3 py-6 shadow-sm md:gap-4 md:py-8">
             {ORCHESTRA_STAGES.map((s, i) => (
-              <div key={s.id} className="flex items-center gap-3 md:gap-6">
+              <div key={s.id} className="flex items-center gap-2 md:gap-4">
                 <StageNode label={s.id === "plotting" && !usePlotting ? "Plotting (off)" : s.label} state={nodeStates[i]!} index={i} />
                 {i < ORCHESTRA_STAGES.length - 1 ? (
                   <div
                     className={cn(
-                      "orchestra-edge hidden h-px w-8 md:block md:w-12",
-                      nodeStates[i] === "done" ? "bg-emerald-400/70" : "bg-border/50"
+                      "hidden h-px w-6 md:block md:w-10",
+                      nodeStates[i] === "done" ? "bg-primary/60" : "bg-border"
                     )}
                   />
                 ) : null}
@@ -450,8 +449,8 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
             ))}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/50 bg-background/50 shadow-inner backdrop-blur">
-            <div className="flex items-center gap-2 border-b border-border/40 px-3 py-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+          <div className="mt-4 min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+            <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               <FileText className="h-3.5 w-3.5" />
               Live engine log · {currentStage}
             </div>
@@ -461,7 +460,7 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
           </div>
 
           {lastArtifacts?.outline ? (
-            <details className="mt-3 rounded-xl border border-border/40 bg-background/40 px-3 py-2 text-xs">
+            <details className="mt-3 rounded-xl border border-border bg-card px-3 py-2 text-xs shadow-sm">
               <summary className="cursor-pointer font-medium text-foreground">Inspect outline.json</summary>
               <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[10px] text-muted-foreground">
                 {lastArtifacts.outline.slice(0, 8000)}

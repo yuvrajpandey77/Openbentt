@@ -89,16 +89,19 @@ export function applyChatProviderChoice(
     case "cursor-agent":
     case "aider":
     case "gemini":
-      // Chat ask path uses OpenCode layer when available; execution agents are preferred separately.
+      // Chat ask path uses the OpenCode layer / preferred CLI — never force OpenRouter keys.
       return normalizeApiConfig({
         ...current,
-        // Leave cloud empty so OpenCode ask layer (or next local auto-switch) owns the turn.
-        aiProvider: current.aiProvider === "openai_compatible" ? current.aiProvider : "openrouter",
         comparisonEnabled: false,
       });
     default:
       return current;
   }
+}
+
+/** Chat backends that require keys/local URLs — not the OpenCode ask layer. */
+export function choiceIsChatBackend(id: ChatProviderChoiceId | null | undefined): boolean {
+  return id === "ollama" || id === "openrouter" || id === "local_gguf";
 }
 
 /** Whether OpenCode ask-layer should own conversational turns for this choice. */

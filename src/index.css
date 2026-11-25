@@ -216,7 +216,7 @@
   }
 
   .app-shell .composer-shell {
-    @apply border-border/60 bg-card/95 shadow-none;
+    @apply border-border bg-card shadow-sm;
   }
 
   .app-shell .openbentt-card {
@@ -305,8 +305,9 @@
     @apply bg-background border-0 rounded-xl font-sans transition-all duration-200;
   }
 
+  /* Elevated composer surface — clear outline + shade vs page background */
   .composer-shell {
-    @apply rounded-2xl bg-background/95 shadow-[0_1px_0_rgba(15,80,90,0.06),0_8px_40px_-12px_rgba(15,55,65,0.18)] outline-none dark:bg-card/90 dark:shadow-[0_1px_0_rgba(120,180,190,0.08),0_12px_48px_-16px_rgba(0,0,0,0.55)];
+    @apply rounded-2xl border border-border bg-card shadow-[0_0_0_1px_hsl(var(--border)/0.55),0_8px_28px_-12px_rgba(0,0,0,0.45)] outline-none;
   }
 
   /** ─── Markdown / Prose typography ─── */

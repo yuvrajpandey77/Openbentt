@@ -221,14 +221,15 @@ export function DesktopTitleBar() {
 
   return (
     <header
-      className="app-shell dark flex h-7 shrink-0 items-stretch border-b border-border/50 bg-background text-foreground select-none"
-      style={{ height: DESKTOP_TITLE_BAR_HEIGHT_PX }}
+      className="app-shell dark flex h-8 shrink-0 items-stretch bg-background text-foreground select-none"
+      style={{ height: DESKTOP_TITLE_BAR_HEIGHT_PX + 4 }}
+      data-desktop-titlebar="unified"
     >
       <div
         className={cn(
           "flex min-w-0 flex-1 items-center gap-1.5 px-2",
           isMac && "pl-[72px]",
-          isWin && "pr-[140px]"
+          isWin && !chrome.frameless && "pr-[140px]"
         )}
       >
         <div className="flex min-w-0 shrink-0 items-center gap-1.5" style={NO_DRAG}>
@@ -245,16 +246,17 @@ export function DesktopTitleBar() {
         <div className="min-w-2 flex-1" style={{ WebkitAppRegion: "drag" }} aria-hidden />
       </div>
 
+      {/* Linux frameless (and any frameless build): min / max / close on the same bg */}
       {chrome.frameless && (
-        <div className="flex shrink-0 items-stretch" style={NO_DRAG}>
+        <div className="flex shrink-0 items-stretch pr-0.5" style={NO_DRAG}>
           <WindowControl label="Minimize" onClick={minimize}>
-            <Minus className="h-3.5 w-3.5" strokeWidth={2} />
+            <Minus className="h-3.5 w-3.5" strokeWidth={1.75} />
           </WindowControl>
           <WindowControl label={maximized ? "Restore" : "Maximize"} onClick={toggleMaximize}>
             {maximized ? (
-              <Copy className="h-3 w-3 rotate-180" strokeWidth={2} />
+              <Copy className="h-3 w-3 rotate-180" strokeWidth={1.75} />
             ) : (
-              <Square className="h-3 w-3" strokeWidth={2} />
+              <Square className="h-3 w-3" strokeWidth={1.75} />
             )}
           </WindowControl>
           <WindowControl
@@ -262,7 +264,7 @@ export function DesktopTitleBar() {
             onClick={close}
             className="hover:bg-destructive hover:text-destructive-foreground"
           >
-            <X className="h-3.5 w-3.5" strokeWidth={2} />
+            <X className="h-3.5 w-3.5" strokeWidth={1.75} />
           </WindowControl>
         </div>
       )}

@@ -31,6 +31,7 @@ export type ConnectionDrag = {
 } | null;
 
 const CHAT_PANEL_RECT_KEY = "openbentt-notebook-chat-panel-rect";
+const CHAT_PANEL_OPEN_KEY = "openbentt-notebook-chat-panel-open";
 const EXPLORER_OPEN_KEY = "openbentt-notebook-explorer-open-v2";
 const EXPLORER_WIDTH_KEY = "openbentt-notebook-explorer-width";
 const DEFAULT_CHAT_RECT: ChatPanelRect = { x: -1, y: -1, width: 420, height: 520 };
@@ -93,6 +94,14 @@ function loadChatPanelRect(): ChatPanelRect {
     /* ignore */
   }
   return DEFAULT_CHAT_RECT;
+}
+
+function loadChatPanelOpen(): boolean {
+  try {
+    return sessionStorage.getItem(CHAT_PANEL_OPEN_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 export type NotebookStudioFileRef =
@@ -193,7 +202,15 @@ export function NotebookStudioProvider({ children }: { children: React.ReactNode
   const [pdfPage, setPdfPage] = useState(1);
   const [pdfNumPages, setPdfNumPages] = useState(0);
   const [activePaperId, setActivePaperId] = useState<string | null>(null);
-  const [chatPanelOpen, setChatPanelOpen] = useState(false);
+  const [chatPanelOpen, setChatPanelOpenState] = useState(loadChatPanelOpen);
+  const setChatPanelOpen = useCallback((open: boolean) => {
+    setChatPanelOpenState(open);
+    try {
+      sessionStorage.setItem(CHAT_PANEL_OPEN_KEY, open ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const [chatPanelRect, setChatPanelRectState] = useState<ChatPanelRect>(loadChatPanelRect);
   const [chatConnections, setChatConnections] = useState<ChatConnections>({ texFileKeys: [], pdfPaperIds: [] });
   const [pendingConnection, setPendingConnection] = useState<PendingConnection>(null);
@@ -246,7 +263,7 @@ export function NotebookStudioProvider({ children }: { children: React.ReactNode
     });
   }, []);
 
-  const openChatPanel = useCallback(() => setChatPanelOpen(true), []);
+  const openChatPanel = useCallback(() => setChatPanelOpen(true), [setChatPanelOpen]);
 
   const setChatConnection = useCallback((kind: "tex" | "pdf", value: string | undefined) => {
     setChatConnections((c) => {

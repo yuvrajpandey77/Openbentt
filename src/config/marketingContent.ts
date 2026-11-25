@@ -90,34 +90,34 @@ export const heroPrinciples: HeroPrinciple[] = [
   },
 ];
 
+/** Landing header pill — keep short and client-readable (version + what changed). */
 export const meridianAnnouncement = {
-  eyebrow: "v2.5.0",
-  title: "Leave OpenAI Prism before Jan 1 — import ZIP/folder into Openbentt Notebook",
+  eyebrow: "v2.5.9",
+  title: "Same dark window edge-to-edge · pick any local agent in chat · clearer approvals",
   href: "/news",
 } as const;
 
 export const latestNews: NewsItem[] = [
+  {
+    title: "v2.5.9: Unified window chrome, composer agent picker, clearer approvals",
+    date: "Nov 26, 2026",
+    to: "/news",
+  },
+  {
+    title: "v2.5.3: Desktop UX overhaul — ChatGPT-style empty chat & design system",
+    date: "Nov 23, 2026",
+    to: "/news",
+  },
   {
     title: "v2.5.0: Prism migration, multi-agent detect, one-click ZIP/folder import",
     date: "Nov 2026",
     to: "/news",
   },
   {
-    title: "Switch from OpenAI Prism: compile locally with BusyTeX cascade + Zotero",
-    date: "Nov 2026",
-    to: "/news#v2-5-0",
-  },
-  {
     title: "Settings → Agents: auto-detect OpenCode, Claude, Codex, Cursor, Aider, Gemini",
     date: "Nov 2026",
     to: "/news",
   },
-  {
-    title: "Meridian 0.1: LaTeX writing prompts for Notebook (your model in Settings)",
-    date: "May 2026",
-    to: "/notebook",
-  },
-  { title: "Phase 1 desktop builds with bundled llama-server for offline GGUF", date: "May 2026", to: "/download" },
 ];
 
 export type ExploreItem = {

@@ -7,6 +7,7 @@ import { app, BrowserWindow, protocol, ipcMain } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import { augmentProcessPath } from "./augmentPath.mjs";
 import {
   cleanupLocalGgufOnQuit,
   registerLocalGgufIpc,
@@ -52,6 +53,9 @@ import {
 } from "./ipcAuthorization.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/** GUI launches often miss user tool dirs — fix PATH before agent detection. */
+augmentProcessPath();
 
 /** Phase 3: install the IPC guard before any service registers a channel. */
 installIpcAuthorization(ipcMain);
@@ -319,16 +323,15 @@ function ensureWindowVisible(win) {
 }
 
 function buildBrowserWindowOptions(icon) {
-  /** Framed Linux (safe mode): native menu bar + window icon; no in-app title strip. */
-  const linuxNativeChrome = process.platform === "linux" && gpuSafeMode.enabled;
+  /** Unified shell: same #171717 from title strip through content; in-app min/max/close. */
   const base = {
     width: 1280,
     height: 840,
     minWidth: 900,
     minHeight: 600,
-    show: gpuSafeMode.enabled,
+    show: true,
     title: "Openbentt",
-    autoHideMenuBar: !linuxNativeChrome,
+    autoHideMenuBar: true,
     backgroundColor: APP_SHELL_BG,
     ...(icon ? { icon } : {}),
   };
@@ -353,11 +356,15 @@ function buildBrowserWindowOptions(icon) {
     };
   }
 
-  /** Linux: framed window in safe mode — frameless + software rendering often never maps on screen. */
+  /** Linux: frameless so the in-app title bar + window controls match the app bg. */
   return {
     ...base,
-    frame: gpuSafeMode.enabled,
+    frame: false,
   };
+}
+
+function useInAppFramelessChrome() {
+  return process.platform === "linux";
 }
 
 function windowIconPath() {
@@ -422,6 +429,7 @@ function createWindow() {
         `--openbentt-software-rendering=${gpuSafeMode.enabled ? "1" : "0"}`,
         `--openbentt-safe-mode-reason=${gpuSafeMode.reason ?? ""}`,
         `--openbentt-packaged=${app.isPackaged ? "1" : "0"}`,
+        `--openbentt-frameless=${useInAppFramelessChrome() ? "1" : "0"}`,
       ],
     },
   });
@@ -454,12 +462,13 @@ function createWindow() {
   // Phase 3: microphone granted only while a voice session is live.
   setVoiceGrantChecker(() => isMicGrantActive());
 
+  if (process.platform === "linux") {
+    win.setMenuBarVisibility(false);
+    win.setAutoHideMenuBar(true);
+  }
   if (gpuSafeMode.enabled) {
     win.center();
     ensureWindowVisible(win);
-    if (process.platform === "linux") {
-      win.setMenuBarVisibility(true);
-    }
   }
 
   if (useViteDevServer) {

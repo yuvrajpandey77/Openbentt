@@ -9,20 +9,27 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+function defaultTheme(): Theme {
+  try {
+    const saved = localStorage.getItem("theme");
+    if (saved === "light" || saved === "dark") return saved;
+  } catch {
+    /* ignore */
+  }
+  // Desktop shell is dark-first (unified title bar + content).
+  try {
+    if (typeof window !== "undefined" && window.openbenttDesktop?.isElectron) return "dark";
+  } catch {
+    /* ignore */
+  }
+  return "dark";
+}
+
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const savedTheme = localStorage.getItem("theme") as Theme | null;
-    if (savedTheme === "light" || savedTheme === "dark") {
-      return savedTheme;
-    }
-    return "light";
-  });
+  const [theme, setTheme] = useState<Theme>(() => defaultTheme());
 
   useEffect(() => {
-    // Update localStorage when theme changes
     localStorage.setItem("theme", theme);
-    
-    // Update document class for Tailwind
     if (theme === "dark") {
       document.documentElement.classList.add("dark");
     } else {

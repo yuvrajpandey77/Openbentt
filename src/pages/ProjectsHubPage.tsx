@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { useChat } from "@/context/ChatContext";
-import { canSendChat } from "@/types/chat";
+import { isChatSurfaceReady } from "@/lib/chatSurfaceReady";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,8 +50,8 @@ function formatRelative(iso: string): string {
 const ProjectsHubPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { apiConfig } = useChat();
-  const chatReady = canSendChat(apiConfig);
+  const { apiConfig, openCodeLayer } = useChat();
+  const chatReady = isChatSurfaceReady(apiConfig, openCodeLayer);
   const {
     projects,
     loading,
@@ -186,13 +186,14 @@ const ProjectsHubPage: React.FC = () => {
         <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
           {!chatReady && (
             <div className="mx-6 mt-4 min-w-0 md:mx-10">
-              <Alert className="w-full rounded-md border-primary/30 bg-primary/5 py-2">
+              <Alert className="w-full rounded-md border-border/60 bg-muted/30 py-2">
                 <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-xs">
                   <span className="min-w-0 shrink break-words">
-                    Add your OpenRouter API key to enable AI chat and writing assist (free models available).
+                    No local agent detected yet. Install OpenCode / Claude Code (or pick Ollama), then Rescan in the
+                    composer — cloud OpenRouter is optional.
                   </span>
-                  <Button asChild size="sm" variant="default" className="h-7 shrink-0 text-xs">
-                    <Link to="/setup">Set up OpenRouter</Link>
+                  <Button asChild size="sm" variant="outline" className="h-7 shrink-0 cursor-pointer text-xs">
+                    <Link to="/setup">Open setup</Link>
                   </Button>
                 </AlertDescription>
               </Alert>
@@ -398,7 +399,7 @@ const ProjectsHubPage: React.FC = () => {
                                 type="button"
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8"
+                                className="h-8 w-8 cursor-pointer"
                                 onClick={(e) => e.stopPropagation()}
                                 aria-label="Project actions"
                               >
