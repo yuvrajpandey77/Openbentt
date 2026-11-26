@@ -15,7 +15,7 @@ export function NewsStrip({ compact = false }: NewsStripProps) {
       <section id="news" className="ov-news scroll-mt-28" aria-label="Latest news">
         <div className="ov-container">
           <div className="ov-news__head">
-            <h2>Latest news</h2>
+            <h2 className="font-hand">Latest news</h2>
             <div className="ov-news__links">
               <Link to="/news">All release notes</Link>
               {releasesUrl && (

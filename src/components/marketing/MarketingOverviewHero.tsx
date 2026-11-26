@@ -15,11 +15,20 @@ export function MarketingOverviewHero() {
   return (
     <section className="ov-hero" aria-labelledby="ov-hero-title">
       <div className="ov-hero__inner">
-        <h1 id="ov-hero-title" className="ov-hero__title">
+        <h1 id="ov-hero-title" className="ov-hero__title font-hand">
           {hero.headlineBefore}
           <span className="ov-hero__emphasis">{hero.headlineEmphasis}</span>
           {hero.headlineAfter}
         </h1>
+
+        {(hero.subhead || hero.subheadEmphasis) && (
+          <p className="ov-hero__subhead font-hand">
+            {hero.subhead}
+            {hero.subheadEmphasis ? (
+              <span className="ov-hero__sub-mark">{hero.subheadEmphasis}</span>
+            ) : null}
+          </p>
+        )}
 
         <div className="ov-hero__cta">
           <Link to={hero.primaryCta.to} className="ov-btn-primary">

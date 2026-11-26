@@ -1,14 +1,23 @@
 {
   "name": "Openbentt",
   "short_name": "Openbentt",
-  "description": "Local-first OpenRouter chat with multi-model comparison and research workspaces.",
+  "description": "Desktop-first, local-first AI workspace for LaTeX, Paper Orchestra, agents, and offline GGUF.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#6C5CE7",
+  "background_color": "#121212",
+  "theme_color": "#facc15",
+  "lang": "en",
+  "categories": ["productivity", "education", "developer"],
   "icons": [
     {
       "src": "/openbentt-favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/openbentt-logo.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

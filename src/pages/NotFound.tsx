@@ -2,6 +2,7 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { appHomePath } from "@/lib/appHomePath";
 import { resolveRouteAlias } from "@/lib/routeAliases";
+import { applyPageSeo } from "@/lib/seo/pageSeo";
 
 const QUICK = [
   { to: "/chat", label: "Chat" },
@@ -19,6 +20,12 @@ const NotFound = () => {
   useEffect(() => {
     if (!alias) {
       console.error("404 Error: User attempted to access non-existent route:", location.pathname);
+      applyPageSeo({
+        title: "Page not found — Openbentt",
+        description: "That Openbentt page does not exist.",
+        path: location.pathname,
+        noindex: true,
+      });
     }
   }, [location.pathname, alias]);
 

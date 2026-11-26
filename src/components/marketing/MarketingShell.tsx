@@ -180,83 +180,120 @@ export function MarketingShell({
           terminalBar && !isOverview ? "mt-0" : "mt-0"
         )}
       >
-        <div className={cn("mx-auto px-5 py-14 md:px-8", wideLayout ? "max-w-[1200px]" : "max-w-6xl")}>
-          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="space-y-3">
-              <Link to="/" className="inline-flex items-center gap-2.5">
-                <img src="/openbentt-logo.svg" alt="" width={32} height={32} className="h-8 w-8 rounded-lg" />
-                <span className="font-display text-base font-semibold">Openbentt</span>
-              </Link>
-              <p className={cn("max-w-xs text-sm leading-relaxed", isOverview ? "text-white/80" : "text-muted-foreground")}>
-                Desktop lab for LaTeX, Paper Orchestra, agents, and local GGUF. By{" "}
-                <a
-                  href={cogerphereWebsite}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={cn(
-                    "underline-offset-4 hover:underline",
-                    isOverview ? "text-white hover:underline" : "font-medium text-foreground/80 hover:text-foreground"
-                  )}
-                >
-                  Cogerphere
-                </a>
-                .
-              </p>
-            </div>
-            {footerColumns.map((col) => (
-              <div key={col.title}>
-                <p
-                  className={cn(
-                    "mb-3 text-xs font-semibold uppercase tracking-[0.08em]",
-                    isOverview ? "ov-footer__heading text-white" : "text-muted-foreground"
-                  )}
-                >
-                  {col.title}
+        {isOverview ? (
+          <div className="ov-footer__inner">
+            <div className="ov-footer__top">
+              <div className="ov-footer__brand">
+                <Link to="/" className="ov-footer__brand-link">
+                  <img src="/openbentt-logo.svg" alt="" width={40} height={40} className="h-10 w-10 rounded-xl" />
+                  <span className="ov-footer__brand-name font-hand">Openbentt</span>
+                </Link>
+                <p className="ov-footer__tagline font-hand">
+                  Write papers, run agents &amp; local models — <em>in one desktop lab</em>.
                 </p>
-                <ul className="space-y-2 text-sm">
-                  {col.links.map((link) => (
-                    <li key={link.label}>
-                      {"to" in link ? (
-                        <Link
-                          to={link.to}
-                          className={isOverview ? "text-[0.95rem] text-white/85 hover:text-white" : "text-foreground/75 hover:text-foreground"}
-                        >
-                          {link.label}
-                        </Link>
-                      ) : link.external === "releases" && releasesUrl ? (
-                        <a
-                          href={releasesUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={isOverview ? "text-[0.95rem] text-white/85 hover:text-white" : "text-foreground/75 hover:text-foreground"}
-                        >
-                          {link.label}
-                        </a>
-                      ) : typeof link.external === "string" ? (
-                        <a
-                          href={link.external}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={isOverview ? "text-[0.95rem] text-white/85 hover:text-white" : "text-foreground/75 hover:text-foreground"}
-                        >
-                          {link.label}
-                        </a>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+                <p className="ov-footer__blurb">
+                  Desktop lab for LaTeX, Paper Orchestra, agents, and local GGUF. By{" "}
+                  <a href={cogerphereWebsite} target="_blank" rel="noreferrer">
+                    Cogerphere
+                  </a>
+                  .
+                </p>
               </div>
-            ))}
+              <div className="ov-footer__columns">
+                {footerColumns.map((col) => (
+                  <div key={col.title}>
+                    <p className="ov-footer__heading">{col.title}</p>
+                    <ul>
+                      {col.links.map((link) => (
+                        <li key={link.label}>
+                          {"to" in link ? (
+                            <Link to={link.to}>{link.label}</Link>
+                          ) : link.external === "releases" && releasesUrl ? (
+                            <a href={releasesUrl} target="_blank" rel="noreferrer">
+                              {link.label}
+                            </a>
+                          ) : typeof link.external === "string" ? (
+                            <a href={link.external} target="_blank" rel="noreferrer">
+                              {link.label}
+                            </a>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="ov-footer__bottom">
+              <p className="ov-footer__copy">© {new Date().getFullYear()} Openbentt. All rights reserved.</p>
+              <Link to="/download" className="ov-footer__cta">
+                Download desktop
+              </Link>
+            </div>
           </div>
-          <p
-            className={cn(
-              "mt-12 border-t pt-8 text-center text-xs md:text-left",
-              isOverview ? "border-white/15 text-sm text-white/70" : "border-border/50 text-muted-foreground"
-            )}
-          >
-            © {new Date().getFullYear()} Openbentt. All rights reserved.
-          </p>
-        </div>
+        ) : (
+          <div className={cn("mx-auto px-5 py-14 md:px-8", wideLayout ? "max-w-[1200px]" : "max-w-6xl")}>
+            <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="space-y-3">
+                <Link to="/" className="inline-flex items-center gap-2.5">
+                  <img src="/openbentt-logo.svg" alt="" width={32} height={32} className="h-8 w-8 rounded-lg" />
+                  <span className="font-display text-base font-semibold">Openbentt</span>
+                </Link>
+                <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
+                  Desktop lab for LaTeX, Paper Orchestra, agents, and local GGUF. By{" "}
+                  <a
+                    href={cogerphereWebsite}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-foreground/80 underline-offset-4 hover:text-foreground hover:underline"
+                  >
+                    Cogerphere
+                  </a>
+                  .
+                </p>
+              </div>
+              {footerColumns.map((col) => (
+                <div key={col.title}>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    {col.title}
+                  </p>
+                  <ul className="space-y-2 text-sm">
+                    {col.links.map((link) => (
+                      <li key={link.label}>
+                        {"to" in link ? (
+                          <Link to={link.to} className="text-foreground/75 hover:text-foreground">
+                            {link.label}
+                          </Link>
+                        ) : link.external === "releases" && releasesUrl ? (
+                          <a
+                            href={releasesUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-foreground/75 hover:text-foreground"
+                          >
+                            {link.label}
+                          </a>
+                        ) : typeof link.external === "string" ? (
+                          <a
+                            href={link.external}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-foreground/75 hover:text-foreground"
+                          >
+                            {link.label}
+                          </a>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            <p className="mt-12 border-t border-border/50 pt-8 text-center text-xs text-muted-foreground md:text-left">
+              © {new Date().getFullYear()} Openbentt. All rights reserved.
+            </p>
+          </div>
+        )}
       </footer>
     </div>
   );

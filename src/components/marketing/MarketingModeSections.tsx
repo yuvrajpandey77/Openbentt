@@ -98,8 +98,8 @@ export function MarketingModeSections() {
             ))}
 
             <div className="ov-modes__copy" key={active.id}>
-              <h2 className="ov-modes__title">{active.title}</h2>
-              <p className="ov-modes__blurb">{active.blurb}</p>
+              <h2 className="ov-modes__title font-hand">{active.title}</h2>
+              <p className="ov-modes__blurb font-hand">{active.blurb}</p>
               <p className="ov-modes__body">{active.body}</p>
               <Link to={active.cta.to} className="ov-link">
                 {active.cta.label} →

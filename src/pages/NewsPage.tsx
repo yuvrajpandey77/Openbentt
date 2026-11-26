@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { githubReleasesLatestUrl } from "@/config/releaseDownloads";
 import { releaseNotes, latestReleaseNote } from "@/config/releaseNotes";
+import { applyPageSeo, marketingSeo } from "@/lib/seo/pageSeo";
 
 const NewsPage: React.FC = () => {
   const releasesUrl = githubReleasesLatestUrl();
 
   useEffect(() => {
-    document.title = "News & releases — Openbentt";
+    applyPageSeo(marketingSeo.news);
   }, []);
 
   return (

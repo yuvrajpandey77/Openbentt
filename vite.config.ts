@@ -15,50 +15,76 @@ function openbenttSeoPlugin(): Plugin {
   return {
     name: "openbentt-seo-head",
     transformIndexHtml(html) {
-      const site = (process.env.VITE_PUBLIC_SITE_URL || "").trim().replace(/\/$/, "");
-      const canonical = site ? `${site}/` : "/";
-      const ogImage = site ? `${site}/openbentt-og.svg` : "/openbentt-og.svg";
+      const site = (
+        process.env.VITE_PUBLIC_SITE_URL ||
+        "https://openbentt.cogerphere.com"
+      )
+        .trim()
+        .replace(/\/$/, "");
+      const canonical = `${site}/`;
+      const ogImage = `${site}/openbentt-og.svg`;
+      const ogTitle = "Openbentt | write papers, run agents & local models";
       const ogDesc =
-        "Openbentt is a local-first workspace for multi-model chat, research threads, and Notebook LaTeX or PDF workflows. Your API keys stay in the browser.";
+        "Desktop-first, local-first AI research workspace. Notebook with live PDF, Paper Orchestra, agents, and offline GGUF — Windows, macOS, and Linux.";
+      const esc = (s: string) => s.replace(/"/g, "&quot;");
       const lines = [
         `    <link rel="canonical" href="${canonical}" />`,
-        `    <meta name="theme-color" content="#6C5CE7" />`,
-        `    <meta name="robots" content="index, follow, max-image-preview:large" />`,
+        `    <link rel="manifest" href="/site.webmanifest" />`,
+        `    <link rel="apple-touch-icon" href="/openbentt-logo.svg" />`,
+        `    <meta name="theme-color" content="#facc15" />`,
+        `    <meta name="color-scheme" content="dark light" />`,
+        `    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />`,
         `    <meta name="application-name" content="Openbentt" />`,
+        `    <meta name="keywords" content="Openbentt, LaTeX, Notebook, Paper Orchestra, local LLM, GGUF, research workspace, desktop AI, BusyTeX" />`,
         `    <meta property="og:type" content="website" />`,
-        `    <meta property="og:title" content="Openbentt · AI workspace for chat, research, and documents" />`,
-        `    <meta property="og:description" content="${ogDesc.replace(/"/g, "&quot;")}" />`,
+        `    <meta property="og:url" content="${canonical}" />`,
+        `    <meta property="og:title" content="${esc(ogTitle)}" />`,
+        `    <meta property="og:description" content="${esc(ogDesc)}" />`,
         `    <meta property="og:image" content="${ogImage}" />`,
         `    <meta property="og:image:width" content="1200" />`,
         `    <meta property="og:image:height" content="630" />`,
-        `    <meta property="og:image:alt" content="Openbentt workspace" />`,
+        `    <meta property="og:image:alt" content="Openbentt — write papers, run agents and local models" />`,
         `    <meta property="og:site_name" content="Openbentt" />`,
         `    <meta property="og:locale" content="en_US" />`,
         `    <meta name="twitter:card" content="summary_large_image" />`,
-        `    <meta name="twitter:title" content="Openbentt · AI workspace for chat, research, and documents" />`,
-        `    <meta name="twitter:description" content="${ogDesc.replace(/"/g, "&quot;")}" />`,
+        `    <meta name="twitter:title" content="${esc(ogTitle)}" />`,
+        `    <meta name="twitter:description" content="${esc(ogDesc)}" />`,
         `    <meta name="twitter:image" content="${ogImage}" />`,
       ];
-      if (site) {
-        lines.push(`    <meta property="og:url" content="${canonical}" />`);
-      }
-      const jsonLd = {
+      const software = {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
+        "@type": "SoftwareApplication",
         name: "Openbentt",
-        description:
-          "Local-first workspace for multi-model chat, research, and Notebook LaTeX or PDF workflows.",
-        applicationCategory: "DeveloperApplication",
-        operatingSystem: "Any",
-        browserRequirements: "Requires JavaScript. Modern evergreen browser recommended.",
+        applicationCategory: "ProductivityApplication",
+        applicationSubCategory: "ResearchSoftware",
+        operatingSystem: "Windows, macOS, Linux",
+        description: ogDesc,
+        url: `${site}/`,
+        downloadUrl: `${site}/download`,
+        image: ogImage,
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
         isAccessibleForFree: true,
-      } as Record<string, unknown>;
-      if (site) {
-        jsonLd.url = `${site}/`;
-      }
+        author: {
+          "@type": "Organization",
+          name: "Cogerphere",
+          url: "https://cogerphere.com",
+        },
+      };
+      const website = {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        name: "Openbentt",
+        url: `${site}/`,
+        description: ogDesc,
+        publisher: { "@type": "Organization", name: "Cogerphere", url: "https://cogerphere.com" },
+        potentialAction: {
+          "@type": "ReadAction",
+          target: `${site}/download`,
+        },
+      };
       lines.push(
-        `    <script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, "\\u003c")}</script>`
+        `    <script type="application/ld+json">${JSON.stringify(software).replace(/</g, "\\u003c")}</script>`,
+        `    <script type="application/ld+json">${JSON.stringify(website).replace(/</g, "\\u003c")}</script>`
       );
       return html.replace("</head>", `${lines.join("\n")}\n  </head>`);
     },

@@ -8,6 +8,7 @@ import { useLatestReleaseAssets } from "@/hooks/useLatestReleaseAssets";
 import { pickAsset, type ReleaseAssetKind } from "@/lib/fetchLatestReleaseAssets";
 import { getClientPlatform, type ClientPlatform } from "@/lib/detectClientPlatform";
 import { cn } from "@/lib/utils";
+import { applyPageSeo, marketingSeo } from "@/lib/seo/pageSeo";
 
 type DownloadOption = {
   id: string;
@@ -30,7 +31,7 @@ const DownloadPage: React.FC = () => {
   const displayVersion = release?.version || DESKTOP_ASSET_VERSION;
 
   useEffect(() => {
-    document.title = "Download Openbentt";
+    applyPageSeo(marketingSeo.download);
   }, []);
 
   const asset = (kind: ReleaseAssetKind) => pickAsset(release, kind);
@@ -73,7 +74,7 @@ const DownloadPage: React.FC = () => {
         <div className="ov-container">
           <header className="ov-dl__head">
             <p className="ov-dl__version">{loading ? "Latest release" : `Latest · v${displayVersion}`}</p>
-            <h1>Download</h1>
+            <h1 className="font-hand">Download</h1>
           </header>
 
           {!loading && release && !release.hasInstallers && (
@@ -112,7 +113,7 @@ function PlatformCard({
   return (
     <article className={cn("ov-dl__card", here && "ov-dl__card--here")}>
       <div className="ov-dl__card-top">
-        <h2>{title}</h2>
+        <h2 className="font-hand">{title}</h2>
         {here && <span>This device</span>}
       </div>
       <p className="ov-dl__meta">{meta}</p>

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Inter:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Geist:wght@400;500;600;700&family=Inter:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,6 +7,7 @@
 @layer base {
   /* Light — warm off-white, charcoal text, violet accent (launch creative) */
   :root {
+    --font-caveat: "Caveat", "Segoe Print", "Comic Sans MS", cursive;
     --background: 40 25% 98%;
     --foreground: 222 47% 11%;
 
@@ -1517,6 +1518,11 @@
     --mkt-terminal-fg: 0 0% 92%;
     --mkt-terminal-muted: 0 0% 62%;
     --font-display: "Geist", Inter, "Noto Sans", system-ui, sans-serif;
+    --font-caveat: "Caveat", "Segoe Print", "Comic Sans MS", cursive;
+    --ov-yellow: #facc15;
+    --ov-yellow-deep: #eab308;
+    --ov-lime: #bbf7d0;
+    --ov-lime-deep: #86efac;
     background: hsl(var(--ov-bg));
     color: hsl(var(--ov-fg));
     scroll-padding-top: 4.5rem;
@@ -1526,11 +1532,17 @@
 
   .marketing-page--overview .font-sans,
   .marketing-page--overview .font-display,
-  .marketing-page--overview h1,
-  .marketing-page--overview h2,
-  .marketing-page--overview h3 {
+  .marketing-page--overview h1:not(.font-hand),
+  .marketing-page--overview h2:not(.font-hand),
+  .marketing-page--overview h3:not(.font-hand) {
     font-family: "Geist", Inter, "Noto Sans", system-ui, sans-serif;
     letter-spacing: -0.03em;
+  }
+
+  .font-hand {
+    font-family: var(--font-caveat);
+    letter-spacing: 0.01em;
+    font-synthesis: none;
   }
 
   body:has(.marketing-page--overview) {
@@ -1575,17 +1587,42 @@
   }
 
   .ov-hero__title {
-    @apply max-w-[16ch] text-[2.6rem] font-semibold leading-[1.02] text-white sm:text-5xl md:max-w-[18ch] md:text-6xl lg:text-[4.5rem] lg:leading-[0.98];
-    font-family: "Geist", Inter, system-ui, sans-serif;
-    font-weight: 600;
-    letter-spacing: -0.045em;
+    @apply max-w-[20ch] text-[3.15rem] leading-[1.02] text-white sm:text-6xl md:max-w-[22ch] md:text-7xl lg:text-[5.35rem] lg:leading-[0.98];
+    font-family: var(--font-caveat);
+    font-weight: 700;
+    letter-spacing: 0.01em;
   }
 
   .ov-hero__emphasis {
-    background: linear-gradient(90deg, #7dd3fc, #f9a8d4 45%, #fdba74);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: #0f172a;
+    font-weight: 700;
+    /* Extra right pad so Caveat glyphs (e.g. final “b”) stay inside the marker */
+    padding: 0.08em 0.42em 0.06em 0.22em;
+    margin: 0 0.04em;
+    border-radius: 0.14em;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    background: linear-gradient(108deg, #fb923c 0%, #f97316 100%);
+    background-size: 100% 0.78em;
+    background-repeat: no-repeat;
+    background-position: 0 72%;
+  }
+
+  .ov-hero__subhead {
+    @apply mt-5 max-w-[28ch] text-[1.55rem] leading-snug text-white/90 sm:text-2xl md:mt-6 md:text-[1.85rem];
+    font-family: var(--font-caveat);
+    font-weight: 600;
+  }
+
+  .ov-hero__sub-mark {
+    font-weight: 700;
+    color: #fff;
+    padding: 0 0.04em;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 12' preserveAspectRatio='none'%3E%3Cpath d='M2 8 C 20 2, 40 11, 60 6 S 100 2, 118 8' fill='none' stroke='%2338bdf8' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    background-size: 100% 0.38em;
+    padding-bottom: 0.12em;
   }
 
   .ov-hero__cta {
@@ -1709,7 +1746,8 @@
   }
 
   .ov-modes__nav-item--active {
-    @apply text-white;
+    color: var(--ov-yellow);
+    border-bottom-color: color-mix(in srgb, var(--ov-yellow) 55%, transparent);
   }
 
   .ov-modes__copy {
@@ -1718,19 +1756,31 @@
   }
 
   .ov-modes__title {
-    @apply font-display text-3xl font-semibold tracking-tight text-white md:text-4xl;
+    @apply text-4xl font-bold tracking-normal text-white md:text-5xl lg:text-[3.25rem];
+    font-family: var(--font-caveat);
+    font-weight: 700;
+    letter-spacing: 0.01em;
   }
 
   .ov-modes__blurb {
-    @apply mt-3 text-lg text-white/70;
+    @apply mt-3 text-xl md:text-2xl;
+    color: var(--ov-lime);
+    font-family: var(--font-caveat);
+    font-weight: 600;
+    letter-spacing: 0.01em;
   }
 
   .ov-modes__body {
-    @apply mt-4 text-base leading-relaxed text-white/45;
+    @apply mt-4 text-base leading-relaxed text-white/50;
   }
 
   .ov-link {
-    @apply mt-6 inline-flex text-sm font-medium text-white transition hover:text-white/80;
+    @apply mt-6 inline-flex text-sm font-semibold transition;
+    color: var(--ov-yellow);
+  }
+
+  .ov-link:hover {
+    color: var(--ov-lime);
   }
 
   .ov-modes__visual {
@@ -1830,11 +1880,28 @@
   }
 
   .ov-uses {
-    @apply border-t border-white/10 py-20 md:py-28;
+    @apply relative overflow-hidden border-t border-white/10 py-20 md:py-28;
+    background:
+      radial-gradient(ellipse 60% 50% at 10% 20%, color-mix(in srgb, var(--ov-yellow) 14%, transparent), transparent 70%),
+      radial-gradient(ellipse 50% 45% at 90% 80%, color-mix(in srgb, var(--ov-lime) 12%, transparent), transparent 68%);
   }
 
   .ov-uses__heading {
-    @apply mx-auto max-w-[18ch] text-center font-display text-3xl font-semibold tracking-tight text-white md:text-4xl lg:text-[2.75rem] lg:leading-tight;
+    @apply mx-auto max-w-[20ch] text-center text-4xl font-bold text-white md:text-5xl lg:text-[3.35rem] lg:leading-[1.05];
+    font-family: var(--font-caveat);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .ov-uses__heading .ov-mark-yellow {
+    color: #0f172a;
+    padding: 0.05em 0.28em 0.02em;
+    background: linear-gradient(104deg, var(--ov-yellow), var(--ov-yellow-deep));
+    background-size: 100% 0.72em;
+    background-repeat: no-repeat;
+    background-position: 0 78%;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
   }
 
   .ov-uses__rail {
@@ -1842,40 +1909,67 @@
   }
 
   .ov-uses__card {
-    @apply flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.035] px-6 py-6 transition-colors md:px-7 md:py-7;
+    @apply relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] px-6 py-6 transition-all duration-300 md:px-7 md:py-7;
+  }
+
+  .ov-uses__card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--ov-yellow), var(--ov-lime));
+    opacity: 0.85;
+  }
+
+  .ov-uses__card:nth-child(even)::before {
+    background: linear-gradient(90deg, var(--ov-lime), var(--ov-yellow));
   }
 
   .ov-uses__card:hover {
-    border-color: rgba(255, 255, 255, 0.22);
-    background: rgba(255, 255, 255, 0.055);
+    border-color: color-mix(in srgb, var(--ov-lime) 45%, white 20%);
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateY(-2px);
   }
 
   .ov-uses__label {
-    @apply text-[0.72rem] font-medium uppercase tracking-[0.16em] text-white/40;
+    @apply text-[0.72rem] font-semibold uppercase tracking-[0.16em];
+    color: var(--ov-yellow);
   }
 
   .ov-uses__card h3 {
-    @apply mt-4 font-display text-[1.55rem] font-semibold leading-tight tracking-tight text-white;
+    @apply mt-4 text-[1.75rem] font-bold leading-tight text-white md:text-[1.9rem];
+    font-family: var(--font-caveat);
+    letter-spacing: 0.01em;
   }
 
   .ov-uses__detail {
-    @apply mt-3 text-[0.98rem] leading-snug text-white/80;
+    @apply mt-3 text-[1.05rem] leading-snug;
+    color: var(--ov-lime);
+    font-family: var(--font-caveat);
+    font-weight: 600;
   }
 
   .ov-uses__proof {
-    @apply mt-2 text-sm leading-relaxed text-white/40;
+    @apply mt-2 text-sm leading-relaxed text-white/45;
   }
 
   .ov-dl {
-    @apply pb-24 pt-10 md:pb-32 md:pt-14;
+    @apply relative pb-24 pt-10 md:pb-32 md:pt-14;
+    background:
+      radial-gradient(ellipse 55% 40% at 0% 0%, color-mix(in srgb, var(--ov-yellow) 12%, transparent), transparent 65%),
+      radial-gradient(ellipse 50% 40% at 100% 10%, color-mix(in srgb, var(--ov-lime) 10%, transparent), transparent 60%);
   }
 
   .ov-dl__head h1 {
-    @apply mt-2 font-display text-4xl font-semibold tracking-tight text-white md:text-5xl;
+    @apply mt-2 text-5xl font-bold tracking-normal text-white md:text-6xl lg:text-[4rem];
+    font-family: var(--font-caveat);
+    letter-spacing: 0.01em;
   }
 
   .ov-dl__version {
-    @apply text-[0.72rem] font-medium uppercase tracking-[0.16em] text-white/45;
+    @apply text-[0.78rem] font-semibold uppercase tracking-[0.16em];
+    color: var(--ov-lime);
   }
 
   .ov-dl__note {
@@ -1883,15 +1977,32 @@
   }
 
   .ov-dl__grid {
-    @apply mt-8 grid gap-4 md:mt-10 lg:grid-cols-3;
+    @apply mt-8 grid gap-4 md:mt-10 lg:grid-cols-2 xl:grid-cols-4;
   }
 
   .ov-dl__card {
-    @apply rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-5 md:px-6 md:py-6;
+    @apply relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-5 transition-all duration-300 md:px-6 md:py-6;
+  }
+
+  .ov-dl__card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--ov-yellow), var(--ov-lime));
+    opacity: 0.8;
+  }
+
+  .ov-dl__card:hover {
+    border-color: color-mix(in srgb, var(--ov-yellow) 40%, white 15%);
+    background: rgba(255, 255, 255, 0.055);
   }
 
   .ov-dl__card--here {
-    @apply border-white/20 bg-white/[0.055];
+    border-color: color-mix(in srgb, var(--ov-lime) 55%, white 10%);
+    background: color-mix(in srgb, var(--ov-lime) 8%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ov-lime) 25%, transparent);
   }
 
   .ov-dl__card-top {
@@ -1899,15 +2010,20 @@
   }
 
   .ov-dl__card h2 {
-    @apply font-display text-2xl font-semibold tracking-tight text-white;
+    @apply text-3xl font-bold tracking-normal text-white;
+    font-family: var(--font-caveat);
+    letter-spacing: 0.01em;
   }
 
   .ov-dl__card-top span {
-    @apply text-[0.72rem] font-medium uppercase tracking-[0.14em] text-white/45;
+    @apply rounded-full px-2.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.12em];
+    color: #0f172a;
+    background: var(--ov-yellow);
   }
 
   .ov-dl__meta {
-    @apply mt-1 text-sm text-white/45;
+    @apply mt-1 text-sm;
+    color: var(--ov-lime);
   }
 
   .ov-dl__card ul {
@@ -1919,7 +2035,12 @@
   }
 
   .ov-dl__card li a {
-    @apply inline-flex h-8 shrink-0 items-center rounded-full bg-white px-3 text-xs font-medium text-black transition hover:bg-white/90;
+    @apply inline-flex h-8 shrink-0 items-center rounded-full px-3 text-xs font-semibold text-black transition;
+    background: var(--ov-yellow);
+  }
+
+  .ov-dl__card li a:hover {
+    background: var(--ov-lime);
   }
 
   .ov-dl__soon {
@@ -1931,7 +2052,9 @@
   }
 
   .ov-news {
-    @apply border-t border-white/10 py-20 md:py-24;
+    @apply relative border-t border-white/10 py-20 md:py-24;
+    background:
+      radial-gradient(ellipse 45% 50% at 85% 30%, color-mix(in srgb, var(--ov-lime) 10%, transparent), transparent 70%);
   }
 
   .ov-news__head {
@@ -1939,35 +2062,46 @@
   }
 
   .ov-news__head h2 {
-    @apply font-display text-3xl font-semibold tracking-tight text-white;
+    @apply text-4xl font-bold tracking-normal text-white md:text-5xl;
+    font-family: var(--font-caveat);
+    letter-spacing: 0.01em;
   }
 
   .ov-news__links {
-    @apply flex flex-wrap gap-4 text-sm;
+    @apply flex flex-wrap gap-4 text-sm font-medium;
   }
 
   .ov-news__links a {
-    @apply text-white/50 transition hover:text-white;
+    color: var(--ov-yellow);
+    transition: color 150ms ease;
+  }
+
+  .ov-news__links a:hover {
+    color: var(--ov-lime);
   }
 
   .ov-news__list {
-    @apply divide-y divide-white/10 rounded-2xl border border-white/10;
+    @apply divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03];
   }
 
   .ov-news__list a {
-    @apply flex flex-col gap-1 px-5 py-4 transition hover:bg-white/[0.04] sm:flex-row sm:items-center sm:justify-between sm:gap-6;
+    @apply flex flex-col gap-1 px-5 py-4 transition hover:bg-white/[0.05] sm:flex-row sm:items-center sm:justify-between sm:gap-6;
   }
 
   .ov-news__list span {
-    @apply text-base text-white/85;
+    @apply text-base text-white/90;
   }
 
   .ov-news__list time {
-    @apply shrink-0 text-sm text-white/40;
+    @apply shrink-0 text-sm;
+    color: var(--ov-lime);
   }
 
   .ov-cta {
-    @apply border-t border-white/10 py-24 md:py-32;
+    @apply relative overflow-hidden border-t border-white/10 py-24 md:py-32;
+    background:
+      radial-gradient(ellipse 70% 60% at 50% 100%, color-mix(in srgb, var(--ov-yellow) 16%, transparent), transparent 70%),
+      radial-gradient(ellipse 50% 50% at 20% 0%, color-mix(in srgb, var(--ov-lime) 12%, transparent), transparent 65%);
   }
 
   .ov-cta__inner {
@@ -1975,35 +2109,143 @@
   }
 
   .ov-cta__inner h2 {
-    @apply max-w-[16ch] font-display text-3xl font-semibold tracking-tight text-white md:text-5xl;
+    @apply max-w-[18ch] text-4xl font-bold text-white md:text-5xl lg:text-[3.5rem] lg:leading-[1.05];
+    font-family: var(--font-caveat);
+    font-weight: 700;
+    letter-spacing: 0.01em;
   }
 
-  .ov-cta__inner p {
-    @apply mt-5 max-w-xl text-base text-white/50 md:text-lg;
+  .ov-cta__inner p,
+  .ov-cta__sub {
+    @apply mt-5 max-w-xl text-xl md:text-2xl;
+    color: var(--ov-lime);
+    font-family: var(--font-caveat);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .ov-cta .ov-btn-primary {
+    background: var(--ov-yellow);
+    color: #0f172a;
+  }
+
+  .ov-cta .ov-btn-primary:hover {
+    background: var(--ov-lime);
   }
 
   .ov-footer {
     position: relative;
     z-index: 10;
-    border-top: 1px solid rgba(255, 255, 255, 0.16);
-    background: #121212 !important;
+    overflow: hidden;
+    border-top: none;
+    background:
+      radial-gradient(ellipse 50% 60% at 0% 100%, color-mix(in srgb, var(--ov-yellow) 12%, transparent), transparent 65%),
+      radial-gradient(ellipse 45% 55% at 100% 0%, color-mix(in srgb, var(--ov-lime) 10%, transparent), transparent 60%),
+      #0c0c0c !important;
     color: #fff;
+  }
+
+  .ov-footer::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--ov-yellow), var(--ov-lime), var(--ov-yellow));
+  }
+
+  .ov-footer__inner {
+    @apply relative mx-auto px-5 py-16 md:px-8 md:py-20;
+    max-width: 1200px;
+  }
+
+  .ov-footer__top {
+    @apply grid gap-12 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-16;
+  }
+
+  .ov-footer__brand {
+    @apply max-w-md space-y-4;
+  }
+
+  .ov-footer__brand-link {
+    @apply inline-flex items-center gap-3;
+  }
+
+  .ov-footer__brand-name {
+    @apply text-3xl font-bold text-white md:text-4xl;
+    font-family: var(--font-caveat);
+    letter-spacing: 0.01em;
+  }
+
+  .ov-footer__tagline {
+    @apply text-xl leading-snug md:text-2xl;
+    font-family: var(--font-caveat);
+    font-weight: 600;
+    color: var(--ov-lime);
+  }
+
+  .ov-footer__tagline em {
+    font-style: normal;
+    color: #0f172a;
+    padding: 0.04em 0.22em 0.02em;
+    background: linear-gradient(104deg, var(--ov-yellow), var(--ov-yellow-deep));
+    background-size: 100% 0.7em;
+    background-repeat: no-repeat;
+    background-position: 0 78%;
+  }
+
+  .ov-footer__blurb {
+    @apply text-sm leading-relaxed text-white/60;
+  }
+
+  .ov-footer__blurb a {
+    color: var(--ov-yellow) !important;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .ov-footer__columns {
+    @apply grid gap-8 sm:grid-cols-2 lg:grid-cols-4;
   }
 
   .ov-footer a,
   .ov-footer p,
   .ov-footer li,
   .ov-footer span {
-    color: rgba(255, 255, 255, 0.82);
+    color: rgba(255, 255, 255, 0.78);
   }
 
-  .ov-footer a:hover {
-    color: #fff;
+  .ov-footer a:hover:not(.ov-footer__cta) {
+    color: var(--ov-lime) !important;
   }
 
   .ov-footer .ov-footer__heading {
-    color: #fff;
-    letter-spacing: 0.08em;
+    @apply mb-4 text-lg font-bold;
+    font-family: var(--font-caveat);
+    color: var(--ov-yellow) !important;
+    letter-spacing: 0.02em;
+  }
+
+  .ov-footer__columns ul {
+    @apply space-y-2.5 text-[0.95rem];
+  }
+
+  .ov-footer__bottom {
+    @apply mt-14 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-8 sm:flex-row;
+  }
+
+  .ov-footer__copy {
+    @apply text-sm text-white/50;
+  }
+
+  .ov-footer__cta {
+    @apply inline-flex h-10 items-center rounded-full px-5 text-sm font-semibold transition;
+    background: var(--ov-yellow);
+    color: #0f172a !important;
+  }
+
+  .ov-footer__cta:hover {
+    background: var(--ov-lime-deep);
+    color: #0f172a !important;
   }
 
   /* Unified research workspace — focus rings and distraction-free chrome */
@@ -2240,11 +2482,32 @@
   outline-offset: 2px;
 }
 
-/* Marketing pages only — Geist stands in for proprietary Crixet Sans. */
+/* Marketing pages only — Geist stands in for proprietary Crixet Sans.
+   Caveat / .font-hand wins for landing hero + main section titles. */
 .marketing-page--overview,
 .marketing-page--overview .font-sans,
 .marketing-page--overview .font-display {
   font-family: "Geist", Inter, "Noto Sans", system-ui, sans-serif;
+}
+
+.marketing-page--overview .font-hand,
+.marketing-page--overview .ov-hero__title,
+.marketing-page--overview .ov-hero__subhead,
+.marketing-page--overview .ov-modes__title,
+.marketing-page--overview .ov-modes__blurb,
+.marketing-page--overview .ov-uses__heading,
+.marketing-page--overview .ov-uses__card h3,
+.marketing-page--overview .ov-uses__detail,
+.marketing-page--overview .ov-news__head h2,
+.marketing-page--overview .ov-dl__head h1,
+.marketing-page--overview .ov-dl__card h2,
+.marketing-page--overview .ov-cta__inner h2,
+.marketing-page--overview .ov-cta__sub,
+.marketing-page--overview .ov-footer__brand-name,
+.marketing-page--overview .ov-footer__tagline,
+.marketing-page--overview .ov-footer__heading {
+  font-family: var(--font-caveat) !important;
+  letter-spacing: 0.01em;
 }
 
 .marketing-page--overview .ov-modes__nav-item:focus,

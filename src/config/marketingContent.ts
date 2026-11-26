@@ -83,8 +83,9 @@ export const hero = {
   headlineBefore: "Now you can write papers, run agents & local models ",
   headlineEmphasis: "in one desktop lab",
   headlineAfter: ".",
-  /** Used by HeroHeadline when present */
-  subhead: "",
+  /** Hand-style subhead under the Caveat hero title */
+  subhead: "Simple, local-first, yet ",
+  subheadEmphasis: "powerful.",
   terminalLine: "> openbentt · notebook · paper · agents · gguf",
   primaryCta: { label: "Download desktop", to: "/download" },
   secondaryCta: { label: "All platforms", to: "/download" },

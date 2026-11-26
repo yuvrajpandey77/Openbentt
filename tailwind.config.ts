@@ -156,6 +156,7 @@ export default {
 				sans: ['Inter', '"Noto Sans"', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
 				openbentt: ['Inter', '"Noto Sans"', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
 				display: ['Inter', '"Noto Sans"', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
+				hand: ['var(--font-caveat)', 'Caveat', 'cursive'],
 				mono: ['"JetBrains Mono"', '"SFMono-Regular"', 'Consolas', '"Liberation Mono"', 'monospace'],
 			}
 		}

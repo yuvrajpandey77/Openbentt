@@ -1,3 +1,22 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
 Allow: /
+
+# App workspace routes — low value for search indexes
+Disallow: /chat
+Disallow: /projects
+Disallow: /notebook
+Disallow: /settings
+Disallow: /setup
+Disallow: /welcome
+Disallow: /agent
+Disallow: /tasks
+Disallow: /files
+Disallow: /documents
+Disallow: /diagnostics
+Disallow: /labs
+Disallow: /write
+Disallow: /benchmark
+Disallow: /share
+
+Sitemap: https://openbentt.cogerphere.com/sitemap.xml

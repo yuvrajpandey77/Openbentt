@@ -7,12 +7,13 @@ import { MarketingUseStrip } from "@/components/marketing/MarketingUseStrip";
 import { NewsStrip } from "@/components/marketing/NewsStrip";
 import { useSuggestedDownload } from "@/components/marketing/useSuggestedDownload";
 import { mission } from "@/config/marketingContent";
+import { applyPageSeo, marketingSeo } from "@/lib/seo/pageSeo";
 
 const HomeLandingPage: React.FC = () => {
   const suggested = useSuggestedDownload();
 
   useEffect(() => {
-    document.title = "Openbentt | write papers, run agents & local models";
+    applyPageSeo(marketingSeo.home);
   }, []);
 
   const downloadHref = suggested?.href ?? "/download";
@@ -32,8 +33,8 @@ const HomeLandingPage: React.FC = () => {
 
         <section className="ov-cta" aria-label="Get started">
           <div className="ov-container ov-cta__inner">
-            <h2>{mission.title}</h2>
-            <p>{mission.body}</p>
+            <h2 className="font-hand">{mission.title}</h2>
+            <p className="font-hand ov-cta__sub">{mission.body}</p>
             <div className="ov-hero__cta">
               {downloadIsExternal ? (
                 <a href={downloadHref} target="_blank" rel="noreferrer" className="ov-btn-primary">
