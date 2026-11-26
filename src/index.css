@@ -1545,6 +1545,79 @@
     font-synthesis: none;
   }
 
+  /* Branded boot / route / workspace loader */
+  .ob-boot {
+    background:
+      radial-gradient(ellipse 55% 40% at 15% 20%, rgba(250, 204, 21, 0.12), transparent 65%),
+      radial-gradient(ellipse 45% 40% at 90% 80%, rgba(134, 239, 172, 0.1), transparent 60%),
+      #0c0c0c;
+  }
+
+  .ob-boot__mark {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .ob-boot__dot {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 999px;
+    animation: ob-boot-bounce 1s ease-in-out infinite;
+  }
+
+  .ob-boot__dot--y {
+    background: #facc15;
+  }
+
+  .ob-boot__dot--g {
+    background: #86efac;
+    animation-delay: 0.15s;
+  }
+
+  .ob-boot__dot--y + .ob-boot__dot--g + .ob-boot__dot--y {
+    animation-delay: 0.3s;
+  }
+
+  .ob-boot__title {
+    margin: 0;
+    font-size: clamp(2.5rem, 8vw, 3.75rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    color: #fff;
+  }
+
+  .ob-boot__sub {
+    margin: 0;
+    max-width: 22rem;
+    font-size: clamp(1.15rem, 3.5vw, 1.55rem);
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: 0.01em;
+    color: #bbf7d0;
+  }
+
+  @keyframes ob-boot-bounce {
+    0%,
+    80%,
+    100% {
+      transform: translateY(0);
+      opacity: 0.55;
+    }
+    40% {
+      transform: translateY(-6px);
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ob-boot__dot {
+      animation: none;
+      opacity: 1;
+    }
+  }
+
   body:has(.marketing-page--overview) {
     background: hsl(0 0% 8%);
   }

@@ -27,6 +27,7 @@ import { WebWorkspaceRouteGuard } from "@/components/WebWorkspaceRouteGuard";
 import { DesktopLandingRedirect } from "@/components/DesktopRouteGuard";
 import { OnboardingFlow } from "@/components/OnboardingFlow";
 import { isDesktopApp } from "@/lib/isDesktopApp";
+import { BootLoader } from "@/components/BootLoader";
 
 const NotebookStudioPage = lazy(() => import("./pages/NotebookStudioPage"));
 const ProjectsHubPage = lazy(() => import("./pages/ProjectsHubPage"));
@@ -49,9 +50,7 @@ const DiagnosticsPage = lazy(() => import("./pages/DiagnosticsPage"));
 
 const queryClient = new QueryClient();
 
-const RouteFallback = () => (
-  <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground text-sm">Loading…</div>
-);
+const RouteFallback = () => <BootLoader variant="route" />;
 
 /** Desktop: marketing home is skipped — go to onboarding or chat. Web keeps the landing page. */
 function RootMarketingOrElectronRedirect() {

@@ -12,11 +12,88 @@
     <meta name="author" content="Openbentt" />
     <meta name="google-site-verification" content="lr8hQLP1wBYcAydKMsT0jKUV1NSB3tjzqnLfMkxuUfw" />
     <link rel="manifest" href="/site.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap" rel="stylesheet" />
     <!-- Additional SEO (canonical, OG/Twitter, JSON-LD) is injected at build time in vite.config.ts -->
+    <style>
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background: #0c0c0c;
+        color: #f8fafc;
+      }
+      #root:empty {
+        min-height: 100vh;
+      }
+      /* Pre-React splash — replaced when React mounts into #root */
+      .ob-boot-splash {
+        box-sizing: border-box;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.15rem;
+        padding: 1.5rem;
+        text-align: center;
+        background:
+          radial-gradient(ellipse 55% 40% at 15% 20%, rgba(250, 204, 21, 0.12), transparent 65%),
+          radial-gradient(ellipse 45% 40% at 90% 80%, rgba(134, 239, 172, 0.1), transparent 60%),
+          #0c0c0c;
+        font-family: Caveat, "Segoe Print", cursive;
+      }
+      .ob-boot-splash__mark {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+      }
+      .ob-boot-splash__dot {
+        width: 0.65rem;
+        height: 0.65rem;
+        border-radius: 999px;
+        animation: ob-boot-bounce 1s ease-in-out infinite;
+      }
+      .ob-boot-splash__dot--y { background: #facc15; }
+      .ob-boot-splash__dot--g { background: #86efac; animation-delay: 0.15s; }
+      .ob-boot-splash__dot--y2 { background: #facc15; animation-delay: 0.3s; }
+      .ob-boot-splash__title {
+        margin: 0;
+        font-size: clamp(2.5rem, 8vw, 3.75rem);
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        line-height: 1;
+        color: #fff;
+      }
+      .ob-boot-splash__sub {
+        margin: 0;
+        font-size: clamp(1.15rem, 3.5vw, 1.55rem);
+        font-weight: 600;
+        color: #bbf7d0;
+        letter-spacing: 0.01em;
+      }
+      @keyframes ob-boot-bounce {
+        0%, 80%, 100% { transform: translateY(0); opacity: 0.55; }
+        40% { transform: translateY(-6px); opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .ob-boot-splash__dot { animation: none; opacity: 1; }
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="ob-boot-splash" role="status" aria-live="polite" aria-busy="true">
+        <div class="ob-boot-splash__mark" aria-hidden="true">
+          <span class="ob-boot-splash__dot ob-boot-splash__dot--y"></span>
+          <span class="ob-boot-splash__dot ob-boot-splash__dot--g"></span>
+          <span class="ob-boot-splash__dot ob-boot-splash__dot--y2"></span>
+        </div>
+        <p class="ob-boot-splash__title">Openbentt</p>
+        <p class="ob-boot-splash__sub">write papers · run agents · local models</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

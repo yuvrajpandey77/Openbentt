@@ -23,6 +23,7 @@ import { getWorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
 import { SIDEBAR_COLLAPSED_KEY } from "@/lib/storageMigrate";
 import { rightSidebarMainMarginClass, sidebarMainMarginClass } from "@/lib/sidebarLayout";
 import { isDesktopApp } from "@/lib/isDesktopApp";
+import { BootLoader } from "@/components/BootLoader";
 import ChatMessages from "@/components/ChatMessages";
 import { ExecutionInspector } from "@/components/conversation/ExecutionInspector";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -209,15 +210,7 @@ const AppLayout: React.FC = () => {
   }, [composerHost, composerSlot]);
 
   if (isLoadingConfig) {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background px-4">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-muted border-t-primary" />
-        <div className="text-center">
-          <p className="font-medium text-foreground">Loading Openbentt</p>
-          <p className="mt-1 text-sm text-muted-foreground">Restoring settings and chat history…</p>
-        </div>
-      </div>
-    );
+    return <BootLoader variant="workspace" />;
   }
 
   // Redirect to setup only when NO layer can serve chat. The universal
