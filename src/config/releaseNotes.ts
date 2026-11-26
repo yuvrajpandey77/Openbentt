@@ -20,6 +20,30 @@ export type ReleaseNote = {
 
 export const releaseNotes: ReleaseNote[] = [
   {
+    version: "2.6.3",
+    date: "Nov 27, 2026",
+    title: "Product landing · Notebook hero · real desktop surfaces",
+    summary:
+      "The site now sells what Openbentt actually ships: Notebook + live PDF, Paper Orchestra, Meridian, OpenCode agents, Model Arena, Research Labs, local GGUF, and Task Center — with a real compiled-paper Notebook screenshot in the hero.",
+    highlight:
+      "Eight named desktop surfaces on the landing; hero shows LaTeX editor beside compiled PDF",
+    sections: [
+      {
+        heading: "Marketing",
+        bullets: [
+          "Capability map links to Notebook, Paper Orchestra, Meridian, OpenCode, Arena, Labs, GGUF, Task Center",
+          "Product deep-dives replace generic principle / provider / explore filler",
+          "Hero screenshot: dark Notebook with compiled research paper",
+        ],
+      },
+      {
+        heading: "App",
+        bullets: ["Settings Appearance / theme toggle removed (dark-first)"],
+      },
+    ],
+    cta: { label: "Download 2.6.3", to: "/download" },
+  },
+  {
     version: "2.6.2",
     date: "Nov 26, 2026",
     title: "Thinking while you wait · Paper logs across Chat · job cues",

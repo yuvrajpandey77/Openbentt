@@ -2,19 +2,12 @@ import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MarketingShell } from "@/components/marketing/MarketingShell";
-import { MarketingComparePaths } from "@/components/marketing/MarketingComparePaths";
-import { MarketingExploreGrid } from "@/components/marketing/MarketingExploreGrid";
-import { FeatureShowcaseBlock } from "@/components/marketing/FeatureShowcaseBlock";
+import { MarketingCapabilityMap } from "@/components/marketing/MarketingCapabilityMap";
 import { MarketingHero } from "@/components/marketing/MarketingHero";
-import { MarketingMission } from "@/components/marketing/MarketingMission";
-import { MarketingPrinciples } from "@/components/marketing/MarketingPrinciples";
-import { MarketingProvidersStrip } from "@/components/marketing/MarketingProvidersStrip";
+import { MarketingProductStories } from "@/components/marketing/MarketingProductStories";
 import { MarketingReveal } from "@/components/marketing/MarketingReveal";
-import { MarketingSectionHeader } from "@/components/marketing/MarketingSectionHeader";
-import { MarketingStats } from "@/components/marketing/MarketingStats";
 import { NewsStrip } from "@/components/marketing/NewsStrip";
 import { useSuggestedDownload } from "@/components/marketing/useSuggestedDownload";
-import { heroPrinciples, showcaseBlocks } from "@/config/marketingContent";
 import { Download } from "lucide-react";
 
 const downloadBtnClass =
@@ -24,7 +17,7 @@ const HomeLandingPage: React.FC = () => {
   const suggested = useSuggestedDownload();
 
   useEffect(() => {
-    document.title = "Openbentt | desktop-first AI workspace for researchers";
+    document.title = "Openbentt | Notebook, Paper Orchestra, agents & local GGUF";
   }, []);
 
   const primaryDownload = suggested?.href ? (
@@ -51,7 +44,7 @@ const HomeLandingPage: React.FC = () => {
 
           <div className="marketing-hero-actions">
             <div className="marketing-container">
-              <div className="marketing-hero-cta marketing-hero-enter marketing-hero-enter--4">
+              <div className="marketing-hero-cta marketing-hero-enter" style={{ animationDelay: "0.4s" }}>
                 <div className="contents">
                   {primaryDownload}
                   <Button
@@ -68,60 +61,21 @@ const HomeLandingPage: React.FC = () => {
           </div>
         </section>
 
-        <MarketingProvidersStrip />
+        <MarketingCapabilityMap />
 
-        <MarketingExploreGrid />
-
-        <section id="principles" className="marketing-section scroll-mt-32 marketing-section-band border-y border-border/40">
-          <div className="marketing-container">
-            <MarketingSectionHeader
-              eyebrow="Principles"
-              title="Built for private research"
-              lead="Five principles that shape every workspace, from chat threads to GGUF weights on disk."
-            />
-            <div className="mt-12 md:mt-16">
-              <MarketingPrinciples items={heroPrinciples} />
-            </div>
-            <div className="mt-14 md:mt-20">
-              <MarketingStats />
-            </div>
-          </div>
-        </section>
-
-        <section id="features" className="marketing-section scroll-mt-32">
-          <div className="marketing-container">
-            <MarketingSectionHeader
-              eyebrow="Desktop"
-              title="What you get on desktop"
-              lead="Animated previews for each desktop capability. Your main product screenshot stays in the hero only."
-            />
-            <div className="marketing-feature-stack">
-              {showcaseBlocks.map((block, i) => (
-                <MarketingReveal key={block.id} delay={i * 60}>
-                  <FeatureShowcaseBlock block={block} large index={i} />
-                </MarketingReveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <MarketingComparePaths />
-
-        <MarketingMission />
+        <MarketingProductStories />
 
         <NewsStrip compact />
 
         <section className="marketing-section marketing-section--cta border-t border-border/40">
           <div className="marketing-container text-center">
             <MarketingReveal>
-              <p className="marketing-eyebrow">Get started</p>
-              <h2 className="marketing-section-title mt-3">Install Openbentt on your machine</h2>
+              <p className="marketing-eyebrow">Get the desktop lab</p>
+              <h2 className="marketing-section-title mt-3">Windows · Linux · macOS</h2>
               <p className="marketing-section-lead mx-auto mt-5 max-w-2xl">
-                Windows, Linux, and macOS. Offline GGUF, labs, and the full workspace.
+                Full Notebook, Paper Orchestra, OpenCode, Arena, Labs, and offline GGUF — not the browser subset.
               </p>
-              <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
-                {primaryDownload}
-              </div>
+              <div className="mt-12 flex flex-wrap items-center justify-center gap-4">{primaryDownload}</div>
             </MarketingReveal>
           </div>
         </section>

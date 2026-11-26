@@ -876,7 +876,7 @@
   }
 
   .marketing-hero-subhead {
-    @apply mx-auto mt-6 max-w-3xl text-center text-lg leading-relaxed md:mt-8 md:max-w-4xl md:text-xl lg:mt-9 lg:text-[1.4rem] lg:leading-relaxed;
+    @apply mx-auto mt-6 max-w-3xl text-center text-lg leading-relaxed md:mt-8 md:max-w-4xl md:text-xl lg:mt-9 lg:text-[1.35rem] lg:leading-relaxed;
     color: hsl(var(--mkt-hero-subhead));
   }
 
@@ -885,21 +885,195 @@
     color: hsl(var(--mkt-hero-accent));
   }
 
+  .marketing-hero-modules {
+    @apply mx-auto mt-8 flex max-w-5xl flex-wrap items-center justify-center gap-2 md:mt-10 md:gap-2.5;
+  }
+
+  .marketing-hero-module {
+    @apply rounded-md border border-border/55 bg-background/40 px-2.5 py-1 font-mono text-[11px] font-medium tracking-tight text-foreground/85 md:text-xs;
+  }
+
+  .marketing-capability-map {
+    @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4;
+  }
+
+  .marketing-capability-map__item {
+    @apply flex h-full flex-col rounded-2xl border border-border/50 bg-transparent p-5 transition-colors md:p-6;
+  }
+
+  .marketing-capability-map__item:hover {
+    @apply border-primary/35 bg-primary/[0.04];
+  }
+
+  .marketing-capability-map__icon {
+    @apply flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary;
+  }
+
+  .marketing-hero-brand {
+    @apply mx-auto mb-4 text-center font-display text-[2.75rem] font-bold leading-none tracking-tight text-foreground sm:text-5xl md:mb-5 md:text-6xl lg:text-7xl;
+  }
+
+  .marketing-hero-stage .marketing-hero-headline {
+    @apply mx-auto max-w-4xl text-center text-xl font-semibold leading-snug tracking-tight sm:text-2xl md:text-3xl lg:text-[2.15rem] lg:leading-snug;
+  }
+
   .marketing-hero-card-wrap {
-    @apply mx-auto mt-12 max-w-5xl sm:max-w-6xl md:mt-16 lg:max-w-[72rem];
+    @apply mx-auto mt-10 max-w-none sm:mt-12 md:mt-14;
+    width: min(100%, 88rem);
   }
 
   .marketing-hero-card-img {
-    @apply h-auto w-full rounded-xl bg-card md:rounded-2xl;
+    @apply h-auto w-full rounded-lg bg-card md:rounded-xl;
     box-shadow:
       0 4px 6px -2px rgba(15, 23, 42, 0.04),
-      0 24px 64px -28px rgba(88, 63, 180, 0.18);
+      0 28px 72px -32px rgba(15, 23, 42, 0.28);
   }
 
   .dark .marketing-hero-card-img {
     box-shadow:
-      0 4px 6px -2px rgba(0, 0, 0, 0.25),
-      0 24px 64px -28px hsl(var(--primary) / 0.22);
+      0 4px 6px -2px rgba(0, 0, 0, 0.35),
+      0 28px 72px -32px rgba(0, 0, 0, 0.55);
+  }
+
+  /* Paper loop — source → compile → PDF */
+  .marketing-paper-loop__rail {
+    @apply grid gap-3 md:grid-cols-3 md:gap-4;
+  }
+
+  .marketing-paper-loop__step {
+    @apply flex w-full flex-col rounded-2xl border border-border/50 bg-transparent px-4 py-4 text-left transition-colors md:px-5 md:py-5;
+  }
+
+  .marketing-paper-loop__step:hover {
+    @apply border-border;
+  }
+
+  .marketing-paper-loop__step--active {
+    @apply border-primary/40 bg-primary/[0.06];
+  }
+
+  .marketing-paper-loop__index {
+    @apply font-mono text-[11px] text-muted-foreground;
+  }
+
+  .marketing-paper-loop__label {
+    @apply mt-2 font-display text-lg font-semibold text-foreground;
+  }
+
+  .marketing-paper-loop__detail {
+    @apply mt-1.5 text-sm leading-relaxed text-muted-foreground;
+  }
+
+  .marketing-paper-loop__stage {
+    @apply mt-8 grid items-stretch gap-3 md:mt-10 md:grid-cols-[1fr_auto_1fr] md:gap-4;
+  }
+
+  .marketing-paper-loop__pane {
+    @apply overflow-hidden rounded-2xl border border-border/50 bg-card/40 transition-[border-color,box-shadow] duration-500;
+  }
+
+  .marketing-paper-loop__pane--lit {
+    @apply border-primary/35 shadow-[0_20px_48px_-28px_hsl(var(--primary)/0.35)];
+  }
+
+  .marketing-paper-loop__pane header {
+    @apply flex items-center justify-between border-b border-border/50 px-3 py-2;
+  }
+
+  .marketing-paper-loop__code {
+    @apply overflow-x-auto p-4 font-mono text-[11px] leading-relaxed text-foreground/90 md:min-h-[200px] md:text-xs;
+  }
+
+  .marketing-paper-loop__compile {
+    @apply flex flex-col items-center justify-center gap-3 py-4 md:px-2;
+  }
+
+  .marketing-paper-loop__wand {
+    @apply rounded-full border border-border/60 bg-background px-3 py-1.5 font-mono text-[11px] font-medium text-foreground transition-colors;
+  }
+
+  .marketing-paper-loop__compile--lit .marketing-paper-loop__wand {
+    @apply border-primary/40 bg-primary text-primary-foreground;
+  }
+
+  .marketing-paper-loop__beam {
+    @apply hidden h-px w-10 bg-border md:block;
+  }
+
+  .marketing-paper-loop__compile--lit .marketing-paper-loop__beam {
+    @apply bg-primary/60;
+    animation: marketingShimmer 1.6s ease-in-out infinite;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--primary) / 0.8),
+      transparent
+    );
+    background-size: 200% 100%;
+  }
+
+  .marketing-paper-loop__sheet {
+    @apply m-3 rounded-lg border border-border/40 bg-background p-4 md:m-4 md:min-h-[200px] md:p-5;
+  }
+
+  /* Workspace stage — tabbed capability explorer */
+  .marketing-workspace-stage__tabs {
+    @apply grid gap-2 sm:grid-cols-3 sm:gap-3;
+  }
+
+  .marketing-workspace-stage__tab {
+    @apply rounded-2xl border border-border/50 bg-transparent px-4 py-4 text-left transition-colors md:px-5;
+  }
+
+  .marketing-workspace-stage__tab:hover {
+    @apply border-border;
+  }
+
+  .marketing-workspace-stage__tab--active {
+    @apply border-primary/40 bg-primary/[0.06];
+  }
+
+  .marketing-workspace-stage__panel {
+    @apply mt-8 grid items-center gap-10 lg:mt-12 lg:grid-cols-2 lg:gap-16;
+  }
+
+  /* Local boundary ring */
+  .marketing-local-boundary {
+    @apply grid items-center gap-12 lg:grid-cols-[minmax(0,280px)_1fr] lg:gap-16;
+  }
+
+  .marketing-local-boundary__ring {
+    @apply relative mx-auto flex h-52 w-52 items-center justify-center md:h-64 md:w-64;
+  }
+
+  .marketing-local-boundary__pulse {
+    @apply absolute inset-0 rounded-full border border-primary/30;
+    animation: marketingLocalPulse 3.2s ease-in-out infinite;
+  }
+
+  .marketing-local-boundary__pulse::before {
+    content: "";
+    @apply absolute inset-6 rounded-full border border-primary/20;
+  }
+
+  .marketing-local-boundary__core {
+    @apply relative z-10 font-mono text-sm font-medium tracking-tight text-foreground md:text-base;
+  }
+
+  .marketing-local-boundary__list {
+    @apply space-y-3;
+  }
+
+  @keyframes marketingLocalPulse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.85;
+    }
+    50% {
+      transform: scale(1.04);
+      opacity: 1;
+    }
   }
 
   .marketing-terminal-bar {
@@ -1207,7 +1381,9 @@
     .marketing-stream-lines,
     .marketing-graph-node,
     .marketing-graph-edge,
-    .marketing-bib-row {
+    .marketing-bib-row,
+    .marketing-local-boundary__pulse,
+    .marketing-paper-loop__compile--lit .marketing-paper-loop__beam {
       animation: none !important;
       opacity: 1;
       transform: none;

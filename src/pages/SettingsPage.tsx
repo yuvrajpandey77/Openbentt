@@ -130,11 +130,6 @@ export function SettingsShell({ className }: { className?: string }) {
             {rail === "general" && (
               <div className="space-y-4">
                 <AccountCard />
-                <SettingsPanel
-                  section={panelSection}
-                  onSectionChange={setPanelSection}
-                  hideTabList
-                />
               </div>
             )}
 

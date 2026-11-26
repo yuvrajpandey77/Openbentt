@@ -22,9 +22,9 @@ export function isMarketingSvg(file: string): boolean {
 /** One raster for the hero — do not reuse elsewhere on the landing page. */
 export const heroAppCard = {
   src: `${base}/openbentt-app-card.png`,
-  alt: "Openbentt workspace with LaTeX editor, PDF preview, and model comparison table",
-  width: 1024,
-  height: 560,
+  alt: "Openbentt Notebook — dark editor with main.tex and compiled Attention Is All You Need PDF preview",
+  width: 1440,
+  height: 755,
 } as const;
 
 /** Unique SVG per feature block (visually distinct illustrations). */

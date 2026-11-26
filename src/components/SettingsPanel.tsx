@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useChat } from "@/context/ChatContext";
-import { useTheme } from "../context/ThemeContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -13,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Moon, Sun, Plus, Trash2, Settings2, Cpu, Search, FlaskConical, Shield, Plug, Bot, Wrench } from "lucide-react";
+import { Plus, Trash2, Settings2, Cpu, Search, FlaskConical, Shield, Plug, Bot, Wrench } from "lucide-react";
 import { useOpenRouterModels, buildSelectableModels } from "@/hooks/useOpenRouterModels";
 import { useLocalGgufRegistryModels } from "@/hooks/useLocalGgufRegistryModels";
 import { shortModelLabel } from "@/lib/openrouter";
@@ -88,7 +87,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const { apiConfig, setApiConfig } = useChat();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { theme, toggleTheme } = useTheme();
   const [localAiProvider, setLocalAiProvider] = useState<AiProvider>(apiConfig.aiProvider);
   const [localApiKey, setLocalApiKey] = useState(apiConfig.apiKey);
   const [localModel, setLocalModel] = useState(apiConfig.model);
@@ -564,31 +562,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <Button type="button" onClick={handleSavePrivacy} className="w-full sm:w-auto">
               Save privacy settings
             </Button>
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="general" className="mt-4 space-y-4 outline-none">
-        <Card className="border-border/70 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="font-display text-lg">Appearance</CardTitle>
-            <CardDescription>How the app looks on this device.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Sun size={18} className={theme === "light" ? "text-primary" : "text-muted-foreground"} />
-                <Label htmlFor="theme-toggle" className="text-sm font-medium">
-                  Dark mode
-                </Label>
-                <Moon size={18} className={theme === "dark" ? "text-primary" : "text-muted-foreground"} />
-              </div>
-              <Switch id="theme-toggle" checked={theme === "dark"} onCheckedChange={toggleTheme} />
-            </div>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Typography uses Inter + Noto Sans for UI and JetBrains Mono for code fields — Openbentt uses a
-              research-lab aesthetic.
-            </p>
           </CardContent>
         </Card>
       </TabsContent>

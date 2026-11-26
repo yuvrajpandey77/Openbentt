@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.6.3] — 2026-11-27
+
+### Changed
+
+- **Marketing landing:** Capability map and product deep-dives for Notebook, Paper Orchestra, Meridian, OpenCode, Model Arena, Research Labs, Local GGUF, and Task Center.
+- **Hero:** Real Notebook screenshot with compiled research-paper PDF; brand-forward headline listing shipped modules.
+- **Settings:** Appearance / theme toggle removed (dark-first desktop).
+- Version bump: `2.6.2` → `2.6.3`.
+
 ## [2.6.2] — 2026-11-26
 
 ### Fixed
