@@ -8,6 +8,10 @@ export type ResolvedReleaseAssets = {
   releaseUrl: string;
   /** Resolved download URLs keyed by asset kind. */
   assets: Partial<Record<ReleaseAssetKind, string>>;
+  /** GitHub `download_count` per classified asset (actual release downloads). */
+  downloadCounts: Partial<Record<ReleaseAssetKind, number>>;
+  /** Sum of download_count across installer/archive assets on this release. */
+  totalDownloads: number;
   /** True when at least one desktop installer/archive is present (not just source). */
   hasInstallers: boolean;
   /** GitHub API fetch failed — fall back to static URLs. */
@@ -18,7 +22,7 @@ export type ResolvedReleaseAssets = {
   versionMismatch: boolean;
 };
 
-type GhAsset = { name: string; browser_download_url: string };
+type GhAsset = { name: string; browser_download_url: string; download_count?: number };
 type GhRelease = {
   tag_name: string;
   html_url: string;
@@ -106,6 +110,8 @@ function fallbackAssets(): ResolvedReleaseAssets {
     tagName: "",
     releaseUrl: GITHUB_REPO ? `https://github.com/${GITHUB_REPO}/releases/latest` : "",
     assets,
+    downloadCounts: {},
+    totalDownloads: 0,
     hasInstallers: true,
     fromFallback: true,
     inferredAssetVersion: null,
@@ -129,19 +135,24 @@ export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets>
     const data = (await res.json()) as GhRelease;
     const latestVersion = stripTagPrefix(data.tag_name);
     const assets: Partial<Record<ReleaseAssetKind, string>> = {};
+    const downloadCounts: Partial<Record<ReleaseAssetKind, number>> = {};
+    let totalDownloads = 0;
     let hasInstallers = false;
     const versionVotes = new Map<string, number>();
 
     for (const asset of data.assets ?? []) {
       const kind = classifyAsset(asset.name);
       const inferred = extractVersionFromAssetName(asset.name);
+      const count = typeof asset.download_count === "number" ? asset.download_count : 0;
       if (isInstallerAsset(asset.name)) {
         hasInstallers = true;
+        totalDownloads += count;
         if (inferred) versionVotes.set(inferred, (versionVotes.get(inferred) ?? 0) + 1);
       }
       if (!kind || assets[kind]) continue;
 
       assets[kind] = asset.browser_download_url;
+      downloadCounts[kind] = count;
     }
 
     // Fill gaps with versioned filenames derived from the latest tag.
@@ -161,6 +172,8 @@ export async function fetchLatestReleaseAssets(): Promise<ResolvedReleaseAssets>
       tagName: data.tag_name,
       releaseUrl: data.html_url,
       assets,
+      downloadCounts,
+      totalDownloads,
       hasInstallers,
       fromFallback: false,
       inferredAssetVersion,

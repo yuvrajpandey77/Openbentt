@@ -2045,6 +2045,15 @@
     color: var(--ov-lime);
   }
 
+  .ov-dl__stats {
+    @apply mt-3 text-lg font-semibold tracking-normal md:text-xl;
+    color: color-mix(in srgb, var(--ov-yellow) 85%, white);
+  }
+
+  .ov-dl__count {
+    @apply text-xs font-medium tracking-normal text-white/45;
+  }
+
   .ov-dl__note {
     @apply mt-6 text-sm text-white/50;
   }

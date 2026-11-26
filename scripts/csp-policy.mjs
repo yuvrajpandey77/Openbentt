@@ -22,8 +22,9 @@ export const CSP_DIRECTIVES = [
   // 'wasm-unsafe-eval' (NOT 'unsafe-eval') allows WebAssembly.compile for the two WASM
   // runtimes — onnxruntime-web (Transformers.js local inference/embeddings) and
   // texlyre-busytex (in-browser LaTeX) — without permitting JS eval().
-  // https://va.vercel-scripts.com is the @vercel/analytics runtime loader, injected only
-  // when the user explicitly opts into analytics (PrivacyAnalytics returns null otherwise).
+  // https://va.vercel-scripts.com is the @vercel/analytics runtime loader used by
+  // MarketingAnalytics (public marketing pages) and PrivacyAnalytics (in-app opt-in).
+  // PostHog (optional VITE_POSTHOG_KEY) ships from the JS bundle — no extra script host.
   "script-src 'self' 'wasm-unsafe-eval' https://va.vercel-scripts.com",
   // 'unsafe-inline' is required: shadcn chart theme blocks inject <style> at runtime
   // (src/components/ui/chart.tsx:78 ChartStyle), KaTeX emits styled spans, and Radix

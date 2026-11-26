@@ -8,6 +8,8 @@ import { marketingNav } from "@/components/marketing/marketingNav";
 import { cn } from "@/lib/utils";
 import { MarketingHeroBackdrop } from "@/components/marketing/MarketingHeroBackdrop";
 import { MarketingTerminalBar } from "@/components/marketing/MarketingTerminalBar";
+import { MarketingAnalytics } from "@/components/marketing/MarketingAnalytics";
+import { trackDownloadClick } from "@/lib/analytics/marketingAnalytics";
 import { Github, Moon, Sun } from "lucide-react";
 
 type MarketingShellProps = {
@@ -67,6 +69,7 @@ export function MarketingShell({
         !onHome && "bg-background"
       )}
     >
+      <MarketingAnalytics />
       {!isOverview && (
         <div className="marketing-glow pointer-events-none absolute inset-x-0 top-0 -z-10 h-[min(55vh,480px)]" aria-hidden />
       )}
@@ -158,12 +161,25 @@ export function MarketingShell({
             )}
 
             {isOverview ? (
-              <Link to="/download" className="ov-header-cta">
+              <Link
+                to="/download"
+                className="ov-header-cta"
+                onClick={() =>
+                  trackDownloadClick({ assetId: "download_page", source: "header", platform: "nav" })
+                }
+              >
                 Download
               </Link>
             ) : (
               <Button className="h-9 rounded-lg px-4 text-sm font-semibold" asChild>
-                <Link to="/download">Download</Link>
+                <Link
+                  to="/download"
+                  onClick={() =>
+                    trackDownloadClick({ assetId: "download_page", source: "header", platform: "nav" })
+                  }
+                >
+                  Download
+                </Link>
               </Button>
             )}
           </div>
@@ -226,7 +242,13 @@ export function MarketingShell({
             </div>
             <div className="ov-footer__bottom">
               <p className="ov-footer__copy">© {new Date().getFullYear()} Openbentt. All rights reserved.</p>
-              <Link to="/download" className="ov-footer__cta">
+              <Link
+                to="/download"
+                className="ov-footer__cta"
+                onClick={() =>
+                  trackDownloadClick({ assetId: "download_page", source: "footer", platform: "nav" })
+                }
+              >
                 Download desktop
               </Link>
             </div>

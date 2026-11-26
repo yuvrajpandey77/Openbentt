@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { appCardHero, hero, overviewModes } from "@/config/marketingContent";
+import { trackDownloadClick } from "@/lib/analytics/marketingAnalytics";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,10 +32,30 @@ export function MarketingOverviewHero() {
         )}
 
         <div className="ov-hero__cta">
-          <Link to={hero.primaryCta.to} className="ov-btn-primary">
+          <Link
+            to={hero.primaryCta.to}
+            className="ov-btn-primary"
+            onClick={() =>
+              trackDownloadClick({
+                assetId: "download_page",
+                source: "hero_cta",
+                platform: "nav",
+              })
+            }
+          >
             {hero.primaryCta.label}
           </Link>
-          <Link to={hero.secondaryCta.to} className="ov-btn-text">
+          <Link
+            to={hero.secondaryCta.to}
+            className="ov-btn-text"
+            onClick={() =>
+              trackDownloadClick({
+                assetId: "download_page",
+                source: "hero_cta",
+                platform: "nav",
+              })
+            }
+          >
             {hero.secondaryCta.label}
             <ArrowUpRight className="h-4 w-4" aria-hidden />
           </Link>

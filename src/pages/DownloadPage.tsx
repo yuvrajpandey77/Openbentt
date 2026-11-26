@@ -7,13 +7,16 @@ import {
 import { useLatestReleaseAssets } from "@/hooks/useLatestReleaseAssets";
 import { pickAsset, type ReleaseAssetKind } from "@/lib/fetchLatestReleaseAssets";
 import { getClientPlatform, type ClientPlatform } from "@/lib/detectClientPlatform";
+import { trackDownloadClick } from "@/lib/analytics/marketingAnalytics";
 import { cn } from "@/lib/utils";
 import { applyPageSeo, marketingSeo } from "@/lib/seo/pageSeo";
 
 type DownloadOption = {
   id: string;
+  kind: ReleaseAssetKind;
   label: string;
   href: string | null;
+  downloads: number | null;
 };
 
 function usePrimaryPlatform(): ClientPlatform {
@@ -24,45 +27,57 @@ function usePrimaryPlatform(): ClientPlatform {
   return p;
 }
 
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
+  return String(n);
+}
+
 const DownloadPage: React.FC = () => {
   const platform = usePrimaryPlatform();
   const { release, loading } = useLatestReleaseAssets();
   const releasesUrl = release?.releaseUrl ?? githubReleasesLatestUrl();
   const displayVersion = release?.version || DESKTOP_ASSET_VERSION;
+  const totalDownloads = release && !release.fromFallback ? release.totalDownloads : null;
 
   useEffect(() => {
     applyPageSeo(marketingSeo.download);
   }, []);
 
   const asset = (kind: ReleaseAssetKind) => pickAsset(release, kind);
+  const countFor = (kind: ReleaseAssetKind): number | null => {
+    if (!release || release.fromFallback) return null;
+    const n = release.downloadCounts[kind];
+    return typeof n === "number" ? n : null;
+  };
 
   const windows = useMemo<DownloadOption[]>(
     () => [
-      { id: "win-nsis", label: "Installer · NSIS", href: asset("windowsNsis") },
-      { id: "win-portable", label: "Portable .exe", href: asset("windowsPortable") },
-      { id: "win-zip", label: "Zip", href: asset("windowsZip") },
+      { id: "win-nsis", kind: "windowsNsis", label: "Installer · NSIS", href: asset("windowsNsis"), downloads: countFor("windowsNsis") },
+      { id: "win-portable", kind: "windowsPortable", label: "Portable .exe", href: asset("windowsPortable"), downloads: countFor("windowsPortable") },
+      { id: "win-zip", kind: "windowsZip", label: "Zip", href: asset("windowsZip"), downloads: countFor("windowsZip") },
     ],
     [release]
   );
 
   const linux = useMemo<DownloadOption[]>(
     () => [
-      { id: "linux-appimage", label: "AppImage", href: asset("linuxAppImage") },
-      { id: "linux-deb", label: "Debian package", href: asset("linuxDeb") },
+      { id: "linux-appimage", kind: "linuxAppImage", label: "AppImage", href: asset("linuxAppImage"), downloads: countFor("linuxAppImage") },
+      { id: "linux-deb", kind: "linuxDeb", label: "Debian package", href: asset("linuxDeb"), downloads: countFor("linuxDeb") },
     ],
     [release]
   );
 
   const mac = useMemo<DownloadOption[]>(
     () => [
-      { id: "mac-dmg", label: "Disk image · .dmg", href: asset("macDmgArm64") },
-      { id: "mac-zip", label: "Zip", href: asset("macZipArm64") },
+      { id: "mac-dmg", kind: "macDmgArm64", label: "Disk image · .dmg", href: asset("macDmgArm64"), downloads: countFor("macDmgArm64") },
+      { id: "mac-zip", kind: "macZipArm64", label: "Zip", href: asset("macZipArm64"), downloads: countFor("macZipArm64") },
     ],
     [release]
   );
 
   const web = useMemo<DownloadOption[]>(
-    () => [{ id: "web-zip", label: "Static zip", href: asset("webStaticZip") }],
+    () => [{ id: "web-zip", kind: "webStaticZip", label: "Static zip", href: asset("webStaticZip"), downloads: countFor("webStaticZip") }],
     [release]
   );
 
@@ -75,6 +90,11 @@ const DownloadPage: React.FC = () => {
           <header className="ov-dl__head">
             <p className="ov-dl__version">{loading ? "Latest release" : `Latest · v${displayVersion}`}</p>
             <h1 className="font-hand">Download</h1>
+            {typeof totalDownloads === "number" && totalDownloads > 0 ? (
+              <p className="ov-dl__stats font-hand" aria-live="polite">
+                {formatCount(totalDownloads)} downloads on this release
+              </p>
+            ) : null}
           </header>
 
           {!loading && release && !release.hasInstallers && (
@@ -82,10 +102,31 @@ const DownloadPage: React.FC = () => {
           )}
 
           <div className="ov-dl__grid">
-            <PlatformCard title="Windows" meta="x64" here={here("windows")} options={windows} />
-            <PlatformCard title="Linux" meta="amd64" here={here("linux")} options={linux} />
-            <PlatformCard title="macOS" meta="Apple Silicon" here={here("mac")} options={mac} />
-            <PlatformCard title="Web" meta="Self-host" options={web} />
+            <PlatformCard
+              title="Windows"
+              meta="x64"
+              here={here("windows")}
+              platform="windows"
+              version={displayVersion}
+              options={windows}
+            />
+            <PlatformCard
+              title="Linux"
+              meta="amd64"
+              here={here("linux")}
+              platform="linux"
+              version={displayVersion}
+              options={linux}
+            />
+            <PlatformCard
+              title="macOS"
+              meta="Apple Silicon"
+              here={here("mac")}
+              platform="mac"
+              version={displayVersion}
+              options={mac}
+            />
+            <PlatformCard title="Web" meta="Self-host" platform="web" version={displayVersion} options={web} />
           </div>
 
           {releasesUrl && (
@@ -103,11 +144,15 @@ function PlatformCard({
   title,
   meta,
   here,
+  platform,
+  version,
   options,
 }: {
   title: string;
   meta: string;
   here?: boolean;
+  platform: string;
+  version: string;
   options: DownloadOption[];
 }) {
   return (
@@ -120,9 +165,27 @@ function PlatformCard({
       <ul>
         {options.map((option) => (
           <li key={option.id}>
-            <span>{option.label}</span>
+            <span>
+              {option.label}
+              {typeof option.downloads === "number" ? (
+                <span className="ov-dl__count"> · {formatCount(option.downloads)}</span>
+              ) : null}
+            </span>
             {option.href ? (
-              <a href={option.href} target="_blank" rel="noreferrer">
+              <a
+                href={option.href}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() =>
+                  trackDownloadClick({
+                    assetId: option.id,
+                    platform,
+                    version,
+                    source: "download_page",
+                    href: option.href,
+                  })
+                }
+              >
                 Download
               </a>
             ) : (
