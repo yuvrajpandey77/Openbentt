@@ -98,12 +98,6 @@ describe("normalizeProviderError (dispatcher)", () => {
     expect(result.code).toBeDefined();
   });
 
-  it("routes webgpu_gemma to normalizeWebGpuError", () => {
-    const err = new Error("WebGPU not available");
-    const result = normalizeProviderError(err, "webgpu_gemma", "qwen-0.5b");
-    expect(result.code).toBe("LOCAL_RUNTIME_UNAVAILABLE");
-  });
-
   it("routes local_gguf to normalizeGgufError", () => {
     const err = { response: { status: 404 } };
     const result = normalizeProviderError(err, "local_gguf", "my-model");

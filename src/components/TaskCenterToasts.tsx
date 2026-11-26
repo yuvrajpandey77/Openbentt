@@ -1,13 +1,22 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { X, Loader2, CheckCircle2, AlertTriangle, RotateCcw } from "lucide-react";
 import { useTaskCenter, type Task } from "@/context/TaskCenterContext";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 
+const DONE_AUTO_DISMISS_MS = 5000;
+
 /** Phase 9 — one global status surface for all background work (real state only). */
 function TaskCard({ task }: { task: Task }) {
   const { removeTask } = useTaskCenter();
+
+  useEffect(() => {
+    if (task.state !== "done") return;
+    const t = window.setTimeout(() => removeTask(task.id), DONE_AUTO_DISMISS_MS);
+    return () => window.clearTimeout(t);
+  }, [task.id, task.state, task.updatedAt, removeTask]);
+
   return (
     <div
       role="status"

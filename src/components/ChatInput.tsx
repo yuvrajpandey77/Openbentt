@@ -1,17 +1,20 @@
 import React, { useMemo, useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowUp,
   Bot,
   ChevronDown,
+  ListPlus,
   Paperclip,
   Plus,
   Search,
   Square,
   Wrench,
+  FileText,
+  Mic,
+  ListOrdered,
 } from "lucide-react";
 import { useChat, ExecutionMode } from "@/context/ChatContext";
 import {
@@ -47,26 +50,6 @@ import { Camera, FolderInput, FileCode2 } from "lucide-react";
 import { parseGgufRegistryId } from "@/lib/localGguf/ids";
 import { Link } from "react-router-dom";
 import { getComposerPlaceholder } from "@/lib/composerPlaceholder";
-import { ModelDownloadProgressBar } from "@/components/ModelDownloadProgressBar";
-import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
-import { isLocalModelMarkedCached } from "@/lib/gemmaWebGpu/localModelCacheFlag";
-import {
-  isLocalGemmaWeightsLoaded,
-  ensureLocalGemmaLoaded,
-} from "@/lib/gemmaWebGpu/localGemmaInference";
-import {
-  LOCAL_GEMMA_SELECTABLE_MODELS,
-  LOCAL_TINY_MODEL_ID,
-  getLocalModelEntry,
-} from "@/lib/gemmaWebGpu/models";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { v4 as uuidv4 } from "uuid";
 import { readFileAsDataUrl, extractVideoFrameDataUrl, assertImageSize } from "@/lib/media";
@@ -74,7 +57,6 @@ import { extractTextFromPdfFile } from "@/lib/pdfText";
 import { ToolsPopover } from "@/components/ToolsPopover";
 import { ModelCapabilityBadges } from "@/components/ModelCapabilityBadges";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import LocalOnDeviceModelBar from "@/components/LocalOnDeviceModelBar";
 import type { WorkspaceRouteMeta } from "@/config/workspaceRouteMeta";
 import { cn } from "@/lib/utils";
 import { isWebClient } from "@/config/platformSurface";
@@ -117,6 +99,12 @@ const MAX_COMPARE = 4;
 
 type RouteDraft = { text: string; attachments: MessageAttachment[] };
 
+type QueuedSend = {
+  text: string;
+  attachments: MessageAttachment[];
+  kind: "send" | "agent" | "plan";
+};
+
 const ChatInput: React.FC<ChatInputProps> = ({
   isLoading,
   workspaceMeta,
@@ -129,6 +117,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
+  const [sendQueue, setSendQueue] = useState<QueuedSend[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -137,6 +126,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const lastPathRef = useRef<string | null>(null);
   const messageRef = useRef(message);
   const attachmentsRef = useRef(attachments);
+  const drainingQueueRef = useRef(false);
   messageRef.current = message;
   attachmentsRef.current = attachments;
 
@@ -144,7 +134,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
     apiConfig,
     setApiConfig,
     stopStreaming,
-    webgpuModelDownloadProgress,
     isLoadingConfig,
     sendMessage,
     sendAgentMessage,
@@ -183,7 +172,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const agentRuntimeChosen = choiceUsesOpenCodeAsk(providerChoiceId);
   const { effectiveModel } = useLocalAI();
   /** Bumps when localStorage consent changes so web /chat re-reads getLocalWeightsConsent(). */
-  const [localConsentTick, setLocalConsentTick] = useState(0);
   const [plusOpen, setPlusOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
@@ -220,31 +208,23 @@ const ChatInput: React.FC<ChatInputProps> = ({
     apiConfig.aiProvider
   );
   const { data: ggufModels } = useLocalGgufRegistryModels(apiConfig.aiProvider === "local_gguf");
-  const [localDownloadOpen, setLocalDownloadOpen] = useState(false);
-  const [localPrewarmPct, setLocalPrewarmPct] = useState<number | null>(null);
-  const [localPrewarmBusy, setLocalPrewarmBusy] = useState(false);
   const [modelFilter, setModelFilter] = useState("");
 
   const selectable = useMemo(
     () =>
-      apiConfig.aiProvider === "webgpu_gemma"
-        ? buildSelectableModels(LOCAL_GEMMA_SELECTABLE_MODELS, apiConfig.customModelIds, [
-            apiConfig.model,
-            ...apiConfig.comparisonModelIds,
-          ], { includeAllFromApi: true })
-        : apiConfig.aiProvider === "local_gguf"
-          ? buildSelectableModels(
-              ggufModels,
-              apiConfig.customModelIds,
-              [apiConfig.model, ...apiConfig.comparisonModelIds],
-              { includeAllFromApi: true }
-            )
-          : buildSelectableModels(
-              models,
-              apiConfig.customModelIds,
-              [apiConfig.model, ...apiConfig.comparisonModelIds],
-              { includeAllFromApi: apiConfig.aiProvider !== "openrouter" }
-            ),
+      apiConfig.aiProvider === "local_gguf"
+        ? buildSelectableModels(
+            ggufModels,
+            apiConfig.customModelIds,
+            [apiConfig.model, ...apiConfig.comparisonModelIds],
+            { includeAllFromApi: true }
+          )
+        : buildSelectableModels(
+            models,
+            apiConfig.customModelIds,
+            [apiConfig.model, ...apiConfig.comparisonModelIds],
+            { includeAllFromApi: apiConfig.aiProvider !== "openrouter" }
+          ),
     [models, ggufModels, apiConfig.customModelIds, apiConfig.model, apiConfig.comparisonModelIds, apiConfig.aiProvider]
   );
 
@@ -297,32 +277,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
     fileRef.current.accept = accept;
     fileRef.current.click();
   };
-
-  const needsOnDeviceSetup = useMemo(
-    () => apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent(),
-    // localConsentTick re-reads localStorage after the setup dialog closes.
-    [apiConfig.aiProvider, localConsentTick]
-  );
-
-  /** Reopen UX: if weights were cached before, warm them into RAM in the background. */
-  useEffect(() => {
-    if (apiConfig.aiProvider !== "webgpu_gemma") return;
-    if (!getLocalWeightsConsent()) return;
-    if (!isLocalModelMarkedCached(LOCAL_TINY_MODEL_ID)) return;
-    if (isLocalGemmaWeightsLoaded()) return;
-    const ac = new AbortController();
-    void ensureLocalGemmaLoaded(
-      LOCAL_TINY_MODEL_ID,
-      () => {},
-      ac.signal,
-      {
-        backendPreference: apiConfig.localInferenceProfile === "performance" ? "auto" : "wasm",
-      }
-    ).catch(() => {
-      /* warm-up is best-effort; first send will retry */
-    });
-    return () => ac.abort();
-  }, [apiConfig.aiProvider, apiConfig.localInferenceProfile]);
 
   useEffect(() => {
     if (pendingComposer) {
@@ -430,68 +384,132 @@ const ChatInput: React.FC<ChatInputProps> = ({
     attachments.length,
   ]);
 
-  const handleSendMessage = async () => {
-    // Local Ollama: block send when runtime/model is unavailable (don't fall through to OpenCode).
-    if (
-      !agentMode &&
-      executionMode === "chat" &&
-      apiConfig.aiProvider === "openai_compatible" &&
-      effectiveModel?.provider === "ollama" &&
-      effectiveModel.available === false
-    ) {
-      toast({
-        title: "Local model not ready",
-        description:
-          "Start Ollama and install/select a model in Settings → Local AI, then try again.",
-        variant: "destructive",
-      });
-      return;
+  const resetComposerHeight = useCallback(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      const minH = isStudio ? "2.5rem" : "2.75rem";
+      textareaRef.current.style.height = minH;
     }
-    // Universal layer: single Execution Engine model — no tiling, gateway decides vision.
-    if (!layerActive && apiConfig.comparisonEnabled && dedupeModels(apiConfig.comparisonModelIds).length < 2) {
-      toast({
-        title: "Pick at least two models",
-        description: "Enable model comparison in Settings and select 2–4 models.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!layerActive) {
-      const unsupportedVision = findUnsupportedVisionAttachments(attachments, apiConfig, currentModelMeta);
-      if (unsupportedVision.length > 0) {
+  }, [isStudio]);
+
+  const dispatchSend = useCallback(
+    async (payload: QueuedSend) => {
+      try {
+        if (payload.kind === "agent" || (agentMode && payload.attachments.length === 0 && payload.kind === "send")) {
+          if (payload.kind === "agent") setAgentMode(true);
+          await sendAgentMessage(payload.text, { roleId: agentRoleId });
+          return;
+        }
+        const mode: ExecutionMode =
+          payload.kind === "plan" ? "plan" : payload.kind === "agent" ? "build" : executionMode;
+        if (payload.kind === "plan") setExecutionMode("plan");
+        await sendMessage(payload.text, payload.attachments, { executionMode: mode });
+      } catch {
+        setMessage(payload.text);
+        setAttachments(payload.attachments);
         toast({
-          title: "Images not supported",
-          description: imageUnsupportedMessage(apiConfig.model),
+          title: "Send failed",
+          description: "Your draft was restored in the input.",
+          variant: "destructive",
+        });
+      }
+    },
+    [agentMode, agentRoleId, executionMode, sendAgentMessage, sendMessage, setAgentMode, setExecutionMode, toast]
+  );
+
+  const enqueueOrSend = useCallback(
+    async (kind: QueuedSend["kind"], { forceQueue = false }: { forceQueue?: boolean } = {}) => {
+      if (
+        !agentMode &&
+        executionMode === "chat" &&
+        apiConfig.aiProvider === "openai_compatible" &&
+        effectiveModel?.provider === "ollama" &&
+        effectiveModel.available === false
+      ) {
+        toast({
+          title: "Local model not ready",
+          description:
+            "Start Ollama and install/select a model in Settings → Local AI, then try again.",
           variant: "destructive",
         });
         return;
       }
-    }
-    const t = message.trim();
-    if ((!t && attachments.length === 0) || isLoading) return;
-
-    const toSend = attachments;
-    const textToSend = t;
-    setMessage("");
-    setAttachments([]);
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      const minH = isStudio ? "2.25rem" : "2.5rem";
-      textareaRef.current.style.height = minH;
-    }
-
-    try {
-      if (agentMode && attachments.length === 0) {
-        await sendAgentMessage(textToSend, { roleId: agentRoleId });
-      } else {
-        await sendMessage(textToSend, toSend, { executionMode });
+      if (!layerActive && apiConfig.comparisonEnabled && dedupeModels(apiConfig.comparisonModelIds).length < 2) {
+        toast({
+          title: "Pick at least two models",
+          description: "Enable model comparison in Settings and select 2–4 models.",
+          variant: "destructive",
+        });
+        return;
       }
-    } catch {
-      setMessage(textToSend);
-      setAttachments(toSend);
-    }
+      if (!layerActive) {
+        const unsupportedVision = findUnsupportedVisionAttachments(attachments, apiConfig, currentModelMeta);
+        if (unsupportedVision.length > 0) {
+          toast({
+            title: "Images not supported",
+            description: imageUnsupportedMessage(apiConfig.model),
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+      const t = message.trim();
+      if (!t && attachments.length === 0) return;
+
+      const payload: QueuedSend = { text: t, attachments: [...attachments], kind };
+      setMessage("");
+      setAttachments([]);
+      resetComposerHeight();
+
+      // Only queue while a reply is in flight — idle chats always send now.
+      if (isLoading) {
+        setSendQueue((q) => [...q, payload]);
+        toast({
+          title: "Queued",
+          description:
+            kind === "agent"
+              ? "Agent task will run after the current reply."
+              : kind === "plan"
+                ? "Plan-first message queued."
+                : `${sendQueue.length + 1} waiting — sends when the current reply finishes.`,
+        });
+        return;
+      }
+      void forceQueue;
+
+      await dispatchSend(payload);
+    },
+    [
+      agentMode,
+      apiConfig,
+      attachments,
+      currentModelMeta,
+      dispatchSend,
+      effectiveModel,
+      executionMode,
+      isLoading,
+      layerActive,
+      message,
+      resetComposerHeight,
+      sendQueue.length,
+      toast,
+    ]
+  );
+
+  const handleSendMessage = async () => {
+    await enqueueOrSend("send");
   };
+
+  // Drain queue when the current run finishes.
+  useEffect(() => {
+    if (isLoading || sendQueue.length === 0 || drainingQueueRef.current) return;
+    drainingQueueRef.current = true;
+    const next = sendQueue[0];
+    setSendQueue((q) => q.slice(1));
+    void dispatchSend(next).finally(() => {
+      drainingQueueRef.current = false;
+    });
+  }, [isLoading, sendQueue, dispatchSend]);
 
   const pickSlashItem = useCallback(
     (item: SlashItem) => {
@@ -535,53 +553,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void handleSendMessage();
-    }
-  };
-
-  const runLocalPrewarmFromDialog = async () => {
-    if (apiConfig.aiProvider !== "webgpu_gemma") return;
-    if (!getLocalWeightsConsent()) {
-      toast({
-        title: "Allow on-device model first",
-        description: "Complete the on-device model setup above the composer first.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setApiConfig(
-      normalizeApiConfig({
-        ...apiConfig,
-        model: LOCAL_TINY_MODEL_ID,
-        comparisonModelIds: [LOCAL_TINY_MODEL_ID],
-      })
-    );
-    setLocalPrewarmBusy(true);
-    setLocalPrewarmPct(0);
-    const ac = new AbortController();
-    try {
-      await ensureLocalGemmaLoaded(
-        LOCAL_TINY_MODEL_ID,
-        (p) => setLocalPrewarmPct(p),
-        ac.signal,
-        {
-          backendPreference: apiConfig.localInferenceProfile === "performance" ? "auto" : "wasm",
-        }
-      );
-      toast({
-        title: "Model cached",
-        description: `${getLocalModelEntry(LOCAL_TINY_MODEL_ID).displayName} is ready for offline use.`,
-      });
-      setLocalDownloadOpen(false);
-    } catch (e) {
-      if ((e as { name?: string })?.name === "AbortError") return;
-      toast({
-        title: "Cache failed",
-        description: e instanceof Error ? e.message : "Could not load model",
-        variant: "destructive",
-      });
-    } finally {
-      setLocalPrewarmBusy(false);
-      setLocalPrewarmPct(null);
     }
   };
 
@@ -732,7 +703,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   return (
-    <div className={cn(isStudio ? "bg-transparent px-1 pb-1 pt-1" : "bg-background px-2 pb-2 pt-2 md:px-3 md:pb-4 md:pt-3")}>
+    <div className={cn(isStudio ? "bg-transparent px-1 pb-1 pt-1" : "bg-transparent px-2 pb-2 pt-1 md:px-3 md:pb-3")}>
       <input
         ref={fileRef}
         type="file"
@@ -751,8 +722,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
         onChange={onFolderPick}
       />
       <div className={cn("mx-auto space-y-3", isStudio ? "max-w-none" : "max-w-[min(100%,58rem)]")}>
-        {/* On-device model consent bar — legacy path only; hidden on the Execution Engine layer */}
-        {!isStudio && !layerActive && <LocalOnDeviceModelBar />}
         {/* Unified execution: workspace prompt appears inline, same composer. */}
         {!isStudio && <WorkspaceNeededBanner />}
         {!isStudio && <AgentAwaitingBar />}
@@ -798,9 +767,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
           !canSendMessage(apiConfig) &&
           !(
             isDesktopApp() &&
-            (apiConfig.aiProvider === "openai_compatible" ||
-              apiConfig.aiProvider === "local_gguf" ||
-              apiConfig.aiProvider === "webgpu_gemma")
+            (apiConfig.aiProvider === "openai_compatible" || apiConfig.aiProvider === "local_gguf")
           ) && (
             <div className="rounded-xl border border-border/50 bg-muted/20 px-2 py-3">
               {isDesktopApp() ? (
@@ -879,21 +846,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
           </div>
         )}
 
-        {isLoading && apiConfig.aiProvider === "webgpu_gemma" && webgpuModelDownloadProgress != null && (
-          <ModelDownloadProgressBar
-            title="Downloading on-device model (one-time)"
-            percentOnly
-            progress={{
-              percent: webgpuModelDownloadProgress,
-              received: null,
-              total: null,
-              speedBps: null,
-              etaSeconds: null,
-            }}
-            hint="~400 MB one-time. Cached in this browser after the first download."
-          />
-        )}
-
         <div className="composer-shell relative flex flex-col gap-1.5 rounded-2xl border border-border bg-card p-1.5 shadow-sm ring-1 ring-border/70 md:p-2">
           {slashOpen && (
             <ComposerSlashMenu
@@ -903,6 +855,21 @@ const ChatInput: React.FC<ChatInputProps> = ({
               onHoverIndex={setSlashIndex}
               onPick={pickSlashItem}
             />
+          )}
+          {sendQueue.length > 0 && (
+            <div className="flex items-center gap-2 px-3 pt-1 text-[11px] text-muted-foreground">
+              <ListOrdered className="h-3 w-3 shrink-0" aria-hidden />
+              <span className="truncate">
+                {sendQueue.length} queued — will send when the current reply finishes
+              </span>
+              <button
+                type="button"
+                className="shrink-0 underline hover:text-foreground"
+                onClick={() => setSendQueue([])}
+              >
+                Clear
+              </button>
+            </div>
           )}
           <Textarea
             value={message}
@@ -914,29 +881,31 @@ const ChatInput: React.FC<ChatInputProps> = ({
             placeholder={
               placeholderOverride ??
               (layerActive
-                ? "Message…  (type / for commands)"
+                ? isLoading
+                  ? sendQueue.length > 0
+                    ? "Type next message — Enter queues while reply runs…"
+                    : "Working… — Enter queues another message"
+                  : "Message…  (type / for commands)"
                 : getComposerPlaceholder(apiConfig, {
                     isLoadingConfig,
                     workspacePlaceholder: workspaceMeta?.composerPlaceholder,
                     comparisonEnabled: apiConfig.comparisonEnabled,
                   }))
             }
-            disabled={isLoading}
             className={cn(
-              "resize-none border-0 bg-transparent px-3 py-1.5 text-[15px] leading-6 text-foreground shadow-none outline-none placeholder:text-muted-foreground/75 focus:outline-none focus-visible:outline-none focus-visible:ring-0 sm:text-base",
-              isStudio ? "min-h-[2.25rem] max-h-24 text-sm" : "min-h-[2.5rem] max-h-32"
+              "resize-none border-0 bg-transparent px-3 py-2 text-[15px] leading-6 text-foreground shadow-none outline-none placeholder:text-muted-foreground/75 focus:outline-none focus-visible:outline-none focus-visible:ring-0 selection:bg-primary/45 selection:text-foreground sm:text-base",
+              isStudio ? "min-h-[2.5rem] max-h-40 text-sm" : "min-h-[2.75rem] max-h-48"
             )}
             style={{
-              height: "auto",
-              minHeight: isStudio ? "2.25rem" : "2.5rem",
-              maxHeight: isStudio ? "6rem" : "8rem",
-              overflowY: message.length > 180 ? "auto" : "hidden",
+              minHeight: isStudio ? "2.5rem" : "2.75rem",
+              maxHeight: isStudio ? "10rem" : "12rem",
+              overflowY: "auto",
             }}
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
-              const cap = isStudio ? 96 : 128;
+              const cap = isStudio ? 160 : 192;
               target.style.height = "auto";
-              target.style.height = Math.min(target.scrollHeight, cap) + "px";
+              target.style.height = `${Math.min(Math.max(target.scrollHeight, isStudio ? 40 : 44), cap)}px`;
             }}
             ref={textareaRef}
           />
@@ -963,7 +932,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                       fileRef.current?.click();
                       setPlusOpen(false);
                     }}
-                    disabled={!unifiedChatReady || isLoading}
+                    disabled={!unifiedChatReady}
                   >
                     <Paperclip className="h-4 w-4 text-muted-foreground" /> Attach file
                   </button>
@@ -975,7 +944,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
                         folderRef.current?.click();
                         setPlusOpen(false);
                       }}
-                      disabled={isLoading}
                     >
                       <FolderInput className="h-4 w-4 text-muted-foreground" /> Attach folder
                     </button>
@@ -988,11 +956,46 @@ const ChatInput: React.FC<ChatInputProps> = ({
                         void attachScreenshot();
                         setPlusOpen(false);
                       }}
-                      disabled={isLoading || capturing}
+                      disabled={capturing}
                     >
                       <Camera className="h-4 w-4 text-muted-foreground" /> Screenshot
                     </button>
                   )}
+                  {isLoading || sendQueue.length > 0 ? (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                      disabled={!message.trim() && attachments.length === 0}
+                      onClick={() => {
+                        void enqueueOrSend("send", { forceQueue: true });
+                        setPlusOpen(false);
+                      }}
+                    >
+                      <ListPlus className="h-4 w-4 text-muted-foreground" /> Queue for next
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                    disabled={!message.trim()}
+                    onClick={() => {
+                      void enqueueOrSend("agent");
+                      setPlusOpen(false);
+                    }}
+                  >
+                    <Bot className="h-4 w-4 text-muted-foreground" /> Send as agent task
+                  </button>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                    disabled={!message.trim()}
+                    onClick={() => {
+                      void enqueueOrSend("plan");
+                      setPlusOpen(false);
+                    }}
+                  >
+                    <ListOrdered className="h-4 w-4 text-muted-foreground" /> Plan first, then act
+                  </button>
                   {composerWs?.activeFile && (
                     <button
                       type="button"
@@ -1001,7 +1004,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
                         void attachActiveFile();
                         setPlusOpen(false);
                       }}
-                      disabled={isLoading}
                     >
                       <FileCode2 className="h-4 w-4 text-muted-foreground" /> Active file
                     </button>
@@ -1071,18 +1073,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
                       >
                         <Wrench className="h-4 w-4 text-muted-foreground" /> Tools &amp; modes
                       </button>
-                      {apiConfig.aiProvider === "webgpu_gemma" && (
-                        <button
-                          type="button"
-                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
-                          onClick={() => {
-                            setLocalDownloadOpen(true);
-                            setPlusOpen(false);
-                          }}
-                        >
-                          Download on-device model
-                        </button>
-                      )}
                     </>
                   )}
                   <p className="px-2 py-1.5 text-[10px] text-muted-foreground">Type / for commands</p>
@@ -1169,81 +1159,88 @@ const ChatInput: React.FC<ChatInputProps> = ({
               {!isStudio && (
                 <VoiceInputButton setComposerMessage={setMessage} />
               )}
-              <Button
-                onClick={isLoading ? () => stopStreaming() : () => void handleSendMessage()}
-                disabled={
-                  isLoading
-                    ? false
-                    : (!message.trim() && attachments.length === 0) ||
-                      isLoadingConfig ||
-                      (!layerActive &&
-                        (isStudio
-                          ? !canSendChat(apiConfig) ||
-                            (apiConfig.aiProvider === "local_gguf" && !canSendMessage(apiConfig)) ||
-                            (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())
-                          : !canSendMessage(apiConfig) ||
-                            (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent())))
-                }
-                size="sm"
-                className={cn(
-                  "h-8 w-8 rounded-lg p-0",
-                  isLoading
-                    ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    : "bg-primary text-primary-foreground hover:bg-primary/90"
-                )}
-                aria-label={isLoading ? "Stop" : "Send"}
-              >
-                {isLoading ? <Square size={14} /> : <ArrowUp size={14} />}
-              </Button>
+              {isLoading && (
+                <Button
+                  type="button"
+                  onClick={() => stopStreaming()}
+                  size="sm"
+                  className="h-8 w-8 rounded-lg bg-destructive p-0 text-destructive-foreground hover:bg-destructive/90"
+                  aria-label="Stop"
+                >
+                  <Square size={14} />
+                </Button>
+              )}
+              <div className="flex items-center">
+                <Button
+                  type="button"
+                  onClick={() => void handleSendMessage()}
+                  disabled={
+                    (!message.trim() && attachments.length === 0) ||
+                    isLoadingConfig ||
+                    (!layerActive &&
+                      (isStudio
+                        ? !canSendChat(apiConfig) ||
+                          (apiConfig.aiProvider === "local_gguf" && !canSendMessage(apiConfig))
+                        : !canSendMessage(apiConfig)))
+                  }
+                  size="sm"
+                  className={cn(
+                    "h-8 rounded-lg bg-primary p-0 text-primary-foreground hover:bg-primary/90",
+                    isLoading ? "w-8 rounded-r-none" : "w-8"
+                  )}
+                  aria-label={isLoading ? "Queue message" : "Send"}
+                  title={isLoading ? "Queue to send next" : "Send"}
+                >
+                  {isLoading ? <ListPlus size={14} /> : <ArrowUp size={14} />}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="default"
+                      className="h-8 w-6 rounded-l-none rounded-r-lg border-l border-primary-foreground/20 bg-primary px-0 text-primary-foreground hover:bg-primary/90"
+                      aria-label="Send options"
+                      disabled={
+                        (!message.trim() && attachments.length === 0) ||
+                        isLoadingConfig ||
+                        (!layerActive &&
+                          (isStudio
+                            ? !canSendChat(apiConfig) ||
+                              (apiConfig.aiProvider === "local_gguf" && !canSendMessage(apiConfig))
+                            : !canSendMessage(apiConfig)))
+                      }
+                    >
+                      <ChevronDown size={12} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={() => void enqueueOrSend("send")}>
+                      <ArrowUp className="mr-2 h-3.5 w-3.5" />
+                      {isLoading ? "Queue reply" : "Send now"}
+                    </DropdownMenuItem>
+                    {isLoading || sendQueue.length > 0 ? (
+                      <DropdownMenuItem onClick={() => void enqueueOrSend("send", { forceQueue: true })}>
+                        <ListPlus className="mr-2 h-3.5 w-3.5" />
+                        Queue for next
+                      </DropdownMenuItem>
+                    ) : null}
+                    <DropdownMenuItem onClick={() => void enqueueOrSend("agent")}>
+                      <Bot className="mr-2 h-3.5 w-3.5" />
+                      Send as agent task
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void enqueueOrSend("plan")}>
+                      <ListOrdered className="mr-2 h-3.5 w-3.5" />
+                      Plan first, then act
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Pre-cache dialog (WebGPU) */}
-      <Dialog open={localDownloadOpen} onOpenChange={setLocalDownloadOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Download on-device model</DialogTitle>
-            <DialogDescription>
-              Cache Qwen 2.5 0.5B (~400 MB) in this browser so the first chat starts faster.
-            </DialogDescription>
-          </DialogHeader>
-          {!getLocalWeightsConsent() ? (
-            <p className="text-sm text-muted-foreground">
-              Complete the on-device model setup (shown above the composer) before downloading.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
-                <p className="text-sm font-medium">{getLocalModelEntry(LOCAL_TINY_MODEL_ID).displayName}</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  {getLocalModelEntry(LOCAL_TINY_MODEL_ID).subtitle}
-                </p>
-              </div>
-              {localPrewarmPct != null && (
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[11px] text-muted-foreground">
-                    <span>Progress</span>
-                    <span>{localPrewarmPct}%</span>
-                  </div>
-                  <Progress value={localPrewarmPct} className="h-2" />
-                </div>
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setLocalDownloadOpen(false)} disabled={localPrewarmBusy}>
-              Close
-            </Button>
-            {getLocalWeightsConsent() && (
-              <Button type="button" onClick={() => void runLocalPrewarmFromDialog()} disabled={localPrewarmBusy}>
-                {localPrewarmBusy ? "Downloading…" : "Download to cache"}
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

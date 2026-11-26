@@ -73,21 +73,23 @@ function makeMarkdownComponents(highlightQuery: string | undefined, toast: Retur
             className={`font-mono text-[0.85em] text-foreground ${className ?? ""} rounded-md px-2 py-1 hover:bg-primary/20 transition-colors cursor-pointer`}
             {...props}
             onClick={() => {
-              // Copy code text to clipboard
-              try {
-                navigator.clipboard.writeText(codeText);
-                toast({
-                  title: "Copied",
-                  description: "Code block copied to clipboard",
-                  variant: "default",
-                });
-              } catch {
-                toast({
-                  title: "Copy failed",
-                  description: "Clipboard is not available.",
-                  variant: "destructive",
-                });
-              }
+              void import("@/lib/clipboardWrite").then(({ writeClipboardText }) =>
+                writeClipboardText(codeText).then((r) => {
+                  if (r.ok) {
+                    toast({
+                      title: "Copied",
+                      description: "Code block copied to clipboard",
+                      variant: "default",
+                    });
+                  } else {
+                    toast({
+                      title: "Copy failed",
+                      description: r.error ?? "Clipboard is not available.",
+                      variant: "destructive",
+                    });
+                  }
+                })
+              );
             }}
           >
             {children}

@@ -16,14 +16,24 @@ cp .env.example .env        # if present — or create .env with your keys
 
 Optional env override: `OPENBENTT_PAPER_ORCHESTRA_PYTHON=/path/to/python`.
 
-Keys used by Orchestra (unchanged upstream):
+Keys used by Orchestra:
 
-- `GEMINI_API_KEY` or `VERTEX_AI_PROJECT` + `VERTEX_AI_LOCATION`
-- `OPENAI_API_KEY`
-- `SEMANTIC_SCHOLAR_API_KEY`
+- `GEMINI_API_KEY` (optional, suggested) or `VERTEX_AI_PROJECT` + `VERTEX_AI_LOCATION`
+- OpenAI-compatible: `OPENAI_API_KEY` + `OPENAI_BASE_URL` (OmniRoute / OpenCode). When Gemini is absent, Openbentt sets `OPENBENTT_PAPER_LLM_BRIDGE=openai` and maps default Gemini model names to a bridge model.
+- `SEMANTIC_SCHOLAR_API_KEY` (optional; literature rate limits)
 
-Openbentt may inject these from the desktop secret vault when set; Orchestra’s own
-`.env` in this folder still works as fallback.
+## Intended desktop flow
+
+1. **Install Paper engine** (one-time) — Openbentt creates a userData venv and `pip install`s requirements.
+2. Optionally paste a **Gemini API key** in Notebook → Paper (vault). Or rely on OpenCode/OmniRoute tokens.
+3. **Auto-fill** or paste idea + experimental log; pick venue (CVPR / ICLR); optional plotting.
+4. **Run** — Electron spawns `paper_writing_cli.py` with materials + env keys:
+   Outline → Literature → Sections → Content refinement → PDF.
+5. On success, **Apply to Notebook** imports draft TeX / bib into Editor.
+
+Openbentt injects vault keys into the child process; Orchestra’s own `.env` in this
+folder still works as fallback. Writeup failure exits non-zero so the UI does not
+report a false “finished”.
 
 ## CLI (unchanged)
 

@@ -67,12 +67,14 @@ interface AgentBridge {
     workspaceRoot?: string;
     title?: string;
     sessionId?: string;
+    askRequestId?: string;
   }) => Promise<{
     text: string;
     model: string;
     durationMs: number;
     sessionId?: string;
     permissionRequests: string[];
+    askRequestId?: string;
   }>;
   listOpenCodeModels: () => Promise<{ models: RuntimeModel[]; detected: boolean }>;
   /* Phase 2: OmniRoute runtime */

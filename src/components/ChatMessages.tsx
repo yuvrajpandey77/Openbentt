@@ -54,6 +54,8 @@ interface ChatMessagesProps {
   searchQuery?: string;
   emptyVariant?: "home" | "studio";
   activeTaskId?: string | null;
+  /** Extra top/bottom padding so content clears floating header + composer. */
+  overlayChrome?: boolean;
 }
 
 function MetricsBar({ metrics }: { metrics: NonNullable<Message["metrics"]> }) {
@@ -183,15 +185,33 @@ const AssistantRoleContent: React.FC<{
     );
   }
 
+  const liveTaskId = message.taskId ?? null;
+  const contentTrim = String(message.content ?? "").trim();
+  const waitingForTokens = streamingActive && !contentTrim;
+  const failedAsk = message.executionStatus === "failed";
+  const showLiveTerminal = Boolean(liveTaskId);
+
   return (
     <>
       <div ref={exportRef}>
-        <AssistantContent
-          content={scrubOpenCodeCliHelp(message.content)}
-          streaming={streamingActive}
-          highlightQuery={highlightQuery}
-          compact={compact}
-        />
+        {waitingForTokens && !liveTaskId ? (
+          <ChatThinkingIndicator compact={compact} />
+        ) : null}
+        {waitingForTokens && liveTaskId ? (
+          <OpenCodeActivityTerminal taskId={liveTaskId} waiting forceShowLogs={failedAsk} />
+        ) : null}
+        {!waitingForTokens && contentTrim ? (
+          <AssistantContent
+            content={scrubOpenCodeCliHelp(message.content)}
+            streaming={streamingActive}
+            highlightQuery={highlightQuery}
+            compact={compact}
+          />
+        ) : null}
+        {/* Keep agent logs visible during + after ask (toggleable). */}
+        {showLiveTerminal && !waitingForTokens ? (
+          <OpenCodeActivityTerminal taskId={liveTaskId} forceShowLogs={failedAsk} />
+        ) : null}
         <MessageReferences sources={message.researchSources ?? []} />
         {/* Unified conversation: OpenCode activity renders inline, same bubble. */}
         <AgentActivity message={message} compact={compact} />
@@ -248,14 +268,13 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
   searchQuery = "",
   emptyVariant = "home",
   activeTaskId,
+  overlayChrome = false,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const pinnedToBottomRef = useRef(true);
   const { beginEditUserMessage, regenerateLastResponse, apiConfig } = useChat();
-  const localOnDevice = apiConfig.aiProvider === "webgpu_gemma";
-
   const isNearBottom = useCallback((el: HTMLElement) => {
     return el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_PIN_THRESHOLD_PX;
   }, []);
@@ -274,14 +293,10 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
     const base = !searchQuery.trim()
       ? messages
       : messages.filter((m) => messageMatchesSearch(m, searchQuery));
-    /** Hide empty assistant placeholder until the first token arrives (avoids blank bubble + "stuck" feel). */
-    if (!isLoading) return base;
-    return base.filter((m, i) => {
-      if (i !== base.length - 1) return true;
-      if (m.role !== "assistant" || m.comparisonResponses) return true;
-      return Boolean(String(m.content ?? "").trim());
-    });
-  }, [messages, searchQuery, isLoading]);
+    // Keep the empty streaming assistant visible so Thinking / agent logs show
+    // immediately (filtering it out left a blank pane while Stop was active).
+    return base;
+  }, [messages, searchQuery]);
 
   const useVirtual = visibleMessages.length > LIMITS.maxChatMessagesVirtualize;
   const virtualizer = useVirtualizer({
@@ -443,10 +458,17 @@ const renderMessage = (message: Message, displayIdx: number) => {
         isWebClient() && emptyVariant !== "studio" && "h-0 flex-1",
         emptyVariant === "studio"
           ? "h-full w-full p-2"
-          : cn("flex-1", isWebClient() ? "px-0 py-3 sm:px-4 sm:py-3" : "p-4")
+          : cn("flex-1", isWebClient() ? "px-0 py-3 sm:px-4 sm:py-3" : "px-4 py-3")
       )}
     >
-      <div ref={scrollRef} className={cn("mx-auto max-w-[min(100%,58rem)]", isWebClient() && "web-chat-messages-inner w-full")}>
+      <div
+        ref={scrollRef}
+        className={cn(
+          "mx-auto max-w-[min(100%,58rem)]",
+          isWebClient() && "web-chat-messages-inner w-full",
+          overlayChrome && emptyVariant !== "studio" && "pt-12 pb-36 md:pb-40"
+        )}
+      >
         {useVirtual && visibleMessages.length > 0 && (
           <p className="mb-4 text-center text-[11px] text-muted-foreground">
             Virtualized thread ({visibleMessages.length} messages) — scroll stays responsive.
@@ -556,8 +578,7 @@ const renderMessage = (message: Message, displayIdx: number) => {
         )}
 
         {isLoading &&
-          (!(lastMsg?.role === "assistant") ||
-            !String(lastMsg.content ?? "").trim()) && (
+          lastMsg?.role !== "assistant" && (
           <div className="flex justify-start pb-8 streaming-message streaming-message-active">
             <div
               className={cn(
@@ -565,11 +586,11 @@ const renderMessage = (message: Message, displayIdx: number) => {
                 emptyVariant === "studio" ? "max-w-full" : "max-w-[min(100%,58rem)]"
               )}
             >
-              <ChatThinkingIndicator
-                compact={emptyVariant === "studio"}
-                localOnDevice={localOnDevice}
-              />
-              {activeTaskId && <OpenCodeActivityTerminal taskId={activeTaskId} />}
+              {activeTaskId ? (
+                <OpenCodeActivityTerminal taskId={activeTaskId} waiting />
+              ) : (
+                <ChatThinkingIndicator compact={emptyVariant === "studio"} />
+              )}
             </div>
           </div>
         )}

@@ -14,6 +14,8 @@ interface AppChromeHeaderProps {
   workspaceMeta?: WorkspaceRouteMeta;
   rightSidebarOpen: boolean;
   onToggleRightSidebar: () => void;
+  /** Overlay the thread instead of a solid chrome strip. */
+  floating?: boolean;
 }
 
 export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
@@ -21,6 +23,7 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
   workspaceMeta,
   rightSidebarOpen,
   onToggleRightSidebar,
+  floating = false,
 }) => {
   const location = useLocation();
   const showBack =
@@ -28,16 +31,22 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
     (location.pathname.startsWith("/projects/") && location.pathname !== "/projects");
 
   return (
-    <header className="relative grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 bg-background px-3 py-2.5 md:px-3">
-      <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
+    <header
+      className={
+        floating
+          ? "pointer-events-none absolute inset-x-0 top-0 z-30 grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-gradient-to-b from-background via-background/80 to-transparent px-3 pb-6 pt-2 md:px-3"
+          : "relative grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 bg-background px-3 py-2.5 md:px-3"
+      }
+    >
+      <div className="pointer-events-auto flex min-w-0 items-center gap-1.5 md:gap-2">
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 shrink-0 md:hidden"
+          className="h-8 w-8 shrink-0 md:hidden"
           onClick={onOpenMobileSidebar}
           aria-label="Open menu"
         >
-          <MenuIcon size={20} />
+          <MenuIcon size={18} />
         </Button>
 
         {showBack ? <NavBackButton fallback="/chat" className="hidden sm:inline-flex" /> : null}
@@ -54,7 +63,7 @@ export const AppChromeHeader: React.FC<AppChromeHeaderProps> = ({
         ) : null}
       </div>
 
-      <div className="flex justify-center">
+      <div className="pointer-events-auto flex justify-center">
         <ChromeCenterPill open={rightSidebarOpen} onToggle={onToggleRightSidebar} />
       </div>
 

@@ -10,7 +10,8 @@ describe("task routing", () => {
 
   it("routes lightweight tasks to smallest ready model", () => {
     const cfg = defaultApiConfig();
-    cfg.aiProvider = "webgpu_gemma";
+    cfg.aiProvider = "openrouter";
+    cfg.apiKey = "sk-test";
     cfg.model = LOCAL_TINY_MODEL_ID;
     const ctx = buildAvailabilityContext(cfg);
     const route = routeModelForTask("chat_lightweight", cfg, candidates, ctx);
@@ -37,7 +38,7 @@ describe("task routing", () => {
 
   it("throws missing_model for synthesis when local-only and no large models", () => {
     const cfg = defaultApiConfig();
-    cfg.aiProvider = "webgpu_gemma";
+    cfg.aiProvider = "local_gguf";
     const ctx = buildAvailabilityContext(cfg, { localOnlyMode: true });
     expect(() => routeModelForTask("chat_synthesis", cfg, [embeddingDescriptor()], ctx)).toThrow(
       ModelRouteError

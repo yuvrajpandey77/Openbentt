@@ -12,11 +12,18 @@ residual risk remains.
    fixed to log and recover from mid-workload exits and continue to the budget;
    a 2m02s recovery smoke passed with 0 warnings/fatal events. The first
    corrected run exposed an intermittent `app://` lazy-chunk `ERR_FAILED`, fixed
-   by direct file reads in the protocol handler. The final post-fix run is in
-   progress at `/tmp/opencode/endurance-full-final.json`. The post-GC retained
-   JS heap rose from 17.86 MB to 32.07 MB by cycle 24 in the smoke; this is a
-   retention signal, not a confirmed leak. Do not close the endurance gap until
-   the full run is reviewed.
+   by direct file reads in the protocol handler. That post-fix run's JSON/log
+   (`/tmp/opencode/endurance-full-final.*`) were lost when `/tmp` was cleared
+   during the 2026-11-26 host reboot, so no result is inferred from it. After
+   rebuilding current HEAD, the harness was updated for the collapsed sidebar,
+   nested Settings dialog and Models section; a 2m32s validation smoke passed
+   with 10 cycles, 29 samples, 6 post-GC checkpoints and 0 warnings/fatal
+   (`/tmp/opencode/endurance-rerun-smoke3.json`). Two shell-background full runs
+   were cancelled by OpenCode server restarts, so the active run is now a user
+   systemd unit writing `/tmp/opencode/endurance-full-systemd.json`. The
+   post-GC retained JS heap rose from 17.86 MB to 32.07 MB by cycle 24 in the
+   earlier smoke; this is a retention signal, not a confirmed leak. Do not close
+   the endurance gap until the systemd run is reviewed.
 2. **Packaged artifact from an earlier build — resolved.** The earlier 19/19
    check statically inspected `Openbentt-2.5.8.AppImage` built at 15:26. A fresh
    unpacked Linux build from the final `dist/` was produced in

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { ResearchWorkspaceProvider } from "@/context/ResearchWorkspaceContext";
 import { NotebookStudioProvider } from "@/context/NotebookStudioContext";
 import { NotebookUrlPanelSync } from "@/components/research/NotebookUrlPanelSync";
@@ -11,35 +11,36 @@ import { DesktopUpdateNotifier } from "@/components/DesktopUpdateNotifier";
 
 const NotebookStudioPage: React.FC = () => {
   const { loading, project } = useResearchProject();
-  const [entering, setEntering] = useState(true);
+  // Project lives in app-scoped ResearchProjectProvider — returning from Chat/Projects
+  // must not flash a loading screen when the project is already in memory.
+  const showLoading = loading && !project;
 
   useEffect(() => {
     document.title = project ? `${project.title} — Openbentt` : "Notebook — Openbentt";
   }, [project?.title]);
 
-  useEffect(() => {
-    if (!loading && project) {
-      // Short paint gate only — long artificial delay made Notebook feel frozen.
-      const t = window.setTimeout(() => setEntering(false), 50);
-      return () => window.clearTimeout(t);
-    }
-    setEntering(true);
-  }, [loading, project?.id]);
-
-  // Free BusyTeX WASM + MiniLM when leaving Notebook — major RAM reclaim.
+  // Free BusyTeX WASM + MiniLM when leaving Notebook — but never while compile/index is live.
   useEffect(() => {
     return () => {
-      void import("@/lib/latexWasmCompile").then((m) => m.terminateLatexWasmRunner()).catch(() => {});
-      void import("@/lib/research/embedCore.mjs").then((m) => m.disposeEmbedder()).catch(() => {});
+      void import("@/lib/backgroundWork").then(({ hasActiveBackgroundWork }) => {
+        if (hasActiveBackgroundWork(["compile", "index", "paper"])) return;
+        void import("@/lib/latexWasmCompile").then((m) => m.terminateLatexWasmRunner()).catch(() => {});
+        void import("@/lib/research/embedCore.mjs").then((m) => m.disposeEmbedder()).catch(() => {});
+      });
     };
   }, []);
 
   return (
     <DesktopOnlyGate>
-      {loading || entering || !project ? (
+      {showLoading ? (
         <ProjectLoadingScreen
           title={project ? `Opening ${project.title}` : "Loading project"}
           subtitle="Loading files, draft, and workspace…"
+        />
+      ) : !project ? (
+        <ProjectLoadingScreen
+          title="No project open"
+          subtitle="Open or create a project from Projects, then return to Notebook."
         />
       ) : (
         <NotebookStudioProvider>

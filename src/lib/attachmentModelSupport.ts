@@ -9,7 +9,7 @@ export function attachmentRequiresVision(att: MessageAttachment): boolean {
 
 /** Whether the active provider/model can accept image parts in the API request. */
 export function modelSupportsImages(cfg: ApiKeyConfig, meta?: OpenRouterModel | null): boolean {
-  if (cfg.aiProvider === "webgpu_gemma" || cfg.aiProvider === "local_gguf") return false;
+  if (cfg.aiProvider === "local_gguf") return false;
   if (cfg.model.trim() === "openrouter/free") return false;
   return inferModelCapabilities(cfg.model, meta).vision;
 }

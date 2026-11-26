@@ -1,6 +1,10 @@
 # Endurance stability report (Phase D)
 
-**Status: smoke + two partial attempts measured; final 2-hour rerun in progress.** The first 2-hour attempt ended after 8 m 6 s because the app exited spontaneously; the harness mislabelled that as a normal end-of-workload. The harness was fixed to record and recover from mid-run exits. The first corrected run then exposed an intermittent `app://` lazy-chunk fetch failure (`Failed to fetch dynamically imported module: app://openbentt/assets/SettingsPage-*.js`), which was fixed by reading assets directly from disk. Final full-run results are reported only from the post-fix JSON, `/tmp/opencode/endurance-full-final.json`.
+**Status: smoke + two partial attempts measured; current 2-hour run in progress.** The first 2-hour attempt ended after 8 m 6 s because the app exited spontaneously; the harness mislabelled that as a normal end-of-workload. The harness was fixed to record and recover from mid-run exits. The first corrected run then exposed an intermittent `app://` lazy-chunk fetch failure (`Failed to fetch dynamically imported module: app://openbentt/assets/SettingsPage-*.js`), which was fixed by reading assets directly from disk. That post-fix run's JSON/log (`/tmp/opencode/endurance-full-final.*`) were lost when `/tmp` was cleared during a host reboot on 2026-11-26 (uptime 17 min at inspection; PID 609288 gone; `/tmp/opencode` empty). No result is inferred from that loss.
+
+After rebuilding current HEAD, the harness needed another update: the desktop chrome now starts with a collapsed icon rail, Settings is a nested dialog, and provider controls live under the Models section. `scripts/perf/endurance.mjs` now expands the sidebar for labelled navigation, opens Settings via the dock/shortcut, selects Models, and closes overlays before continuing. A 2m32s validation smoke passed with 10 cycles, 29 samples, 6 post-GC checkpoints, 0 warnings and 0 fatal events (`/tmp/opencode/endurance-rerun-smoke3.json`). Two attempts to run the full 2-hour workload as shell background jobs were cancelled by repeated OpenCode server restarts (their JSON/log were empty or absent). The run was therefore relaunched as a user systemd unit, `openbentt-endurance.service`, which is independent of the agent server process. Expected artifacts are `/tmp/opencode/endurance-full-systemd.json` and `/tmp/opencode/endurance-full-systemd.log`; final results are reported only from that JSON.
+
+Interim observation at 2026-11-26 20:01:28 IST: the systemd unit was active/running for 14 min 37 s (Main PID 115521; current Electron child PID 169930 started at 19:56:39 IST). Session logs were present through `/tmp/opencode/obt-endurance-115521-s30.log`; the unit reported 1.1 G current RSS (peak 2.9 G) and 16 min 27.916 s CPU. This confirms the durable executor survived agent restarts; it is **not** a completed 2-hour result.
 
 ## Harness and scope
 
@@ -13,7 +17,7 @@
 - Sampling: `/proc` process-tree RSS/CPU/child counts plus CDP Performance, Memory, Runtime, DOM counters, and process info. GC checkpoints call `HeapProfiler.collectGarbage` before and after equivalent workload segments.
 - Exit behavior: page errors, page crashes, unexpected app exits, and harness errors are fatal (nonzero exit). Nonfatal warnings are reported as `completed-with-warnings`.
 
-No commits were made. Files changed for this task were limited to `scripts/perf/endurance.mjs` and this report.
+No commits were made. The endurance-specific code changes are in `scripts/perf/endurance.mjs` and this report, but the working tree also contains many parallel uncommitted changes (IPC authorization, GPU safe mode, paper orchestra, model routing, privacy preferences, settings/chat UI, A2UI, and others). Those changes were preserved and are not attributed to this endurance task.
 
 ## Commands run
 
@@ -195,16 +199,24 @@ Corrected full run (intermediate, superseded) was started at
 `/tmp/opencode/endurance-full-2h.json`. It was stopped because the build it
 exercised still used `net.fetch(file://…)` for `app://` assets, which
 intermittently failed for the lazily imported Settings chunk. After that fix
-and a fresh build, the final run was started:
+and a fresh build, a post-fix run was started at
+`/tmp/opencode/endurance-full-final.json`, but its JSON/log were erased with
+`/tmp` during the 2026-11-26 host reboot. After rebuilding current HEAD and updating the harness for the new chrome, the
+full run was relaunched outside the agent process:
 
 ```sh
-nohup env OPENBENTT_ENDURANCE_MS=7200000 \
-  OPENBENTT_ENDURANCE_OUT=/tmp/opencode/endurance-full-final.json \
-  node scripts/perf/endurance.mjs > /tmp/opencode/endurance-full-final.log 2>&1 &
+systemd-run --user --unit=openbentt-endurance --collect \
+  --property=WorkingDirectory="$PWD" \
+  --property=StandardOutput=append:/tmp/opencode/endurance-full-systemd.log \
+  --property=StandardError=append:/tmp/opencode/endurance-full-systemd.log \
+  --setenv=OPENBENTT_ENDURANCE_MS=7200000 \
+  --setenv=OPENBENTT_ENDURANCE_OUT=/tmp/opencode/endurance-full-systemd.json \
+  /bin/bash -lc 'exec node scripts/perf/endurance.mjs'
 ```
 
-Expected output: `/tmp/opencode/endurance-full-final.json`. Until that file
+Expected output: `/tmp/opencode/endurance-full-systemd.json`. Until that file
 reports a full-duration `finishedAt`, this document does **not** claim a
 completed 2-hour endurance test. The asset-loading fix is covered by 12 repeated
 Chat↔Settings navigations (`/tmp/opencode/repro-settings-after.log`, zero errors)
-and by a new E2E regression test that passes in the 5/5 Electron smoke suite.
+and by a new E2E regression test that passed in the 5/5 Electron smoke suite
+before those artifacts were also cleared with `/tmp`.

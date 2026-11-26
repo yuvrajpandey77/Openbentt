@@ -72,7 +72,7 @@ export const heroPrinciples: HeroPrinciple[] = [
   },
   {
     title: "Runs on your hardware",
-    description: "GGUF, WebGPU, CPU, and GPU. You choose the runtime.",
+    description: "GGUF, OpenCode, CPU, and GPU. You choose the runtime.",
     icon: Cpu,
     iconClassName: "bg-primary/10 text-primary",
   },
@@ -84,7 +84,7 @@ export const heroPrinciples: HeroPrinciple[] = [
   },
   {
     title: "Your local models",
-    description: "Run GGUF via llama-server on desktop, or small SLMs in-browser with WebGPU/WASM.",
+    description: "Run GGUF via llama-server on desktop, or cloud models via OpenRouter.",
     icon: Sparkles,
     iconClassName: "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400",
   },
@@ -92,12 +92,17 @@ export const heroPrinciples: HeroPrinciple[] = [
 
 /** Landing header pill — keep short and client-readable (version + what changed). */
 export const meridianAnnouncement = {
-  eyebrow: "v2.6.1",
-  title: "OpenCode ask fixed · real model list · Edit/View/Help stay visible",
+  eyebrow: "v2.6.2",
+  title: "Thinking while you wait · Paper logs survive Chat · clearer OpenCode errors",
   href: "/news",
 } as const;
 
 export const latestNews: NewsItem[] = [
+  {
+    title: "v2.6.2: Live Thinking, Paper log persistence, job strip polish",
+    date: "Nov 26, 2026",
+    to: "/news",
+  },
   {
     title: "v2.6.1: OpenCode standalone ask/models + title bar no longer covered by sidebar",
     date: "Nov 26, 2026",
@@ -260,7 +265,7 @@ export const punchStats: PunchStat[] = [
 
 export const desktopHighlights = [
   "Bundled llama-server for offline GGUF chat",
-  "Notebook, Research labs, Benchmark, and WebGPU lab",
+  "Notebook, Research labs, Benchmark, and OpenCode agent",
   "Compare up to four models per prompt",
   "OpenRouter, OpenAI, Anthropic, and Google in Settings",
   "Auto-update from GitHub Releases",

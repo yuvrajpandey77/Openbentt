@@ -21,7 +21,6 @@ export function useOpenRouterModels(
     queryKey: ["chat-models", aiProvider, compat || "", apiKey],
     queryFn: async () => {
       switch (aiProvider) {
-        case "webgpu_gemma":
         case "local_gguf":
           return [];
         case "openrouter":
@@ -39,7 +38,7 @@ export function useOpenRouterModels(
       }
     },
     enabled:
-      aiProvider === "webgpu_gemma" || aiProvider === "local_gguf"
+      aiProvider === "local_gguf"
         ? false
         : aiProvider === "openai_compatible"
           ? Boolean(compat)

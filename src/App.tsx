@@ -178,7 +178,7 @@ const App = () => (
                           <Route path="settings" element={<FeatureErrorBoundary feature="settings"><SettingsPage /></FeatureErrorBoundary>} />
                           <Route path="write" element={<FeatureErrorBoundary feature="latex workspace"><LatexWorkspacePage /></FeatureErrorBoundary>} />
                           <Route path="benchmark" element={<FeatureErrorBoundary feature="benchmark"><BenchmarkPage /></FeatureErrorBoundary>} />
-                          <Route path="webgpu" element={<FeatureErrorBoundary feature="on-device models"><NotebookStudioPage /></FeatureErrorBoundary>} />
+                          <Route path="webgpu" element={<Navigate to="/chat" replace />} />
                         </Route>
                       </Route>
                     </Route>

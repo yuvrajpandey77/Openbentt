@@ -11,7 +11,6 @@ export function isWebClient(): boolean {
 export const WEB_AI_PROVIDERS: readonly AiProvider[] = [
   "openrouter",
   "openai_compatible",
-  "webgpu_gemma",
 ] as const;
 
 /** Workspace routes hidden from web sidebar and redirected to home. */
@@ -43,7 +42,7 @@ export function coerceApiConfigForPlatform(cfg: ApiKeyConfig): ApiKeyConfig {
       ...next,
       aiProvider: "openrouter",
       model:
-        next.model && !next.model.startsWith("openbentt/") && next.aiProvider !== "webgpu_gemma"
+        next.model && !next.model.startsWith("openbentt/")
           ? next.model
           : DEFAULT_MODEL_ID,
     };

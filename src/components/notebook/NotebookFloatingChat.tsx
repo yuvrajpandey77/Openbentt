@@ -50,6 +50,11 @@ export function NotebookFloatingChat({
   const { chats, currentChatId, isLoading } = useChat();
   const currentChat = chats.find((c) => c.id === currentChatId);
   const messages = currentChat?.messages ?? [];
+  const activeTaskId = currentChat?.taskIds?.length
+    ? currentChat.taskIds[currentChat.taskIds.length - 1]
+    : messages.length
+      ? [...messages].reverse().find((m) => m.taskId)?.taskId
+      : undefined;
 
   const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ ox: number; oy: number; px: number; py: number } | null>(null);
@@ -455,7 +460,13 @@ export function NotebookFloatingChat({
       )}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <ChatMessages messages={messages} isLoading={isLoading} emptyVariant="studio" />
+        <ChatMessages
+          messages={messages}
+          isLoading={isLoading}
+          emptyVariant="studio"
+          activeTaskId={activeTaskId}
+          overlayChrome
+        />
       </div>
       <div className="relative shrink-0 p-1.5">
         <ChatInput

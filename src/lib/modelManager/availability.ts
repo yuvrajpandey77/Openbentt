@@ -1,7 +1,6 @@
 import type { ApiKeyConfig } from "@/types/chat";
 import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
 import { parseGgufRegistryId } from "@/lib/localGguf/ids";
-import { isLocalGemmaModelId } from "@/lib/gemmaWebGpu/models";
 import { isLocalModelMarkedCached } from "@/lib/gemmaWebGpu/localModelCacheFlag";
 import { loadPrivacyPreferences } from "@/lib/privacy/privacyPreferences";
 import type { LocalModelDescriptor, ModelAvailability, ModelAvailabilityState } from "./types";
@@ -31,7 +30,7 @@ export function isCloudAiProvider(provider: ApiKeyConfig["aiProvider"]): boolean
 }
 
 export function isLocalAiProvider(provider: ApiKeyConfig["aiProvider"]): boolean {
-  return provider === "webgpu_gemma" || provider === "local_gguf";
+  return provider === "local_gguf";
 }
 
 export function buildAvailabilityContext(
@@ -144,24 +143,6 @@ export function checkConfiguredModelAvailability(
       return { modelId: cfg.model, state: "missing", message: "Selected GGUF not on disk." };
     }
     return { modelId: cfg.model, state: "ready", message: "GGUF ready." };
-  }
-
-  if (cfg.aiProvider === "webgpu_gemma") {
-    if (!isLocalGemmaModelId(cfg.model)) {
-      return { modelId: cfg.model, state: "missing", message: "Invalid on-device model id." };
-    }
-    if (isLocalModelMarkedCached(cfg.model)) {
-      return {
-        modelId: cfg.model,
-        state: "ready",
-        message: "On-device model cached — ready (loads into RAM on first message).",
-      };
-    }
-    return {
-      modelId: cfg.model,
-      state: "downloadable",
-      message: "On-device model — downloads once, then cached in this browser.",
-    };
   }
 
   if (isCloudAiProvider(cfg.aiProvider)) {

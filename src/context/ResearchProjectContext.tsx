@@ -758,7 +758,9 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
   const projectFileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectFilePendingRef = useRef<{ fileId: string; content: string } | null>(null);
 
-  // Tear down timers / embed work on unmount so navigations don't leak work.
+  // Tear down timers on unmount. Do NOT abort semantic rebuild / embedding workers
+  // here — ResearchProjectProvider is app-scoped; aborting would cancel work on HMR
+  // and violates "leaving a surface must not cancel work". Explicit cancel or quit only.
   useEffect(() => {
     return () => {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
@@ -767,9 +769,6 @@ export function ResearchProjectProvider({ children }: { children: React.ReactNod
       if (bibTimerRef.current) clearTimeout(bibTimerRef.current);
       if (projectFileTimerRef.current) clearTimeout(projectFileTimerRef.current);
       if (resumeIndexTimerRef.current) clearTimeout(resumeIndexTimerRef.current);
-      rebuildRef.current?.abort();
-      rebuildRef.current = null;
-      void import("@/lib/research/embeddingIndex").then((m) => m.shutdownEmbeddingWorker()).catch(() => {});
     };
   }, []);
 

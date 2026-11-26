@@ -3,8 +3,45 @@
  * When enabled, Chromium runs software-rendered so the window opens reliably.
  */
 import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
 /** @typedef {{ enabled: boolean, reason: string | null }} GpuSafeModeDecision */
+
+export const GPU_SAFE_MODE_MARKER = "gpu-safe-mode";
+
+/**
+ * Persist after a one-shot GPU recovery relaunch so the next cold start stays in software mode.
+ * @param {string} userDataDir
+ */
+export function writeGpuSafeModeMarker(userDataDir) {
+  if (!userDataDir || typeof userDataDir !== "string") return;
+  const file = path.join(userDataDir, GPU_SAFE_MODE_MARKER);
+  fs.mkdirSync(userDataDir, { recursive: true });
+  fs.writeFileSync(file, `${new Date().toISOString()}\n`, "utf8");
+}
+
+/**
+ * @param {string} [userDataDir]
+ * @returns {boolean}
+ */
+export function hasGpuSafeModeMarker(userDataDir) {
+  const candidates = [];
+  if (userDataDir) candidates.push(path.join(userDataDir, GPU_SAFE_MODE_MARKER));
+  // Before app.ready, fall back to the usual Electron userData layout.
+  candidates.push(
+    path.join(os.homedir(), ".config", "Openbentt", GPU_SAFE_MODE_MARKER),
+    path.join(os.homedir(), ".config", "openbentt", GPU_SAFE_MODE_MARKER)
+  );
+  for (const file of candidates) {
+    try {
+      if (fs.existsSync(file)) return true;
+    } catch {
+      /* ignore */
+    }
+  }
+  return false;
+}
 
 /**
  * @returns {GpuSafeModeDecision}
@@ -18,6 +55,10 @@ export function resolveGpuSafeMode() {
   }
   if (forceOn) {
     return { enabled: false, reason: null };
+  }
+
+  if (hasGpuSafeModeMarker()) {
+    return { enabled: true, reason: "persisted-gpu-safe-mode" };
   }
 
   if (process.platform === "linux") {
@@ -35,9 +76,8 @@ export function resolveGpuSafeMode() {
       return { enabled: true, reason: "nvidia-no-driver" };
     }
     /**
-     * NVIDIA + Wayland: GBM often fails (`nv_gbm_create_device failed`, `driver (null)`),
-     * and XWayland + software X11 painting yields invisible windows
-     * (`XGetWindowAttributes failed for window 1`). Software + native Wayland avoids both.
+     * NVIDIA + Wayland: GBM often fails (`nv_gbm_create_device failed`, `driver (null)`).
+     * Software + native Wayland avoids invisible windows.
      */
     if (linuxIsWaylandSession() && linuxHasNvidiaGpu()) {
       return { enabled: true, reason: "nvidia-on-wayland" };

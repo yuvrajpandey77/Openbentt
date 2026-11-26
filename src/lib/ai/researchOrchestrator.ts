@@ -128,8 +128,6 @@ export function formatRetrievalForPrompt(hits: RetrievalHit[], maxChars = 24_000
  */
 export function ragBudgetForProvider(aiProvider: string): { hitLimit: number; maxChars: number } {
   switch (aiProvider) {
-    case "webgpu_gemma":
-      return { hitLimit: 4, maxChars: 4_000 };
     case "local_gguf":
       return { hitLimit: 6, maxChars: 6_000 };
     case "openai_compatible":

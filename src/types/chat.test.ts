@@ -8,7 +8,6 @@ import {
   canSendChat,
   canSendMessage,
 } from "./chat";
-import { LOCAL_TINY_MODEL_ID } from "@/lib/gemmaWebGpu/models";
 import { GGUF_MODEL_NONE } from "@/lib/localGguf/ids";
 
 describe("dedupeModels", () => {
@@ -59,10 +58,10 @@ describe("DEFAULT_MODEL_ID", () => {
 });
 
 describe("defaultApiConfig", () => {
-  it("defaults to webgpu in non-desktop environments", () => {
+  it("defaults to openrouter", () => {
     const d = defaultApiConfig();
-    expect(d.aiProvider).toBe("webgpu_gemma");
-    expect(d.model).toBe(LOCAL_TINY_MODEL_ID);
+    expect(d.aiProvider).toBe("openrouter");
+    expect(d.model).toBe(DEFAULT_MODEL_ID);
   });
 });
 
@@ -117,23 +116,25 @@ describe("normalizeApiConfig migrations", () => {
     expect(canSendChat(cfg)).toBe(true);
   });
 
-  it("normalizes webgpu_gemma to local model and disables comparison", () => {
+  it("migrates legacy webgpu_gemma to openrouter and default model", () => {
     const n = normalizeApiConfig({
       aiProvider: "webgpu_gemma",
       model: "meta-llama/llama-3.3-70b-instruct:free",
       comparisonEnabled: true,
       comparisonModelIds: ["a", "b"],
     });
-    expect(n.model).toBe(LOCAL_TINY_MODEL_ID);
-    expect(n.comparisonEnabled).toBe(false);
-    expect(n.comparisonModelIds).toEqual([LOCAL_TINY_MODEL_ID]);
+    expect(n.aiProvider).toBe("openrouter");
+    expect(n.model).toBe(DEFAULT_MODEL_ID);
+    expect(n.comparisonEnabled).toBe(true);
+    expect(n.comparisonModelIds).toEqual([DEFAULT_MODEL_ID]);
   });
 
-  it("migrates legacy larger on-device models to Qwen 0.5B", () => {
+  it("migrates legacy on-device model ids to OpenRouter default", () => {
     const n = normalizeApiConfig({
       aiProvider: "webgpu_gemma",
       model: "openbentt/local-gemma-4-e2b",
     });
-    expect(n.model).toBe(LOCAL_TINY_MODEL_ID);
+    expect(n.aiProvider).toBe("openrouter");
+    expect(n.model).toBe(DEFAULT_MODEL_ID);
   });
 });

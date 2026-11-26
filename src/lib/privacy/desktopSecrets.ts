@@ -4,7 +4,12 @@
 import type { ApiKeyConfig } from "@/types/chat";
 import { isDesktopApp } from "@/lib/isDesktopApp";
 
-export type VaultKey = "provider_api_key" | "brave_search_api_key";
+export type VaultKey =
+  | "provider_api_key"
+  | "brave_search_api_key"
+  | "gemini_api_key"
+  | "openai_api_key"
+  | "semantic_scholar_api_key";
 
 export interface VaultStatus {
   stored: Record<string, boolean>;
@@ -21,6 +26,9 @@ export interface VaultStatus {
 export interface VaultLoadResult {
   providerApiKey: string;
   braveSearchApiKey: string;
+  geminiApiKey?: string;
+  openaiApiKey?: string;
+  semanticScholarApiKey?: string;
 }
 
 export interface OpenbenttSecretsApi {

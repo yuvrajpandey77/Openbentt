@@ -1,9 +1,10 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/components/ui/use-toast";
 import { useChat } from "@/context/ChatContext";
+import { writeClipboardText } from "@/lib/clipboardWrite";
 import { Check, Copy, FileCode2 } from "lucide-react";
 
 function getTextFromNode(node: React.ReactNode): string {
@@ -23,6 +24,7 @@ function getTextFromNode(node: React.ReactNode): string {
 export const MarkdownCodeBlock: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { requestNotebookLatexInsert } = useChat();
 
@@ -49,19 +51,28 @@ export const MarkdownCodeBlock: React.FC<{ children: React.ReactNode }> = ({ chi
     (!language && /\\(documentclass|begin\s*\{\s*document\s*\})/.test(codeText.slice(0, 1200)));
 
   const onCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(codeText);
+    const r = await writeClipboardText(codeText);
+    if (r.ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast({ title: "Copy failed", description: "Clipboard is not available.", variant: "destructive" });
+      return;
     }
+    toast({
+      title: "Copy failed",
+      description: r.error ?? "Clipboard is not available.",
+      variant: "destructive",
+    });
   }, [codeText, toast]);
 
   const onInsertLatex = useCallback(() => {
     requestNotebookLatexInsert(codeText, { autoCompile: true });
-    navigate("/notebook?mode=orchestra");
-  }, [codeText, navigate, requestNotebookLatexInsert]);
+    // Always open Editor (never Paper/orchestra) so Source receives the insert.
+    if (!location.pathname.startsWith("/notebook")) {
+      navigate("/notebook?mode=editor");
+    } else if (new URLSearchParams(location.search).get("mode") === "orchestra") {
+      navigate("/notebook?mode=editor", { replace: true });
+    }
+  }, [codeText, location.pathname, location.search, navigate, requestNotebookLatexInsert]);
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -96,7 +107,7 @@ export const MarkdownCodeBlock: React.FC<{ children: React.ReactNode }> = ({ chi
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-xs text-xs">
-                Jump to Notebook, replace Source with this block, and compile when the document is complete LaTeX.
+                Insert this block into Notebook Editor source (stays in Editor, not Paper).
               </TooltipContent>
             </Tooltip>
           )}

@@ -7,7 +7,6 @@ import {
   estimateTokensFromMessagesRough,
   resolveContextLimit,
 } from "@/lib/contextMeter";
-import { LOCAL_GEMMA_SELECTABLE_MODELS } from "@/lib/gemmaWebGpu/models";
 import { cn } from "@/lib/utils";
 import { AlertTriangle } from "lucide-react";
 
@@ -24,22 +23,17 @@ export const ContextMeter: React.FC = () => {
 
   const selectable = useMemo(
     () =>
-      apiConfig.aiProvider === "webgpu_gemma"
-        ? buildSelectableModels(LOCAL_GEMMA_SELECTABLE_MODELS, apiConfig.customModelIds, [
+      apiConfig.aiProvider === "local_gguf"
+        ? buildSelectableModels(ggufModels, apiConfig.customModelIds, [
             apiConfig.model,
             ...apiConfig.comparisonModelIds,
           ], { includeAllFromApi: true })
-        : apiConfig.aiProvider === "local_gguf"
-          ? buildSelectableModels(ggufModels, apiConfig.customModelIds, [
-              apiConfig.model,
-              ...apiConfig.comparisonModelIds,
-            ], { includeAllFromApi: true })
-          : buildSelectableModels(
-              models,
-              apiConfig.customModelIds,
-              [apiConfig.model, ...apiConfig.comparisonModelIds],
-              { includeAllFromApi: apiConfig.aiProvider !== "openrouter" }
-            ),
+        : buildSelectableModels(
+            models,
+            apiConfig.customModelIds,
+            [apiConfig.model, ...apiConfig.comparisonModelIds],
+            { includeAllFromApi: apiConfig.aiProvider !== "openrouter" }
+          ),
     [models, ggufModels, apiConfig.customModelIds, apiConfig.model, apiConfig.comparisonModelIds, apiConfig.aiProvider]
   );
 

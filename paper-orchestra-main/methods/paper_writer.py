@@ -189,9 +189,19 @@ def write_single_paper(
             succeed = True
             return True
 
-        except Exception:
+        except Exception as e:
             print(f"[Try {cur_try+1}/{max_n_tries}] EXCEPTION in perform_writeup:")
             print(traceback.format_exc())
+            fatal = False
+            try:
+                from utils.openai_utils import FatalLLMError, is_non_retryable_llm_error
+
+                fatal = isinstance(e, FatalLLMError) or is_non_retryable_llm_error(e)
+            except Exception:
+                fatal = "budget" in str(e).lower() or "403" in str(e)
+            if fatal:
+                print("Fatal LLM error — stopping writeup retries.", flush=True)
+                break
             cur_try += 1
             if cur_try < max_n_tries:
                 print("Try again now...")

@@ -20,7 +20,7 @@
  * mode (detection reports not-installed, tasks fail closed with a setup
  * message — never fake success).
  */
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
@@ -1116,7 +1116,10 @@ export function getTaskEvents(taskId) {
 
 const ASK_MAX_PROMPT_CHARS = 8000;
 const ASK_MAX_OUTPUT_CHARS = 60000;
-const ASK_TIMEOUT_MS = 180000;
+/** Ask turns can take several minutes on cold start / large models. */
+const ASK_TIMEOUT_MS = 600000;
+const ASK_HEARTBEAT_MS = 4000;
+const ASK_REQUEST_ID_RE = /^ask_[A-Za-z0-9_-]{1,80}$/;
 const ASK_MODEL_RE = /^[\w][\w.:/@+-]*$/;
 
 function assertAskModel(m) {
@@ -1150,6 +1153,77 @@ export function looksLikeCliHelp(text) {
   );
 }
 
+/** True for session/message ids, hashes, and opaque blobs that must never become chat text. */
+export function looksLikeAskNoise(s) {
+  const t = String(s ?? "").trim();
+  if (!t) return true;
+  if (t.length < 2) return true;
+  if (/^(ses_|msg_|evt_|part_|call_|tool_|ask_|tsk_)[A-Za-z0-9_-]+$/i.test(t)) return true;
+  if (/^[0-9a-f]{16,}$/i.test(t)) return true;
+  // Long base64 / opaque tokens without whitespace (UI garbage).
+  if (t.length >= 40 && !/\s/.test(t) && /^[A-Za-z0-9+/=_-]+$/.test(t)) return true;
+  if (/^(text|text-delta|content|delta|message|step_start|step_finish|assistant|user|system)$/i.test(t)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Harvest only assistant-facing text fields from one OpenCode JSON event.
+ * Never walks every string (that pulled session ids / hashes into the bubble).
+ */
+function harvestAskEventText(evt) {
+  const out = [];
+  const push = (s) => {
+    if (typeof s !== "string") return;
+    const t = s.trim();
+    if (!t || looksLikeCliHelp(t) || looksLikeAskNoise(t)) return;
+    if (t.length > 8000) out.push(t.slice(0, 8000));
+    else out.push(t);
+  };
+
+  if (!evt || typeof evt !== "object") return out;
+  const type = typeof evt.type === "string" ? evt.type.toLowerCase() : "";
+
+  // Canonical OpenCode run --format json shapes.
+  if (/^(text|text-delta|content|delta)$/i.test(type)) {
+    push(evt.text);
+    push(evt.delta);
+    push(evt.content);
+    push(evt.value);
+  }
+  if (evt.part && typeof evt.part === "object") {
+    const pt = typeof evt.part.type === "string" ? evt.part.type.toLowerCase() : "";
+    if (!pt || /^(text|text-delta|content|delta)$/i.test(pt)) {
+      push(evt.part.text);
+      push(evt.part.delta);
+      push(evt.part.content);
+    }
+  }
+  if (evt.message && typeof evt.message === "object") {
+    const parts = evt.message.parts ?? evt.message.content;
+    if (Array.isArray(parts)) {
+      for (const p of parts) {
+        if (!p || typeof p !== "object") continue;
+        const pt = typeof p.type === "string" ? p.type.toLowerCase() : "";
+        if (/^(text|text-delta|content|output_text)$/i.test(pt) || (!pt && typeof p.text === "string")) {
+          push(p.text);
+          push(p.delta);
+        }
+      }
+    }
+    if (typeof evt.message.content === "string") push(evt.message.content);
+  }
+  // Some builds nest under properties / data / payload.
+  for (const nest of [evt.properties, evt.data, evt.payload]) {
+    if (!nest || typeof nest !== "object") continue;
+    push(nest.text);
+    push(nest.delta);
+    if (nest.part && typeof nest.part === "object") push(nest.part.text);
+  }
+  return out;
+}
+
 /**
  * Extract assistant text (and structured errors) from `opencode run --format json`.
  * Returns { text, error } — caller throws on error so the UI shows a real cause.
@@ -1175,38 +1249,29 @@ export function extractAskResult(stdout, stderr = "") {
         if (msg && !errorMsg) errorMsg = redactSecretsFromText(msg).slice(0, ASK_MAX_OUTPUT_CHARS).trim();
         continue;
       }
-      const texts = [];
-      const walk = (v, depth) => {
-        if (depth > 6 || texts.join("").length > ASK_MAX_OUTPUT_CHARS) return;
-        if (typeof v === "string") {
-          texts.push(v);
-          return;
-        }
-        if (Array.isArray(v)) {
-          for (const x of v) walk(x, depth + 1);
-          return;
-        }
-        if (v && typeof v === "object") {
-          const type = typeof v.type === "string" ? v.type : "";
-          if (/^(text|text-delta|content|delta|message)$/i.test(type)) {
-            for (const k of ["text", "delta", "content", "value"]) {
-              if (typeof v[k] === "string") texts.push(v[k]);
-            }
-          }
-          for (const k of ["part", "delta", "message", "data", "payload"]) {
-            if (v[k] !== undefined) walk(v[k], depth + 1);
-          }
-        }
-      };
-      walk(evt, 0);
-      for (const s of texts) {
-        if (s && s.length < 8000 && !looksLikeCliHelp(s)) parts.push(s);
+      for (const s of harvestAskEventText(evt)) {
+        if (s && !looksLikeCliHelp(s)) parts.push(s);
       }
     } catch { /* not an event line */ }
   }
   if (parts.length) {
-    const joined = redactSecretsFromText(parts.join("")).slice(0, ASK_MAX_OUTPUT_CHARS).trim();
-    if (looksLikeCliHelp(joined)) return { text: "", error: errorMsg };
+    // Dedupe consecutive identical chunks (text + text-delta repeats).
+    const deduped = [];
+    for (const p of parts) {
+      if (deduped.length && deduped[deduped.length - 1] === p) continue;
+      // Skip if this chunk is already the suffix of the accumulated answer.
+      const soFar = deduped.join("");
+      if (soFar && (soFar.endsWith(p) || p.startsWith(soFar))) {
+        if (p.length > soFar.length) {
+          deduped.length = 0;
+          deduped.push(p);
+        }
+        continue;
+      }
+      deduped.push(p);
+    }
+    const joined = redactSecretsFromText(deduped.join("")).slice(0, ASK_MAX_OUTPUT_CHARS).trim();
+    if (looksLikeCliHelp(joined) || looksLikeAskNoise(joined)) return { text: "", error: errorMsg };
     return { text: joined, error: "" };
   }
   if (errorMsg) return { text: "", error: errorMsg };
@@ -1219,7 +1284,9 @@ export function extractAskResult(stdout, stderr = "") {
       error: "OpenCode service port is busy. Retry — Openbentt will use a private --standalone runtime.",
     };
   }
-  return { text: redactSecretsFromText(raw).slice(0, ASK_MAX_OUTPUT_CHARS).trim(), error: "" };
+  const plain = redactSecretsFromText(raw).slice(0, ASK_MAX_OUTPUT_CHARS).trim();
+  if (looksLikeAskNoise(plain)) return { text: "", error: "" };
+  return { text: plain, error: "" };
 }
 
 /** @deprecated use extractAskResult — kept for unit tests */
@@ -1235,9 +1302,71 @@ export function extractAskText(stdout) {
  * Auto-denied permission requests are SURFACED (not silent) so the UI can
  * offer them as selectable run-as-task options.
  */
-export async function askOpenCode(app, { message, model, workspaceRoot, title, sessionId } = {}) {
+/**
+ * Map one `opencode run --format json` line into a UI-facing agent event.
+ * Falls back to terminal output for plain / unrecognized lines.
+ */
+function emitAskLogLine(taskId, sessionId, stream, rawLine) {
+  const line = redactSecretsFromText(stripAnsi(rawLine)).slice(0, 800);
+  if (!line.trim()) return;
+  const t = line.trim();
+  if (t.startsWith("{") && t.endsWith("}")) {
+    try {
+      const evt = JSON.parse(t);
+      const type = typeof evt?.type === "string" ? evt.type.toLowerCase() : "";
+      const msg =
+        (typeof evt?.message === "string" && evt.message) ||
+        (typeof evt?.error?.message === "string" && evt.error.message) ||
+        (typeof evt?.part?.text === "string" && evt.part.text) ||
+        (typeof evt?.delta === "string" && evt.delta) ||
+        "";
+      if (type === "error" || evt?.error) {
+        pushEvent(taskId, sessionId, "agent.tool.failed", {
+          message: redactSecretsFromText(msg || "OpenCode error").slice(0, 400),
+        });
+        return;
+      }
+      if (/think|reason|step-start|step\.start/i.test(type)) {
+        pushEvent(taskId, sessionId, "agent.thinking", {
+          message: redactSecretsFromText(msg || type).slice(0, 400),
+        });
+        return;
+      }
+      if (/tool|step|file|command|permission/i.test(type) && msg) {
+        pushEvent(taskId, sessionId, "agent.status", {
+          message: redactSecretsFromText(`${type}: ${msg}`).slice(0, 400),
+        });
+        return;
+      }
+      if (msg && msg.length < 600 && !looksLikeCliHelp(msg)) {
+        pushEvent(taskId, sessionId, "agent.terminal.output", {
+          stream,
+          output: redactSecretsFromText(msg).slice(0, 400),
+          message: redactSecretsFromText(msg).slice(0, 400),
+        });
+        return;
+      }
+      // Structured event with no useful text — still show the type so the UI moves.
+      if (type) {
+        pushEvent(taskId, sessionId, "agent.status", { message: type.replace(/^agent\./, "") });
+        return;
+      }
+    } catch { /* fall through to raw line */ }
+  }
+  pushEvent(taskId, sessionId, "agent.terminal.output", {
+    stream,
+    output: line.slice(0, 400),
+    message: line.slice(0, 400),
+  });
+}
+
+export async function askOpenCode(app, { message, model, workspaceRoot, title, sessionId, askRequestId, maxPromptChars } = {}) {
   void app;
-  const clean = typeof message === "string" ? message.trim().slice(0, ASK_MAX_PROMPT_CHARS) : "";
+  const promptCap = Math.min(
+    Math.max(Number(maxPromptChars) || ASK_MAX_PROMPT_CHARS, 1000),
+    200_000
+  );
+  const clean = typeof message === "string" ? message.trim().slice(0, promptCap) : "";
   if (!clean) throw new Error("Invalid message");
   // Hostile input fails fast, before any detection/spawn work.
   const cleanModel = assertAskModel(model);
@@ -1246,6 +1375,10 @@ export async function askOpenCode(app, { message, model, workspaceRoot, title, s
     cleanSession = String(sessionId).trim();
     if (!/^ses_[A-Za-z0-9]+$/.test(cleanSession)) throw new Error("Invalid session");
   }
+  const askId =
+    typeof askRequestId === "string" && ASK_REQUEST_ID_RE.test(askRequestId.trim())
+      ? askRequestId.trim()
+      : `ask_${Date.now().toString(36)}`;
   const det = await detectOpenCode();
   if (!det.installed) throw new Error("OpenCode is not installed. See Setup → Execution.");
   // OpenCode v2.x dropped `--dir`; set process cwd instead (unknown flags dump USAGE into chat).
@@ -1258,50 +1391,142 @@ export async function askOpenCode(app, { message, model, workspaceRoot, title, s
   if (typeof title === "string" && title.trim()) args.push("--title", title.trim().slice(0, 120));
   args.push(clean);
   const startedAt = Date.now();
+  pushEvent(askId, cleanSession ?? "", "agent.started", {
+    message: `Starting OpenCode${cleanModel ? ` · ${cleanModel}` : ""}…`,
+  });
   const { text, error, session, permissionRequests, timedOut, helpLeak } = await new Promise((resolve) => {
-    const child = execFile(det.executablePath, args, {
-      cwd,
-      timeout: ASK_TIMEOUT_MS,
-      maxBuffer: 8 * 1024 * 1024,
-      windowsHide: true,
-      env: buildChildEnv(),
-    }, (err, stdout, stderr) => {
-      if (err && err.killed) {
-        resolve({
-          text: "",
-          error: "",
-          session: cleanSession,
-          permissionRequests: [],
-          timedOut: true,
-          helpLeak: false,
-        });
-        return;
+    let settled = false;
+    let stdout = "";
+    let stderr = "";
+    let outBuf = "";
+    let errBuf = "";
+    /** @type {ReturnType<typeof setInterval> | null} */
+    let heartbeat = null;
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    let killTimer = null;
+    const finish = (payload) => {
+      if (settled) return;
+      settled = true;
+      if (heartbeat) clearInterval(heartbeat);
+      if (killTimer) clearTimeout(killTimer);
+      resolve(payload);
+    };
+    let child;
+    try {
+      child = spawn(det.executablePath, args, {
+        cwd,
+        windowsHide: true,
+        env: buildChildEnv(),
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (spawnErr) {
+      finish({
+        text: "",
+        error: spawnErr instanceof Error ? spawnErr.message : "Failed to start OpenCode",
+        session: cleanSession,
+        permissionRequests: [],
+        timedOut: false,
+        helpLeak: false,
+      });
+      return;
+    }
+    heartbeat = setInterval(() => {
+      const secs = Math.round((Date.now() - startedAt) / 1000);
+      pushEvent(askId, cleanSession ?? "", "agent.status", {
+        message: `OpenCode still working… ${secs}s`,
+      });
+    }, ASK_HEARTBEAT_MS);
+    killTimer = setTimeout(() => {
+      try {
+        child.kill("SIGTERM");
+      } catch { /* noop */ }
+      setTimeout(() => {
+        try {
+          if (!child.killed) child.kill("SIGKILL");
+        } catch { /* noop */ }
+      }, 2000);
+      finish({
+        text: "",
+        error: "",
+        session: cleanSession,
+        permissionRequests: [],
+        timedOut: true,
+        helpLeak: false,
+      });
+    }, ASK_TIMEOUT_MS);
+
+    const onChunk = (stream, chunk) => {
+      const s = String(chunk ?? "");
+      if (stream === "stdout") {
+        stdout += s;
+        if (stdout.length > ASK_MAX_OUTPUT_CHARS * 3) stdout = stdout.slice(-ASK_MAX_OUTPUT_CHARS * 2);
+        outBuf += s;
+        const parts = outBuf.split("\n");
+        outBuf = parts.pop() ?? "";
+        for (const line of parts) emitAskLogLine(askId, cleanSession ?? "", "stdout", line);
+      } else {
+        stderr += s;
+        if (stderr.length > ASK_MAX_OUTPUT_CHARS * 2) stderr = stderr.slice(-ASK_MAX_OUTPUT_CHARS);
+        errBuf += s;
+        const parts = errBuf.split("\n");
+        errBuf = parts.pop() ?? "";
+        for (const line of parts) emitAskLogLine(askId, cleanSession ?? "", "stderr", line);
       }
-      const combined = `${stdout ?? ""}\n${stderr ?? ""}`;
-      const extracted = extractAskResult(stdout ?? "", stderr ?? "");
-      resolve({
+    };
+    child.stdout?.on("data", (c) => onChunk("stdout", c));
+    child.stderr?.on("data", (c) => onChunk("stderr", c));
+    child.on("error", (err) => {
+      pushEvent(askId, cleanSession ?? "", "agent.tool.failed", {
+        message: err?.message ? String(err.message).slice(0, 200) : "OpenCode process error",
+      });
+      finish({
+        text: "",
+        error: err?.message ? String(err.message) : "OpenCode process error",
+        session: cleanSession,
+        permissionRequests: [],
+        timedOut: false,
+        helpLeak: false,
+      });
+    });
+    child.on("close", () => {
+      if (outBuf.trim()) emitAskLogLine(askId, cleanSession ?? "", "stdout", outBuf);
+      if (errBuf.trim()) emitAskLogLine(askId, cleanSession ?? "", "stderr", errBuf);
+      const combined = `${stdout}\n${stderr}`;
+      const extracted = extractAskResult(stdout, stderr);
+      finish({
         text: extracted.text,
         error: extracted.error,
-        session: extractAskSession(stdout ?? "") ?? cleanSession,
-        permissionRequests: extractAskPermissions(stderr ?? ""),
+        session: extractAskSession(stdout) ?? cleanSession,
+        permissionRequests: extractAskPermissions(stderr),
         timedOut: false,
         helpLeak: looksLikeCliHelp(combined),
       });
     });
-    // Closed stdin: any interactive permission prompt hits EOF and denies.
-    try {
-      child.stdin?.end();
-    } catch { /* noop */ }
   });
+  if (timedOut) {
+    pushEvent(askId, cleanSession ?? "", "agent.tool.failed", {
+      message: `Timed out after ${Math.round(ASK_TIMEOUT_MS / 1000)}s`,
+    });
+  } else if (text) {
+    pushEvent(askId, session ?? cleanSession ?? "", "agent.message.completed", {
+      text: text.slice(0, 200),
+      message: "Answer ready",
+    });
+  }
   audit(app, {
     decision: "ALLOW", status: timedOut ? "timeout" : "ok", permission: "USER_MESSAGE", risk: "LOW",
     resourceSummary: {
       lifecycle: "OPENCODE_ASK", model: cleanModel ?? "auto",
       durationMs: Date.now() - startedAt, timedOut,
       permissionRequests: permissionRequests.length,
+      askRequestId: askId,
     },
   });
-  if (timedOut) throw new Error("OpenCode took too long to answer (180s). Try a shorter question.");
+  if (timedOut) {
+    throw new Error(
+      `OpenCode took too long to answer (${Math.round(ASK_TIMEOUT_MS / 1000)}s). Try a shorter question.`
+    );
+  }
   if (helpLeak) {
     throw new Error(
       "OpenCode CLI rejected the request (unsupported flags). Update Openbentt or pick Local Ollama / another provider."
@@ -1317,7 +1542,14 @@ export async function askOpenCode(app, { message, model, workspaceRoot, title, s
   if (looksLikeCliHelp(text)) {
     throw new Error("OpenCode returned CLI help instead of an answer. Try Local Ollama or another provider.");
   }
-  return { text, model: cleanModel ?? "auto", durationMs: Date.now() - startedAt, sessionId: session, permissionRequests };
+  return {
+    text,
+    model: cleanModel ?? "auto",
+    durationMs: Date.now() - startedAt,
+    sessionId: session,
+    permissionRequests,
+    askRequestId: askId,
+  };
 }
 
 /** First sessionID seen in `run --format json` output (continuity). */
@@ -2386,12 +2618,18 @@ export function registerOpenCodeIpc(ipcMain, app) {
     if (p.sessionId !== undefined && p.sessionId !== null && String(p.sessionId).trim()) {
       sessionId = String(p.sessionId).trim().slice(0, 120);
     }
+    let askRequestId;
+    if (p.askRequestId !== undefined && p.askRequestId !== null && String(p.askRequestId).trim()) {
+      askRequestId = String(p.askRequestId).trim().slice(0, 96);
+      if (!ASK_REQUEST_ID_RE.test(askRequestId)) throw new Error("Invalid askRequestId");
+    }
     return askOpenCode(app, {
       message: p.message,
       model: p.model,
       workspaceRoot,
       title: typeof p.title === "string" ? p.title : undefined,
       sessionId,
+      askRequestId,
     });
   });
   ipcMain.handle("agent:opencodeModels", async () => listOpenCodeModels());

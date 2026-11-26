@@ -162,18 +162,6 @@ function buildEffectiveModel(
     };
   }
 
-  // WebGPU Gemma
-  if (provider === "webgpu_gemma") {
-    return {
-      modelId: model || null,
-      displayName: model || "On-device model",
-      provider: "webgpu",
-      location: "local",
-      available: Boolean(model),
-      source: "explicit",
-    };
-  }
-
   // GGUF
   if (provider === "local_gguf") {
     return {
@@ -227,7 +215,7 @@ export function LocalAIProvider({ children }: { children: React.ReactNode }) {
       const base = (apiConfig.openAiCompatibleBaseUrl ?? "").trim() || DEFAULT_OLLAMA_CHAT_BASE;
       return isLoopbackCompatibleBase(base);
     }
-    if (apiConfig.aiProvider === "local_gguf" || apiConfig.aiProvider === "webgpu_gemma") {
+    if (apiConfig.aiProvider === "local_gguf") {
       return false;
     }
     // Cloud provider with no key: still probe once so we can auto-switch to Ollama.

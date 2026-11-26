@@ -45,7 +45,7 @@ import {
 } from "./paperOrchestraService.mjs";
 import { resolveUnderDistRoot } from "./ipcValidate.mjs";
 import { registerNavigationPolicy, setVoiceGrantChecker } from "./navigationPolicy.mjs";
-import { getGpuSafeMode } from "./gpuSafeMode.mjs";
+import { getGpuSafeMode, writeGpuSafeModeMarker } from "./gpuSafeMode.mjs";
 import {
   installIpcAuthorization,
   registerTrustedWindow,
@@ -80,7 +80,7 @@ const gpuSafeMode = getGpuSafeMode();
 if (gpuSafeMode.enabled) {
   process.env.OPENBENTT_SOFTWARE_RENDERING = "1";
   console.info(
-    `[electron] Software rendering enabled (${gpuSafeMode.reason ?? "safe-mode"}). WebGPU UI flags skipped.`
+    `[electron] Software rendering enabled (${gpuSafeMode.reason ?? "safe-mode"}).`
   );
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch("disable-gpu");
@@ -96,13 +96,9 @@ if (!singleInstanceLock) {
 }
 
 /**
- * Linux display: on **Wayland**, Chromium logs `--ozone-platform=wayland is not compatible with Vulkan`
- * and `Failed to create vulkan surface` (often alongside GBM / `driver (null)` lines), which breaks GPU
- * compositing and can destabilize WebGPU/WASM (showing up as opaque WASM traps in the chat).
- *
- * Since we *want* Vulkan for WebGPU on Linux (see flags below), default Ozone to **x11** when the
- * session is Wayland. Override with `OPENBENTT_OZONE_PLATFORM=wayland` (force Wayland) or
- * `OPENBENTT_OZONE_PLATFORM=auto` (let Chromium decide).
+ * Linux display: prefer native Wayland when the session is Wayland.
+ * (We no longer force X11 for WebGPU — that path caused GPU SIGSEGV + invisible windows.)
+ * Override with OPENBENTT_OZONE_PLATFORM=x11|wayland|auto.
  */
 if (process.platform === "linux") {
   applyLinuxOzonePlatform();
@@ -139,38 +135,10 @@ function applyLinuxOzonePlatform() {
   }
 
   if (isWaylandSession) {
-    app.commandLine.appendSwitch("ozone-platform", "x11");
+    app.commandLine.appendSwitch("ozone-platform", "wayland");
     console.info(
-      "[electron] Wayland session detected; forcing --ozone-platform=x11 for Vulkan/WebGPU stability. Override with OPENBENTT_OZONE_PLATFORM=wayland or =auto."
+      "[electron] Wayland session detected; using --ozone-platform=wayland. Override with OPENBENTT_OZONE_PLATFORM=x11 or =auto."
     );
-  }
-}
-
-/**
- * WebGPU for on-device Gemma — only when hardware rendering is available.
- * Set OPENBENTT_DISABLE_WEBGPU_FLAGS=1 to opt out for debugging.
- */
-if (!gpuSafeMode.enabled && !process.env.OPENBENTT_DISABLE_WEBGPU_FLAGS) {
-  app.commandLine.appendSwitch("enable-unsafe-webgpu");
-  if (process.platform === "linux") {
-    /** Many integrated / Mesa drivers are blocklisted for WebGPU until this is set. */
-    app.commandLine.appendSwitch("ignore-gpu-blocklist");
-    /**
-     * Forcing Skia/ANGLE onto Vulkan (`Vulkan,VulkanFromANGLE,DefaultANGLEVulkan`) is what was
-     * triggering `Failed to create vulkan surface` on Wayland and on NVIDIA + X11/XWayland here
-     * (`GetGeometry failed for window 1`, `XGetWindowAttributes failed`). That breaks the GPU
-     * process and surfaces in the chat as opaque WASM traps (`table index is out of bounds`,
-     * `unaligned access`, etc.).
-     *
-     * WebGPU (Dawn) does not require those features; we leave it on with `enable-unsafe-webgpu`.
-     * Set OPENBENTT_LINUX_FORCE_VULKAN_FEATURES=1 to opt back in if your driver actually likes them.
-     */
-    if (process.env.OPENBENTT_LINUX_FORCE_VULKAN_FEATURES === "1") {
-      app.commandLine.appendSwitch(
-        "enable-features",
-        "Vulkan,VulkanFromANGLE,DefaultANGLEVulkan"
-      );
-    }
   }
 }
 
@@ -196,15 +164,14 @@ function noteGpuCrashBurst() {
 
 function relaunchInGpuSafeMode(reason) {
   if (gpuSafeMode.enabled || gpuRecoveryAttempted) return false;
-  // A GPU crash while the user is working must never terminate the whole app.
-  // Software-render relaunch is only safe before a window exists (startup).
-  if (app.isReady() && BrowserWindow.getAllWindows().length > 0) {
-    console.error(
-      `[electron] ${reason}. GPU process crashed during an active session; keeping the app alive. Restart with OPENBENTT_DISABLE_GPU=1 if it recurs.`
-    );
-    return false;
-  }
+  // Blank/broken compositor after GPU SIGSEGV is worse than a one-shot software relaunch —
+  // even if a window already exists (common: crash ~1s after createWindow).
   console.error(`[electron] ${reason}. Relaunching once with OPENBENTT_DISABLE_GPU=1 for compatibility.`);
+  try {
+    writeGpuSafeModeMarker(app.getPath("userData"));
+  } catch {
+    /* marker is best-effort */
+  }
   app.relaunch({
     args: process.argv.slice(1),
     env: {

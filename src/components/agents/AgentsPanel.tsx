@@ -113,7 +113,7 @@ export function AgentsPanel() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-sm font-medium flex items-center gap-2">
-            <Plug className="h-4 w-4" /> Detected AI providers
+            <Plug className="h-4 w-4" /> Default workspace agent
           </h3>
           <Button
             type="button"
@@ -128,8 +128,8 @@ export function AgentsPanel() {
           </Button>
         </div>
         <p className="text-sm text-muted-foreground">
-          Openbentt auto-detects coding agents on your machine — not only OpenCode. Prefer any
-          available CLI; chat still respects Approvals and role tool allowlists.
+          Default agent for new chats in this workspace. Each chat can override the agent in the
+          composer; simultaneous chats keep their own agent and session.
         </p>
         {detectMsg && <p className="text-xs text-muted-foreground">{detectMsg}</p>}
         <div className="grid gap-2 sm:grid-cols-2">
@@ -146,7 +146,7 @@ export function AgentsPanel() {
                     ) : (
                       <Badge variant="outline">Not found</Badge>
                     )}
-                    {active && <Badge>Preferred</Badge>}
+                    {active && <Badge>Workspace default</Badge>}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 px-3 pb-3 text-xs text-muted-foreground">
@@ -154,7 +154,7 @@ export function AgentsPanel() {
                   {a.path && <p className="font-mono truncate" title={a.path}>{a.path}</p>}
                   {a.available && !active && (
                     <Button size="sm" variant="outline" onClick={() => chooseExternal(a.id)}>
-                      Prefer this agent
+                      Set as default
                     </Button>
                   )}
                 </CardContent>

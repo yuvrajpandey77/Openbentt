@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.6.2] — 2026-11-26
+
+### Fixed
+
+- **Chat wait pane:** Streaming assistants stay visible with Thinking / agent activity (no blank bubble while Stop is active).
+- **OpenCode errors:** Real error messages in the bubble; agent logs force-expand on failure.
+- **Paper live logs:** Main-process ring buffer + status rehydrate across `/notebook` → `/chat` navigation; TaskCenter updates while Notebook is unmounted.
+
+### Changed
+
+- Job strip briefly shows completed jobs; TaskCenter toasts auto-dismiss; Answer ready toast when backgrounded.
+- Packaged `sql.js` includes only `sql-wasm.js` + WASM (not debug/asm/zip artifacts).
+- Version bump: `2.6.1` → `2.6.2`.
+
 ## [2.5.0] — 2026-11-22
 
 ### Added

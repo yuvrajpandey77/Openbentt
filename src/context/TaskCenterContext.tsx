@@ -7,7 +7,16 @@ import React, { createContext, useCallback, useContext, useMemo, useRef, useStat
  */
 
 export type TaskState = "running" | "done" | "failed" | "cancelled";
-export type TaskKind = "model-download" | "ollama-setup" | "sync" | "export" | "processing";
+export type TaskKind =
+  | "model-download"
+  | "ollama-setup"
+  | "sync"
+  | "export"
+  | "processing"
+  | "compile"
+  | "paper-run"
+  | "paper-install"
+  | "agent";
 
 export interface Task {
   id: string;

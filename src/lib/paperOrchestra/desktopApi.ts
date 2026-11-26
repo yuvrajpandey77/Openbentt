@@ -55,12 +55,21 @@ export interface OpenbenttPaperOrchestraApi {
     root: string | null;
     python: string | null;
     ready: boolean;
+    canInstall?: boolean;
+    installing?: boolean;
+    hasSystemPython?: boolean;
     venues: string[];
     running: boolean;
     runId: string | null;
+    stage?: string;
+    logLines?: string[];
+    outputDir?: string | null;
+    lastFinish?: { done: boolean; ok: boolean | null; message: string | null } | null;
     hint: string;
   }>;
   listVenues(): Promise<Array<{ id: string; path: string; label: string }>>;
+  /** One-time: create userData venv + pip install requirements (needs network). */
+  installEngine(): Promise<{ ok: boolean; python: string }>;
   start(opts: PaperOrchestraStartOpts): Promise<{
     runId: string;
     outputDir: string;

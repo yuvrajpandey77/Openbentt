@@ -37,6 +37,9 @@ def get_openai_client() -> OpenAI:
 
     The client is created lazily so that OPENAI_API_KEY is only required when
     an OpenAI model is actually called (e.g. Gemini-only setups don't need it).
+
+    OPENAI_BASE_URL (or OPENBENTT_PROVIDER_BASE_URL) routes calls to OmniRoute /
+    OpenAI-compatible local gateways.
     """
     global _openai_client
     if _openai_client is None:
@@ -45,7 +48,16 @@ def get_openai_client() -> OpenAI:
                 openai_api_key = os.environ.get("OPENAI_API_KEY")
                 if not openai_api_key:
                     raise ValueError("OPENAI_API_KEY must be set to use OpenAI models.")
-                _openai_client = OpenAI(api_key=openai_api_key)
+                base_url = (
+                    os.environ.get("OPENAI_BASE_URL")
+                    or os.environ.get("OPENBENTT_PROVIDER_BASE_URL")
+                    or ""
+                ).strip() or None
+                kwargs = {"api_key": openai_api_key}
+                if base_url:
+                    kwargs["base_url"] = base_url
+                    print(f"Using OpenAI-compatible base URL: {base_url}")
+                _openai_client = OpenAI(**kwargs)
     return _openai_client
 
 
@@ -109,6 +121,95 @@ def parse_openai_json_results(response: str):
     return None  # No valid JSON found
 
 
+class FatalLLMError(RuntimeError):
+    """Non-retryable provider failure (budget, auth, permission)."""
+
+
+# OpenCode free catalog (same as chat). Override with OPENBENTT_PAPER_BRIDGE_MODEL
+# or OPENBENTT_PAPER_FREE_MODELS (comma-separated).
+_DEFAULT_FREE_MODELS = (
+    "opencode/big-pickle",
+    "opencode/flint-40b-free",
+    "opencode/nemotron-3.5-lightning-free",
+    "opencode/mimo-v2.6-flash-free",
+    "opencode/beam-free",
+    "opencode/hy4-flash-free",
+)
+
+
+def free_model_candidates(preferred: str | None = None) -> list[str]:
+    """Ordered free-model list for Paper bridge failover."""
+    env_list = (os.environ.get("OPENBENTT_PAPER_FREE_MODELS") or "").strip()
+    base = [m.strip() for m in env_list.split(",") if m.strip()] if env_list else list(_DEFAULT_FREE_MODELS)
+    out: list[str] = []
+    if preferred and preferred.strip():
+        out.append(preferred.strip())
+    for m in base:
+        if m not in out:
+            out.append(m)
+    return out
+
+
+def is_model_unavailable_error(exc: BaseException) -> bool:
+    """404 / retired :free slug — retrying the same id is useless; try another free model."""
+    msg = str(exc or "").lower()
+    status = getattr(exc, "status_code", None)
+    if status == 404:
+        return True
+    needles = (
+        "unavailable for free",
+        "is not a valid model",
+        "no endpoints found",
+        "model not found",
+        "does not exist",
+        "error code: 404",
+        "not found",
+        "paid version is available",
+        "use this slug instead",
+    )
+    return any(n in msg for n in needles)
+
+
+def is_non_retryable_llm_error(exc: BaseException) -> bool:
+    """Budget / auth / hard permission errors never succeed on retry."""
+    if is_model_unavailable_error(exc):
+        # Handled as model failover, not fatal-by-default.
+        return False
+    msg = str(exc or "").lower()
+    needles = (
+        "workspace lifetime budget",
+        "budget of $",
+        "budget exceeded",
+        "insufficient_quota",
+        "insufficient quota",
+        "does not reset",
+        "permissiondenied",
+        "permission denied",
+        "error code: 403",
+        "status code: 403",
+        "401",
+        "invalid_api_key",
+        "incorrect api key",
+        "unauthorized",
+        "authentication",
+        "billing",
+        "payment required",
+        "402",
+    )
+    if any(n in msg for n in needles):
+        return True
+    status = getattr(exc, "status_code", None)
+    if status in (401, 402, 403):
+        return True
+    code = getattr(exc, "code", None)
+    if code in ("insufficient_quota", "invalid_api_key"):
+        return True
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict) and body.get("code") in ("insufficient_quota", "invalid_api_key"):
+        return True
+    return False
+
+
 def call_openai_models_with_content(
     content: list[Any],
     model_name: str,
@@ -122,18 +223,31 @@ def call_openai_models_with_content(
     raw_response = None
     parsed_response = None
     openai_client = get_openai_client()
+    models = free_model_candidates(model_name)
+    # Cap attempts: try each candidate once for unavailable, plus a couple transient retries.
+    model_idx = 0
+    transient_left = max(2, max_retries - 1)
+    attempt = 0
 
-    for attempt in range(max_retries):
+    while model_idx < len(models):
+        active_model = models[model_idx]
+        attempt += 1
         try:
             messages = []
             if system_prompt:
-                role = "developer" if model_name.startswith(("o1", "o3")) else "system"
+                role = "developer" if active_model.startswith(("o1", "o3")) else "system"
                 messages.append({"role": role, "content": system_prompt})
 
             messages.append({"role": "user", "content": content})
 
+            if active_model != model_name:
+                print(
+                    f"OpenAI-compat bridge: trying fallback model={active_model} (was {model_name})",
+                    flush=True,
+                )
+
             response = openai_client.chat.completions.create(
-                model=model_name,
+                model=active_model,
                 messages=messages,
                 **generation_configs,
             )
@@ -145,6 +259,9 @@ def call_openai_models_with_content(
                     parsed_response is not None
                 ), f"Parsed response is None, Here is the raw response:\n{raw_response}"
 
+            if active_model != model_name:
+                print(f"OpenAI-compat bridge: using {active_model}", flush=True)
+
             return {
                 "raw_response": raw_response,
                 "parsed_response": parsed_response,
@@ -152,19 +269,50 @@ def call_openai_models_with_content(
 
         except Exception as e:
             print(
-                f"Warning: OpenAI API call (model={model_name}) failed on attempt {attempt + 1} of {max_retries}. Error: {e}",
+                f"Warning: OpenAI API call (model={active_model}) failed. Error: {e}",
+                flush=True,
             )
 
-            if attempt + 1 == max_retries:
-                print(f"Error: All {max_retries} retry attempts failed.")
-                raise e
+            if is_non_retryable_llm_error(e):
+                hint = (
+                    "Provider rejected the call (budget / auth / permission). "
+                    "Add a Gemini key in Paper, top up OpenRouter, or set OPENBENTT_PAPER_BRIDGE_MODEL to a working free model."
+                )
+                print(f"Error: Non-retryable LLM failure — not retrying.\n{hint}", flush=True)
+                raise FatalLLMError(f"{hint}\n\n{e}") from e
 
-            delay = base_interval_sec * (2 ** (attempt - 1)) if attempt > 0 else 0
-            print(f"Retrying in {delay} seconds...")
+            if is_model_unavailable_error(e):
+                print(
+                    f"Model {active_model} unavailable — switching to next free model.",
+                    flush=True,
+                )
+                model_idx += 1
+                if model_idx >= len(models):
+                    raise FatalLLMError(
+                        "No working free OpenRouter model left. "
+                        "Add a Gemini API key in Paper, or set OPENBENTT_PAPER_BRIDGE_MODEL / OPENBENTT_PAPER_FREE_MODELS. "
+                        f"Last error: {e}"
+                    ) from e
+                continue
+
+            transient_left -= 1
+            if transient_left <= 0:
+                # Exhausted transient retries on this model — try next free id.
+                model_idx += 1
+                transient_left = 2
+                if model_idx >= len(models):
+                    print("Error: All model candidates failed.", flush=True)
+                    raise e
+                print(f"Switching to next free model after transient failures…", flush=True)
+                continue
+
+            delay = base_interval_sec * (2 ** max(0, attempt - 2))
+            delay = min(delay, 20)
+            print(f"Retrying {active_model} in {delay} seconds...", flush=True)
             if delay > 0:
                 time.sleep(delay)
 
-    print("Error: Exited retry loop unexpectedly.")
+    print("Error: Exited model failover loop unexpectedly.", flush=True)
     return {
         "raw_response": raw_response,
         "parsed_response": parsed_response,

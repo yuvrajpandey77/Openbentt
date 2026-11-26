@@ -1,7 +1,23 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 describe("gpuSafeMode", () => {
+  it("hasGpuSafeModeMarker and writeGpuSafeModeMarker use a marker file", async () => {
+    const { hasGpuSafeModeMarker, writeGpuSafeModeMarker, GPU_SAFE_MODE_MARKER } = await import("./gpuSafeMode.mjs");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ob-gpu-safe-"));
+    try {
+      assert.equal(hasGpuSafeModeMarker(dir), false);
+      writeGpuSafeModeMarker(dir);
+      assert.equal(hasGpuSafeModeMarker(dir), true);
+      assert.equal(fs.existsSync(path.join(dir, GPU_SAFE_MODE_MARKER)), true);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("returns disabled by default on non-Linux platforms", async () => {
     const { resolveGpuSafeMode } = await import("./gpuSafeMode.mjs");
     const decision = resolveGpuSafeMode();

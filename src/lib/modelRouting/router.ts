@@ -4,7 +4,6 @@ import {
   tierAtLeast,
   tierRank,
   EMBEDDING_MODEL_ID,
-  defaultLightweightModelId,
 } from "@/lib/modelManager/catalog";
 import {
   type AvailabilityContext,
@@ -100,7 +99,7 @@ export function routeModelForTask(
     return {
       task,
       modelId: EMBEDDING_MODEL_ID,
-      aiProvider: "webgpu_gemma",
+      aiProvider: "openrouter",
       backend: "webgpu",
       displayLabel: "MiniLM-L6-v2 (embeddings)",
       reason: "Fixed embedding pipeline.",
@@ -136,20 +135,9 @@ export function routeModelForTask(
     );
   }
 
-  if (task === "chat_lightweight") {
-    return {
-      task,
-      modelId: defaultLightweightModelId(),
-      aiProvider: "webgpu_gemma",
-      backend: "webgpu",
-      displayLabel: "Qwen 0.5B (fallback lightweight)",
-      reason: "No ready model matched; falling back to smallest on-device model.",
-    };
-  }
-
   if (ctx.localOnlyMode) {
     throw new ModelRouteError(
-      `No local model ready for ${task}. Download a model in Local Models or enable on-device weights.`,
+      `No local model ready for ${task}. Download a model in Local Models or use GGUF.`,
       "missing_model",
       task
     );

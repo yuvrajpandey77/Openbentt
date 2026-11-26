@@ -1,5 +1,4 @@
 import { canSendChat, canSendMessage, type ApiKeyConfig } from "@/types/chat";
-import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
 
 export function getComposerPlaceholder(
   cfg: ApiKeyConfig,
@@ -27,8 +26,6 @@ export function getComposerPlaceholder(
 
   if (!canSendChat(cfg)) {
     switch (cfg.aiProvider) {
-      case "webgpu_gemma":
-        return "Finish on-device setup, or pick a provider in Settings";
       case "local_gguf":
         return "Download a GGUF in Settings, then select it";
       case "openai_compatible":
@@ -36,10 +33,6 @@ export function getComposerPlaceholder(
       default:
         return "Add a cloud API key — or use Ollama / desktop local models";
     }
-  }
-
-  if (cfg.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
-    return "Complete on-device model setup above";
   }
 
   if (opts.workspacePlaceholder) return opts.workspacePlaceholder;

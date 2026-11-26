@@ -369,6 +369,7 @@ const POLICY = Object.freeze({
   "paperOrchestra:status": spec(["paperOrchestra.run"]),
   "paperOrchestra:listVenues": spec(["paperOrchestra.run"]),
   "paperOrchestra:cancel": spec(["paperOrchestra.run"]),
+  "paperOrchestra:installEngine": spec(["paperOrchestra.run", "localBinary.exec"]),
   "paperOrchestra:importArtifacts": spec(["paperOrchestra.run"], ["path"], { required: [0] }),
   "paperOrchestra:start": spec(["paperOrchestra.run", "localBinary.exec"], ["object"], {
     required: [0],
@@ -419,7 +420,13 @@ const CAPABILITY_SCOPES = {
   "document.access": ["documents:", "research:storePaperPdf", "research:loadPaperPdf", "research:storeProjectAsset", "research:loadProjectAsset", "research:storePaperPdfPath"],
   "research.data": ["research:"],
   "secrets.write": ["secretVault:", "hfSecret:", "zoteroSecret:", "zotero:setCredentials", "zotero:clearCredentials", "localGguf:whoami"],
-  "localBinary.exec": ["localGguf:", "ollama:pullModel", "latex:compile", "research:compileProjectLatex"],
+  "localBinary.exec": [
+    "localGguf:",
+    "ollama:pullModel",
+    "latex:compile",
+    "research:compileProjectLatex",
+    "paperOrchestra:",
+  ],
   "terminal.exec": ["agent:startTask", "agent:ensureRuntime", "agent:restartRuntime", "research:tools", "research:actions"],
   "computer.use": ["computer:"],
   "voice.input": ["voice:"],

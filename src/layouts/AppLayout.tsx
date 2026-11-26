@@ -8,6 +8,8 @@ import RightSidebar from "@/components/RightSidebar";
 import ChatInput from "@/components/ChatInput";
 import { CommandMenu } from "@/components/CommandMenu";
 import { TaskCenterToasts } from "@/components/TaskCenterToasts";
+import { GlobalJobStrip } from "@/components/GlobalJobStrip";
+import { PaperProgressBridge } from "@/components/paperOrchestra/PaperProgressBridge";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useLocalAI } from "@/context/LocalAIContext";
 import { PrivacyAnalytics } from "@/components/PrivacyAnalytics";
@@ -248,7 +250,9 @@ const AppLayout: React.FC = () => {
       <DesktopUpdateNotifier />
       <PersistenceStatusBanner />
       <CommandMenu open={commandMenuOpen} onOpenChange={setCommandMenuOpen} />
+      <PaperProgressBridge />
       <TaskCenterToasts />
+      <GlobalJobStrip />
 
       {isMobileSidebarOpen && (
         <div
@@ -260,22 +264,11 @@ const AppLayout: React.FC = () => {
 
       <main
         className={cn(
-          "flex min-h-0 flex-1 flex-col transition-[margin] duration-300 ease-out",
+          "relative flex min-h-0 flex-1 flex-col transition-[margin] duration-300 ease-out",
           sidebarMainMarginClass(sidebarCollapsed),
           rightSidebarMainMarginClass(rightSidebarOpen)
         )}
       >
-        {!isFullBleedStudio && (
-          <AppChromeHeader
-            onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-            sidebarCollapsed={sidebarCollapsed}
-            onExpandSidebar={() => setSidebarCollapsed(false)}
-            workspaceMeta={workspaceMeta}
-            rightSidebarOpen={rightSidebarOpen}
-            onToggleRightSidebar={toggleRightSidebar}
-          />
-        )}
-
         {/* Mobile menu affordance when studio owns the chrome */}
         {isFullBleedStudio && (
           <div className="flex shrink-0 items-center gap-2 border-b border-border/50 px-2 py-1.5 md:hidden">
@@ -292,20 +285,37 @@ const AppLayout: React.FC = () => {
           </div>
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+          {!isFullBleedStudio && (
+            <AppChromeHeader
+              floating={hasComposerSurface}
+              onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+              sidebarCollapsed={sidebarCollapsed}
+              onExpandSidebar={() => setSidebarCollapsed(false)}
+              workspaceMeta={workspaceMeta}
+              rightSidebarOpen={rightSidebarOpen}
+              onToggleRightSidebar={toggleRightSidebar}
+            />
+          )}
+
           {isFullBleedStudio || isStandalonePage ? (
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <Outlet />
             </div>
           ) : workspaceMeta && isMobile ? (
             <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <TabsList className="mx-2 mt-2 grid h-9 w-auto shrink-0 grid-cols-2 rounded-lg bg-muted/80 p-1">
+              <TabsList className="mx-2 mt-10 grid h-9 w-auto shrink-0 grid-cols-2 rounded-lg bg-muted/80 p-1">
                 <TabsTrigger value="chat" className="text-xs sm:text-sm">Chat</TabsTrigger>
                 <TabsTrigger value="workspace" className="text-xs sm:text-sm">Workspace</TabsTrigger>
               </TabsList>
               <TabsContent value="chat" className="mt-0 min-h-0 flex-1 overflow-hidden focus-visible:outline-none">
-                <div className="flex h-full min-h-0 flex-col border-t border-border/60">
-                  <ChatMessages messages={messages} isLoading={isLoading} activeTaskId={activeTaskId} />
+                <div className="flex h-full min-h-0 flex-col">
+                  <ChatMessages
+                    messages={messages}
+                    isLoading={isLoading}
+                    activeTaskId={activeTaskId}
+                    overlayChrome
+                  />
                 </div>
               </TabsContent>
               <TabsContent value="workspace" className="mt-0 min-h-0 flex-1 overflow-hidden focus-visible:outline-none">
@@ -322,26 +332,36 @@ const AppLayout: React.FC = () => {
             >
               <ResizablePanel defaultSize={45} minSize={22} maxSize={72} className="min-h-0 min-w-0">
                 <div className="flex h-full min-h-0 flex-col border-r border-border/70">
-                  <ChatMessages messages={messages} isLoading={isLoading} activeTaskId={activeTaskId} />
+                  <ChatMessages
+                    messages={messages}
+                    isLoading={isLoading}
+                    activeTaskId={activeTaskId}
+                    overlayChrome
+                  />
                 </div>
               </ResizablePanel>
               <ResizableHandle withHandle className="w-px shrink-0 bg-muted/40" />
               <ResizablePanel defaultSize={55} minSize={28} className="min-h-0 min-w-0">
-                <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
+                <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden pt-10">
                   <Outlet />
                 </div>
               </ResizablePanel>
             </ResizablePanelGroup>
           ) : workspaceMeta && !workspacePanelOpen ? (
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <ChatMessages messages={messages} isLoading={isLoading} activeTaskId={activeTaskId} />
-              <div className="shrink-0 border-t border-border/50 px-3 py-1.5 text-center">
+              <ChatMessages
+                messages={messages}
+                isLoading={isLoading}
+                activeTaskId={activeTaskId}
+                overlayChrome
+              />
+              <div className="pointer-events-none absolute inset-x-0 bottom-[5.5rem] z-20 flex justify-center px-3">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      variant="ghost"
+                      variant="secondary"
                       size="sm"
-                      className="gap-2 text-xs text-muted-foreground hover:text-foreground"
+                      className="pointer-events-auto gap-2 rounded-full border border-border/60 bg-card/90 text-xs shadow-sm backdrop-blur-md hover:text-foreground"
                       onClick={() => setWorkspacePanelOpen(true)}
                     >
                       <PanelRightOpen size={14} />
@@ -357,24 +377,27 @@ const AppLayout: React.FC = () => {
               <Outlet />
             </ComposerSlotContext.Provider>
           )}
+
+          {/* Floating composer — transcript scrolls underneath. */}
+          {hasComposerSurface && !isEmptyChat && (
+            <div
+              ref={setDockedComposerSlot}
+              data-testid={DOCKED_COMPOSER_SLOT_TEST_ID}
+              className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-background via-background/85 to-transparent pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-8"
+            />
+          )}
         </div>
 
-        {/* Composer stays on chat. Settings and tools are full pages. */}
-        {hasComposerSurface && !isEmptyChat && (
-          <div
-            ref={setDockedComposerSlot}
-            data-testid={DOCKED_COMPOSER_SLOT_TEST_ID}
-            className="shrink-0 bg-gradient-to-t from-card/90 to-background/95 backdrop-blur-sm"
-          />
-        )}
         {hasComposerSurface &&
           composerHost &&
           createPortal(
-            <ChatInput
-              isLoading={isLoading}
-              workspaceMeta={workspaceMeta}
-              placeholderOverride={isEmptyChat ? "Ask anything..." : undefined}
-            />,
+            <div className={isEmptyChat ? undefined : "pointer-events-auto"}>
+              <ChatInput
+                isLoading={isLoading}
+                workspaceMeta={workspaceMeta}
+                placeholderOverride={isEmptyChat ? "Ask anything..." : undefined}
+              />
+            </div>,
             composerHost
           )}
       </main>

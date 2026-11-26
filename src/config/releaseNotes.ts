@@ -20,6 +20,35 @@ export type ReleaseNote = {
 
 export const releaseNotes: ReleaseNote[] = [
   {
+    version: "2.6.2",
+    date: "Nov 26, 2026",
+    title: "Thinking while you wait · Paper logs across Chat · job cues",
+    summary:
+      "OpenCode no longer leaves a blank reply pane — Thinking and agent activity show immediately. Paper live engine logs survive navigating to Chat and back. Job strip shows brief done chips; real OpenCode errors surface in the bubble.",
+    highlight:
+      "Empty streaming assistants stay visible with Thinking / agent logs; Paper run console rehydrates from the desktop process",
+    sections: [
+      {
+        heading: "Fixes",
+        bullets: [
+          "Chat wait pane shows Thinking / OpenCode activity instead of a blank bubble while Stop is active",
+          "OpenCode failures show the real error and force-expand agent logs",
+          "PaperOrchestra live logs + stage persist across /notebook → /chat → Paper",
+          "TaskCenter paper chip keeps updating while Notebook is unmounted",
+        ],
+      },
+      {
+        heading: "Polish",
+        bullets: [
+          "Global job strip briefly shows completed jobs; TaskCenter toasts auto-dismiss",
+          "Answer ready toast when a reply finishes while the window is in the background",
+          "Packaged sql.js trimmed to the WASM runtime only",
+        ],
+      },
+    ],
+    cta: { label: "Download 2.6.2", to: "/download" },
+  },
+  {
     version: "2.6.1",
     date: "Nov 26, 2026",
     title: "OpenCode connection fix · model list · title bar chrome",

@@ -36,7 +36,7 @@ export function openAiCompatibleBaseUrlToOllamaOrigin(baseUrl?: string | null): 
 
 /** True when chat should use the user's local Ollama/compatible loopback stack (not OpenCode ask-layer). */
 export function prefersLocalOllamaInference(cfg: Pick<ApiKeyConfig, "aiProvider" | "openAiCompatibleBaseUrl">): boolean {
-  if (cfg.aiProvider === "local_gguf" || cfg.aiProvider === "webgpu_gemma") return true;
+  if (cfg.aiProvider === "local_gguf") return true;
   if (cfg.aiProvider !== "openai_compatible") return false;
   const base = (cfg.openAiCompatibleBaseUrl ?? "").trim() || DEFAULT_OLLAMA_CHAT_BASE;
   return isLoopbackCompatibleBase(base);

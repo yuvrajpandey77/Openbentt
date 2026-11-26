@@ -1,13 +1,7 @@
-import {
-  isLegacyLocalGemmaModelId,
-  isLocalGemmaModelId,
-  LOCAL_TINY_MODEL_ID,
-} from "@/lib/gemmaWebGpu/models";
 import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
 import { isCloudInferenceAllowed } from "@/lib/privacy/privacyPreferences";
 import { GGUF_MODEL_NONE, parseGgufRegistryId } from "@/lib/localGguf/ids";
 import { normalizeGgufMaxParamB } from "@/lib/localGguf/guardrails";
-import { isDesktopApp } from "@/lib/isDesktopApp";
 
 export type Role = "assistant" | "user" | "system";
 
@@ -128,6 +122,12 @@ export interface Chat {
   taskIds?: string[];
   /** When set, automatic titles from the latest message leave this name alone. */
   titleLocked?: boolean;
+  /**
+   * Per-chat agent CLI (opencode | claude | codex | …). New chats inherit the
+   * workspace default from Settings; switching chats keeps each agent isolated
+   * so simultaneous sessions can run different agents.
+   */
+  agentCli?: string;
 }
 
 /**
@@ -146,7 +146,6 @@ export const DEPRECATED_DEFAULT_MODEL_IDS: readonly string[] = [
 
 /** Where API calls are routed. OpenRouter aggregates many vendors with one key; others use vendor keys or compatible bases. */
 export type AiProvider =
-  | "webgpu_gemma"
   | "local_gguf"
   | "openrouter"
   | "openai_direct"
@@ -154,16 +153,16 @@ export type AiProvider =
   | "anthropic"
   | "google";
 
+/** Removed provider — migrated to OpenRouter by {@link normalizeApiConfig}. */
+export const REMOVED_WEBGPU_PROVIDER = "webgpu_gemma" as const;
+
 /** How aggressively the client gathers Wikipedia / papers / URLs / Brave before the model runs. Not multi-agent Deep Research. */
 export type ResearchDepth = "quick" | "standard" | "deep";
 
 /** Extra system emphasis on step-by-step reasoning (all providers). Vendor-native “thinking” APIs vary; this is the portable layer. */
 export type ReasoningPreference = "default" | "more";
 
-/**
- * On-device (WebGPU / WASM) resource profile. Eco limits tokens and context to reduce RAM/VRAM use;
- * performance matches model defaults and keeps more history in the prompt.
- */
+/** Legacy local-inference profile field (kept for persisted settings; unused after WebGPU removal). */
 export type LocalInferenceProfile = "eco" | "balanced" | "performance";
 
 export interface ApiKeyConfig {
@@ -205,9 +204,9 @@ export interface ApiKeyConfig {
   redTeamModeEnabled: boolean;
   /** Show collapsible research/tool trace on assistant messages */
   showAgentTraces: boolean;
-  /** WebGPU / WASM: lower = less RAM, smaller effective context and max output unless you choose Performance. */
+  /** Legacy field retained for settings migration. */
   localInferenceProfile: LocalInferenceProfile;
-  /** If true, research can run while using the on-device model (uses network; context is still built client-side). */
+  /** If true, research can run while using a local GGUF model (uses network for research fetch). */
   researchWithLocalModel: boolean;
   /**
    * Desktop GGUF: optional path to `llama-server` when not on PATH / bundled.
@@ -223,14 +222,13 @@ export interface ApiKeyConfig {
 }
 
 export function defaultApiConfig(): ApiKeyConfig {
-  const desktop = typeof window !== "undefined" && isDesktopApp();
   return {
-    aiProvider: desktop ? "openrouter" : "webgpu_gemma",
+    aiProvider: "openrouter",
     apiKey: "",
-    model: desktop ? DEFAULT_MODEL_ID : LOCAL_TINY_MODEL_ID,
+    model: DEFAULT_MODEL_ID,
     customModelIds: [],
     comparisonEnabled: false,
-    comparisonModelIds: desktop ? [DEFAULT_MODEL_ID] : [LOCAL_TINY_MODEL_ID],
+    comparisonModelIds: [DEFAULT_MODEL_ID],
     researchEnabled: false,
     researchDepth: "standard",
     reasoningPreference: "default",
@@ -254,7 +252,6 @@ export function defaultApiConfig(): ApiKeyConfig {
 export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
   const base = defaultApiConfig();
   const allowed: AiProvider[] = [
-    "webgpu_gemma",
     "local_gguf",
     "openrouter",
     "openai_direct",
@@ -263,37 +260,38 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
     "google",
   ];
   const rawProvider = typeof raw.aiProvider === "string" ? raw.aiProvider.trim() : "";
-  const aiProvider: AiProvider =
-    rawProvider && allowed.includes(rawProvider as AiProvider)
+  // WebGPU / on-device Gemma removed — migrate saved configs to OpenRouter.
+  const migratedFromWebGpu =
+    rawProvider === REMOVED_WEBGPU_PROVIDER ||
+    (typeof raw.model === "string" &&
+      /^openbentt\/(local-gemma|qwen)/i.test(raw.model.trim()));
+  const aiProvider: AiProvider = migratedFromWebGpu
+    ? "openrouter"
+    : rawProvider && allowed.includes(rawProvider as AiProvider)
       ? (rawProvider as AiProvider)
-      : typeof raw.model === "string" && raw.model.trim() && isLocalGemmaModelId(raw.model.trim())
-        ? "webgpu_gemma"
-        : typeof raw.openAiCompatibleBaseUrl === "string" && raw.openAiCompatibleBaseUrl.trim()
-          ? "openai_compatible"
-          : typeof raw.model === "string" &&
-              raw.model.trim() &&
-              raw.model.includes("/") &&
-              !raw.model.trim().startsWith("openbentt/")
-            ? "openrouter"
-            : base.aiProvider;
+      : typeof raw.openAiCompatibleBaseUrl === "string" && raw.openAiCompatibleBaseUrl.trim()
+        ? "openai_compatible"
+        : typeof raw.model === "string" &&
+            raw.model.trim() &&
+            raw.model.includes("/") &&
+            !raw.model.trim().startsWith("openbentt/")
+          ? "openrouter"
+          : base.aiProvider;
 
   const defaultModelForProvider = (p: AiProvider): string =>
-    p === "webgpu_gemma" ? LOCAL_TINY_MODEL_ID : p === "local_gguf" ? GGUF_MODEL_NONE : DEFAULT_MODEL_ID;
+    p === "local_gguf" ? GGUF_MODEL_NONE : DEFAULT_MODEL_ID;
 
   const rawModel =
-    typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : defaultModelForProvider(aiProvider);
+    typeof raw.model === "string" && raw.model.trim() && !migratedFromWebGpu
+      ? raw.model.trim()
+      : defaultModelForProvider(aiProvider);
 
   let model = rawModel;
-  if (aiProvider === "webgpu_gemma") {
-    // Tiny-only MVP: force any unknown or legacy larger on-device id to Qwen 0.5B.
-    if (!isLocalGemmaModelId(model) || isLegacyLocalGemmaModelId(model)) {
-      model = LOCAL_TINY_MODEL_ID;
-    }
-  } else if (aiProvider === "local_gguf") {
+  if (aiProvider === "local_gguf") {
     if (!parseGgufRegistryId(model)) {
       model = GGUF_MODEL_NONE;
     }
-  } else if (DEPRECATED_DEFAULT_MODEL_IDS.includes(rawModel)) {
+  } else if (DEPRECATED_DEFAULT_MODEL_IDS.includes(rawModel) || migratedFromWebGpu) {
     model = DEFAULT_MODEL_ID;
   }
   const customModelIds = Array.isArray(raw.customModelIds)
@@ -307,10 +305,10 @@ export function normalizeApiConfig(raw: Partial<ApiKeyConfig>): ApiKeyConfig {
         .filter((s) => typeof s === "string" && s.trim())
         .map((s) => (s as string).trim())
     : base.comparisonModelIds;
-  if (comparisonModelIds.length === 0) {
+  if (comparisonModelIds.length === 0 || migratedFromWebGpu) {
     comparisonModelIds = [model];
   }
-  if (aiProvider === "webgpu_gemma" || aiProvider === "local_gguf") {
+  if (aiProvider === "local_gguf") {
     comparisonEnabled = false;
     comparisonModelIds = [model];
   }
@@ -393,9 +391,6 @@ export function dedupeModels(ids: string[]): string[] {
 /** User can run chat for the selected provider (key and/or compatible base URL). */
 export function canSendChat(cfg: ApiKeyConfig): boolean {
   switch (cfg.aiProvider) {
-    case "webgpu_gemma":
-      /** WASM (CPU) fallback keeps on-device Gemma usable even when WebGPU is missing. */
-      return typeof navigator !== "undefined";
     case "local_gguf":
       /** Desktop shell only; model can be picked after entering the app (Labs → hub). */
       return typeof navigator !== "undefined" && Boolean(getLocalGgufApi());

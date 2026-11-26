@@ -50,12 +50,6 @@ export async function streamRoutedTask(
     return { ...result, route, rateLimitHeaders: result.rateLimitHeaders ?? {} };
   }
 
-  if (routedCfg.aiProvider === "webgpu_gemma") {
-    const { streamLocalGemmaChat } = await import("@/lib/gemmaWebGpu/streamLocalGemma");
-    const result = await streamLocalGemmaChat(routedCfg, messages, signal, callbacks);
-    return { ...result, route, rateLimitHeaders: {} };
-  }
-
   const result = await streamChatForConfig(routedCfg, routedCfg.model, messages, signal, callbacks);
   return { ...result, route };
 }

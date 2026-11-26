@@ -279,10 +279,6 @@ export function normalizeProviderError(
     return normalizeOpenRouterError(error, provider, model);
   }
 
-  if (lowerProvider === "webgpu_gemma") {
-    return normalizeWebGpuError(error, model);
-  }
-
   if (lowerProvider === "local_gguf") {
     return normalizeGgufError(error, model);
   }

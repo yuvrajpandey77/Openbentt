@@ -33,6 +33,78 @@ _genai_client = None
 _genai_client_lock = threading.Lock()
 
 
+def use_openai_compat_bridge() -> bool:
+    """When Gemini creds are missing, route Gemini-named calls through OpenAI-compat."""
+    flag = (os.environ.get("OPENBENTT_PAPER_LLM_BRIDGE") or "").strip().lower()
+    if flag in ("openai", "1", "true", "yes", "omniroute"):
+        return True
+    has_gemini = bool(
+        (os.environ.get("GEMINI_API_KEY") or "").strip()
+        or (
+            (os.environ.get("VERTEX_AI_PROJECT") or "").strip()
+            and (os.environ.get("VERTEX_AI_LOCATION") or "").strip()
+        )
+    )
+    has_openai = bool((os.environ.get("OPENAI_API_KEY") or "").strip())
+    return (not has_gemini) and has_openai
+
+
+# Prefer OpenCode free models (same catalog as chat). Env can override.
+_DEFAULT_BRIDGE_MODEL = "opencode/big-pickle"
+
+
+def resolve_bridge_model_name(model_name: str) -> str:
+    if not use_openai_compat_bridge():
+        return model_name
+    override = (os.environ.get("OPENBENTT_PAPER_BRIDGE_MODEL") or "").strip()
+    if override:
+        return override
+    lower = (model_name or "").lower()
+    if "gemini" in lower or "imagen" in lower or not model_name:
+        return _DEFAULT_BRIDGE_MODEL
+    # Remap cloud / OpenRouter ids — Paper should stay on the OpenCode bridge.
+    if (
+        lower.startswith("openai/")
+        or lower.startswith("openrouter/")
+        or lower.startswith("meta-llama/")
+        or lower in ("gpt-4o-mini", "gpt-4o")
+        or ":free" in lower
+    ):
+        return _DEFAULT_BRIDGE_MODEL
+    return model_name
+
+
+def _extract_text_from_gemini_contents(contents) -> str:
+    """Flatten Gemini Part/Content payloads into a single text prompt for OpenAI-compat."""
+    chunks = []
+
+    def walk(node):
+        if node is None:
+            return
+        if isinstance(node, str):
+            chunks.append(node)
+            return
+        if isinstance(node, (list, tuple)):
+            for item in node:
+                walk(item)
+            return
+        text = getattr(node, "text", None)
+        if isinstance(text, str) and text.strip():
+            chunks.append(text)
+            return
+        # google.genai Part may expose inline data — skip binary; note presence.
+        inline = getattr(node, "inline_data", None)
+        if inline is not None:
+            chunks.append("[binary attachment omitted in OpenAI bridge]")
+            return
+        parts = getattr(node, "parts", None)
+        if parts is not None:
+            walk(parts)
+
+    walk(contents)
+    return "\n\n".join(chunks).strip()
+
+
 def get_genai_client() -> genai.Client:
     """Returns a shared Gemini client, creating it on first use.
 
@@ -166,7 +238,35 @@ def call_gemini_with_contents(
 ):
     """
     Calls the Gemini API (text-only) with retry logic and exponential backoff.
+    When OPENBENTT_PAPER_LLM_BRIDGE is set (or Gemini is absent and OPENAI_API_KEY
+    is present), routes through the OpenAI-compatible client instead.
     """
+
+    if use_openai_compat_bridge():
+        from utils.openai_utils import call_openai_models_with_text_prompt
+
+        prompt = _extract_text_from_gemini_contents(contents)
+        if not prompt:
+            raise ValueError("OpenAI bridge: empty prompt extracted from Gemini contents.")
+        effective = resolve_bridge_model_name(model_name)
+        print(f"OpenAI-compat bridge: model={effective} (from {model_name})")
+        system_prompt = None
+        configs = dict(generation_configs) if generation_configs else {}
+        if "system_instruction" in configs:
+            system_prompt = configs.pop("system_instruction")
+        # OpenAI chat.completions does not accept Gemini GenerateContentConfig keys.
+        configs.pop("temperature", None)
+        configs.pop("response_mime_type", None)
+        return call_openai_models_with_text_prompt(
+            prompt=prompt,
+            model_name=effective,
+            max_retries=max_retries,
+            base_interval_sec=base_interval_sec,
+            result_parsing_func=result_parsing_func,
+            generation_configs={},
+            check_parsed_response_not_none=check_parsed_response_not_none,
+            system_prompt=system_prompt,
+        )
 
     raw_response = None
     parsed_response = None
@@ -200,6 +300,7 @@ def call_gemini_with_contents(
             error_msg = str(e)
             print(
                 f"Warning: Gemini API call failed on attempt {attempt + 1} of {max_retries}. Error: {error_msg}",
+                flush=True,
             )
 
             if (
@@ -208,15 +309,24 @@ def call_gemini_with_contents(
                 or "code: 400" in error_msg.lower()
                 or "400 invalid_argument" in error_msg.lower()
             ):
-                print("Detected input token count exceed. Not retrying.")
+                print("Detected input token count exceed. Not retrying.", flush=True)
                 raise e
 
+            try:
+                from utils.openai_utils import FatalLLMError, is_non_retryable_llm_error
+
+                if is_non_retryable_llm_error(e):
+                    print("Error: Non-retryable LLM failure — not retrying.", flush=True)
+                    raise FatalLLMError(error_msg) from e
+            except ImportError:
+                pass
+
             if attempt + 1 == max_retries:
-                print(f"Error: All {max_retries} retry attempts failed.")
+                print(f"Error: All {max_retries} retry attempts failed.", flush=True)
                 raise e
 
             delay = base_interval_sec * (2 ** (attempt - 1)) if attempt > 0 else 0
-            print(f"Retrying in {delay} seconds...")
+            print(f"Retrying in {delay} seconds...", flush=True)
             if delay > 0:
                 time.sleep(delay)
 

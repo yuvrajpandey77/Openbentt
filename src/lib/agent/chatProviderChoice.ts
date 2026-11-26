@@ -36,16 +36,53 @@ export function loadChatProviderChoice(): ChatProviderChoice | null {
   }
 }
 
-export function storeChatProviderChoice(id: ChatProviderChoiceId): ChatProviderChoice {
+export function storeChatProviderChoice(
+  id: ChatProviderChoiceId,
+  opts?: { asWorkspaceDefault?: boolean }
+): ChatProviderChoice {
   const choice: ChatProviderChoice = { id, chosenAt: new Date().toISOString() };
   try {
     localStorage.setItem(CHAT_PROVIDER_CHOICE_KEY, JSON.stringify(choice));
-    const chatOnly = id === "ollama" || id === "openrouter" || id === "local_gguf";
-    localStorage.setItem(PREFERRED_AGENT_KEY, chatOnly ? "opencode" : id);
+    // Workspace default agent is Settings-owned; composer picks are per-chat only
+    // unless explicitly opted in (keeps simultaneous chats from clobbering default).
+    if (opts?.asWorkspaceDefault) {
+      const chatOnly = id === "ollama" || id === "openrouter" || id === "local_gguf";
+      localStorage.setItem(PREFERRED_AGENT_KEY, chatOnly ? "opencode" : id);
+    }
   } catch {
     /* ignore */
   }
   return choice;
+}
+
+/** Workspace default agent for new chats (Settings → Agents). */
+export function loadPreferredAgent(): string {
+  try {
+    return localStorage.getItem(PREFERRED_AGENT_KEY) || "opencode";
+  } catch {
+    return "opencode";
+  }
+}
+
+export function storePreferredAgent(id: string): void {
+  try {
+    localStorage.setItem(PREFERRED_AGENT_KEY, id || "opencode");
+  } catch {
+    /* ignore */
+  }
+}
+
+const AGENT_CLI_IDS = new Set([
+  "opencode",
+  "claude",
+  "codex",
+  "cursor-agent",
+  "aider",
+  "gemini",
+]);
+
+export function isAgentCliId(id: string | null | undefined): boolean {
+  return Boolean(id && AGENT_CLI_IDS.has(id));
 }
 
 export function clearChatProviderChoice(): void {

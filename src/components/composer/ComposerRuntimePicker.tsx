@@ -1,5 +1,6 @@
 /**
  * Compact composer control: pick chat backend or a detected system agent CLI.
+ * Agent CLI choice is bound to the active chat so simultaneous chats stay isolated.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bot, ChevronDown, RefreshCw } from "lucide-react";
@@ -18,8 +19,9 @@ import { isDesktopApp } from "@/lib/isDesktopApp";
 import { detectExternalAgents, type DetectedExternalAgent } from "@/lib/agent/externalAgentsApi";
 import {
   applyChatProviderChoice,
+  isAgentCliId,
   loadChatProviderChoice,
-  PREFERRED_AGENT_KEY,
+  loadPreferredAgent,
   storeChatProviderChoice,
   type ChatProviderChoiceId,
 } from "@/lib/agent/chatProviderChoice";
@@ -54,20 +56,31 @@ function choiceLabel(id: string | null | undefined): string {
 }
 
 export function ComposerRuntimePicker({ compact }: { compact?: boolean }) {
-  const { apiConfig, setApiConfig, openCodeLayer, refreshOpenCodeLayer } = useChat();
+  const {
+    apiConfig,
+    setApiConfig,
+    openCodeLayer,
+    refreshOpenCodeLayer,
+    chats,
+    currentChatId,
+    setChatAgentCli,
+  } = useChat();
   const { health, defaultModel, refresh } = useLocalAI();
   const [agents, setAgents] = useState<DetectedExternalAgent[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [choiceId, setChoiceId] = useState<ChatProviderChoiceId | null>(
     () => loadChatProviderChoice()?.id ?? null
   );
-  const [preferred, setPreferred] = useState(() => {
-    try {
-      return localStorage.getItem(PREFERRED_AGENT_KEY) ?? "opencode";
-    } catch {
-      return "opencode";
-    }
-  });
+
+  const activeChat = useMemo(
+    () => (currentChatId ? chats.find((c) => c.id === currentChatId) : undefined),
+    [chats, currentChatId]
+  );
+
+  const chatAgentCli = useMemo(() => {
+    if (activeChat?.agentCli && isAgentCliId(activeChat.agentCli)) return activeChat.agentCli;
+    return loadPreferredAgent();
+  }, [activeChat?.agentCli]);
 
   const scan = useCallback(async () => {
     if (!isDesktopApp()) {
@@ -110,8 +123,8 @@ export function ComposerRuntimePicker({ compact }: { compact?: boolean }) {
       return choiceLabel(choiceId);
     }
     if (choiceId && AGENT_LABELS[choiceId]) return choiceLabel(choiceId);
-    return choiceLabel(preferred);
-  }, [choiceId, preferred]);
+    return choiceLabel(chatAgentCli);
+  }, [choiceId, chatAgentCli]);
 
   const pick = async (id: ChatProviderChoiceId) => {
     setBusy(true);
@@ -124,14 +137,11 @@ export function ComposerRuntimePicker({ compact }: { compact?: boolean }) {
           /* layer refresh still runs */
         }
         await refreshOpenCodeLayer();
+        if (currentChatId) setChatAgentCli(currentChatId, id);
       }
+      // Per-chat pick only — workspace default stays Settings → Agents.
       storeChatProviderChoice(id);
       setChoiceId(id);
-      try {
-        setPreferred(localStorage.getItem(PREFERRED_AGENT_KEY) ?? preferred);
-      } catch {
-        /* ignore */
-      }
       setApiConfig(applyChatProviderChoice(id, apiConfig, { ollamaModel: defaultModel }));
     } finally {
       setBusy(false);
@@ -156,7 +166,7 @@ export function ComposerRuntimePicker({ compact }: { compact?: boolean }) {
               ? "min-h-8 max-w-[7.5rem] gap-1 px-2 py-1 text-xs"
               : "h-8 max-w-[7rem] gap-1 px-1.5 py-0 text-xs md:min-h-9 md:max-w-[10rem] md:px-2 md:text-sm"
           )}
-          aria-label="Choose AI runtime"
+          aria-label="Choose AI runtime for this chat"
         >
           <Bot size={14} className="shrink-0 text-muted-foreground" />
           <span className="min-w-0 truncate font-medium">{activeLabel}</span>
@@ -165,7 +175,7 @@ export function ComposerRuntimePicker({ compact }: { compact?: boolean }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[min(100vw-2rem,18rem)]">
         <DropdownMenuLabel className="flex items-center justify-between gap-2 text-xs font-normal text-muted-foreground">
-          <span>On this machine</span>
+          <span>This chat</span>
           <button
             type="button"
             className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted"
@@ -179,7 +189,7 @@ export function ComposerRuntimePicker({ compact }: { compact?: boolean }) {
           </button>
         </DropdownMenuLabel>
         {agentRows.map((a) => {
-          const selected = preferred === a.id || choiceId === a.id;
+          const selected = chatAgentCli === a.id || choiceId === a.id;
           return (
             <DropdownMenuItem
               key={a.id}

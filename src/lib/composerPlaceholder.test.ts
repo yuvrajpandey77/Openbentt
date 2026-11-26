@@ -1,19 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { getComposerPlaceholder } from "./composerPlaceholder";
 import { defaultApiConfig, normalizeApiConfig } from "@/types/chat";
 import { GGUF_MODEL_NONE } from "@/lib/localGguf/ids";
 
-vi.mock("@/lib/gemmaWebGpu/localModelConsent", () => ({
-  getLocalWeightsConsent: vi.fn(() => false),
-}));
-
-import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
-
 describe("getComposerPlaceholder", () => {
-  beforeEach(() => {
-    vi.mocked(getLocalWeightsConsent).mockReturnValue(false);
-  });
-
   it("returns loading text when config is loading", () => {
     expect(getComposerPlaceholder(defaultApiConfig(), { isLoadingConfig: true })).toBe("Loading…");
   });
@@ -49,14 +39,13 @@ describe("getComposerPlaceholder", () => {
     expect(getComposerPlaceholder(cfg)).toBe("Message all selected models…");
   });
 
-  it("shows webgpu consent hint when provider is webgpu without consent", () => {
-    vi.mocked(getLocalWeightsConsent).mockReturnValue(false);
+  it("migrates legacy webgpu config to OpenRouter placeholder guidance", () => {
     const cfg = normalizeApiConfig({ aiProvider: "webgpu_gemma" });
-    expect(getComposerPlaceholder(cfg)).toContain("on-device");
+    expect(cfg.aiProvider).toBe("openrouter");
+    expect(getComposerPlaceholder(cfg)).toContain("API key");
   });
 
   it("shows default prompt when ready to chat", () => {
-    vi.mocked(getLocalWeightsConsent).mockReturnValue(true);
     const cfg = normalizeApiConfig({
       aiProvider: "openrouter",
       apiKey: "sk-test",
@@ -65,7 +54,6 @@ describe("getComposerPlaceholder", () => {
   });
 
   it("shows short web placeholder when ready to chat", () => {
-    vi.mocked(getLocalWeightsConsent).mockReturnValue(true);
     const cfg = normalizeApiConfig({
       aiProvider: "openrouter",
       apiKey: "sk-test",

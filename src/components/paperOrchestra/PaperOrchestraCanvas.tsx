@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,9 @@ import {
 } from "@/lib/paperOrchestra/desktopApi";
 import { getSecretsApi } from "@/lib/privacy/desktopSecrets";
 import { cn } from "@/lib/utils";
-import { Loader2, Sparkles, Square, FileText, BookOpen } from "lucide-react";
+import { beginBackgroundWork } from "@/lib/backgroundWork";
+import { useTaskCenter } from "@/context/TaskCenterContext";
+import { Loader2, Sparkles, Square, FileText, BookOpen, Wand2 } from "lucide-react";
 
 const IDEA_KEY = "openbentt-orchestra-idea";
 const LOG_KEY = "openbentt-orchestra-log";
@@ -71,6 +73,8 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
   const { project, setDraftTex, setBibliography } = useResearchProject();
   const { apiConfig } = useChat();
   const { toast } = useToast();
+  const { upsertTask } = useTaskCenter();
+  const paperReleaseRef = useRef<(() => void) | null>(null);
 
   const [idea, setIdea] = useState(() => {
     try {
@@ -96,31 +100,77 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
   const [usePlotting, setUsePlotting] = useState(false);
   const [writerModel, setWriterModel] = useState("");
   const [reflectionModel, setReflectionModel] = useState("");
+  const [geminiKey, setGeminiKey] = useState("");
+  const [geminiKeyStored, setGeminiKeyStored] = useState(false);
+  const [s2Key, setS2Key] = useState("");
+  const [s2KeyStored, setS2KeyStored] = useState(false);
   const [engineHint, setEngineHint] = useState("Checking PaperOrchestra…");
   const [engineReady, setEngineReady] = useState(false);
+  const [canInstallEngine, setCanInstallEngine] = useState(false);
+  const [installingEngine, setInstallingEngine] = useState(false);
   const [running, setRunning] = useState(false);
   const [currentStage, setCurrentStage] = useState<string>("idle");
   const [logLines, setLogLines] = useState<string[]>([]);
   const [lastArtifacts, setLastArtifacts] = useState<PaperOrchestraArtifacts | null>(null);
   const [busyApply, setBusyApply] = useState(false);
 
+  useEffect(() => {
+    void (async () => {
+      try {
+        const secrets = getSecretsApi();
+        if (!secrets?.status) return;
+        const st = await secrets.status();
+        setGeminiKeyStored(Boolean(st.stored?.gemini_api_key));
+        setS2KeyStored(Boolean(st.stored?.semantic_scholar_api_key));
+        const loaded = await secrets.load();
+        if (loaded.geminiApiKey?.trim()) setGeminiKey(loaded.geminiApiKey.trim());
+        if (loaded.semanticScholarApiKey?.trim()) setS2Key(loaded.semanticScholarApiKey.trim());
+      } catch { /* vault optional */ }
+    })();
+  }, []);
+
+  const saveOrchestraKeys = useCallback(async () => {
+    const secrets = getSecretsApi();
+    if (!secrets?.set) {
+      toast({
+        title: "Desktop vault unavailable",
+        description: "Open the Openbentt desktop app to store API keys securely.",
+        variant: "destructive",
+      });
+      return false;
+    }
+    const gemini = geminiKey.trim();
+    const s2 = s2Key.trim();
+    if (gemini) await secrets.set("gemini_api_key", gemini);
+    if (s2) await secrets.set("semantic_scholar_api_key", s2);
+    setGeminiKeyStored(Boolean(gemini) || geminiKeyStored);
+    setS2KeyStored(Boolean(s2) || s2KeyStored);
+    return true;
+  }, [geminiKey, s2Key, geminiKeyStored, s2KeyStored, toast]);
+
   const buildEnvInject = useCallback(async (): Promise<Record<string, string>> => {
     const inject: Record<string, string> = {};
-    let providerKey = apiConfig.apiKey?.trim() ?? "";
     try {
       const secrets = getSecretsApi();
       if (secrets?.load) {
         const loaded = await secrets.load();
-        if (loaded.providerApiKey?.trim()) providerKey = loaded.providerApiKey.trim();
+        const gemini = geminiKey.trim() || loaded.geminiApiKey?.trim() || "";
+        const openai = loaded.openaiApiKey?.trim() || "";
+        const s2 = s2Key.trim() || loaded.semanticScholarApiKey?.trim() || "";
+        if (gemini) inject.GEMINI_API_KEY = gemini;
+        if (openai) inject.OPENAI_API_KEY = openai;
+        if (s2) inject.SEMANTIC_SCHOLAR_API_KEY = s2;
       }
     } catch { /* vault optional */ }
-    if (providerKey) {
-      // Additive: Orchestra agents pick Gemini vs OpenAI; pass both so either backend works.
-      inject.OPENAI_API_KEY = providerKey;
-      inject.GEMINI_API_KEY = providerKey;
+    if (geminiKey.trim() && !inject.GEMINI_API_KEY) inject.GEMINI_API_KEY = geminiKey.trim();
+    if (s2Key.trim() && !inject.SEMANTIC_SCHOLAR_API_KEY) inject.SEMANTIC_SCHOLAR_API_KEY = s2Key.trim();
+    // Fallback: if Settings has a Google-looking provider key, allow it as Gemini.
+    const provider = apiConfig.apiKey?.trim() ?? "";
+    if (!inject.GEMINI_API_KEY && provider && /^AIza[0-9A-Za-z_-]{20,}$/.test(provider)) {
+      inject.GEMINI_API_KEY = provider;
     }
     return inject;
-  }, [apiConfig.apiKey]);
+  }, [apiConfig.apiKey, geminiKey, s2Key]);
 
   useEffect(() => {
     try {
@@ -175,27 +225,202 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
     });
   }, [project]);
 
-  useEffect(() => {
+  const refreshEngineStatus = useCallback(async () => {
     if (!api) {
       setEngineHint("PaperOrchestra runs in the Openbentt desktop app.");
+      setEngineReady(false);
+      setCanInstallEngine(false);
       return;
     }
-    void api.status().then((s) => {
-      setEngineReady(s.ready);
-      setEngineHint(s.hint);
-    });
+    const s = await api.status();
+    setEngineReady(s.ready);
+    setEngineHint(s.hint);
+    setCanInstallEngine(Boolean(s.canInstall) && !s.ready);
+    setInstallingEngine(Boolean(s.installing));
   }, [api]);
+
+  useEffect(() => {
+    void refreshEngineStatus();
+  }, [refreshEngineStatus]);
+
+  // Rehydrate logs/stage/artifacts if main still has (or just finished) a run after remount.
+  useEffect(() => {
+    if (!api) return;
+    let cancelled = false;
+    void api.status().then(async (s) => {
+      if (cancelled) return;
+      if (Array.isArray(s.logLines) && s.logLines.length) {
+        setLogLines(s.logLines.slice(-200));
+      }
+      if (s.stage && s.stage !== "idle") {
+        setCurrentStage(String(s.stage));
+      }
+      if (s.running) {
+        setRunning(true);
+        if (!paperReleaseRef.current) paperReleaseRef.current = beginBackgroundWork("paper");
+        upsertTask({
+          id: "paper-run",
+          kind: "paper-run",
+          title: "PaperOrchestra running",
+          detail: s.logLines?.length ? String(s.logLines[s.logLines.length - 1]).slice(0, 120) : "Continues in background",
+          percent: null,
+          state: "running",
+          error: null,
+          onCancel: () => void api.cancel(),
+        });
+      } else if (s.lastFinish?.done) {
+        setRunning(false);
+        upsertTask({
+          id: "paper-run",
+          kind: "paper-run",
+          title: s.lastFinish.ok ? "PaperOrchestra finished" : "PaperOrchestra failed",
+          detail: s.lastFinish.message?.slice(0, 160) ?? null,
+          percent: s.lastFinish.ok ? 100 : null,
+          state: s.lastFinish.ok ? "done" : "failed",
+          error: s.lastFinish.ok ? null : s.lastFinish.message,
+        });
+      }
+      if (s.outputDir) {
+        try {
+          const arts = await api.importArtifacts(s.outputDir);
+          if (!cancelled && (arts?.draftTex || arts?.pdfPath)) setLastArtifacts(arts);
+        } catch {
+          /* optional */
+        }
+      }
+      if (s.installing) setInstallingEngine(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [api, upsertTask]);
+
+  const logScrollRef = useRef<HTMLPreElement>(null);
+  const KNOWN_STAGES = useMemo(
+    () =>
+      new Set([
+        "starting",
+        "outline",
+        "literature",
+        "plotting",
+        "sections",
+        "refine",
+        "running",
+        "complete",
+        "error",
+        "cancelled",
+        "install",
+      ]),
+    []
+  );
 
   useEffect(() => {
     if (!api?.onProgress) return;
     return api.onProgress((p) => {
-      if (p.stage) setCurrentStage(String(p.stage));
-      if (p.message) {
-        setLogLines((prev) => [...prev.slice(-80), p.message!.slice(0, 240)]);
+      if (p.stage === "install" && p.message) {
+        setEngineHint(p.message.slice(0, 200));
+        setLogLines((prev) => [...prev.slice(-200), p.message!.slice(0, 500)]);
+        upsertTask({
+          id: "paper-install",
+          kind: "paper-install",
+          title: "Installing Paper engine",
+          detail: p.message.slice(0, 120),
+          percent: null,
+          state: p.done ? (p.ok === false ? "failed" : "done") : "running",
+          error: p.ok === false ? p.message : null,
+        });
       }
-      if (p.done) setRunning(false);
+      // Only advance the stage graph for known pipeline stages — raw log
+      // lines must not wipe the active node (was stuck on "log" before).
+      if (p.stage && p.stage !== "install" && KNOWN_STAGES.has(String(p.stage))) {
+        setCurrentStage(String(p.stage));
+      }
+      if (p.message && p.stage !== "install") {
+        setLogLines((prev) => [...prev.slice(-200), p.message!.slice(0, 500)]);
+        upsertTask({
+          id: "paper-run",
+          kind: "paper-run",
+          title: p.done ? (p.ok ? "PaperOrchestra finished" : "PaperOrchestra failed") : "PaperOrchestra running",
+          detail: p.message.slice(0, 160),
+          percent: null,
+          state: p.done ? (p.ok ? "done" : p.stage === "cancelled" ? "cancelled" : "failed") : "running",
+          error: p.done && !p.ok ? p.message : null,
+          onCancel: p.done ? undefined : () => void api.cancel(),
+          onOpen: () => {
+            /* strip chip navigates to orchestra */
+          },
+        });
+      }
+      if (p.done && p.stage === "install") {
+        setInstallingEngine(false);
+        void refreshEngineStatus();
+      }
+      if (p.done && p.stage !== "install") {
+        setRunning(false);
+        paperReleaseRef.current?.();
+        paperReleaseRef.current = null;
+      }
     });
-  }, [api]);
+  }, [api, refreshEngineStatus, upsertTask, paperReleaseRef, KNOWN_STAGES]);
+
+  useEffect(() => {
+    const el = logScrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [logLines]);
+
+  const installEngine = useCallback(async () => {
+    if (!api?.installEngine) return;
+    setInstallingEngine(true);
+    setLogLines([]);
+    setEngineHint("Installing Paper engine…");
+    const release = beginBackgroundWork("install");
+    upsertTask({
+      id: "paper-install",
+      kind: "paper-install",
+      title: "Installing Paper engine",
+      detail: "One-time setup",
+      percent: null,
+      state: "running",
+      error: null,
+    });
+    try {
+      await api.installEngine();
+      await refreshEngineStatus();
+      upsertTask({
+        id: "paper-install",
+        kind: "paper-install",
+        title: "Paper engine ready",
+        detail: null,
+        percent: 100,
+        state: "done",
+        error: null,
+      });
+      toast({
+        title: "Paper engine ready",
+        description: "Run uses the same OpenCode agent as chat. Gemini is optional for higher quality.",
+      });
+    } catch (e) {
+      setInstallingEngine(false);
+      upsertTask({
+        id: "paper-install",
+        kind: "paper-install",
+        title: "Paper engine install failed",
+        detail: e instanceof Error ? e.message : "Install failed",
+        percent: null,
+        state: "failed",
+        error: e instanceof Error ? e.message : String(e),
+      });
+      toast({
+        title: "Install failed",
+        description: e instanceof Error ? e.message : "Could not install Paper engine",
+        variant: "destructive",
+      });
+      await refreshEngineStatus();
+    } finally {
+      release();
+    }
+  }, [api, refreshEngineStatus, toast, upsertTask]);
 
   const nodeStates = useMemo(() => {
     const rank = stageRank(currentStage);
@@ -234,12 +459,31 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
       toast({ title: "Desktop only", description: "PaperOrchestra needs the Openbentt desktop app.", variant: "destructive" });
       return;
     }
+    await saveOrchestraKeys();
+    const envInject = await buildEnvInject();
+    // Gemini is suggested, not required — main injects OpenCode/OmniRoute tokens when available.
+    if (!envInject.GEMINI_API_KEY && !geminiKeyStored) {
+      toast({
+        title: "Running via OpenCode",
+        description: "Same agent runtime as chat — no OpenRouter key required. Gemini is optional for quality.",
+      });
+    }
     setRunning(true);
     setCurrentStage("starting");
     setLogLines([]);
     setLastArtifacts(null);
+    if (!paperReleaseRef.current) paperReleaseRef.current = beginBackgroundWork("paper");
+    upsertTask({
+      id: "paper-run",
+      kind: "paper-run",
+      title: "PaperOrchestra running",
+      detail: "Continues if you leave Paper",
+      percent: null,
+      state: "running",
+      error: null,
+      onCancel: () => void api.cancel(),
+    });
     try {
-      const envInject = await buildEnvInject();
       const result = await api.start({
         idea,
         experimentalLog: log,
@@ -250,11 +494,54 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
         reflectionModelName: reflectionModel.trim() || undefined,
         envInject,
       });
+      const hasPdf = Boolean(result.artifacts?.pdfPath);
+      const hasDraft = Boolean(result.artifacts?.draftTex?.trim());
+      if (!hasPdf && !hasDraft) {
+        setCurrentStage("error");
+        upsertTask({
+          id: "paper-run",
+          kind: "paper-run",
+          title: "PaperOrchestra failed",
+          detail: "No manuscript produced",
+          percent: null,
+          state: "failed",
+          error: "No manuscript",
+        });
+        toast({
+          title: "PaperOrchestra failed",
+          description: "No manuscript was produced. Check the live log for model / token errors.",
+          variant: "destructive",
+        });
+        return;
+      }
       setLastArtifacts(result.artifacts);
       setCurrentStage("complete");
-      toast({ title: "PaperOrchestra finished", description: "Review artifacts, then Apply to Notebook." });
+      upsertTask({
+        id: "paper-run",
+        kind: "paper-run",
+        title: "PaperOrchestra finished",
+        detail: hasPdf ? "Manuscript + PDF ready" : "Draft ready",
+        percent: 100,
+        state: "done",
+        error: null,
+      });
+      toast({
+        title: "PaperOrchestra finished",
+        description: hasPdf
+          ? "Manuscript + PDF ready. Apply to Notebook when you want."
+          : "Draft ready (PDF missing). Apply to Notebook, then Compile in Editor if needed.",
+      });
     } catch (e) {
       setCurrentStage("error");
+      upsertTask({
+        id: "paper-run",
+        kind: "paper-run",
+        title: "PaperOrchestra failed",
+        detail: e instanceof Error ? e.message.slice(0, 160) : "Run failed",
+        percent: null,
+        state: "failed",
+        error: e instanceof Error ? e.message : String(e),
+      });
       toast({
         title: "PaperOrchestra failed",
         description: e instanceof Error ? e.message : "Run failed",
@@ -262,14 +549,83 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
       });
     } finally {
       setRunning(false);
+      paperReleaseRef.current?.();
+      paperReleaseRef.current = null;
     }
-  }, [api, idea, log, venue, usePlotting, paperExtras, writerModel, reflectionModel, buildEnvInject, toast]);
+  }, [
+    api,
+    idea,
+    log,
+    venue,
+    usePlotting,
+    paperExtras,
+    writerModel,
+    reflectionModel,
+    buildEnvInject,
+    saveOrchestraKeys,
+    toast,
+    geminiKeyStored,
+    upsertTask,
+    paperReleaseRef,
+  ]);
 
   const cancel = useCallback(async () => {
     await api?.cancel();
     setRunning(false);
     setCurrentStage("cancelled");
-  }, [api]);
+    paperReleaseRef.current?.();
+    paperReleaseRef.current = null;
+    upsertTask({
+      id: "paper-run",
+      kind: "paper-run",
+      title: "PaperOrchestra cancelled",
+      detail: null,
+      percent: null,
+      state: "cancelled",
+      error: null,
+    });
+  }, [api, paperReleaseRef, upsertTask]);
+
+  const autoFillFromProject = useCallback(() => {
+    if (!project) {
+      toast({
+        title: "No project",
+        description: "Open a Notebook project first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const fromTitle = project.title?.trim();
+    const fromKnowledge = project.knowledge?.trim()?.slice(0, 2000);
+    const fromDraft = (project.draftTex ?? "")
+      .replace(/\\[a-zA-Z]+\{?/g, " ")
+      .replace(/[{}%\\]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 1500);
+    const seed = [fromTitle && `Paper: ${fromTitle}`, fromKnowledge, fromDraft]
+      .filter(Boolean)
+      .join("\n\n")
+      .trim();
+    if (seed.length >= 20) setIdea(seed);
+    else if (fromTitle) setIdea(`Paper: ${fromTitle}\n\nDescribe contributions, method, and claims.`);
+    else setIdea("Describe the paper idea, contributions, method, and claims.");
+
+    const keys = (project.bibliography?.match(/^@\w+\{([^,]+)/gm) ?? [])
+      .slice(0, 24)
+      .map((l) => l.replace(/^@\w+\{/, "").trim());
+    const logParts = [
+      keys.length
+        ? ["Notes from Notebook library / bibliography:", ...keys.map((k) => `- cite:${k}`)].join("\n")
+        : "",
+      project.papers?.length
+        ? `${project.papers.length} PDF(s) attached as evidence materials.`
+        : "",
+      "Experimental notes:\n- ",
+    ].filter(Boolean);
+    setLog(logParts.join("\n\n"));
+    toast({ title: "Auto-filled", description: "Idea and log seeded from this project. Edit, then Run." });
+  }, [project, toast]);
 
   const applyToNotebook = useCallback(async () => {
     if (!lastArtifacts || !project) return;
@@ -309,27 +665,56 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <header className="relative z-10 flex shrink-0 items-end justify-between gap-4 border-b border-border px-5 pb-4 pt-5">
-        <div>
+      <header className="relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border px-5 pb-3 pt-4">
+        <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Paper Orchestra</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+          <h1 className="mt-0.5 truncate text-xl font-semibold tracking-tight text-foreground md:text-2xl">
             {project?.title?.trim() || "Write the paper"}
           </h1>
-          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Uses this project’s draft, bibliography, and library. Apply drops the manuscript into Editor.
-          </p>
         </div>
-        <div className="hidden rounded-xl border border-border bg-card px-3 py-2 text-right text-xs sm:block">
-          <p className={cn("font-medium", engineReady ? "text-foreground" : "text-amber-500")}>{engineHint}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {!engineReady && canInstallEngine ? (
+            <Button
+              type="button"
+              size="sm"
+              className="cursor-pointer gap-1.5"
+              disabled={installingEngine}
+              onClick={() => void installEngine()}
+            >
+              {installingEngine ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Installing…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-3.5 w-3.5" /> Install Paper engine
+                </>
+              )}
+            </Button>
+          ) : (
+            <span
+              className={cn(
+                "rounded-md border border-border px-2 py-1 text-xs",
+                engineReady ? "text-foreground" : "text-amber-600 dark:text-amber-400"
+              )}
+            >
+              {engineHint}
+            </span>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="cursor-pointer gap-1.5"
+            disabled={!project || running || installingEngine}
+            onClick={autoFillFromProject}
+          >
+            <Wand2 className="h-3.5 w-3.5" /> Auto-fill
+          </Button>
           {project?.papers?.length ? (
-            <p className="mt-1 flex items-center justify-end gap-1 text-muted-foreground">
-              <BookOpen className="h-3 w-3" /> {project.papers.length} library paper(s)
-            </p>
-          ) : null}
-          {(project?.draftTex?.trim().length ?? 0) > 40 ? (
-            <p className="mt-1 flex items-center justify-end gap-1 text-muted-foreground">
-              <FileText className="h-3 w-3" /> Editor draft linked
-            </p>
+            <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:inline-flex">
+              <BookOpen className="h-3 w-3" /> {project.papers.length}
+            </span>
           ) : null}
         </div>
       </header>
@@ -376,9 +761,56 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
               ))}
             </div>
           </div>
+          <div className="space-y-1.5 rounded-xl border border-border bg-card px-3 py-2 shadow-sm">
+            <Label htmlFor="orch-gemini" className="text-xs">
+              Gemini API key (optional, suggested){" "}
+              {geminiKeyStored ? <span className="text-muted-foreground">(stored)</span> : null}
+            </Label>
+            <input
+              id="orch-gemini"
+              type="password"
+              autoComplete="off"
+              value={geminiKey}
+              onChange={(e) => setGeminiKey(e.target.value)}
+              placeholder="AIza… — or rely on OpenCode / OmniRoute"
+              className="w-full rounded-lg border border-border bg-background px-2 py-1.5 font-mono text-[11px]"
+            />
+            <Label htmlFor="orch-s2" className="text-xs">
+              Semantic Scholar key (optional){" "}
+              {s2KeyStored ? <span className="text-muted-foreground">(stored)</span> : null}
+            </Label>
+            <input
+              id="orch-s2"
+              type="password"
+              autoComplete="off"
+              value={s2Key}
+              onChange={(e) => setS2Key(e.target.value)}
+              placeholder="Improves literature search rate limits"
+              className="w-full rounded-lg border border-border bg-background px-2 py-1.5 font-mono text-[11px]"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="cursor-pointer"
+              onClick={() => {
+                void saveOrchestraKeys().then((ok) => {
+                  toast({
+                    title: ok ? "Keys saved" : "Could not save",
+                    description: ok
+                      ? "Stored in the desktop vault. Gemini is optional — OpenCode/OmniRoute can power Run."
+                      : "Desktop vault unavailable.",
+                    variant: ok ? "default" : "destructive",
+                  });
+                });
+              }}
+            >
+              Save keys
+            </Button>
+          </div>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
             <Checkbox checked={usePlotting} onCheckedChange={(c) => setUsePlotting(c === true)} />
-            Enable plotting agent
+            Enable plotting agent (generates figures)
           </label>
           <details className="rounded-xl border border-border bg-card px-3 py-2 text-xs shadow-sm">
             <summary className="cursor-pointer font-medium text-foreground">Model overrides (optional)</summary>
@@ -414,10 +846,10 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
               <Button
                 type="button"
                 className="cursor-pointer gap-1.5"
-                disabled={!engineReady || idea.trim().length < 20 || log.trim().length < 10}
+                disabled={!engineReady || installingEngine || idea.trim().length < 20 || log.trim().length < 10}
                 onClick={() => void run()}
               >
-                <Sparkles className="h-3.5 w-3.5" /> Run PaperOrchestra
+                <Sparkles className="h-3.5 w-3.5" /> Run
               </Button>
             )}
             <Button
@@ -449,13 +881,32 @@ export function PaperOrchestraCanvas({ onApplied }: { onApplied?: () => void }) 
             ))}
           </div>
 
-          <div className="mt-4 min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-            <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              <FileText className="h-3.5 w-3.5" />
-              Live engine log · {currentStage}
+          <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-[#0d1117] shadow-sm">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-[#161b22] px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <span className="inline-flex items-center gap-2">
+                <FileText className="h-3.5 w-3.5" />
+                Live engine log
+                {running ? (
+                  <span className="inline-flex items-center gap-1 normal-case tracking-normal text-primary">
+                    <Loader2 className="h-3 w-3 animate-spin" /> {currentStage}
+                  </span>
+                ) : (
+                  <span className="normal-case tracking-normal opacity-70">· {currentStage}</span>
+                )}
+              </span>
+              <span className="normal-case tracking-normal text-[10px] opacity-50">
+                {logLines.length} lines
+              </span>
             </div>
-            <pre className="h-[min(40vh,22rem)] overflow-auto p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
-              {logLines.length ? logLines.join("\n") : "Stage output will stream here when you Run."}
+            <pre
+              ref={logScrollRef}
+              className="min-h-[12rem] flex-1 overflow-auto p-3 font-mono text-[11px] leading-relaxed text-muted-foreground"
+            >
+              {logLines.length
+                ? logLines.join("\n")
+                : running
+                  ? "Starting engine — output streams here as agents run…"
+                  : "Stage output will stream here when you Run."}
             </pre>
           </div>
 

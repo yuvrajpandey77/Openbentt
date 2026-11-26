@@ -425,16 +425,21 @@ async function launchSession(index, freshProfile = false) {
       }));
     } catch { /* file:// storage unavailable */ }
   });
-  let page = s.context.pages().find((p) => /^(file|app|http|https):/.test(p.url()));
+  const usable = (p) => /^(file|app|http|https):/.test(p.url());
+  let page = s.context.pages().find((p) => usable(p) && p.url().includes("/chat"))
+    ?? s.context.pages().find(usable);
   if (!page) {
     try { page = await s.context.waitForEvent("page", { timeout: 30000 }); }
     catch (e) {
-      page = s.context.pages().find((p) => /^(file|app|http|https):/.test(p.url())) ?? null;
+      page = s.context.pages().find(usable) ?? null;
       if (!page) throw e;
     }
   }
   s.page = page;
   await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+  // The current desktop chrome restores the last route on reload; force the
+  // chat route so the harness always starts from the same workload entry point.
+  await page.goto("app://openbentt/chat", { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
 
   page.on("crash", () => {
     s.broken = true;
@@ -447,13 +452,24 @@ async function launchSession(index, freshProfile = false) {
   });
 
   try {
-    await page.waitForSelector("button.sidebar-nav-item", { timeout: 45000 });
+    // New chrome can keep the sidebar collapsed to an icon rail; older builds
+    // used .sidebar-nav-item. Accept either, then expand for labelled nav.
+    await Promise.race([
+      page.waitForSelector('nav[aria-label="Primary navigation"] button', { timeout: 45000 }),
+      page.waitForSelector('aside[aria-label="Primary navigation"] button[aria-label="Expand sidebar"]',
+        { timeout: 45000, state: "attached" }),
+      page.waitForSelector("button.sidebar-nav-item", { timeout: 45000 }),
+    ]);
+    await ensureExpandedNav(s);
+    if (!(await s.page.locator('nav[aria-label="Primary navigation"] button').count().catch(() => 0))) {
+      await page.waitForSelector("button.sidebar-nav-item", { timeout: 10000 });
+    }
   } catch (e) {
     const diag = await page.evaluate(() => ({
       url: location.href,
       text: document.body?.innerText?.replace(/\s+/g, " ").slice(0, 240) ?? null,
     })).catch(() => null);
-    throw new Error(`sidebar not ready in session ${index}: ${String(e).slice(0, 160)}; page=${JSON.stringify(diag)}`);
+    throw new Error(`primary navigation not ready in session ${index}: ${String(e).slice(0, 160)}; page=${JSON.stringify(diag)}`);
   }
   s.cdp = await s.context.newCDPSession(page);
   await cdpSend(s, "Performance.enable").catch(() => {});
@@ -575,8 +591,53 @@ async function step(s, name, fn) {
 }
 
 const rail = (s, icon) => s.page.locator(`button.sidebar-nav-item:has(svg.lucide-${icon})`).first();
-// dispatchEvent avoids tooltip overlays intercepting real mouse clicks on the icon rail.
-const navClick = (s, icon) => rail(s, icon).dispatchEvent("click", { timeout: 10000 });
+const NAV_LABEL = {
+  "message-square": "Chat",
+  "notebook-pen": "Notebook",
+  settings: "Settings",
+};
+const NAV_PATH = {
+  "message-square": "/chat",
+  "notebook-pen": "/notebook",
+  settings: "/settings",
+};
+
+async function ensureExpandedNav(s) {
+  const expand = s.page.locator('button[aria-label="Expand sidebar"]').first();
+  if (await expand.count().catch(() => 0)) {
+    await expand.dispatchEvent("click", { timeout: 10000 }).catch(() => {});
+    await s.page.waitForSelector('nav[aria-label="Primary navigation"] button',
+      { timeout: 10000 }).catch(() => {});
+  }
+}
+
+/** Prefer real UI navigation; fall back to route navigation when chrome changes. */
+async function navClick(s, icon) {
+  await s.page.keyboard.press("Escape").catch(() => {});
+  await ensureExpandedNav(s);
+  const label = NAV_LABEL[icon] ?? icon;
+  const modern = s.page.locator(`nav[aria-label="Primary navigation"] button:has-text("${label}")`).first();
+  if (await modern.count().catch(() => 0)) {
+    await modern.dispatchEvent("click", { timeout: 10000 });
+    return;
+  }
+  const legacy = rail(s, icon);
+  if (await legacy.count().catch(() => 0)) {
+    await legacy.dispatchEvent("click", { timeout: 10000 });
+    return;
+  }
+  if (icon === "settings") {
+    const dock = s.page.locator('button[aria-label="Settings"]').first();
+    if (await dock.count().catch(() => 0)) {
+      await dock.dispatchEvent("click", { timeout: 10000 });
+      return;
+    }
+    await s.page.keyboard.press("Control+,");
+    return;
+  }
+  await s.page.goto(`app://openbentt${NAV_PATH[icon] ?? "/chat"}`,
+    { waitUntil: "domcontentloaded", timeout: 15000 });
+}
 
 async function gotoChat(s) {
   await navClick(s, "message-square");
@@ -593,8 +654,20 @@ async function gotoNotebook(s) {
 
 async function gotoSettings(s) {
   await navClick(s, "settings");
-  await s.page.waitForURL("**/settings", { timeout: 10000 });
-  await s.page.waitForSelector('[role="combobox"]', { timeout: 10000 });
+  // Current chrome opens Settings as a dialog; older builds used a route.
+  const dialog = s.page.locator('[role="dialog"]').filter({ hasText: "Settings" }).first();
+  if (await dialog.count().catch(() => 0)) {
+    await dialog.waitFor({ state: "visible", timeout: 10000 });
+    // Current Settings is a nested rail; provider controls live under Models.
+    const models = dialog.locator('nav[aria-label="Settings sections"] button:has-text("Models")').first();
+    if (await models.count().catch(() => 0)) {
+      await models.dispatchEvent("click", { timeout: 10000 });
+    }
+  } else {
+    await s.page.waitForURL("**/settings", { timeout: 10000 });
+  }
+  await s.page.locator('[role="combobox"]').first()
+    .waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
 }
 
 /** Synthetic long conversation: labelled, hidden DOM messages injected via CDP. */
@@ -720,8 +793,11 @@ async function switchProvider(s, provider, label) {
   // Radix SelectItem commits on click only when pointerType is not "mouse".
   await option.dispatchEvent("pointerdown", { pointerType: "keyboard", bubbles: true });
   await option.dispatchEvent("click", {}, { timeout: 5000 });
-  await s.page.locator('button:has-text("Save settings")').first()
-    .dispatchEvent("click", {}, { timeout: 5000 });
+  const save = s.page.locator('button:has-text("Save settings")').first();
+  if (await save.count().catch(() => 0)) {
+    await save.dispatchEvent("click", {}, { timeout: 5000 });
+  }
+  await s.page.keyboard.press("Escape").catch(() => {});
   await sleep(800);
   return provider;
 }

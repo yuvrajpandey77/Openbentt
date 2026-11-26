@@ -167,12 +167,14 @@ export async function askOpenCodeLayer(args: {
   workspaceRoot?: string;
   title?: string;
   sessionId?: string;
+  askRequestId?: string;
 }): Promise<{
   text: string;
   model: string;
   durationMs: number;
   sessionId?: string;
   permissionRequests: string[];
+  askRequestId?: string;
 }> {
   if (!hasOpenCodeDesktopApi()) throw new Error("OpenCode bridge unavailable (desktop only).");
   return openCodeAgentApi.askOpenCode({
@@ -181,6 +183,7 @@ export async function askOpenCodeLayer(args: {
     workspaceRoot: args.workspaceRoot?.trim() ? args.workspaceRoot.trim() : undefined,
     title: args.title,
     sessionId: args.sessionId,
+    askRequestId: args.askRequestId,
   });
 }
 

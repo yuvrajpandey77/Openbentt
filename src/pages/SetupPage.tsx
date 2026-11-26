@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/use-toast";
 import { useForm } from "react-hook-form";
-import { Cpu, Cloud, Server, ArrowRight, Check, HardDrive } from "lucide-react";
+import { Cloud, Server, ArrowRight, Check, HardDrive } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isWebClient } from "@/config/platformSurface";
 import { isDesktopApp } from "@/lib/isDesktopApp";
@@ -18,7 +18,7 @@ import { isLocalGgufDesktopAvailable } from "@/lib/localGguf/desktopApi";
 import { GGUF_MODEL_NONE } from "@/lib/localGguf/ids";
 import { ExecutionSetupSection } from "@/components/conversation/ExecutionSetupSection";
 
-type Provider = "ondevice" | "openrouter" | "local" | "local_gguf";
+type Provider = "openrouter" | "local" | "local_gguf";
 
 interface FormValues {
   apiKey: string;
@@ -26,12 +26,6 @@ interface FormValues {
 }
 
 const BASE_PROVIDERS: { id: Provider; icon: React.ReactNode; title: string; subtitle: string }[] = [
-  {
-    id: "ondevice",
-    icon: <Cpu size={22} />,
-    title: "Run on this device (browser GPU)",
-    subtitle: "No API key. Downloads Qwen 2.5 0.5B (~400 MB) once via WebGPU/WASM in the browser.",
-  },
   {
     id: "openrouter",
     icon: <Cloud size={22} />,
@@ -87,9 +81,7 @@ const SetupPage: React.FC = () => {
       OPENROUTER_PROVIDER,
       ...BASE_PROVIDERS.filter((p) => p.id !== "openrouter"),
     ];
-    const base = isWebClient()
-      ? cloudFirst.filter((p) => p.id === "openrouter" || p.id === "ondevice")
-      : cloudFirst;
+    const base = isWebClient() ? cloudFirst.filter((p) => p.id === "openrouter") : cloudFirst;
     return showGguf ? [...base, DESKTOP_GGUF_PROVIDER] : base;
   }, [showGguf]);
   const [provider, setProvider] = useState<Provider>("openrouter");
@@ -118,20 +110,6 @@ const SetupPage: React.FC = () => {
         description: "Download a model in Labs, then pick it in Settings → AI provider.",
       });
       navigate("/labs", { replace: true });
-      return;
-    }
-    if (provider === "ondevice") {
-      setApiConfig(
-        normalizeApiConfig({
-          ...defaultApiConfig(),
-          aiProvider: "webgpu_gemma",
-        })
-      );
-      toast({
-        title: "On-device model selected",
-        description: "Confirm the ~400 MB Qwen 0.5B download in chat, then send a message.",
-      });
-      finishProviderSetup();
       return;
     }
     setStep(2);

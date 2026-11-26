@@ -26,10 +26,6 @@ import {
   type ReasoningPreference,
   type LocalInferenceProfile,
 } from "@/types/chat";
-import {
-  LOCAL_GEMMA_SELECTABLE_MODELS,
-  LOCAL_TINY_MODEL_ID,
-} from "@/lib/gemmaWebGpu/models";
 import { GGUF_MODEL_NONE } from "@/lib/localGguf/ids";
 import { ModelCapabilityBadges } from "@/components/ModelCapabilityBadges";
 import {
@@ -222,25 +218,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
   }, [apiConfig]);
 
-  useEffect(() => {
-    if (localAiProvider === "webgpu_gemma" && localModel !== LOCAL_TINY_MODEL_ID) {
-      setLocalModel(LOCAL_TINY_MODEL_ID);
-    }
-  }, [localAiProvider, localModel]);
-
   const selectable = useMemo(
     () =>
-      localAiProvider === "webgpu_gemma"
-        ? buildSelectableModels(LOCAL_GEMMA_SELECTABLE_MODELS, localCustomIds, [localModel, ...localComparisonIds], {
+      localAiProvider === "local_gguf"
+        ? buildSelectableModels(ggufModels, localCustomIds, [localModel, ...localComparisonIds], {
             includeAllFromApi: true,
           })
-        : localAiProvider === "local_gguf"
-          ? buildSelectableModels(ggufModels, localCustomIds, [localModel, ...localComparisonIds], {
-              includeAllFromApi: true,
-            })
-          : buildSelectableModels(models, localCustomIds, [localModel, ...localComparisonIds], {
-              includeAllFromApi: localAiProvider !== "openrouter",
-            }),
+        : buildSelectableModels(models, localCustomIds, [localModel, ...localComparisonIds], {
+            includeAllFromApi: localAiProvider !== "openrouter",
+          }),
     [models, ggufModels, localCustomIds, localModel, localComparisonIds, localAiProvider]
   );
 
@@ -283,11 +269,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     savePrivacyPreferences(privacy);
     const primaryModel =
       localModel.trim() ||
-      (localAiProvider === "local_gguf"
-        ? GGUF_MODEL_NONE
-        : localAiProvider === "webgpu_gemma"
-          ? LOCAL_TINY_MODEL_ID
-          : DEFAULT_MODEL_ID);
+      (localAiProvider === "local_gguf" ? GGUF_MODEL_NONE : DEFAULT_MODEL_ID);
     try {
       await persistHfTokenToDesktopSecret();
     } catch (e) {
@@ -338,11 +320,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     const electron = typeof window.openbenttDesktop?.isElectron === "boolean" && window.openbenttDesktop.isElectron;
     const primaryModel =
       localModel.trim() ||
-      (localAiProvider === "local_gguf"
-        ? GGUF_MODEL_NONE
-        : localAiProvider === "webgpu_gemma"
-          ? LOCAL_TINY_MODEL_ID
-          : DEFAULT_MODEL_ID);
+      (localAiProvider === "local_gguf" ? GGUF_MODEL_NONE : DEFAULT_MODEL_ID);
     saveExperimentPreset(
       presetName,
       normalizeApiConfig({
@@ -684,7 +662,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 <SelectContent className="app-shell dark">
                   <SelectItem value="openrouter">OpenRouter (many models, one key)</SelectItem>
                   <SelectItem value="openai_compatible">OpenAI-compatible URL (Ollama, LM Studio, …)</SelectItem>
-                  <SelectItem value="webgpu_gemma">On-device model (WebGPU / WASM)</SelectItem>
                   {!webClient && (
                     <>
                       <SelectItem value="local_gguf">Local file model — desktop app (GGUF)</SelectItem>
@@ -705,9 +682,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               )}
             </div>
 
-            {localAiProvider !== "webgpu_gemma" && localAiProvider !== "local_gguf" && <Separator />}
+            {localAiProvider !== "local_gguf" && <Separator />}
 
-            {localAiProvider !== "webgpu_gemma" && localAiProvider !== "local_gguf" && (
+            {localAiProvider !== "local_gguf" && (
               <div className="space-y-2">
                 <Label htmlFor="api-key">
                   {localAiProvider === "google"
@@ -857,46 +834,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </>
             )}
 
-            {localAiProvider === "webgpu_gemma" && (
-              <>
-                <Alert className="border-primary/30 bg-primary/[0.06]">
-                  <AlertTitle className="text-sm">On-device model</AlertTitle>
-                  <AlertDescription className="text-[11px] leading-relaxed text-muted-foreground">
-                    Uses <strong>Qwen 2.5 0.5B</strong> only (~400 MB, one-time browser cache). Nothing downloads until
-                    you complete the setup banner in chat or hit Download. Runs on WebGPU when available, otherwise
-                    WASM/CPU. No API key required.
-                  </AlertDescription>
-                </Alert>
-                <div className="space-y-2 rounded-xl border border-border/60 bg-muted/15 p-4">
-                  <Label className="text-sm">On-device resource profile</Label>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Eco uses less RAM and smaller effective context. Performance requests WebGPU more aggressively
-                    (longer output, more GPU work when the device supports it).
-                  </p>
-                  <Select
-                    value={localInferenceProfile}
-                    onValueChange={(v) => setLocalInferenceProfile(v as LocalInferenceProfile)}
-                  >
-                    <SelectTrigger className="openbentt-input h-10">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="eco">Eco (lowest RAM, shorter context & replies)</SelectItem>
-                      <SelectItem value="balanced">Balanced (default for mixed use)</SelectItem>
-                      <SelectItem value="performance">Performance (heavier GPU, longer outputs)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
-                  <div>
-                    <Label className="text-sm">Research with on-device</Label>
-                    <p className="text-[11px] text-muted-foreground">Fetch Wikipedia/URLs/Brave and inject when Research is on.</p>
-                  </div>
-                  <Switch checked={localResearchWithLocal} onCheckedChange={setLocalResearchWithLocal} />
-                </div>
-              </>
-            )}
-
             {localAiProvider === "openai_compatible" && (
               <>
                 <Separator />
@@ -970,11 +907,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 <ModelCapabilityBadges modelId={localModel} meta={primaryModelMeta} />
               </div>
               <p className="text-xs text-muted-foreground">
-                {(modelsLoading || (localAiProvider === "local_gguf" && ggufModelsLoading)) &&
-                localAiProvider !== "webgpu_gemma"
+                {(modelsLoading || (localAiProvider === "local_gguf" && ggufModelsLoading))
                   ? "Loading models…"
-                  : localAiProvider === "webgpu_gemma"
-                    ? "Fixed to Qwen 2.5 0.5B for reliable browser testing. Switch provider above to use cloud models."
                   : localAiProvider === "local_gguf"
                     ? "Download GGUF weights in Labs, then choose the registry entry here. Pick “GGUF (pick a model)” until you add one."
                     : localAiProvider === "openrouter"
@@ -985,12 +919,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </p>
             </div>
 
-            {localAiProvider !== "webgpu_gemma" && (
-              <>
-                <Separator />
+            <>
+              <Separator />
 
-                <div className="space-y-2">
-                  <Label>Custom model IDs</Label>
+              <div className="space-y-2">
+                <Label>Custom model IDs</Label>
                   <p className="text-xs text-muted-foreground">
                     Paste any model id your provider accepts. Example:{" "}
                     <code className="rounded bg-muted px-1 font-mono text-[11px]">openai/gpt-4o</code>
@@ -1033,8 +966,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     </div>
                   )}
                 </div>
-              </>
-            )}
+            </>
           </CardContent>
         </Card>
 
@@ -1050,14 +982,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 <Switch
                   checked={localComparisonEnabled}
                   onCheckedChange={setLocalComparisonEnabled}
-                  disabled={localAiProvider === "webgpu_gemma"}
                 />
               </div>
-              {localAiProvider === "webgpu_gemma" && (
-                <p className="text-[11px] text-muted-foreground">
-                  Switch to OpenRouter or a local OpenAI-compatible server to compare multiple models.
-                </p>
-              )}
               <ScrollArea className="h-44 rounded-xl border border-border/60">
                 <div className="space-y-1 p-3">
                   {selectable.map((m) => {
@@ -1384,13 +1310,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <Switch
                 checked={localComparisonEnabled}
                 onCheckedChange={setLocalComparisonEnabled}
-                disabled={localAiProvider === "webgpu_gemma" || localAiProvider === "local_gguf"}
+                disabled={localAiProvider === "local_gguf"}
               />
             </div>
-            {(localAiProvider === "webgpu_gemma" || localAiProvider === "local_gguf") && (
+            {localAiProvider === "local_gguf" && (
               <p className="text-[11px] text-muted-foreground">
-                Tiled comparison is not available with{" "}
-                {localAiProvider === "local_gguf" ? "local GGUF inference." : "on-device Gemma."}
+                Tiled comparison is not available with local GGUF inference.
               </p>
             )}
             <ScrollArea className="h-44 rounded-xl border border-border/60">

@@ -58,25 +58,17 @@ export const AssistantMessageToolbar: React.FC<AssistantMessageToolbarProps> = (
   if (disabled) return null;
 
   const copy = async () => {
-    const api = getDesktopApi();
-    if (api?.copyText) {
-      const r = await api.copyText(plainText);
-      if (r.ok) {
-        toast({ title: "Copied", description: "Full reply copied to clipboard." });
-        return;
-      }
-    }
-    // Fallback to web clipboard API
-    try {
-      await navigator.clipboard.writeText(plainText);
+    const { writeClipboardText } = await import("@/lib/clipboardWrite");
+    const r = await writeClipboardText(plainText);
+    if (r.ok) {
       toast({ title: "Copied", description: "Full reply copied to clipboard." });
-    } catch (e) {
-      toast({
-        title: "Copy failed",
-        description: e instanceof Error ? e.message : "Clipboard unavailable",
-        variant: "destructive",
-      });
+      return;
     }
+    toast({
+      title: "Copy failed",
+      description: r.error ?? "Clipboard unavailable",
+      variant: "destructive",
+    });
   };
 
   const savePdf = async () => {

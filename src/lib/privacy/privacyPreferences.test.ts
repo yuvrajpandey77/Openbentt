@@ -11,7 +11,7 @@ describe("privacyPreferences", () => {
   it("blocks cloud providers in local-only mode", () => {
     const prefs = { ...defaultPrivacyPreferences(), localOnlyMode: true, cloudInferenceOptIn: true };
     expect(isCloudInferenceAllowed("openrouter", "", prefs)).toBe(false);
-    expect(isCloudInferenceAllowed("webgpu_gemma", "", prefs)).toBe(true);
+    expect(isCloudInferenceAllowed("local_gguf", "", prefs)).toBe(true);
   });
 
   it("allows loopback openai_compatible in local-only", () => {

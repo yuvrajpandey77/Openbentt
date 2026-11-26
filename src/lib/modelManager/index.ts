@@ -78,7 +78,7 @@ export async function buildModelManagerSnapshot(
     llamaBinaryReady: llamaReady,
   });
 
-  const webgpu = webgpuDescriptors();
+  const webgpu: ReturnType<typeof webgpuDescriptors> = [];
   const gguf = ggufDescriptors(ggufEntries);
   const ollama =
     ollamaResult.ok && ollamaResult.modelIds.length
@@ -111,13 +111,12 @@ export async function buildModelManagerSnapshot(
 }
 
 export function listChatCandidates(snapshot: ModelManagerSnapshot): LocalModelDescriptor[] {
-  return [...snapshot.registry.webgpu, ...snapshot.registry.gguf, ...snapshot.registry.ollama].filter(
+  return [...snapshot.registry.gguf, ...snapshot.registry.ollama].filter(
     (d) => d.capabilities.includes("chat") || d.capabilities.includes("code")
   );
 }
 
 export function formatModelRouteLabel(modelId: string, aiProvider: ApiKeyConfig["aiProvider"]): string {
-  if (aiProvider === "webgpu_gemma") return `On-device · ${modelId.replace("openbentt/", "")}`;
   if (aiProvider === "local_gguf") return `GGUF · ${modelId.replace("openbentt/gguf:", "").slice(0, 8)}…`;
   if (aiProvider === "openai_compatible") return `Ollama/compatible · ${modelId}`;
   return `Cloud · ${modelId}`;

@@ -2,12 +2,18 @@
  * PaperOrchestra sidecar — runs the intact Python CLI without gutting agents.
  * Spawns paper_writing_cli.py with the full flag surface; streams progress to the UI.
  */
-import { spawn, execFileSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
+import {
+  findSystemPython,
+  installPaperOrchestraEngine,
+  paperEngineVenvPython,
+} from "./paperOrchestraInstall.mjs";
+import { applyPaperOrchestraCredentials } from "./paperOrchestraCredentials.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VENUES = new Set(["cvpr2025", "iclr2025"]);
@@ -18,14 +24,54 @@ let progressWindow = null;
 let activeChild = null;
 /** @type {string | null} */
 let activeRunId = null;
+let installInFlight = false;
+
+const LOG_BUFFER_MAX = 300;
+/** @type {string[]} */
+let logBuffer = [];
+/** @type {string} */
+let currentStage = "idle";
+/** @type {string | null} */
+let lastOutputDir = null;
+/** @type {{ done: boolean, ok: boolean | null, message: string | null } | null} */
+let lastFinish = null;
 
 /** @param {import('electron').BrowserWindow | null} win */
 export function setPaperOrchestraProgressTarget(win) {
   progressWindow = win;
 }
 
+function pushLogLine(message) {
+  const line = String(message ?? "").slice(0, 800);
+  if (!line.trim()) return;
+  logBuffer.push(line);
+  if (logBuffer.length > LOG_BUFFER_MAX) {
+    logBuffer = logBuffer.slice(-LOG_BUFFER_MAX);
+  }
+}
+
+function resetRunBuffer() {
+  logBuffer = [];
+  currentStage = "starting";
+  lastOutputDir = null;
+  lastFinish = null;
+}
+
 function send(payload) {
   try {
+    if (payload?.message) pushLogLine(payload.message);
+    if (payload?.stage && payload.stage !== "log" && payload.stage !== "install") {
+      currentStage = String(payload.stage);
+    }
+    if (payload?.outputDir) lastOutputDir = String(payload.outputDir);
+    if (payload?.done) {
+      lastFinish = {
+        done: true,
+        ok: payload.ok !== false,
+        message: payload.message ? String(payload.message).slice(0, 500) : null,
+      };
+      if (payload.stage) currentStage = String(payload.stage);
+    }
     if (progressWindow && !progressWindow.isDestroyed()) {
       progressWindow.webContents.send("paperOrchestra:progress", payload);
     }
@@ -44,32 +90,67 @@ export function resolveOrchestraRoot(app) {
   return null;
 }
 
-function resolvePython(root) {
+/** Prefer env → userData engine venv → tree .venv → bare system python (not ideal for deps). */
+function resolvePython(root, app) {
   const envPy = process.env.OPENBENTT_PAPER_ORCHESTRA_PYTHON?.trim();
   if (envPy && fs.existsSync(envPy)) return envPy;
+  if (app) {
+    const enginePy = paperEngineVenvPython(app);
+    if (enginePy) return enginePy;
+  }
   const venvUnix = path.join(root, ".venv", "bin", "python");
   const venvWin = path.join(root, ".venv", "Scripts", "python.exe");
   if (process.platform === "win32" && fs.existsSync(venvWin)) return venvWin;
   if (fs.existsSync(venvUnix)) return venvUnix;
-  for (const name of ["python3", "python"]) {
-    try {
-      execFileSync(name, ["--version"], { stdio: "ignore", timeout: 4000, windowsHide: true });
-      return name;
-    } catch { /* next */ }
-  }
   return null;
+}
+
+function engineReadyPython(root, app) {
+  const py = resolvePython(root, app);
+  // Bare system python without a venv is not "ready" — deps won't be there.
+  if (!py) return null;
+  if (py === "python" || py === "python3") return null;
+  return py;
 }
 
 function parseStage(line) {
   const t = String(line ?? "");
-  if (/OutlineAgent|outline\.json|Starting Outline/i.test(t)) return "outline";
+  if (/OutlineAgent|outline\.json|Starting Outline|OpenAI-compat bridge/i.test(t)) return "outline";
   if (/HybridLiterature|literature_agent|Literature/i.test(t)) return "literature";
   if (/PlottingAgent|WITH PLOTTING|plotting_results/i.test(t)) return "plotting";
   if (/SectionWriting|raw_draft_paper|Section Writing/i.test(t)) return "sections";
   if (/ContentRefinement|refined_paper|peer.?review|final_refined/i.test(t)) return "refine";
   if (/final_paper\.pdf|Paper Generation|Starting Paper/i.test(t)) return "running";
+  if (/Fatal LLM|budget exceeded|Non-retryable|PermissionDenied|exited non-zero/i.test(t)) return "error";
   if (/Error:|Traceback|FAILED/i.test(t)) return "error";
   return null;
+}
+
+function humanizePaperFailure(stderrTail, exitCode) {
+  const t = String(stderrTail ?? "");
+  if (/workspace lifetime budget|budget exceeded|does not reset/i.test(t)) {
+    return (
+      "OpenRouter workspace budget is exhausted (paid model / credits). " +
+      "Add a Gemini API key in Paper, top up OpenRouter, or re-run — Paper now defaults to a free :free model."
+    );
+  }
+  if (/FatalLLMError|Non-retryable LLM/i.test(t)) {
+    return t.match(/FatalLLMError:([^\n]+)/)?.[1]?.trim()
+      || "Model provider rejected the request (auth/budget). Check Paper keys or OpenRouter.";
+  }
+  if (/GEMINI_API_KEY|No model credentials/i.test(t)) {
+    return "No usable model credentials. Add Gemini in Paper or sign in to OpenCode/OpenRouter.";
+  }
+  const lastUseful = t
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !/^Traceback/i.test(l) && !/^File "/.test(l) && !/^\^+$/.test(l))
+    .slice(-3)
+    .join(" · ")
+    .slice(0, 280);
+  return lastUseful
+    ? `PaperOrchestra exited ${exitCode}: ${lastUseful}`
+    : `PaperOrchestra exited ${exitCode}`;
 }
 
 async function readTextIfExists(filePath, max = 2_000_000) {
@@ -157,7 +238,7 @@ export async function importOrchestraArtifacts(outputDir) {
 export function registerPaperOrchestraIpc(ipcMain, app) {
   ipcMain.handle("paperOrchestra:status", async () => {
     const root = resolveOrchestraRoot(app);
-    const python = root ? resolvePython(root) : null;
+    const python = root ? engineReadyPython(root, app) : null;
     const venues = [];
     if (root) {
       for (const v of VENUES) {
@@ -165,19 +246,48 @@ export function registerPaperOrchestraIpc(ipcMain, app) {
         if (fs.existsSync(path.join(dir, "template.tex"))) venues.push(v);
       }
     }
+    const canInstall = Boolean(root && fs.existsSync(path.join(root, "requirements.txt")));
     return {
       root,
       python,
       ready: Boolean(root && python),
+      canInstall,
+      installing: installInFlight,
+      hasSystemPython: Boolean(findSystemPython()),
       venues,
       running: Boolean(activeChild),
       runId: activeRunId,
+      stage: currentStage,
+      logLines: logBuffer.slice(),
+      outputDir: lastOutputDir,
+      lastFinish,
       hint: !root
-        ? "PaperOrchestra tree missing (paper-orchestra-main)."
+        ? "PaperOrchestra files missing from this install."
         : !python
-          ? "Install a venv in paper-orchestra-main (.venv) or set OPENBENTT_PAPER_ORCHESTRA_PYTHON."
-          : "PaperOrchestra engine ready.",
+          ? "Paper engine not installed"
+          : "Paper engine ready",
     };
+  });
+
+  ipcMain.handle("paperOrchestra:installEngine", async () => {
+    if (installInFlight) throw new Error("Paper engine install is already running.");
+    const root = resolveOrchestraRoot(app);
+    if (!root) throw new Error("PaperOrchestra files are missing from this install.");
+    installInFlight = true;
+    try {
+      const result = await installPaperOrchestraEngine({
+        app,
+        orchestraRoot: root,
+        onProgress: (p) => send({ ...p, runId: null }),
+      });
+      return { ok: true, python: result.python };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      send({ stage: "error", message, done: true, ok: false });
+      throw err;
+    } finally {
+      installInFlight = false;
+    }
   });
 
   ipcMain.handle("paperOrchestra:listVenues", async () => {
@@ -202,6 +312,7 @@ export function registerPaperOrchestraIpc(ipcMain, app) {
     }
     activeChild = null;
     activeRunId = null;
+    currentStage = "cancelled";
     return { ok: true };
   });
 
@@ -215,8 +326,10 @@ export function registerPaperOrchestraIpc(ipcMain, app) {
     if (activeChild) throw new Error("A PaperOrchestra run is already in progress.");
     const root = resolveOrchestraRoot(app);
     if (!root) throw new Error("PaperOrchestra engine not found.");
-    const python = resolvePython(root);
-    if (!python) throw new Error("Python not found. Create paper-orchestra-main/.venv and pip install -r requirements.txt.");
+    const python = engineReadyPython(root, app);
+    if (!python) {
+      throw new Error("Paper engine not installed. Click Install Paper engine in Notebook → Paper (one-time setup).");
+    }
 
     const idea = String(payload?.idea ?? "").trim();
     const experimentalLog = String(payload?.experimentalLog ?? "").trim();
@@ -287,19 +400,35 @@ export function registerPaperOrchestraIpc(ipcMain, app) {
     }
 
     const env = { ...process.env };
-    // Additive: Openbentt may pass vault keys; Orchestra .env still loads via python-dotenv.
     const inject = payload?.envInject && typeof payload.envInject === "object" ? payload.envInject : {};
-    for (const [k, v] of Object.entries(inject)) {
-      if (/^(GEMINI_API_KEY|OPENAI_API_KEY|SEMANTIC_SCHOLAR_API_KEY|VERTEX_AI_PROJECT|VERTEX_AI_LOCATION|SMTP_EMAIL|SMTP_PASSWORD)$/.test(k) && typeof v === "string" && v.trim()) {
-        env[k] = v.trim();
-      }
+    const creds = await applyPaperOrchestraCredentials(app, env, inject);
+
+    if (!creds.hasGemini && !creds.hasOpenAiCompat) {
+      throw new Error(
+        "No model runtime for PaperOrchestra. Install OpenCode (same as chat), or add an optional Gemini key in Paper for higher quality."
+      );
     }
 
     activeRunId = runId;
-    send({ runId, stage: "starting", message: "Starting PaperOrchestra…", done: false });
+    resetRunBuffer();
+    lastOutputDir = outputDir;
+    const bridgeNote = creds.bridgeModel ? ` · ${creds.bridgeModel}` : "";
+    const startMsg =
+      creds.source === "opencode-bridge"
+        ? `Starting PaperOrchestra via OpenCode${bridgeNote}…`
+        : creds.hasGemini
+          ? "Starting PaperOrchestra (Gemini)…"
+          : creds.source === "omniroute"
+            ? `Starting PaperOrchestra via local OmniRoute${bridgeNote}…`
+            : `Starting PaperOrchestra via agent bridge${bridgeNote}…`;
+    send({ runId, stage: "starting", message: startMsg, done: false, outputDir });
+
+    // Unbuffered Python so live logs stream to the UI (TTY-less pipes buffer otherwise).
+    env.PYTHONUNBUFFERED = "1";
+    env.PYTHONIOENCODING = env.PYTHONIOENCODING || "utf-8";
 
     await new Promise((resolve, reject) => {
-      const child = spawn(python, args, {
+      const child = spawn(python, ["-u", ...args], {
         cwd: root,
         env,
         windowsHide: true,
@@ -307,24 +436,33 @@ export function registerPaperOrchestraIpc(ipcMain, app) {
       });
       activeChild = child;
       let stderrTail = "";
+      let stdoutCarry = "";
+      let stderrCarry = "";
 
-      const onChunk = (buf, stream) => {
-        const text = String(buf);
-        if (stream === "stderr") stderrTail = `${stderrTail}${text}`.slice(-4000);
-        for (const line of text.split(/\r?\n/)) {
+      const flushLines = (carry, chunk, stream) => {
+        const merged = `${carry}${String(chunk)}`;
+        const parts = merged.split(/\r?\n/);
+        const rest = parts.pop() ?? "";
+        if (stream === "stderr") stderrTail = `${stderrTail}${String(chunk)}`.slice(-8000);
+        for (const line of parts) {
           if (!line.trim()) continue;
           const stage = parseStage(line);
           send({
             runId,
-            stage: stage ?? "log",
-            message: line.slice(0, 500),
+            stage: stage || undefined,
+            message: line.slice(0, 800),
             done: false,
           });
         }
+        return rest;
       };
 
-      child.stdout?.on("data", (d) => onChunk(d, "stdout"));
-      child.stderr?.on("data", (d) => onChunk(d, "stderr"));
+      child.stdout?.on("data", (d) => {
+        stdoutCarry = flushLines(stdoutCarry, d, "stdout");
+      });
+      child.stderr?.on("data", (d) => {
+        stderrCarry = flushLines(stderrCarry, d, "stderr");
+      });
       child.on("error", (err) => {
         activeChild = null;
         activeRunId = null;
@@ -332,23 +470,38 @@ export function registerPaperOrchestraIpc(ipcMain, app) {
         reject(err);
       });
       child.on("exit", (code) => {
+        if (stdoutCarry.trim()) {
+          send({ runId, message: stdoutCarry.trim().slice(0, 800), done: false });
+        }
+        if (stderrCarry.trim()) {
+          send({ runId, stage: parseStage(stderrCarry) || undefined, message: stderrCarry.trim().slice(0, 800), done: false });
+          stderrTail = `${stderrTail}${stderrCarry}`.slice(-8000);
+        }
         activeChild = null;
         const ok = code === 0;
         activeRunId = null;
+        const failMsg = ok ? "PaperOrchestra finished." : humanizePaperFailure(stderrTail, code);
         send({
           runId,
           stage: ok ? "complete" : "error",
-          message: ok ? "PaperOrchestra finished." : `PaperOrchestra exited ${code}${stderrTail ? `: ${stderrTail.slice(-200)}` : ""}`,
+          message: failMsg,
           done: true,
           ok,
           outputDir,
         });
         if (ok) resolve();
-        else reject(new Error(`PaperOrchestra exited ${code}`));
+        else reject(new Error(failMsg));
       });
     });
 
     const artifacts = await importOrchestraArtifacts(outputDir);
+    const hasPdf = Boolean(artifacts?.pdfPath && fs.existsSync(artifacts.pdfPath));
+    const hasDraft = Boolean(artifacts?.draftTex?.trim());
+    if (!hasPdf && !hasDraft) {
+      throw new Error(
+        "PaperOrchestra exited without a manuscript. Check the live log — usually a missing GEMINI_API_KEY or model error."
+      );
+    }
     return { runId, outputDir, artifacts };
   });
 }
@@ -361,4 +514,7 @@ export function cleanupPaperOrchestra() {
   }
   activeChild = null;
   activeRunId = null;
+  import("./paperLlmBridge.mjs")
+    .then(({ stopPaperLlmBridge }) => stopPaperLlmBridge())
+    .catch(() => {});
 }

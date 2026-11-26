@@ -27,8 +27,6 @@ import { compactMessagesForContext, messageTokenBudget } from "@/lib/chatContext
 import { streamChatForConfig } from "@/lib/aiStream";
 import { streamRoutedTask } from "@/lib/modelRouting";
 import { detectNotebookRoutedTask } from "@/lib/modelRouting/detectNotebookRoutedTask";
-import { abortLocalGemmaGeneration } from "@/lib/gemmaWebGpu/streamLocalGemma";
-import { unloadLocalGemma } from "@/lib/gemmaWebGpu/localGemmaInference";
 import { createRafBatcher } from "@/lib/streamBatch";
 import { gatherResearchContext } from "@/lib/researchSources";
 import { buildSystemPrompts } from "@/lib/systemPrompts";
@@ -38,7 +36,6 @@ import { LOCAL_STORAGE_KEYS } from "@/lib/storageMigrate";
 import { formatUserFacingError } from "@/lib/userFacingError";
 import { prefersLocalOllamaInference } from "@/lib/ollama/origin";
 import { normalizeProviderError } from "@/lib/errors/normalizedErrors";
-import { getLocalWeightsConsent } from "@/lib/gemmaWebGpu/localModelConsent";
 import { getLocalGgufApi } from "@/lib/localGguf/desktopApi";
 import { coerceApiConfigForPlatform } from "@/config/platformSurface";
 import { isDesktopApp } from "@/lib/isDesktopApp";
@@ -83,9 +80,10 @@ import {
 import {
   choiceIsChatBackend,
   choiceUsesOpenCodeAsk,
+  isAgentCliId,
   loadChatProviderChoice,
+  loadPreferredAgent,
   storeChatProviderChoice,
-  PREFERRED_AGENT_KEY,
 } from "@/lib/agent/chatProviderChoice";
 import { getAgentRole } from "@/lib/agent/agentRoles";
 
@@ -223,6 +221,8 @@ interface ChatContextProps {
   selectChat: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
   renameChat: (chatId: string, title: string) => void;
+  /** Bind an agent CLI to one conversation (does not change workspace default). */
+  setChatAgentCli: (chatId: string, agentCli: string) => void;
   clearChats: () => void;
   chatsReady: boolean;
   sendMessage: (
@@ -276,11 +276,6 @@ interface ChatContextProps {
   notebookLatexInsertRequest: NotebookLatexInsertRequest | null;
   requestNotebookLatexInsert: (latex: string, options?: { autoCompile?: boolean }) => void;
   clearNotebookLatexInsertRequest: () => void;
-  /**
-   * While the WebGPU Gemma weights are downloading (0–100). `null` when idle or generating tokens only.
-   * ONNX Runtime assets load from the CDN version bundled with `@huggingface/transformers` (needs network once).
-   */
-  webgpuModelDownloadProgress: number | null;
 }
 
 export interface NotebookLatexInsertRequest {
@@ -312,7 +307,20 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [apiConfig, setApiConfigState] = useState<ApiKeyConfig>(defaultApiConfig);
-  const [isLoading, setIsLoading] = useState(false);
+  /** Per-chat in-flight work — simultaneous chats must not share one global spinner. */
+  const [loadingChatIds, setLoadingChatIds] = useState<ReadonlySet<string>>(() => new Set());
+  const loadingChatIdsRef = useRef<Set<string>>(new Set());
+  const setChatLoading = useCallback((chatId: string | null | undefined, loading: boolean) => {
+    if (!chatId) return;
+    setLoadingChatIds((prev) => {
+      const next = new Set(prev);
+      if (loading) next.add(chatId);
+      else next.delete(chatId);
+      loadingChatIdsRef.current = next;
+      return next;
+    });
+  }, []);
+  const isLoading = Boolean(currentChatId && loadingChatIds.has(currentChatId));
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [pendingComposer, setPendingComposer] = useState<{
     text: string;
@@ -321,7 +329,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [streamingPromptTokens, setStreamingPromptTokens] = useState<number | null>(null);
   const [providerQuotaSnapshot, setProviderQuotaSnapshot] = useState<ProviderQuotaSnapshot | null>(null);
   const [notebookLatexInsertRequest, setNotebookLatexInsertRequest] = useState<NotebookLatexInsertRequest | null>(null);
-  const [webgpuModelDownloadProgress, setWebgpuModelDownloadProgress] = useState<number | null>(null);
   const [workspaceAssistTokenEstimate, setWorkspaceAssistTokenEstimate] = useState(0);
   const { toast } = useToast();
   // "Cannot send yet" fires on EVERY send attempt without a key — throttle
@@ -337,7 +344,20 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [toast]
   );
 
-  const abortControllersRef = useRef<AbortController[]>([]);
+  /** Abort controllers keyed by chat — stop only affects the active conversation. */
+  const abortControllersByChatRef = useRef(new Map<string, AbortController[]>());
+  const registerAbortController = useCallback((chatId: string, controller: AbortController) => {
+    const map = abortControllersByChatRef.current;
+    const list = map.get(chatId) ?? [];
+    list.push(controller);
+    map.set(chatId, list);
+  }, []);
+  const clearAbortControllers = useCallback((chatId: string, abort = false) => {
+    const map = abortControllersByChatRef.current;
+    const list = map.get(chatId) ?? [];
+    if (abort) list.forEach((c) => c.abort());
+    map.delete(chatId);
+  }, []);
   /** Latest workspace assist from route (Notebook, Labs, …); merged into send + regenerate pipelines. */
   const workspaceRouteAssistRef = useRef<string | undefined>(undefined);
   /** Notebook registers a sync builder so sends use latest Source (debounced assist may lag typing). */
@@ -539,13 +559,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [apiConfig, isLoadingConfig]);
 
-  // Drop WebGPU/WASM weights when the user leaves on-device Gemma so RAM/VRAM free up.
-  useEffect(() => {
-    if (isLoadingConfig) return;
-    if (apiConfig.aiProvider === "webgpu_gemma") return;
-    void unloadLocalGemma().catch(() => {});
-  }, [apiConfig.aiProvider, isLoadingConfig]);
-
   const clearPendingComposer = useCallback(() => setPendingComposer(null), []);
 
   const queuePromptInComposer = useCallback(
@@ -591,6 +604,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (c) => c.messages.length === 0 && (c.projectId ?? null) === targetProject
     );
     if (existingEmpty) {
+      if (!existingEmpty.agentCli) {
+        const agentCli = loadPreferredAgent();
+        setChats((prev) =>
+          prev.map((c) => (c.id === existingEmpty.id ? { ...c, agentCli } : c))
+        );
+      }
       setCurrentChatId(existingEmpty.id);
       return existingEmpty.id;
     }
@@ -604,6 +623,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updatedAt: now,
       projectId: targetProject,
       taskIds: [],
+      agentCli: loadPreferredAgent(),
     };
 
     setChats((prevChats) => [...prevChats, newChat]);
@@ -611,6 +631,25 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return newChat.id;
   };
+
+  const setChatAgentCli = useCallback((chatId: string, agentCli: string) => {
+    const next = (agentCli || "opencode").trim() || "opencode";
+    setChats((prev) =>
+      prev.map((c) => (c.id === chatId ? { ...c, agentCli: next, updatedAt: new Date() } : c))
+    );
+  }, []);
+
+  const resolveChatAgentCli = useCallback((chatId: string | null | undefined): string => {
+    if (chatId) {
+      const chat = chatsRef.current.find((c) => c.id === chatId);
+      if (chat?.agentCli && isAgentCliId(chat.agentCli)) return chat.agentCli;
+    }
+    return loadPreferredAgent();
+  }, []);
+
+  const findChatIdForTask = useCallback((taskId: string): string | null => {
+    return chatsRef.current.find((c) => c.taskIds?.includes(taskId))?.id ?? null;
+  }, []);
 
   /* ---------- Unified conversation architecture (Final Architecture Pass) ---------- */
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
@@ -747,8 +786,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return "waiting_for_user";
       case "agent.completed":
       case "agent.session.idle":
+      case "agent.message.completed":
         return "completed";
       case "agent.failed":
+      case "agent.tool.failed":
         return "failed";
       case "agent.cancelled":
         return "cancelled";
@@ -817,17 +858,50 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let dispose = () => {};
     try {
       dispose = openCodeAgentApi.onEvent((evt) => {
+        const isAskSynthetic = typeof evt.taskId === "string" && evt.taskId.startsWith("ask_");
         const HIGH_FREQ = evt.type === "agent.message.delta"
           || evt.type === "agent.reasoning.delta"
           || evt.type === "agent.terminal.output"
           || evt.type === "agent.tool.progress";
-        if (!HIGH_FREQ) {
+        // Keep high-freq terminal/progress lines in the live log panel (bounded);
+        // still skip message/reasoning deltas here (those batch into the bubble).
+        const KEEP_IN_LIVE_LOG =
+          !HIGH_FREQ ||
+          evt.type === "agent.terminal.output" ||
+          evt.type === "agent.tool.progress" ||
+          evt.type === "agent.thinking" ||
+          evt.type === "agent.status";
+        if (KEEP_IN_LIVE_LOG && evt.type !== "agent.message.delta" && evt.type !== "agent.reasoning.delta") {
           setExecutionEvents((prev) => {
             const list = prev[evt.taskId] ?? [];
             if (list.some((e) => e.eventId === evt.eventId)) return prev;
             // UI keeps a short tail. The full run is already appended to the task log on disk.
-            return { ...prev, [evt.taskId]: [...list.slice(-159), evt] };
+            return { ...prev, [evt.taskId]: [...list.slice(-199), evt] };
           });
+        }
+        // Ask-path synthetic ids: live log only. Never mutate bubble content /
+        // status here — runLayerPipeline owns finishText / executionStatus so
+        // we don't flash "Working…" or dump event noise into the answer.
+        if (isAskSynthetic) {
+          if (
+            evt.type === "agent.message.completed" ||
+            evt.type === "agent.completed" ||
+            evt.type === "agent.failed" ||
+            evt.type === "agent.tool.failed" ||
+            evt.type === "agent.cancelled"
+          ) {
+            patchExecutionMessage(evt.taskId, (m) => ({
+              ...m,
+              executionStatus:
+                evt.type === "agent.failed" || evt.type === "agent.tool.failed"
+                  ? "failed"
+                  : evt.type === "agent.cancelled"
+                    ? "cancelled"
+                    : "completed",
+              streaming: false,
+            }));
+          }
+          return;
         }
         // High-frequency streaming deltas batch into message content (one
         // render per batch, not per token). Raw deltas stay in
@@ -924,7 +998,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             deltaFlushTimer.current = null;
           }
           flushDeltaBuffers();
-          setIsLoading(false);
+          setChatLoading(findChatIdForTask(evt.taskId), false);
           // Bound RAM: keep only recent tasks (+ drawer) and drop orphaned event buffers.
           setExecutionTasks((prevTasks) => {
             const keepId = executionDrawerTaskIdRef.current;
@@ -993,7 +1067,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         /* dispose is best-effort during unmount */
       }
     };
-  }, [humanizeAgentEvent, patchExecutionMessage, statusForEvent, snapshotTaskFile, verifyTaskCompletion, queueDelta, flushDeltaBuffers]);
+  }, [findChatIdForTask, flushDeltaBuffers, humanizeAgentEvent, patchExecutionMessage, queueDelta, setChatLoading, snapshotTaskFile, statusForEvent, verifyTaskCompletion]);
 
   /**
    * Chat → OpenCode seam. Returns true when the turn was absorbed by
@@ -1143,11 +1217,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           content: `I couldn't start the execution engine: ${msg}\n\nFalling back to chat — tell me more about what you need, or check Setup → Execution.`,
           streaming: false,
         }));
-        setIsLoading(false);
+        setChatLoading(args.chatId, false);
         return true;
       }
     },
-    [appendTaskToChat, patchMessageById]
+    [appendTaskToChat, patchMessageById, setChatLoading]
   );
 
   const cancelExecutionTask = useCallback(
@@ -1159,9 +1233,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("cancelExecutionTask failed", e);
       }
       patchExecutionMessage(taskId, (m) => ({ ...m, executionStatus: "cancelled", streaming: false }));
-      setIsLoading(false);
+      setChatLoading(findChatIdForTask(taskId), false);
     },
-    [patchExecutionMessage]
+    [findChatIdForTask, patchExecutionMessage, setChatLoading]
   );
 
   const respondToExecutionPermission = useCallback(
@@ -1328,9 +1402,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       const model = openCodeModelRef.current?.trim() || defaultOpenCodeModel(layer.models);
       const controller = new AbortController();
-      abortControllersRef.current = [controller];
+      clearAbortControllers(activeChatId);
+      registerAbortController(activeChatId, controller);
+      setChatLoading(activeChatId, true);
 
       const assistantMessageId = uuidv4();
+      // Synthetic ask task id — attached when the binary ask path runs so
+      // live OpenCode logs stream into the toggleable activity terminal.
+      const askRequestId = `ask_${assistantMessageId.replace(/-/g, "").slice(0, 24)}`;
       const assistantMessage: Message = {
         id: assistantMessageId,
         role: "assistant",
@@ -1386,6 +1465,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           researchSources: extras.researchSources,
           agentTrace: extras.agentTrace,
           streaming: false,
+          executionStatus: "completed",
+          taskId: msg.taskId ?? askRequestId,
         }));
         updateChatTitleFromMessages(activeChatId, [
           ...chatMessages,
@@ -1397,6 +1478,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             chatLogPersisterRef.current(activeChatId, "user", lastUser.content, "");
           }
           chatLogPersisterRef.current(activeChatId, "assistant", text, `opencode/${modelLabel}`);
+        }
+        // In-app cue when the user left the window mid-reply (no OS Notification).
+        try {
+          if (typeof document !== "undefined" && document.hidden) {
+            toast({
+              title: "Answer ready",
+              description: text.trim().slice(0, 120) || "OpenCode finished.",
+            });
+          }
+        } catch {
+          /* ignore */
         }
       };
       const startedAt = Date.now();
@@ -1445,12 +1537,29 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const lastUser = [...chatMessages].reverse().find((m) => m.role === "user");
         const askText = typeof lastUser?.content === "string" ? lastUser.content : "";
         const startedRunAt = Date.now();
+        setExecutionEvents((prev) => ({ ...prev, [askRequestId]: [] }));
+        setChats((prevChats) =>
+          prevChats.map((chat) => {
+            if (chat.id !== activeChatId) return chat;
+            return {
+              ...chat,
+              taskIds: [...(chat.taskIds ?? []).filter((id) => id !== askRequestId), askRequestId],
+              messages: chat.messages.map((msg) =>
+                msg.id === assistantMessageId
+                  ? { ...msg, executionStatus: "running", taskId: askRequestId }
+                  : msg
+              ),
+              updatedAt: new Date(),
+            };
+          })
+        );
         const res = await askOpenCodeLayer({
           message: askText.slice(0, 8000),
           model,
           workspaceRoot: askWorkspace,
           title: askText.slice(0, 80),
           sessionId: askSessionsRef.current.get(activeChatId),
+          askRequestId,
         });
         if (res.sessionId) askSessionsRef.current.set(activeChatId, res.sessionId);
         const blocked = Array.isArray(res.permissionRequests) ? res.permissionRequests.slice(0, 10) : [];
@@ -1465,8 +1574,22 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             `${res.text ? `${res.text}\n\n` : ""}` +
             `OpenCode needed permission to continue and I held it back (quick answers never auto-approve):${listed}\n\nPick below to run it as an approval-gated task, or dismiss.`;
         }
-        await streamTextChunked(finalText, (chunk) => batcher.push(chunk), controller.signal);
-        batcher.flushPending();
+        // Replace any interim noise; then stream the real answer into the bubble.
+        patchAssistant((msg) => ({
+          ...msg,
+          content: "",
+          executionStatus: "running",
+          streaming: true,
+          taskId: askRequestId,
+        }));
+        if (finalText.trim()) {
+          await streamTextChunked(finalText, (chunk) => batcher.push(chunk), controller.signal);
+          batcher.flushPending();
+        } else {
+          batcher.flushPending();
+          finalText =
+            "OpenCode finished but returned no readable answer. Check Agent activity for details, or Retry.";
+        }
         finishText(finalText, { ttftMs: null, totalMs: Date.now() - startedRunAt }, res.model, startedRunAt);
       } catch (error) {
         const aborted =
@@ -1484,12 +1607,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     msg.id === assistantMessageId
                       ? {
                           ...msg,
-                          // Plain layer copy only — never the legacy
-                          // provider formatters (no Hugging Face/key hints).
-                           content:
-                             msg.content ||
-                             `OpenCode didn't respond — the runtime may be busy or offline. Check Setup → Execution, then click Retry below.`,
+                          // Prefer the real OpenCode error; fall back to a Setup hint.
+                          content:
+                            msg.content ||
+                            shortReason(error) ||
+                            `OpenCode didn't respond — the runtime may be busy or offline. Check Setup → Execution, then click Retry below.`,
                           streaming: false,
+                          executionStatus: "failed",
+                          taskId: msg.taskId ?? askRequestId,
                         }
                       : msg
                   ),
@@ -1499,19 +1624,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
         if (!aborted) {
           toast({
-            title: "OpenCode layer error",
+            title: "OpenCode error",
             description: shortReason(error),
             variant: "destructive",
           });
         }
       } finally {
         setStreamingPromptTokens(null);
-        setWebgpuModelDownloadProgress(null);
-        setIsLoading(false);
-        abortControllersRef.current = [];
+        setChatLoading(activeChatId, false);
+        clearAbortControllers(activeChatId);
       }
     },
-    [toast]
+    [clearAbortControllers, registerAbortController, setChatLoading, toast]
   );
 
   /* Ask-path continuity + escalation (per conversation / message). */
@@ -1573,38 +1697,30 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : c
         )
       );
-      setIsLoading(true);
+      setChatLoading(chatId, true);
       try {
         const chatProjectId =
           chatsRef.current.find((c) => c.id === chatId)?.projectId ?? null;
-        {
-          let preferredCli = "opencode";
-          try {
-            preferredCli = localStorage.getItem(PREFERRED_AGENT_KEY) || "opencode";
-          } catch {
-            /* default */
-          }
-          await tryRouteToExecution({
-            chatId,
-            assistantMessageId,
-            text: esc.prompt,
-            projectId: chatProjectId,
-            inputSource: "text",
-            model: openCodeModelRef.current,
-            executionMode: "task",
-            agentCli: preferredCli,
-          });
-        }
+        await tryRouteToExecution({
+          chatId,
+          assistantMessageId,
+          text: esc.prompt,
+          projectId: chatProjectId,
+          inputSource: "text",
+          model: openCodeModelRef.current,
+          executionMode: "task",
+          agentCli: resolveChatAgentCli(chatId),
+        });
       } catch {
         patchMessageById(chatId, assistantMessageId, (m) => ({
           ...m,
           content: "Couldn't start that as a task. Try sending it again as a message.",
           streaming: false,
         }));
-        setIsLoading(false);
+        setChatLoading(chatId, false);
       }
     },
-    [patchMessageById, tryRouteToExecution]
+    [patchMessageById, resolveChatAgentCli, setChatLoading, tryRouteToExecution]
   );
 
   const selectChat = (chatId: string) => {
@@ -1612,6 +1728,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteChat = (chatId: string) => {
+    clearAbortControllers(chatId, true);
+    setChatLoading(chatId, false);
+    sendInFlightByChatRef.current.delete(chatId);
+    askSessionsRef.current.delete(chatId);
     const remaining = chatsRef.current.filter((chat) => chat.id !== chatId);
     setChats(remaining);
     if (currentChatId === chatId) {
@@ -1650,11 +1770,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const stopStreaming = () => {
-    abortLocalGemmaGeneration();
-    abortControllersRef.current.forEach((c) => c.abort());
-    abortControllersRef.current = [];
-    setWebgpuModelDownloadProgress(null);
-    setIsLoading(false);
+    if (currentChatId) {
+      clearAbortControllers(currentChatId, true);
+      setChatLoading(currentChatId, false);
+    }
   };
 
   const buildPipelineExtras = async (
@@ -1695,7 +1814,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const researchOn =
       cfg.researchEnabled &&
       isResearchNetworkAllowed(cfg, !isNavigatorOnline()) &&
-      ((cfg.aiProvider !== "webgpu_gemma" && cfg.aiProvider !== "local_gguf") || cfg.researchWithLocalModel);
+      (cfg.aiProvider !== "local_gguf" || cfg.researchWithLocalModel);
     if (!researchOn) {
       return {
         systemPrompts: buildSystemPrompts(cfg, { includeChartHint: false, workspaceAssistBlock: ws }),
@@ -1764,15 +1883,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const regenerateLastResponse = async () => {
     const layerOk = hasOpenCodeDesktopApi() && openCodeLayerRef.current.available;
     if ((!layerOk && !canSendMessage(apiConfig)) || isLoading || !currentChatId) return;
-    if (!layerOk && apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
-      toast({
-        title: "On-device model not enabled",
-        description:
-          "Confirm the Qwen 0.5B download in the setup banner above the composer first.",
-        variant: "destructive",
-      });
-      return;
-    }
     const chat = chatsRef.current.find((c) => c.id === currentChatId);
     if (!chat?.messages.length) return;
     const msgs = [...chat.messages];
@@ -1802,7 +1912,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       )
     );
 
-    setIsLoading(true);
+    setChatLoading(currentChatId, true);
     setStreamingPromptTokens(null);
 
     const workspaceBlock = notebookAssistSyncRef.current?.() ?? workspaceRouteAssistRef.current;
@@ -1812,7 +1922,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       await runAssistantPipeline(currentChatId, msgs, apiConfig, extras);
     } catch (e) {
-      setIsLoading(false);
+      setChatLoading(currentChatId, false);
       setStreamingPromptTokens(null);
       console.error("Error regenerating:", e);
       toast({
@@ -1837,7 +1947,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const comparisonIds = dedupeModels(cfg.comparisonModelIds).slice(0, 4);
     const useTiling =
-      cfg.aiProvider !== "webgpu_gemma" &&
       cfg.aiProvider !== "local_gguf" &&
       cfg.comparisonEnabled &&
       comparisonIds.length >= 2 &&
@@ -1848,17 +1957,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const systemChars = extras.systemPrompts.reduce((n, s) => n + (s?.length ?? 0), 0);
     const compactedMessages = compactMessagesForContext(chatMessages, {
       maxTokens: messageTokenBudget(contextLimit, systemChars),
-      keepRecent: cfg.aiProvider === "webgpu_gemma" || cfg.aiProvider === "local_gguf" ? 8 : 14,
+      keepRecent: cfg.aiProvider === "local_gguf" ? 8 : 14,
     });
     const apiMessages = buildChatCompletionMessages(extras.systemPrompts, compactedMessages);
 
-    setIsLoading(true);
+    setChatLoading(activeChatId, true);
     setStreamingPromptTokens(null);
-    abortControllersRef.current = [];
+    clearAbortControllers(activeChatId);
 
     if (!useTiling) {
       const controller = new AbortController();
-      abortControllersRef.current = [controller];
+      registerAbortController(activeChatId, controller);
 
       const assistantMessageId = uuidv4();
       const assistantMessage: Message = {
@@ -1921,54 +2030,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   ...streamCallbacks,
                 })
               )
-            : cfg.aiProvider === "webgpu_gemma"
-              ? await import("@/lib/gemmaWebGpu/streamLocalGemma").then(({ streamLocalGemmaChat }) =>
-                streamLocalGemmaChat(cfg, apiMessages, controller.signal, {
-                  ...streamCallbacks,
-                  onModelDownloadProgress: (pct) => {
-                    setWebgpuModelDownloadProgress(pct);
-                  },
-                  onBackendPicked: (backend) => {
-                    if (backend.device === "wasm" && backend.reason === "no-webgpu") {
-                      toast({
-                        title: "On-device model running on CPU",
-                        description:
-                          "WebGPU session failed or unavailable; using WASM/CPU (q8). Replies are slower than GPU but stay fully local.",
-                      });
-                    }
-                  },
-                  onModelAutoSwitched: ({ from, to, reason }) => {
-                    /** Persist the auto-pick so ChatInput / Settings reflect the model actually loaded. */
-                    setApiConfigState((prev) =>
-                      prev.aiProvider === "webgpu_gemma" && prev.model === from.storedId
-                        ? normalizeApiConfig({
-                            ...prev,
-                            model: to.storedId,
-                            comparisonModelIds: [to.storedId],
-                          })
-                        : prev
-                    );
-                    toast({
-                      title: `Switched to ${to.displayName}`,
-                      description:
-                        reason === "gpu-buffer"
-                          ? `Your GPU can't fit ${from.displayName}; running the next-smaller model that does fit.`
-                          : reason === "cpu-ram"
-                            ? `Not enough RAM for ${from.displayName}; using a smaller model so generations stay responsive.`
-                            : reason === "no-webgpu"
-                              ? "WebGPU isn't available here, so we picked the smallest model for WASM/CPU inference."
-                              : `Auto-selected a lighter model to keep chats responsive.`,
-                    });
-                  },
-                  onDtypeFallback: ({ from, to }) => {
-                    toast({
-                      title: "Adjusting model precision",
-                      description: `Retrying with ${to.toUpperCase()} after ${from.toUpperCase()} couldn't run on this device.`,
-                    });
-                  },
-                })
-              )
-              : await streamChatForConfig(cfg, cfg.model, apiMessages, controller.signal, streamCallbacks);
+            : await streamChatForConfig(cfg, cfg.model, apiMessages, controller.signal, streamCallbacks);
         batcher.flushPending();
         setProviderQuotaSnapshot({
           provider: cfg.aiProvider,
@@ -2067,9 +2129,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
       } finally {
         setStreamingPromptTokens(null);
-        setWebgpuModelDownloadProgress(null);
-        setIsLoading(false);
-        abortControllersRef.current = [];
+        setChatLoading(activeChatId, false);
+        clearAbortControllers(activeChatId);
       }
       return;
     }
@@ -2107,7 +2168,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const controllers = targetModels.map(() => {
       const c = new AbortController();
-      abortControllersRef.current.push(c);
+      registerAbortController(activeChatId, c);
       return c;
     });
 
@@ -2243,16 +2304,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateChatTitleFromMessages(activeChatId, chatMessages);
     } finally {
       setStreamingPromptTokens(null);
-      setWebgpuModelDownloadProgress(null);
-      setIsLoading(false);
-      abortControllersRef.current = [];
+      setChatLoading(activeChatId, false);
+      clearAbortControllers(activeChatId);
     }
   };
 
-  // React state updates are not synchronous: double Enter, voice+click races or
-  // programmatic calls could otherwise create two chats, two assistant bubbles
-  // and two provider/task requests for one user intent.
-  const sendInFlightRef = useRef(false);
+  // Per-chat in-flight guard: simultaneous chats can send in parallel; same chat cannot.
+  const sendInFlightByChatRef = useRef(new Set<string>());
 
   const sendMessageInner = async (
     content: string,
@@ -2285,9 +2343,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ? openCodeLayerRef.current.opencodeInstalled || openCodeLayerRef.current.askReady
               ? "Local agent runtime is starting. Wait a moment, then send again — or Rescan in the composer runtime menu."
               : "No local agent ready. Install OpenCode / Claude Code (or another CLI), then Rescan in the composer runtime menu — or choose Ollama / OpenRouter."
-            : apiConfig.aiProvider === "webgpu_gemma"
-              ? "WebGPU is not available in this browser. Use Chrome/Edge or the desktop build, or switch to OpenRouter in Settings."
-              : apiConfig.aiProvider === "local_gguf"
+            : apiConfig.aiProvider === "local_gguf"
                 ? "Use the Openbentt desktop app, install llama-server on PATH (or set a binary path), download a GGUF in Labs, and pick it in Settings."
                 : "Pick a local agent (OpenCode, Claude Code, …) in the composer, or add Ollama / an OpenRouter key in Settings."
         );
@@ -2301,16 +2357,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         return;
       }
-      if (apiConfig.aiProvider === "webgpu_gemma" && !getLocalWeightsConsent()) {
-        toast({
-          title: "On-device model not enabled",
-          description:
-            "Confirm the Qwen 0.5B download in the setup banner above the composer (check the box, then Enable & chat or Download & cache).",
-          variant: "destructive",
-        });
-        return;
-      }
-
       try {
         assertChatProviderAllowed(apiConfig, !isNavigatorOnline());
       } catch (e) {
@@ -2331,6 +2377,26 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!activeChatId) {
       activeChatId = createNewChat();
     }
+    if (sendInFlightByChatRef.current.has(activeChatId) || loadingChatIdsRef.current.has(activeChatId)) {
+      return;
+    }
+    sendInFlightByChatRef.current.add(activeChatId);
+    try {
+      await sendMessageInnerForChat(activeChatId, useLayer, content, attachments, options);
+    } finally {
+      sendInFlightByChatRef.current.delete(activeChatId);
+    }
+  };
+
+  const sendMessageInnerForChat = async (
+    activeChatId: string,
+    useLayer: boolean,
+    content: string,
+    attachments: MessageAttachment[] = [],
+    options?: { workspaceAssistBlock?: string; projectId?: string | null; inputSource?: "text" | "voice"; executionMode?: ExecutionMode }
+  ) => {
+    const trimmed = content.trim();
+    if (!trimmed && attachments.length === 0) return;
 
     const mergedPdf = mergePdfIntoContent(trimmed, attachments);
     const body = (await substituteInlineCalc(mergedPdf)) || (attachments.length ? " " : "");
@@ -2365,7 +2431,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
     );
 
-    setIsLoading(true);
+    setChatLoading(activeChatId, true);
     setStreamingPromptTokens(null);
 
     // ---- Unified Chat → OpenCode seam (same conversation, no redirect) ----
@@ -2390,24 +2456,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
       let absorbed = false;
       try {
-        {
-          let preferredCli = "opencode";
-          try {
-            preferredCli = localStorage.getItem(PREFERRED_AGENT_KEY) || "opencode";
-          } catch {
-            /* default */
-          }
-          absorbed = await tryRouteToExecution({
-            chatId: activeChatId,
-            assistantMessageId: seamAssistantId,
-            text: body,
-            projectId,
-            inputSource,
-            model: openCodeModelRef.current,
-            executionMode: options?.executionMode ?? executionModeRef.current,
-            agentCli: preferredCli,
-          });
-        }
+        absorbed = await tryRouteToExecution({
+          chatId: activeChatId,
+          assistantMessageId: seamAssistantId,
+          text: body,
+          projectId,
+          inputSource,
+          model: openCodeModelRef.current,
+          executionMode: options?.executionMode ?? executionModeRef.current,
+          agentCli: resolveChatAgentCli(activeChatId),
+        });
       } catch {
         absorbed = false;
       }
@@ -2443,7 +2501,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       await runAssistantPipeline(activeChatId, chatMessages, apiConfig, extras);
     } catch (e) {
-      setIsLoading(false);
+      setChatLoading(activeChatId, false);
       setStreamingPromptTokens(null);
       console.error("Error preparing chat:", e);
       toast({
@@ -2459,13 +2517,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     attachments: MessageAttachment[] = [],
     options?: { workspaceAssistBlock?: string; projectId?: string | null; inputSource?: "text" | "voice"; executionMode?: ExecutionMode }
   ) => {
-    if (sendInFlightRef.current) return;
-    sendInFlightRef.current = true;
-    try {
-      await sendMessageInner(content, attachments, options);
-    } finally {
-      sendInFlightRef.current = false;
-    }
+    await sendMessageInner(content, attachments, options);
   };
 
   /** Voice transcripts enter the SAME canonical conversation as typed text. */
@@ -2556,8 +2608,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       let role;
       try { role = getAgentRole(roleId); } catch { role = getAgentRole("research-assistant"); }
-      let preferred = "opencode";
-      try { preferred = localStorage.getItem(PREFERRED_AGENT_KEY) || "opencode"; } catch { /* default */ }
+      const preferred = resolveChatAgentCli(currentChatId);
 
       const looksLikeWork = trimmed.length > 24 && /\b(fix|build|create|implement|edit|write|draft|send|schedule|delete|remove|refactor|compile|inspect|debug|add|update|research|investigate|brief|outline|code|file|repo)\b/i.test(trimmed);
 
@@ -2580,7 +2631,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
               : chat
           )
         );
-        setIsLoading(true);
+        setChatLoading(chatId, true);
         const instruction = [
           `You are acting as Openbentt's ${role.name}.`,
           role.systemPolicy,
@@ -2607,7 +2658,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
               : chat
           )
         );
-        setIsLoading(false);
+        setChatLoading(chatId, false);
       }
 
       if (!looksLikeWork && hasOpenCodeDesktopApi()) {
@@ -2618,22 +2669,37 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userMessage: Message = {
           id: uuidv4(), role: "user", content: trimmed, timestamp: new Date(),
         };
+        const assistantId = uuidv4();
+        const askRequestId = `ask_${assistantId.replace(/-/g, "").slice(0, 24)}`;
         const assistantMessage: Message = {
-          id: uuidv4(), role: "assistant", content: "", timestamp: new Date(), streaming: true,
+          id: assistantId,
+          role: "assistant",
+          content: "",
+          timestamp: new Date(),
+          streaming: true,
+          taskId: askRequestId,
+          executionStatus: "running",
         };
+        setExecutionEvents((prev) => ({ ...prev, [askRequestId]: [] }));
         setChats((prevChats) =>
           prevChats.map((chat) =>
             chat.id === chatId
-              ? { ...chat, messages: [...chat.messages, userMessage, assistantMessage], updatedAt: new Date() }
+              ? {
+                  ...chat,
+                  messages: [...chat.messages, userMessage, assistantMessage],
+                  taskIds: [...(chat.taskIds ?? []).filter((id) => id !== askRequestId), askRequestId],
+                  updatedAt: new Date(),
+                }
               : chat
           )
         );
-        setIsLoading(true);
+        setChatLoading(chatId, true);
         try {
           const asked = await openCodeAgentApi.askOpenCode({
             message: `You are Openbentt's ${role.name}. Answer in that role, briefly.\n\n${trimmed}`.slice(0, 8000),
             title: role.name.slice(0, 80),
             model: openCodeModelRef.current,
+            askRequestId,
           });
           patchAgentMessage(chatId, assistantMessage.id, (m) => ({
             ...m,
@@ -2651,7 +2717,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             )
           );
         } finally {
-          setIsLoading(false);
+          setChatLoading(chatId, false);
         }
       }
 
@@ -2683,9 +2749,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : chat
         )
       );
-      setIsLoading(true);
+      setChatLoading(chatId, true);
       const controller = new AbortController();
-      abortControllersRef.current.push(controller);
+      registerAbortController(chatId, controller);
       const messageId = assistantMessage.id;
 
       try {
@@ -2756,17 +2822,21 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           toast({ title: "Agent error", description: formatUserFacingError(e, "Agent run failed"), variant: "destructive" });
         }
       } finally {
-        setIsLoading(false);
+        setChatLoading(chatId, false);
+        clearAbortControllers(chatId);
       }
   };
 
   const sendAgentMessage = async (content: string, opts?: { projectId?: string; roleId?: string }) => {
-    if (sendInFlightRef.current) return;
-    sendInFlightRef.current = true;
+    let gateChatId = currentChatId;
+    if (gateChatId && !chatsRef.current.some((c) => c.id === gateChatId)) gateChatId = null;
+    if (!gateChatId) gateChatId = createNewChat();
+    if (sendInFlightByChatRef.current.has(gateChatId) || loadingChatIdsRef.current.has(gateChatId)) return;
+    sendInFlightByChatRef.current.add(gateChatId);
     try {
       await sendAgentMessageInner(content, opts);
     } finally {
-      sendInFlightRef.current = false;
+      sendInFlightByChatRef.current.delete(gateChatId);
     }
   };
 
@@ -2785,9 +2855,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       setPendingAgentConfirm(null);
-      setIsLoading(true);
+      setChatLoading(slot.chatId, true);
       const controller = new AbortController();
-      abortControllersRef.current.push(controller);
+      registerAbortController(slot.chatId, controller);
       patchAgentMessage(slot.chatId, slot.messageId, (m) => ({ ...m, streaming: true }));
       try {
         const def = getAgentDefinition(stored.run.agentId);
@@ -2838,10 +2908,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("Error resuming agent run:", e);
         toast({ title: "Agent error", description: formatUserFacingError(e, "Could not resume agent run"), variant: "destructive" });
       } finally {
-        setIsLoading(false);
+        setChatLoading(slot.chatId, false);
+        clearAbortControllers(slot.chatId);
       }
     },
-    [apiConfig, patchAgentMessage, persistAgentTurn, toast]
+    [apiConfig, clearAbortControllers, patchAgentMessage, persistAgentTurn, registerAbortController, setChatLoading, toast]
   );
 
   const unifiedChatReady =
@@ -2890,6 +2961,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       selectChat,
       deleteChat,
       renameChat,
+      setChatAgentCli,
       clearChats,
       chatsReady,
       sendMessage,
@@ -2917,7 +2989,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       notebookLatexInsertRequest,
       requestNotebookLatexInsert,
       clearNotebookLatexInsertRequest,
-      webgpuModelDownloadProgress,
     }),
     [
       chats,
@@ -2956,6 +3027,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       selectChat,
       deleteChat,
       renameChat,
+      setChatAgentCli,
       clearChats,
       chatsReady,
       sendMessage,
@@ -2983,7 +3055,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       notebookLatexInsertRequest,
       requestNotebookLatexInsert,
       clearNotebookLatexInsertRequest,
-      webgpuModelDownloadProgress,
     ]
   );
 

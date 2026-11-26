@@ -159,10 +159,15 @@
    * portals and native <select>/<option> popups (prevents dark-on-dark or
    * light-on-light text in menus, model pickers, and highlighted text).
    */
+  /* High-contrast selection — accent is near-background in app-shell dark, so use primary. */
   html.app-shell-route ::selection,
-  .app-shell ::selection {
-    background: hsl(var(--accent));
-    color: hsl(var(--accent-foreground));
+  .app-shell ::selection,
+  html.app-shell-route textarea::selection,
+  .app-shell textarea::selection,
+  html.app-shell-route input::selection,
+  .app-shell input::selection {
+    background: hsl(var(--primary) / 0.45);
+    color: hsl(var(--foreground));
   }
   html.app-shell-route [data-radix-popper-content-wrapper],
   html.app-shell-route [data-radix-portal] {

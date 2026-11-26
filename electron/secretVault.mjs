@@ -1,6 +1,7 @@
 /**
  * Desktop credential vault — Electron safeStorage when available.
- * Keys: provider_api_key, brave_search_api_key (never in renderer localStorage).
+ * Keys: provider_api_key, brave_search_api_key, gemini_api_key, …
+ * (never in renderer localStorage).
  */
 import fs from "node:fs";
 import fsp from "node:fs/promises";
@@ -24,7 +25,14 @@ const safeStorage = {
 };
 
 /** @type {ReadonlySet<string>} */
-export const SECRET_VAULT_KEYS = new Set(["provider_api_key", "brave_search_api_key", "omniroute_local_key"]);
+export const SECRET_VAULT_KEYS = new Set([
+  "provider_api_key",
+  "brave_search_api_key",
+  "omniroute_local_key",
+  "gemini_api_key",
+  "openai_api_key",
+  "semantic_scholar_api_key",
+]);
 
 /**
  * @param {import('electron').App} app
@@ -127,7 +135,16 @@ export function registerSecretVaultIpc(ipcMain, app) {
   ipcMain.handle("secretVault:load", async () => {
     const providerApiKey = await readVaultSecret(app, "provider_api_key");
     const braveSearchApiKey = await readVaultSecret(app, "brave_search_api_key");
-    return { providerApiKey, braveSearchApiKey };
+    const geminiApiKey = await readVaultSecret(app, "gemini_api_key");
+    const openaiApiKey = await readVaultSecret(app, "openai_api_key");
+    const semanticScholarApiKey = await readVaultSecret(app, "semantic_scholar_api_key");
+    return {
+      providerApiKey,
+      braveSearchApiKey,
+      geminiApiKey,
+      openaiApiKey,
+      semanticScholarApiKey,
+    };
   });
 
   ipcMain.handle("secretVault:set", async (_e, key, value) => {

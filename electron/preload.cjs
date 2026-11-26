@@ -141,6 +141,7 @@ contextBridge.exposeInMainWorld("openbenttNarration", {
 contextBridge.exposeInMainWorld("openbenttPaperOrchestra", {
   status: () => ipcRenderer.invoke("paperOrchestra:status"),
   listVenues: () => ipcRenderer.invoke("paperOrchestra:listVenues"),
+  installEngine: () => ipcRenderer.invoke("paperOrchestra:installEngine"),
   start: (opts) => ipcRenderer.invoke("paperOrchestra:start", opts),
   cancel: () => ipcRenderer.invoke("paperOrchestra:cancel"),
   importArtifacts: (outputDir) => ipcRenderer.invoke("paperOrchestra:importArtifacts", outputDir),
@@ -150,7 +151,6 @@ contextBridge.exposeInMainWorld("openbenttPaperOrchestra", {
     return () => ipcRenderer.removeListener("paperOrchestra:progress", handler);
   },
 });
-
 contextBridge.exposeInMainWorld("openbenttSecrets", {
   status: () => ipcRenderer.invoke("secretVault:status"),
   load: () => ipcRenderer.invoke("secretVault:load"),

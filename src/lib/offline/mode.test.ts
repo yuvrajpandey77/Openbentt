@@ -25,9 +25,9 @@ describe("offline / local-only mode", () => {
     expect(() => assertChatProviderAllowed(cfg, false, localOnlyPrefs)).toThrow(OfflineBlockedError);
   });
 
-  it("allows webgpu when local-only", () => {
+  it("allows local_gguf when local-only", () => {
     const cfg = defaultApiConfig();
-    cfg.aiProvider = "webgpu_gemma";
+    cfg.aiProvider = "local_gguf";
     expect(() => assertChatProviderAllowed(cfg, false, localOnlyPrefs)).not.toThrow();
   });
 

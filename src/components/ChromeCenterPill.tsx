@@ -67,12 +67,12 @@ export function ChromeCenterPill({ open, onToggle, className }: ChromeCenterPill
       aria-pressed={open}
       aria-label={open ? `Close inspector — ${label}` : `Open inspector — ${label}`}
       className={cn(
-        "inline-flex max-w-[min(100%,18rem)] items-center gap-1.5 rounded-full border px-3 py-1.5 text-left text-[11px] font-medium transition-colors",
+        "inline-flex max-w-[min(100%,18rem)] items-center gap-1.5 rounded-full border px-2.5 py-1 text-left text-[11px] font-medium shadow-sm backdrop-blur-md transition-colors",
         needsAttention
-          ? "border-amber-500/50 bg-amber-500/10 text-amber-700 hover:bg-amber-500/15 dark:text-amber-300"
+          ? "border-amber-500/50 bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
           : open
-            ? "border-primary/40 bg-primary/10 text-foreground"
-            : "border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            ? "border-primary/40 bg-card/90 text-foreground"
+            : "border-border/70 bg-card/85 text-muted-foreground hover:bg-card hover:text-foreground",
         className
       )}
     >

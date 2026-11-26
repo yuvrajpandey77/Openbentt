@@ -289,44 +289,54 @@ export function NotebookStudioShell() {
         </header>
 
         <div ref={studioMainRef} className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          {studioMode === "orchestra" ? (
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <PaperOrchestraCanvas onApplied={onOrchestraApplied} />
+          {/* Keep both surfaces mounted so Editor↔Paper switches never cancel compile / Paper runs. */}
+          <div
+            className={cn(
+              "min-h-0 flex-1 overflow-hidden",
+              studioMode !== "orchestra" && "pointer-events-none absolute inset-0 invisible h-0 overflow-hidden opacity-0"
+            )}
+            aria-hidden={studioMode !== "orchestra"}
+          >
+            <PaperOrchestraCanvas onApplied={onOrchestraApplied} />
+          </div>
+          <div
+            className={cn(
+              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+              studioMode !== "editor" && "pointer-events-none absolute inset-0 invisible h-0 overflow-hidden opacity-0"
+            )}
+            aria-hidden={studioMode !== "editor"}
+          >
+            <NotebookLeftRail />
+            <div
+              className="flex shrink-0 items-center border-b border-border/60 bg-muted/25 pr-2 shadow-sm"
+              style={{ minHeight: NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX + 4 }}
+            >
+              <NotebookExplorerDock className="shrink-0" style={{ marginLeft: NOTEBOOK_EXPLORER_LEFT_PX }} />
+              <div
+                className="min-w-0 flex-1 overflow-hidden py-1.5 pl-3 transition-[padding-left] duration-200 ease-out"
+                style={{
+                  paddingLeft: explorerTabsPadding,
+                }}
+              >
+                <NotebookEditorTabs embedded />
+              </div>
             </div>
-          ) : (
-            <>
-              <NotebookLeftRail />
-              <div
-                className="flex shrink-0 items-center border-b border-border/60 bg-muted/25 pr-2 shadow-sm"
-                style={{ minHeight: NOTEBOOK_STUDIO_TOOLBAR_HEIGHT_PX + 4 }}
-              >
-                <NotebookExplorerDock className="shrink-0" style={{ marginLeft: NOTEBOOK_EXPLORER_LEFT_PX }} />
-                <div
-                  className="min-w-0 flex-1 overflow-hidden py-1.5 pl-3 transition-[padding-left] duration-200 ease-out"
-                  style={{
-                    paddingLeft: explorerTabsPadding,
-                  }}
-                >
-                  <NotebookEditorTabs embedded />
-                </div>
+            <div
+              className="flex min-h-0 min-w-0 flex-1 flex-col transition-[padding-left] duration-200 ease-out"
+              style={{ paddingLeft: explorerInset }}
+            >
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <NotebookPdfWorkspace
+                  layoutMode="studio"
+                  chromeMode="studio"
+                  editorFileLabel={editorLabel}
+                  projectDraftTex={editorContent}
+                  onProjectDraftChange={onProjectDraftChange}
+                />
               </div>
-              <div
-                className="flex min-h-0 min-w-0 flex-1 flex-col transition-[padding-left] duration-200 ease-out"
-                style={{ paddingLeft: explorerInset }}
-              >
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <NotebookPdfWorkspace
-                    layoutMode="studio"
-                    chromeMode="studio"
-                    editorFileLabel={editorLabel}
-                    projectDraftTex={editorContent}
-                    onProjectDraftChange={onProjectDraftChange}
-                  />
-                </div>
-              </div>
-              <NotebookConnectionCables containerRef={studioMainRef} />
-            </>
-          )}
+            </div>
+            <NotebookConnectionCables containerRef={studioMainRef} />
+          </div>
           <NotebookFloatingChat containerRef={studioMainRef} studioSurface={studioMode} />
         </div>
         <ResearchCommandPalette />

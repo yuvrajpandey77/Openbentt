@@ -77,6 +77,8 @@ import { isDesktopApp } from "@/lib/isDesktopApp";
 import { shouldReplaceEditorSourceOnPdfLoad } from "@/lib/notebookPdfLoad";
 import { estimateTokensFromText } from "@/lib/contextMeter";
 import { markOnce } from "@/lib/perf/notebookMarks";
+import { beginBackgroundWork } from "@/lib/backgroundWork";
+import { useTaskCenter } from "@/context/TaskCenterContext";
 
 type MainTab = "preview" | "source";
 /** Which PDF bytes drive the canvas — original upload vs text-compiled (images/layout only on Original). */
@@ -146,6 +148,7 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
     clearNotebookLatexInsertRequest,
     queuePromptInComposer,
   } = useChat();
+  const { upsertTask } = useTaskCenter();
 
   const [fileName, setFileName] = useState<string | null>(null);
   const displayPdfName = useMemo(() => pdfPreviewLabel(fileName), [fileName]);
@@ -786,20 +789,61 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
 
   const doCompile = useCallback(
     async (text: string) => {
-      if (researchProject && isLatexDocumentSource(text)) {
-        const bundle = await buildProjectCompileBundle(researchProject, {
-          mainTexOverride: text,
-        });
-        setCompileSummary(bundle.summary);
-        if (isFragmentSource(text) && text !== researchProject.draftTex) {
-          toast({
-            title: "Compiling main.tex",
-            description: `Active file is a fragment — using project root (${bundle.summary}).`,
+      const release = beginBackgroundWork("compile");
+      const taskId = `compile-${researchProject?.id ?? "local"}`;
+      upsertTask({
+        id: taskId,
+        kind: "compile",
+        title: "Compiling LaTeX",
+        detail: "Continues if you switch tabs",
+        percent: null,
+        state: "running",
+        error: null,
+      });
+      try {
+        if (researchProject && isLatexDocumentSource(text)) {
+          const bundle = await buildProjectCompileBundle(researchProject, {
+            mainTexOverride: text,
           });
+          setCompileSummary(bundle.summary);
+          if (isFragmentSource(text) && text !== researchProject.draftTex) {
+            toast({
+              title: "Compiling main.tex",
+              description: `Active file is a fragment — using project root (${bundle.summary}).`,
+            });
+          }
+          const blob = await compileNotebookSourceToPdf(text, fileName?.replace(/\.(pdf|tex)$/i, "") || "Notebook", {
+            bundle,
+            projectId: researchProject.id,
+            allowTextFallback: false,
+          });
+          const buf = await blob.arrayBuffer();
+          setCompiledBytes(buf.slice(0));
+          setPreviewVariant("compiled");
+          setMainTab("preview");
+          setLastLatexFailure(null);
+          setCompileDiagnostics([]);
+          const bibHint = bibliographyCompileHint(text, researchProject.bibliography);
+          if (bibHint.kind !== "ok") {
+            toast({ title: "Bibliography note", description: bibHint.message });
+          }
+          toast({
+            title: "Compiled",
+            description: `${bundle.summary} → PDF ready.`,
+          });
+          upsertTask({
+            id: taskId,
+            kind: "compile",
+            title: "Compile done",
+            detail: bundle.summary,
+            percent: 100,
+            state: "done",
+            error: null,
+          });
+          return;
         }
+
         const blob = await compileNotebookSourceToPdf(text, fileName?.replace(/\.(pdf|tex)$/i, "") || "Notebook", {
-          bundle,
-          projectId: researchProject.id,
           allowTextFallback: false,
         });
         const buf = await blob.arrayBuffer();
@@ -808,36 +852,39 @@ const NotebookPdfWorkspace: React.FC<NotebookPdfWorkspaceProps> = ({
         setMainTab("preview");
         setLastLatexFailure(null);
         setCompileDiagnostics([]);
-        const bibHint = bibliographyCompileHint(text, researchProject.bibliography);
-        if (bibHint.kind !== "ok") {
-          toast({ title: "Bibliography note", description: bibHint.message });
-        }
+        const kind = isLatexDocumentSource(text) ? "pdflatex PDF" : "text PDF";
         toast({
           title: "Compiled",
-          description: `${bundle.summary} → PDF ready.`,
+          description:
+            originalBytes != null
+              ? `${kind} ready — use Original / Compiled to compare.`
+              : `${kind} ready — Preview shows the compiled output.`,
         });
-        return;
+        upsertTask({
+          id: taskId,
+          kind: "compile",
+          title: "Compile done",
+          detail: kind,
+          percent: 100,
+          state: "done",
+          error: null,
+        });
+      } catch (err) {
+        upsertTask({
+          id: taskId,
+          kind: "compile",
+          title: "Compile failed",
+          detail: err instanceof Error ? err.message.slice(0, 160) : "Compile failed",
+          percent: null,
+          state: "failed",
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      } finally {
+        release();
       }
-
-      const blob = await compileNotebookSourceToPdf(text, fileName?.replace(/\.(pdf|tex)$/i, "") || "Notebook", {
-        allowTextFallback: false,
-      });
-      const buf = await blob.arrayBuffer();
-      setCompiledBytes(buf.slice(0));
-      setPreviewVariant("compiled");
-      setMainTab("preview");
-      setLastLatexFailure(null);
-      setCompileDiagnostics([]);
-      const kind = isLatexDocumentSource(text) ? "pdflatex PDF" : "text PDF";
-      toast({
-        title: "Compiled",
-        description:
-          originalBytes != null
-            ? `${kind} ready — use Original / Compiled to compare.`
-            : `${kind} ready — Preview shows the compiled output.`,
-      });
     },
-    [fileName, toast, originalBytes, researchProject]
+    [fileName, toast, originalBytes, researchProject, upsertTask]
   );
 
   const runAutofixAndRecompile = useCallback(async () => {

@@ -29,17 +29,25 @@ no release claim is made from the earlier partial artifacts.
 | Packaged recovery (earlier artifact) | `/tmp/opencode/packaged-app-check.json` | 19 passed, 0 failed, 0 warned |
 | Endurance smoke | `/tmp/opencode/endurance-smoke.json` | 141.75 s, 24 cycles, 0 warnings/fatal |
 | Recovery-path smoke | `/tmp/opencode/endurance-recover-smoke.json` | 121.87 s, 25 cycles, 0 warnings/fatal |
+| Current-chrome validation smoke | `/tmp/opencode/endurance-rerun-smoke3.json` | 151.89 s, 10 cycles, 29 samples, 6 post-GC checkpoints, 0 warnings/fatal |
 
 ## What is not yet verified
 
 1. **Corrected 2-hour endurance.** The first configured 2-hour attempt stopped
    after 8 m 6 s when the app exited code 0 during an idle period; the old
    harness misclassified it as a normal completion. The harness now records and
-   recovers from that event and continues to the deadline. The corrected run is
-   at `/tmp/opencode/endurance-full-final.json` and is not yet complete. An
-   intermediate corrected run was stopped because it exercised a build with
-   the intermittent `app://` lazy-chunk fetch failure described below. Until
-   the final run finishes, no ≥2-hour stability claim is made.
+   recovers from that event and continues to the deadline. A post-fix run wrote
+   to `/tmp/opencode/endurance-full-final.json`, but its JSON/log were erased
+   when `/tmp` was cleared during the 2026-11-26 host reboot; no result is
+   inferred from that loss. After rebuilding current HEAD, the harness was
+   updated for the collapsed desktop sidebar, nested Settings dialog, and
+   Models-section provider controls; a 2m32s validation smoke passed with 10
+   cycles, 29 samples, 6 post-GC checkpoints, 0 warnings and 0 fatal events
+   (`/tmp/opencode/endurance-rerun-smoke3.json`). Two shell-background attempts
+   at the full run were cancelled by repeated OpenCode server restarts, so the
+   current run is a user systemd unit (`openbentt-endurance.service`) writing
+   `/tmp/opencode/endurance-full-systemd.json` and `.log`. Until that JSON
+   reports a full-duration `finishedAt`, no ≥2-hour stability claim is made.
 2. **Cross-platform installers.** `.deb`, Windows, and macOS were not executed.
    The AppImage cannot self-launch on this host (`libfuse.so.2` absent; V8
    snapshots were zero-length in the extracted copy); runtime checks used the

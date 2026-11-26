@@ -82,6 +82,15 @@ export const AgentActivity: React.FC<{ message: Message; compact?: boolean }> = 
 
   const events = taskId ? (executionEvents[taskId] ?? []) : [];
   const task = taskId ? executionTasks[taskId] : undefined;
+  // Ask-path synthetic ids stream into OpenCodeActivityTerminal only —
+  // never show a stuck "Working…" card (Cancel can't kill ask_ ids).
+  if (
+    typeof taskId === "string" &&
+    taskId.startsWith("ask_") &&
+    askPermissions.length === 0
+  ) {
+    return null;
+  }
   // Pending requests pair request↔reply events so answered history stays
   // visible without looking actionable.
   const pendingPerm = pendingPermission(events);
