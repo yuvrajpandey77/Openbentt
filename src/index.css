@@ -1477,6 +1477,271 @@
     }
   }
 
+  /* ── ChatGPT-overview–inspired landing (always dark canvas) ── */
+  .marketing-page--overview {
+    --ov-bg: 0 0% 8%;
+    --ov-fg: 0 0% 98%;
+    --ov-muted: 0 0% 62%;
+    --ov-line: 0 0% 18%;
+    --ov-panel: 0 0% 12%;
+    --ov-elev: 0 0% 14%;
+    background: hsl(var(--ov-bg));
+    color: hsl(var(--ov-fg));
+    scroll-padding-top: 4.5rem;
+  }
+
+  body:has(.marketing-page--overview) {
+    background: hsl(0 0% 8%);
+  }
+
+  .marketing-page--overview .marketing-glow,
+  .marketing-page--overview .marketing-hero-backdrop {
+    display: none !important;
+  }
+
+  .ov-header {
+    background: transparent;
+    border-color: transparent;
+    color: hsl(var(--ov-fg));
+  }
+
+  .ov-header--scrolled {
+    background: hsl(0 0% 8% / 0.92);
+    backdrop-filter: blur(14px);
+    border-bottom-color: hsl(var(--ov-line));
+  }
+
+  .ov-header-cta {
+    @apply inline-flex h-9 items-center rounded-full bg-white px-4 text-sm font-medium text-black transition hover:bg-white/90;
+  }
+
+  .ov-container {
+    @apply mx-auto w-full max-w-[1120px] px-5 md:px-8;
+  }
+
+  .ov-main {
+    @apply relative z-10;
+  }
+
+  .ov-hero {
+    @apply pb-16 pt-10 md:pb-24 md:pt-16;
+  }
+
+  .ov-hero__inner {
+    @apply ov-container flex flex-col items-center text-center;
+  }
+
+  .ov-hero__title {
+    @apply max-w-[18ch] font-display text-[2.35rem] font-semibold leading-[1.08] tracking-tight text-white sm:text-5xl md:max-w-[20ch] md:text-6xl lg:text-[4.25rem] lg:leading-[1.05];
+  }
+
+  .ov-hero__emphasis {
+    background: linear-gradient(90deg, #7dd3fc, #f9a8d4 45%, #fdba74);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .ov-hero__cta {
+    @apply mt-8 flex flex-wrap items-center justify-center gap-5 md:mt-10;
+  }
+
+  .ov-btn-primary {
+    @apply inline-flex h-11 items-center justify-center rounded-full bg-white px-6 text-[0.95rem] font-medium text-black transition hover:bg-white/90 md:h-12 md:px-7;
+  }
+
+  .ov-btn-text {
+    @apply inline-flex items-center gap-1.5 text-[0.95rem] font-medium text-white/75 transition hover:text-white;
+  }
+
+  .ov-mode-tabs {
+    @apply mt-10 flex flex-wrap items-center justify-center gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1 md:mt-12;
+  }
+
+  .ov-mode-tab {
+    @apply rounded-full px-4 py-1.5 text-sm font-medium capitalize text-white/50 transition hover:text-white/85 md:px-5;
+  }
+
+  .ov-mode-tab--active {
+    @apply bg-white text-black hover:text-black;
+  }
+
+  .ov-hero__figure {
+    @apply mt-10 w-full max-w-5xl md:mt-14;
+  }
+
+  .ov-window {
+    @apply overflow-hidden rounded-2xl border border-white/10 bg-[#141414] shadow-[0_40px_100px_-40px_rgba(0,0,0,0.85)];
+  }
+
+  .ov-window__chrome {
+    @apply flex items-center gap-2 border-b border-white/10 px-4 py-2.5;
+  }
+
+  .ov-window__chrome span {
+    @apply h-2.5 w-2.5 rounded-full bg-white/15;
+  }
+
+  .ov-window__chrome span:nth-child(1) {
+    @apply bg-[#ff5f57]/70;
+  }
+
+  .ov-window__chrome span:nth-child(2) {
+    @apply bg-[#febc2e]/70;
+  }
+
+  .ov-window__chrome span:nth-child(3) {
+    @apply bg-[#28c840]/70;
+  }
+
+  .ov-window__title {
+    @apply ml-2 flex-1 truncate text-center font-mono text-[11px] text-white/40;
+  }
+
+  .ov-window__img {
+    @apply block h-auto w-full;
+  }
+
+  .ov-hero__caption {
+    @apply mt-5 flex flex-col items-center gap-1 text-sm text-white/50 sm:flex-row sm:justify-center sm:gap-2;
+  }
+
+  .ov-hero__caption strong {
+    @apply font-medium text-white/85;
+  }
+
+  .ov-modes {
+    @apply border-t border-white/10 py-20 md:py-28;
+  }
+
+  .ov-modes__grid {
+    @apply grid gap-12 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.15fr)] lg:gap-16;
+  }
+
+  .ov-modes__nav {
+    @apply flex flex-col;
+  }
+
+  .ov-modes__nav-item {
+    @apply border-b border-white/10 py-3.5 text-left text-lg font-medium text-white/40 transition hover:text-white/75 md:text-xl;
+  }
+
+  .ov-modes__nav-item--active {
+    @apply text-white;
+  }
+
+  .ov-modes__copy {
+    @apply mt-8 max-w-md;
+  }
+
+  .ov-modes__title {
+    @apply font-display text-3xl font-semibold tracking-tight text-white md:text-4xl;
+  }
+
+  .ov-modes__blurb {
+    @apply mt-3 text-lg text-white/70;
+  }
+
+  .ov-modes__body {
+    @apply mt-4 text-base leading-relaxed text-white/45;
+  }
+
+  .ov-link {
+    @apply mt-6 inline-flex text-sm font-medium text-white transition hover:text-white/80;
+  }
+
+  .ov-modes__visual {
+    @apply min-w-0;
+  }
+
+  .ov-window--panel .marketing-feature-visual {
+    @apply rounded-none border-0 bg-transparent shadow-none;
+  }
+
+  .ov-window--panel .marketing-feature-visual-body {
+    @apply bg-[#121212];
+  }
+
+  .ov-uses {
+    @apply border-t border-white/10 py-20 md:py-28;
+  }
+
+  .ov-uses__heading {
+    @apply mx-auto max-w-[18ch] text-center font-display text-3xl font-semibold tracking-tight text-white md:text-4xl lg:text-[2.75rem] lg:leading-tight;
+  }
+
+  .ov-uses__rail {
+    @apply mt-12 grid gap-3 sm:grid-cols-2 lg:mt-16 lg:grid-cols-3;
+  }
+
+  .ov-uses__card {
+    @apply rounded-2xl border border-white/10 bg-white/[0.04] p-5 md:p-6;
+  }
+
+  .ov-uses__card h3 {
+    @apply text-lg font-semibold text-white;
+  }
+
+  .ov-uses__card p {
+    @apply mt-2 text-sm leading-relaxed text-white/45;
+  }
+
+  .ov-news {
+    @apply border-t border-white/10 py-20 md:py-24;
+  }
+
+  .ov-news__head {
+    @apply mb-8 flex flex-wrap items-end justify-between gap-4;
+  }
+
+  .ov-news__head h2 {
+    @apply font-display text-3xl font-semibold tracking-tight text-white;
+  }
+
+  .ov-news__links {
+    @apply flex flex-wrap gap-4 text-sm;
+  }
+
+  .ov-news__links a {
+    @apply text-white/50 transition hover:text-white;
+  }
+
+  .ov-news__list {
+    @apply divide-y divide-white/10 rounded-2xl border border-white/10;
+  }
+
+  .ov-news__list a {
+    @apply flex flex-col gap-1 px-5 py-4 transition hover:bg-white/[0.04] sm:flex-row sm:items-center sm:justify-between sm:gap-6;
+  }
+
+  .ov-news__list span {
+    @apply text-base text-white/85;
+  }
+
+  .ov-news__list time {
+    @apply shrink-0 text-sm text-white/40;
+  }
+
+  .ov-cta {
+    @apply border-t border-white/10 py-24 md:py-32;
+  }
+
+  .ov-cta__inner {
+    @apply flex flex-col items-center text-center;
+  }
+
+  .ov-cta__inner h2 {
+    @apply max-w-[16ch] font-display text-3xl font-semibold tracking-tight text-white md:text-5xl;
+  }
+
+  .ov-cta__inner p {
+    @apply mt-5 max-w-xl text-base text-white/50 md:text-lg;
+  }
+
+  .ov-footer {
+    @apply border-t border-white/10 bg-[hsl(0_0%_6%)] text-white;
+  }
+
   /* Unified research workspace — focus rings and distraction-free chrome */
   [data-research-workspace] :focus-visible {
     outline: 2px solid hsl(var(--ring));

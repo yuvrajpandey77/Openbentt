@@ -8,15 +8,15 @@ import { marketingNav } from "@/components/marketing/marketingNav";
 import { cn } from "@/lib/utils";
 import { MarketingHeroBackdrop } from "@/components/marketing/MarketingHeroBackdrop";
 import { MarketingTerminalBar } from "@/components/marketing/MarketingTerminalBar";
-import { MeridianAnnouncementBanner } from "@/components/marketing/MeridianAnnouncementBanner";
 import { Github, Moon, Sun } from "lucide-react";
 
 type MarketingShellProps = {
   children: React.ReactNode;
   homeAnchors?: boolean;
   terminalBar?: boolean;
-  /** Wider content column (landing hero) */
   wide?: boolean;
+  /** ChatGPT-overview dark minimal chrome (home landing). */
+  overview?: boolean;
 };
 
 export function MarketingShell({
@@ -24,6 +24,7 @@ export function MarketingShell({
   homeAnchors = false,
   terminalBar = false,
   wide = false,
+  overview = false,
 }: MarketingShellProps) {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
@@ -31,6 +32,8 @@ export function MarketingShell({
   const onHome = location.pathname === "/";
   const githubUrl = GITHUB_REPO ? `https://github.com/${GITHUB_REPO}` : null;
   const [scrolled, setScrolled] = useState(false);
+  const isOverview = overview && onHome;
+  const wideLayout = wide || isOverview;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -59,50 +62,56 @@ export function MarketingShell({
     <div
       className={cn(
         "marketing-page relative min-h-screen text-foreground",
-        onHome ? "marketing-page--home" : "bg-background"
+        onHome && "marketing-page--home",
+        isOverview && "marketing-page--overview",
+        !onHome && "bg-background"
       )}
     >
-      <div className="marketing-glow pointer-events-none absolute inset-x-0 top-0 -z-10 h-[min(55vh,480px)]" aria-hidden />
+      {!isOverview && (
+        <div className="marketing-glow pointer-events-none absolute inset-x-0 top-0 -z-10 h-[min(55vh,480px)]" aria-hidden />
+      )}
 
-      {onHome && <MarketingHeroBackdrop />}
+      {onHome && !isOverview && <MarketingHeroBackdrop />}
 
       <header
         className={cn(
           "marketing-header sticky top-0 z-50 border-b transition-[background-color,box-shadow,border-color] duration-300",
-          onHome
-            ? cn(
-                "marketing-header--over-hero border-transparent",
-                scrolled && "marketing-header--scrolled"
-              )
-            : cn("border-border/50 bg-background/90 backdrop-blur-md", scrolled && "marketing-header--scrolled")
+          isOverview
+            ? cn("ov-header border-transparent", scrolled && "ov-header--scrolled")
+            : onHome
+              ? cn("marketing-header--over-hero border-transparent", scrolled && "marketing-header--scrolled")
+              : cn("border-border/50 bg-background/90 backdrop-blur-md", scrolled && "marketing-header--scrolled")
         )}
       >
         <div
           className={cn(
-            "mx-auto flex h-[4.25rem] items-center justify-between gap-6 px-5 md:h-[4.75rem] md:px-8",
-            wide ? "max-w-[1400px]" : "max-w-6xl"
+            "mx-auto flex h-14 items-center justify-between gap-4 px-5 md:h-16 md:px-8",
+            wideLayout ? "max-w-[1200px]" : "max-w-6xl"
           )}
         >
-          <Link to="/" className="marketing-brand flex shrink-0 items-center gap-3">
+          <Link to="/" className="marketing-brand flex shrink-0 items-center gap-2.5">
             <img
               src="/openbentt-logo.svg"
               alt=""
-              width={44}
-              height={44}
-              className="h-10 w-10 rounded-xl md:h-11 md:w-11"
+              width={32}
+              height={32}
+              className="h-8 w-8 rounded-lg"
             />
-            <span className="font-display text-xl font-semibold tracking-tight md:text-2xl">Openbentt</span>
+            <span className="font-display text-base font-semibold tracking-tight md:text-lg">Openbentt</span>
           </Link>
 
-          <nav className="hidden items-center gap-1 lg:flex" aria-label="Site">
+          <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Site">
             {marketingNav.map((item) =>
               "to" in item ? (
                 <Link
                   key={item.label}
                   to={item.to}
                   className={cn(
-                    "rounded-lg px-4 py-2 text-[0.95rem] text-muted-foreground transition-colors hover:text-foreground",
-                    location.pathname === item.to && "font-semibold text-foreground"
+                    "rounded-full px-3 py-1.5 text-sm transition-colors",
+                    isOverview
+                      ? "text-white/55 hover:text-white"
+                      : "text-muted-foreground hover:text-foreground",
+                    location.pathname === item.to && (isOverview ? "text-white" : "font-semibold text-foreground")
                   )}
                 >
                   {item.label}
@@ -111,7 +120,10 @@ export function MarketingShell({
                 <a
                   key={item.label}
                   href={resolveHashLink(item.href)}
-                  className="rounded-lg px-4 py-2 text-[0.95rem] text-muted-foreground transition-colors hover:text-foreground"
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-sm transition-colors",
+                    isOverview ? "text-white/55 hover:text-white" : "text-muted-foreground hover:text-foreground"
+                  )}
                 >
                   {item.label}
                 </a>
@@ -119,47 +131,72 @@ export function MarketingShell({
             )}
           </nav>
 
-          <div className="flex items-center gap-2 md:gap-2.5">
-            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg" onClick={toggleTheme} aria-label="Toggle theme">
-              {theme === "dark" ? <Sun className="h-[1.15rem] w-[1.15rem]" /> : <Moon className="h-[1.15rem] w-[1.15rem]" />}
-            </Button>
-            {githubUrl && (
-              <Button variant="outline" className="hidden h-10 rounded-lg px-4 text-sm sm:inline-flex gap-2" asChild>
-                <a href={githubUrl} target="_blank" rel="noreferrer">
-                  <Github className="h-4 w-4" />
-                  GitHub
-                </a>
+          <div className="flex items-center gap-2">
+            {!isOverview && (
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg" onClick={toggleTheme} aria-label="Toggle theme">
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
             )}
+            {githubUrl && (
+              isOverview ? (
+                <a
+                  href={githubUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hidden text-sm text-white/70 transition-colors hover:text-white sm:inline"
+                >
+                  GitHub
+                </a>
+              ) : (
+                <Button variant="outline" className="hidden h-9 rounded-lg px-3 text-sm sm:inline-flex gap-2" asChild>
+                  <a href={githubUrl} target="_blank" rel="noreferrer">
+                    <Github className="h-4 w-4" />
+                    GitHub
+                  </a>
+                </Button>
+              )
+            )}
 
-            <Button className="h-10 rounded-lg px-5 text-sm font-semibold md:px-6" asChild>
-              <Link to="/download">Download</Link>
-            </Button>
+            {isOverview ? (
+              <Link to="/download" className="ov-header-cta">
+                Download
+              </Link>
+            ) : (
+              <Button className="h-9 rounded-lg px-4 text-sm font-semibold" asChild>
+                <Link to="/download">Download</Link>
+              </Button>
+            )}
           </div>
         </div>
       </header>
 
-      {onHome && <MeridianAnnouncementBanner overHero scrolled={scrolled} />}
-
       {children}
 
-      {terminalBar && <MarketingTerminalBar />}
+      {terminalBar && !isOverview && <MarketingTerminalBar />}
 
-      <footer className={cn("border-t border-border/50 bg-muted/15", terminalBar ? "mt-0" : "mt-8")}>
-        <div className={cn("mx-auto px-4 py-14 md:px-8", wide ? "max-w-[1400px]" : "max-w-6xl")}>
+      <footer
+        className={cn(
+          isOverview ? "ov-footer" : "border-t border-border/50 bg-muted/15",
+          terminalBar && !isOverview ? "mt-0" : "mt-0"
+        )}
+      >
+        <div className={cn("mx-auto px-5 py-14 md:px-8", wideLayout ? "max-w-[1200px]" : "max-w-6xl")}>
           <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-3">
               <Link to="/" className="inline-flex items-center gap-2.5">
-                <img src="/openbentt-logo.svg" alt="" width={36} height={36} className="h-9 w-9 rounded-lg" />
-                <span className="font-display text-lg font-semibold">Openbentt</span>
+                <img src="/openbentt-logo.svg" alt="" width={32} height={32} className="h-8 w-8 rounded-lg" />
+                <span className="font-display text-base font-semibold">Openbentt</span>
               </Link>
-              <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-                Desktop-first AI workspace for LaTeX, PDFs, benchmarking, and local GGUF. By{" "}
+              <p className={cn("max-w-xs text-sm leading-relaxed", isOverview ? "text-white/45" : "text-muted-foreground")}>
+                Desktop lab for LaTeX, Paper Orchestra, agents, and local GGUF. By{" "}
                 <a
                   href={cogerphereWebsite}
                   target="_blank"
                   rel="noreferrer"
-                  className="font-medium text-foreground/80 underline-offset-4 hover:text-foreground hover:underline"
+                  className={cn(
+                    "underline-offset-4 hover:underline",
+                    isOverview ? "text-white/70 hover:text-white" : "font-medium text-foreground/80 hover:text-foreground"
+                  )}
                 >
                   Cogerphere
                 </a>
@@ -168,12 +205,22 @@ export function MarketingShell({
             </div>
             {footerColumns.map((col) => (
               <div key={col.title}>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{col.title}</p>
+                <p
+                  className={cn(
+                    "mb-3 text-xs font-semibold uppercase tracking-wide",
+                    isOverview ? "text-white/40" : "text-muted-foreground"
+                  )}
+                >
+                  {col.title}
+                </p>
                 <ul className="space-y-2 text-sm">
                   {col.links.map((link) => (
                     <li key={link.label}>
                       {"to" in link ? (
-                        <Link to={link.to} className="text-foreground/75 hover:text-foreground">
+                        <Link
+                          to={link.to}
+                          className={isOverview ? "text-white/55 hover:text-white" : "text-foreground/75 hover:text-foreground"}
+                        >
                           {link.label}
                         </Link>
                       ) : link.external === "releases" && releasesUrl ? (
@@ -181,7 +228,7 @@ export function MarketingShell({
                           href={releasesUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-foreground/75 hover:text-foreground"
+                          className={isOverview ? "text-white/55 hover:text-white" : "text-foreground/75 hover:text-foreground"}
                         >
                           {link.label}
                         </a>
@@ -190,7 +237,7 @@ export function MarketingShell({
                           href={link.external}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-foreground/75 hover:text-foreground"
+                          className={isOverview ? "text-white/55 hover:text-white" : "text-foreground/75 hover:text-foreground"}
                         >
                           {link.label}
                         </a>
@@ -201,7 +248,12 @@ export function MarketingShell({
               </div>
             ))}
           </div>
-          <p className="mt-12 border-t border-border/50 pt-8 text-center text-xs text-muted-foreground md:text-left">
+          <p
+            className={cn(
+              "mt-12 border-t pt-8 text-center text-xs md:text-left",
+              isOverview ? "border-white/10 text-white/35" : "border-border/50 text-muted-foreground"
+            )}
+          >
             © {new Date().getFullYear()} Openbentt. All rights reserved.
           </p>
         </div>

@@ -7,7 +7,7 @@
     "email": "openbentt-contributors@users.noreply.github.com"
   },
   "private": true,
-  "version": "2.6.3",
+  "version": "2.6.4",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
@@ -49,7 +49,7 @@
     "download:busytex": "texlyre-busytex download-assets public/core",
     "download:llama-server": "node scripts/download-llama-server.mjs",
     "download:llama-server:all": "node scripts/download-llama-server.mjs --all",
-    "predownload:llama-server": "node -e \"console.log('Fetching llama-server from ggml-org/llama.cpp releases\u2026')\"",
+    "predownload:llama-server": "node -e \"console.log('Fetching llama-server from ggml-org/llama.cpp releases…')\"",
     "electron:dev": "concurrently -k \"npm run dev\" \"node scripts/wait-for-http.mjs http://127.0.0.1:8080 http://127.0.0.1:8080/src/main.tsx && cross-env OPENBENTT_ELECTRON_DEV=1 VITE_DEV_SERVER_URL=http://127.0.0.1:8080 node electron/launch.mjs\"",
     "electron:start": "npm run build && node electron/launch.mjs",
     "electron:build": "npm run build && npm run download:llama-server && electron-builder",
@@ -178,7 +178,7 @@
   "build": {
     "appId": "com.openbentt.desktop",
     "productName": "Openbentt",
-    "copyright": "Copyright \u00a9 Openbentt contributors",
+    "copyright": "Copyright © Openbentt contributors",
     "icon": "build/icon.png",
     "directories": {
       "output": "release"

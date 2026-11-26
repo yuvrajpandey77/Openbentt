@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.6.4] — 2026-11-27
+
+### Changed
+
+- **Marketing landing:** ChatGPT-overview pattern — dark canvas, large headline, white pill CTA, write/paper/agents/local mode tabs, product window, mode accordion, use-case strip.
+- Version bump: `2.6.3` → `2.6.4`.
+
 ## [2.6.3] — 2026-11-27
 
 ### Changed

@@ -20,6 +20,25 @@ export type ReleaseNote = {
 
 export const releaseNotes: ReleaseNote[] = [
   {
+    version: "2.6.4",
+    date: "Nov 27, 2026",
+    title: "Overview landing · dark minimal · write / paper / agents / local",
+    summary:
+      "Home page rebuilt to the ChatGPT Overview pattern: dark canvas, huge headline, dual CTAs, mode tabs, product window with compiled Notebook PDF, and sparse mode/use sections.",
+    highlight: "write · paper · agents · local mode switcher on a near-black marketing canvas",
+    sections: [
+      {
+        heading: "Marketing",
+        bullets: [
+          "Overview chrome: muted nav, white Download pill, no theme toggle / announcement bar",
+          "Hero mode tabs swap captions over the Notebook screenshot",
+          "Mode accordion + use-case strip replace dense icon grids",
+        ],
+      },
+    ],
+    cta: { label: "Download 2.6.4", to: "/download" },
+  },
+  {
     version: "2.6.3",
     date: "Nov 27, 2026",
     title: "Product landing · Notebook hero · real desktop surfaces",

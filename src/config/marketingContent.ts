@@ -48,25 +48,107 @@ export const appCardHero = {
 
 export const launchHero = appCardHero;
 
+/** ChatGPT-overview–style hero copy */
 export const hero = {
   brand: "Openbentt",
-  headlineBefore: "The desktop lab for ",
-  headlineEmphasis: "papers, agents, and local models",
+  headlineBefore: "Now you can write papers, run agents & local models ",
+  headlineEmphasis: "in one desktop lab",
   headlineAfter: ".",
-  subhead:
-    "Notebook with live PDF. Paper Orchestra. OpenCode agents. Model Arena. Research Labs. Bundled llama-server GGUF. All on your machine.",
-  moduleStrip: [
-    "Notebook",
-    "Paper Orchestra",
-    "Meridian",
-    "OpenCode",
-    "Model Arena",
-    "Research Labs",
-    "Local GGUF",
-    "Task Center",
-  ] as const,
+  /** Used by HeroHeadline when present */
+  subhead: "",
   terminalLine: "> openbentt · notebook · paper · agents · gguf",
+  primaryCta: { label: "Download desktop", to: "/download" },
+  secondaryCta: { label: "All platforms", to: "/download" },
 };
+
+export type OverviewMode = {
+  id: string;
+  tab: string;
+  title: string;
+  blurb: string;
+  body: string;
+  visual: string;
+  cta: { label: string; to: string };
+};
+
+/** Mode switcher — mirrors ChatGPT chat / work / code */
+export const overviewModes: OverviewMode[] = [
+  {
+    id: "write",
+    tab: "write",
+    title: "Notebook",
+    blurb: "For LaTeX, live PDF, and Meridian writing.",
+    body: "Edit main.tex beside a compiled preview. BusyTeX or desktop tectonic/pdflatex. Meridian prompts apply straight into source. Import Prism/Overleaf ZIPs in one click.",
+    visual: "notebook",
+    cta: { label: "Open Notebook", to: "/notebook" },
+  },
+  {
+    id: "paper",
+    tab: "paper",
+    title: "Paper Orchestra",
+    blurb: "For multi-stage research papers end to end.",
+    body: "Run a staged paper graph — materials, drafts, artifacts — then land results in Notebook. Engine logs survive when you leave for Chat and come back.",
+    visual: "research",
+    cta: { label: "Download for Paper", to: "/download" },
+  },
+  {
+    id: "agents",
+    tab: "agents",
+    title: "Agents",
+    blurb: "For OpenCode, multi-CLI agents, and Model Arena.",
+    body: "Hand work to OpenCode with approvals and an activity terminal. Auto-detect Claude, Codex, Cursor, Aider, Gemini. Compare 2–4 models on one prompt with latency and tokens/s.",
+    visual: "model-arena",
+    cta: { label: "Get desktop agents", to: "/download" },
+  },
+  {
+    id: "local",
+    tab: "local",
+    title: "Local",
+    blurb: "For GGUF, Research Labs, and on-disk libraries.",
+    body: "Pull Hugging Face quants and chat through bundled llama-server. Labs keep PDFs, Zotero, BibTeX, and local theme synthesis on your machine — not a hosted RAG SaaS.",
+    visual: "desktop-gguf",
+    cta: { label: "Install desktop", to: "/download" },
+  },
+];
+
+export type UseCase = {
+  id: string;
+  title: string;
+  description: string;
+};
+
+export const overviewUseCases: UseCase[] = [
+  {
+    id: "latex",
+    title: "LaTeX & PDF",
+    description: "Compile, preview, and apply AI into source without leaving Notebook.",
+  },
+  {
+    id: "papers",
+    title: "Paper writing",
+    description: "Paper Orchestra stages a full draft pipeline into your project files.",
+  },
+  {
+    id: "compare",
+    title: "Model compare",
+    description: "Arena tiles multiple providers so you see speed and quality, not vibes.",
+  },
+  {
+    id: "agents",
+    title: "Local agents",
+    description: "OpenCode and detected CLIs run with approvals beside Chat.",
+  },
+  {
+    id: "offline",
+    title: "Offline GGUF",
+    description: "Bundled llama-server — no manual llama.cpp install.",
+  },
+  {
+    id: "labs",
+    title: "Research library",
+    description: "PDFs, Zotero, BibTeX, and local cross-paper themes on disk.",
+  },
+];
 
 export type ProductCapability = {
   id: string;
@@ -77,7 +159,6 @@ export type ProductCapability = {
   icon: LucideIcon;
 };
 
-/** Named product surfaces — concrete, not slogan cards. */
 export const productCapabilities: ProductCapability[] = [
   {
     id: "notebook",
@@ -156,64 +237,21 @@ export type ProductStory = {
   reverse?: boolean;
 };
 
-export const productStories: ProductStory[] = [
-  {
-    id: "notebook",
-    kicker: "Write & compile",
-    title: "Notebook: source on the left, paper on the right",
-    body: [
-      "Open a project, edit main.tex, hit Compile. Preview updates in the same window — BusyTeX in the browser path, tectonic/pdflatex on desktop.",
-      "Meridian 0.1 drops structured writing prompts into your thread and Apply pushes text into source. Prism/Overleaf ZIP import brings whole papers in one click.",
-    ],
-    proof: ["LaTeX cascade", "Live PDF", "Template gallery", "ZIP / folder import"],
-    visual: "notebook",
-    cta: { label: "Open Notebook", to: "/notebook" },
-  },
-  {
-    id: "paper",
-    kicker: "Paper Orchestra",
-    title: "A research-paper engine, not a chat tab",
-    body: [
-      "Paper Orchestra runs a multi-stage graph: gather materials, draft sections, emit artifacts back into Notebook.",
-      "Live engine logs and stage state sit in the desktop process — leave for Chat, come back, the run console is still there.",
-    ],
-    proof: ["Staged pipeline", "Persistent logs", "Notebook handoff", "Task Center chip"],
-    visual: "research",
-    cta: { label: "Download for Paper Orchestra", to: "/download" },
-    reverse: true,
-  },
-  {
-    id: "agents",
-    kicker: "Agents & arena",
-    title: "OpenCode in Chat. Arena when you need receipts.",
-    body: [
-      "Composer can hand work to OpenCode with approvals and an activity terminal. Settings auto-detects OpenCode, Claude Code, Codex, Cursor Agent, Aider, and Gemini CLI.",
-      "Model Arena tiles 2–4 providers on one prompt so you see latency and tokens/s — not vibes.",
-    ],
-    proof: ["OpenCode ask", "Multi-agent detect", "Tiled compare", "Thinking-on-wait"],
-    visual: "model-arena",
-    cta: { label: "Get desktop agents", to: "/download" },
-  },
-  {
-    id: "local",
-    kicker: "Labs & GGUF",
-    title: "Library on disk. Weights on disk. Keys on disk.",
-    body: [
-      "Research Labs ingest PDFs, sync Zotero/Better BibTeX, and cluster themes locally. Similarity scan can use on-device MiniLM — not a hosted RAG SaaS.",
-      "Pull GGUF quants from Hugging Face and chat through the bundled llama-server. BYOK for OpenRouter, OpenAI, Anthropic, Google when you want the cloud.",
-    ],
-    proof: ["GGUF hub", "llama-server", "Zotero", "Local synthesis"],
-    visual: "desktop-gguf",
-    cta: { label: "Install desktop", to: "/download" },
-    reverse: true,
-  },
-];
+export const productStories: ProductStory[] = overviewModes.map((m, i) => ({
+  id: m.id,
+  kicker: m.tab,
+  title: `${m.title}: ${m.blurb}`,
+  body: [m.body],
+  proof: [],
+  visual: m.visual,
+  cta: m.cta,
+  reverse: i % 2 === 1,
+}));
 
-/** Kept for older imports / download page snippets */
 export const localBoundary = {
   eyebrow: "Local by design",
   title: "Prompts, papers, and weights stay on your machine.",
-  body: "No account wall. No prompt retention on our servers. OpenRouter when you want it; GGUF when you don’t.",
+  body: "No account wall. No prompt retention on our servers.",
   lines: [
     "chat history on disk",
     "GGUF via bundled llama-server",
@@ -222,14 +260,14 @@ export const localBoundary = {
   ],
 } as const;
 
-export const workspaceStages = productStories.map((s, i) => ({
-  id: s.id,
-  kicker: `${String(i + 1).padStart(2, "0")} · ${s.kicker}`,
-  title: s.title.split(":")[0] ?? s.title,
-  lead: s.body[0] ?? "",
-  bullets: s.proof,
-  visual: s.visual,
-  cta: s.cta,
+export const workspaceStages = overviewModes.map((m, i) => ({
+  id: m.id,
+  kicker: `${String(i + 1).padStart(2, "0")} · ${m.tab}`,
+  title: m.title,
+  lead: m.blurb,
+  bullets: [m.body],
+  visual: m.visual,
+  cta: m.cta,
 }));
 
 export const heroPrinciples: HeroPrinciple[] = productCapabilities.slice(0, 5).map((c) => ({
@@ -240,12 +278,17 @@ export const heroPrinciples: HeroPrinciple[] = productCapabilities.slice(0, 5).m
 }));
 
 export const meridianAnnouncement = {
-  eyebrow: "v2.6.3",
-  title: "Landing shows the real desktop lab · Notebook hero with compiled paper",
+  eyebrow: "v2.6.4",
+  title: "Overview landing · ChatGPT-style dark minimal desktop lab",
   href: "/news",
 } as const;
 
 export const latestNews: NewsItem[] = [
+  {
+    title: "v2.6.4: ChatGPT-overview landing — dark minimal write/paper/agents/local",
+    date: "Nov 27, 2026",
+    to: "/news",
+  },
   {
     title: "v2.6.3: Product landing rewrite — Notebook, Paper Orchestra, agents, GGUF",
     date: "Nov 27, 2026",
@@ -264,16 +307,6 @@ export const latestNews: NewsItem[] = [
   {
     title: "v2.6.0: Center status pill, lean composer, workspace recent folders",
     date: "Nov 26, 2026",
-    to: "/news",
-  },
-  {
-    title: "v2.5.9: Unified window chrome, composer agent picker, clearer approvals",
-    date: "Nov 26, 2026",
-    to: "/news",
-  },
-  {
-    title: "v2.5.3: Desktop UX overhaul — ChatGPT-style empty chat & design system",
-    date: "Nov 23, 2026",
     to: "/news",
   },
   {
@@ -311,9 +344,9 @@ export const showcaseBlocks: ShowcaseBlock[] = productStories.map((s) => ({
 }));
 
 export const punchStats: PunchStat[] = [
-  { headline: "Notebook", subline: "LaTeX + live PDF + Meridian apply-to-source" },
-  { headline: "Paper Orchestra", subline: "Multi-stage paper graph with persistent logs" },
-  { headline: "OpenCode", subline: "Local agents, approvals, multi-CLI detect" },
+  { headline: "Notebook", subline: "LaTeX + live PDF + Meridian" },
+  { headline: "Paper Orchestra", subline: "Multi-stage paper graph" },
+  { headline: "OpenCode", subline: "Local agents + multi-CLI detect" },
   { headline: "Local GGUF", subline: "HF hub + bundled llama-server" },
 ];
 
@@ -331,7 +364,7 @@ export const comparePaths = {
     id: "desktop" as const,
     title: "Full desktop workspace",
     description:
-      "Offline GGUF, Research Labs, Paper Orchestra, tiled Model Arena, and long PDF sessions. Everything stays on disk with OS-backed secrets.",
+      "Offline GGUF, Research Labs, Paper Orchestra, tiled Model Arena, and long PDF sessions.",
     cta: { label: "Download desktop", to: "/download" },
   },
 };
@@ -349,9 +382,9 @@ export const providerStrip = [
 export const cogerphereWebsite = "https://cogerphere.com" as const;
 
 export const mission = {
-  eyebrow: "Built for researchers",
-  title: "A lab on your machine — not another chat wrapper.",
-  body: "Openbentt ships Notebook, Paper Orchestra, agents, Arena, Labs, and local GGUF in one desktop app. Windows, Linux, and macOS.",
+  eyebrow: "Try Openbentt",
+  title: "Install the desktop lab today",
+  body: "Windows, Linux, and macOS — Notebook, Paper Orchestra, agents, Arena, Labs, and offline GGUF.",
   cta: { label: "Download Openbentt", to: "/download" },
 };
 
@@ -369,7 +402,7 @@ export const footerColumns = [
     title: "Also available",
     links: [
       { label: "First-time setup", to: "/setup" },
-      { label: "v2.6.3 notes", to: "/news#v2-6-3" },
+      { label: "v2.6.4 notes", to: "/news#v2-6-4" },
     ],
   },
   {
