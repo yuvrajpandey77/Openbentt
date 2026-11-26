@@ -55,8 +55,8 @@ export function MarketingOverviewHero() {
               <p className="ov-window__title">{mode?.title ?? "Openbentt"}</p>
             </div>
             <img
-              src={appCardHero.src}
-              alt={appCardHero.alt}
+              src={mode?.shot ?? appCardHero.src}
+              alt={mode?.shotAlt ?? appCardHero.alt}
               width={appCardHero.width}
               height={appCardHero.height}
               loading="eager"

@@ -30,7 +30,7 @@ const ShareViewPage: React.FC = () => {
   }, []);
 
   return (
-    <div className="marketing-page min-h-screen bg-background">
+    <div className="marketing-page marketing-page--overview min-h-screen bg-background">
       <header className="border-b border-border/50">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-3 px-4 md:px-6">
           <Link to="/" className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">

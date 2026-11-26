@@ -39,12 +39,41 @@ export type HeroPrinciple = {
   iconClassName: string;
 };
 
-export const appCardHero = {
-  src: "/marketing/openbentt-app-card.png",
-  alt: "Openbentt Notebook — dark editor with main.tex and compiled Attention Is All You Need PDF preview",
-  width: 1440,
-  height: 755,
-};
+/** Real desktop captures. Local has no separate GGUF shot, so it reuses the chat screen. */
+export const productShots = {
+  notebook: {
+    src: "/marketing/notebook-editor.png",
+    alt: "Openbentt Notebook — main.tex beside the compiled Attention Is All You Need PDF",
+    width: 1024,
+    height: 544,
+  },
+  paper: {
+    src: "/marketing/paper-orchestra.png",
+    alt: "Paper Orchestra for Research_Front — Outline through PDF stages and the live engine log",
+    width: 1024,
+    height: 539,
+  },
+  chat: {
+    src: "/marketing/agents-chat.png",
+    alt: "Openbentt chat with OpenCode — Ready when you are, Research_Front project, local only",
+    width: 1024,
+    height: 538,
+  },
+  projects: {
+    src: "/marketing/projects.png",
+    alt: "Openbentt projects — LaTeX templates and the project library",
+    width: 1024,
+    height: 541,
+  },
+  chatWide: {
+    src: "/marketing/chat-composer.png",
+    alt: "Openbentt chat composer — Ready when you are",
+    width: 1024,
+    height: 539,
+  },
+} as const;
+
+export const appCardHero = productShots.notebook;
 
 export const launchHero = appCardHero;
 
@@ -68,6 +97,8 @@ export type OverviewMode = {
   blurb: string;
   body: string;
   visual: string;
+  shot: string;
+  shotAlt: string;
   cta: { label: string; to: string };
 };
 
@@ -80,6 +111,8 @@ export const overviewModes: OverviewMode[] = [
     blurb: "For LaTeX, live PDF, and Meridian writing.",
     body: "Edit main.tex beside a compiled preview. BusyTeX or desktop tectonic/pdflatex. Meridian prompts apply straight into source. Import Prism/Overleaf ZIPs in one click.",
     visual: "notebook",
+    shot: productShots.notebook.src,
+    shotAlt: productShots.notebook.alt,
     cta: { label: "Open Notebook", to: "/notebook" },
   },
   {
@@ -89,6 +122,8 @@ export const overviewModes: OverviewMode[] = [
     blurb: "For multi-stage research papers end to end.",
     body: "Run a staged paper graph — materials, drafts, artifacts — then land results in Notebook. Engine logs survive when you leave for Chat and come back.",
     visual: "research",
+    shot: productShots.paper.src,
+    shotAlt: productShots.paper.alt,
     cta: { label: "Download for Paper", to: "/download" },
   },
   {
@@ -98,6 +133,8 @@ export const overviewModes: OverviewMode[] = [
     blurb: "For OpenCode, multi-CLI agents, and Model Arena.",
     body: "Hand work to OpenCode with approvals and an activity terminal. Auto-detect Claude, Codex, Cursor, Aider, Gemini. Compare 2–4 models on one prompt with latency and tokens/s.",
     visual: "model-arena",
+    shot: productShots.chat.src,
+    shotAlt: productShots.chat.alt,
     cta: { label: "Get desktop agents", to: "/download" },
   },
   {
@@ -107,46 +144,62 @@ export const overviewModes: OverviewMode[] = [
     blurb: "For GGUF, Research Labs, and on-disk libraries.",
     body: "Pull Hugging Face quants and chat through bundled llama-server. Labs keep PDFs, Zotero, BibTeX, and local theme synthesis on your machine — not a hosted RAG SaaS.",
     visual: "desktop-gguf",
+    shot: productShots.chat.src,
+    shotAlt: productShots.chat.alt,
     cta: { label: "Install desktop", to: "/download" },
   },
 ];
 
 export type UseCase = {
   id: string;
+  label: string;
   title: string;
-  description: string;
+  detail: string;
+  proof: string;
 };
 
 export const overviewUseCases: UseCase[] = [
   {
     id: "latex",
+    label: "Notebook",
     title: "LaTeX & PDF",
-    description: "Compile, preview, and apply AI into source without leaving Notebook.",
+    detail: "main.tex beside the compiled PDF.",
+    proof: "BusyTeX in the browser, or tectonic and pdflatex on the desktop.",
   },
   {
     id: "papers",
+    label: "Paper Orchestra",
     title: "Paper writing",
-    description: "Paper Orchestra stages a full draft pipeline into your project files.",
+    detail: "Outline, literature, sections, refine, PDF.",
+    proof: "The staged run lands in Notebook. Logs stay when you leave for Chat.",
   },
   {
     id: "compare",
+    label: "Model Arena",
     title: "Model compare",
-    description: "Arena tiles multiple providers so you see speed and quality, not vibes.",
+    detail: "Two to four models, one prompt.",
+    proof: "Tiled streams with latency and tokens per second.",
   },
   {
     id: "agents",
+    label: "OpenCode",
     title: "Local agents",
-    description: "OpenCode and detected CLIs run with approvals beside Chat.",
+    detail: "Approvals and an activity terminal beside Chat.",
+    proof: "Detects Claude, Codex, Cursor, Aider, and Gemini.",
   },
   {
     id: "offline",
+    label: "On this machine",
     title: "Offline GGUF",
-    description: "Bundled llama-server — no manual llama.cpp install.",
+    detail: "Hugging Face quants through bundled llama-server.",
+    proof: "No separate llama.cpp install.",
   },
   {
     id: "labs",
+    label: "Research Labs",
     title: "Research library",
-    description: "PDFs, Zotero, BibTeX, and local cross-paper themes on disk.",
+    detail: "PDFs, Zotero, and BibTeX stay on disk.",
+    proof: "Local theme synthesis. Not a hosted paper dump.",
   },
 ];
 

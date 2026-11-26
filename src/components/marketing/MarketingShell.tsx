@@ -15,7 +15,7 @@ type MarketingShellProps = {
   homeAnchors?: boolean;
   terminalBar?: boolean;
   wide?: boolean;
-  /** ChatGPT-overview dark minimal chrome (home landing). */
+  /** Dark overview chrome. Default for every public marketing page. */
   overview?: boolean;
 };
 
@@ -24,7 +24,7 @@ export function MarketingShell({
   homeAnchors = false,
   terminalBar = false,
   wide = false,
-  overview = false,
+  overview = true,
 }: MarketingShellProps) {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
@@ -32,7 +32,7 @@ export function MarketingShell({
   const onHome = location.pathname === "/";
   const githubUrl = GITHUB_REPO ? `https://github.com/${GITHUB_REPO}` : null;
   const [scrolled, setScrolled] = useState(false);
-  const isOverview = overview && onHome;
+  const isOverview = overview;
   const wideLayout = wide || isOverview;
 
   useEffect(() => {
@@ -187,7 +187,7 @@ export function MarketingShell({
                 <img src="/openbentt-logo.svg" alt="" width={32} height={32} className="h-8 w-8 rounded-lg" />
                 <span className="font-display text-base font-semibold">Openbentt</span>
               </Link>
-              <p className={cn("max-w-xs text-sm leading-relaxed", isOverview ? "text-white/45" : "text-muted-foreground")}>
+              <p className={cn("max-w-xs text-sm leading-relaxed", isOverview ? "text-white/80" : "text-muted-foreground")}>
                 Desktop lab for LaTeX, Paper Orchestra, agents, and local GGUF. By{" "}
                 <a
                   href={cogerphereWebsite}
@@ -195,7 +195,7 @@ export function MarketingShell({
                   rel="noreferrer"
                   className={cn(
                     "underline-offset-4 hover:underline",
-                    isOverview ? "text-white/70 hover:text-white" : "font-medium text-foreground/80 hover:text-foreground"
+                    isOverview ? "text-white hover:underline" : "font-medium text-foreground/80 hover:text-foreground"
                   )}
                 >
                   Cogerphere
@@ -207,8 +207,8 @@ export function MarketingShell({
               <div key={col.title}>
                 <p
                   className={cn(
-                    "mb-3 text-xs font-semibold uppercase tracking-wide",
-                    isOverview ? "text-white/40" : "text-muted-foreground"
+                    "mb-3 text-xs font-semibold uppercase tracking-[0.08em]",
+                    isOverview ? "ov-footer__heading text-white" : "text-muted-foreground"
                   )}
                 >
                   {col.title}
@@ -219,7 +219,7 @@ export function MarketingShell({
                       {"to" in link ? (
                         <Link
                           to={link.to}
-                          className={isOverview ? "text-white/55 hover:text-white" : "text-foreground/75 hover:text-foreground"}
+                          className={isOverview ? "text-[0.95rem] text-white/85 hover:text-white" : "text-foreground/75 hover:text-foreground"}
                         >
                           {link.label}
                         </Link>
@@ -228,7 +228,7 @@ export function MarketingShell({
                           href={releasesUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className={isOverview ? "text-white/55 hover:text-white" : "text-foreground/75 hover:text-foreground"}
+                          className={isOverview ? "text-[0.95rem] text-white/85 hover:text-white" : "text-foreground/75 hover:text-foreground"}
                         >
                           {link.label}
                         </a>
@@ -237,7 +237,7 @@ export function MarketingShell({
                           href={link.external}
                           target="_blank"
                           rel="noreferrer"
-                          className={isOverview ? "text-white/55 hover:text-white" : "text-foreground/75 hover:text-foreground"}
+                          className={isOverview ? "text-[0.95rem] text-white/85 hover:text-white" : "text-foreground/75 hover:text-foreground"}
                         >
                           {link.label}
                         </a>
@@ -251,7 +251,7 @@ export function MarketingShell({
           <p
             className={cn(
               "mt-12 border-t pt-8 text-center text-xs md:text-left",
-              isOverview ? "border-white/10 text-white/35" : "border-border/50 text-muted-foreground"
+              isOverview ? "border-white/15 text-sm text-white/70" : "border-border/50 text-muted-foreground"
             )}
           >
             © {new Date().getFullYear()} Openbentt. All rights reserved.
