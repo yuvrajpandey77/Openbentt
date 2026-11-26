@@ -1,12 +1,10 @@
 /**
  * Optional download-update signup (marketing). Soft gate — clients always allow Skip.
  *
- * Storage backends (first match wins for durable store; Discord notify is additive):
- * - DOWNLOAD_SIGNUP_WEBHOOK_URL — POST JSON { email, platform, assetId, source, version, interests, ts }
- * - DATABASE_URL — Neon/Postgres upsert into download_signups
- * - DOWNLOAD_SIGNUP_DISCORD_WEBHOOK_URL — Discord channel notify (optional extra)
- *
- * Set at least one of WEBHOOK or DATABASE_URL in Vercel env, or signups return stored:false.
+ * Storage backends (database preferred when Neon DATABASE_URL is set):
+ * - DATABASE_URL — Neon/Postgres upsert into download_signups (pooled URL)
+ * - DOWNLOAD_SIGNUP_WEBHOOK_URL — POST JSON lead payload
+ * - DOWNLOAD_SIGNUP_DISCORD_WEBHOOK_URL — Discord channel notify (additive)
  */
 
 export const config = { runtime: "edge" };
@@ -78,14 +76,25 @@ export default async function handler(request: Request): Promise<Response> {
     ts: new Date().toISOString(),
   };
 
-  const webhook = process.env.DOWNLOAD_SIGNUP_WEBHOOK_URL?.trim();
   const databaseUrl = process.env.DATABASE_URL?.trim();
+  const webhook = process.env.DOWNLOAD_SIGNUP_WEBHOOK_URL?.trim();
   const discord = process.env.DOWNLOAD_SIGNUP_DISCORD_WEBHOOK_URL?.trim();
 
   let stored = false;
   const backends: string[] = [];
 
-  if (webhook) {
+  if (databaseUrl) {
+    try {
+      const { upsertDownloadSignup } = await import("../server/downloadSignupsDb.mjs");
+      await upsertDownloadSignup(databaseUrl, lead);
+      stored = true;
+      backends.push("database");
+    } catch (err) {
+      console.error("[download-signup] neon upsert failed", err);
+    }
+  }
+
+  if (!stored && webhook) {
     try {
       const r = await fetch(webhook, {
         method: "POST",
@@ -99,16 +108,6 @@ export default async function handler(request: Request): Promise<Response> {
       }
     } catch {
       /* try other backends */
-    }
-  }
-
-  if (!stored && databaseUrl) {
-    try {
-      await upsertNeon(databaseUrl, lead);
-      stored = true;
-      backends.push("database");
-    } catch {
-      /* fall through */
     }
   }
 
@@ -141,63 +140,11 @@ export default async function handler(request: Request): Promise<Response> {
       ok: false,
       error: "not_configured",
       message:
-        "Set DOWNLOAD_SIGNUP_WEBHOOK_URL, DATABASE_URL, or DOWNLOAD_SIGNUP_DISCORD_WEBHOOK_URL in Vercel.",
+        "Set DATABASE_URL (Neon), DOWNLOAD_SIGNUP_WEBHOOK_URL, or DOWNLOAD_SIGNUP_DISCORD_WEBHOOK_URL.",
     });
   }
 
-  // Discord-only still counts as accepted (operator gets the lead in channel).
   if (!stored && backends.includes("discord")) stored = true;
 
   return json(200, { ok: true, stored, backends });
-}
-
-async function upsertNeon(
-  databaseUrl: string,
-  lead: {
-    email: string;
-    platform: string;
-    assetId: string;
-    source: string;
-    version: string;
-    interests: string[];
-    ts: string;
-  }
-): Promise<void> {
-  // Neon SQL-over-HTTP (no native driver needed in Edge).
-  // Requires a Neon connection string; creates table on first use.
-  const { neon } = await import("@neondatabase/serverless");
-  const sql = neon(databaseUrl);
-
-  await sql`
-    CREATE TABLE IF NOT EXISTS download_signups (
-      email TEXT PRIMARY KEY,
-      platform TEXT,
-      asset_id TEXT,
-      source TEXT,
-      version TEXT,
-      interests TEXT[] DEFAULT '{}',
-      created_at TIMESTAMPTZ DEFAULT now(),
-      updated_at TIMESTAMPTZ DEFAULT now()
-    )
-  `;
-
-  await sql`
-    INSERT INTO download_signups (email, platform, asset_id, source, version, interests, updated_at)
-    VALUES (
-      ${lead.email},
-      ${lead.platform},
-      ${lead.assetId},
-      ${lead.source},
-      ${lead.version},
-      ${lead.interests},
-      ${lead.ts}::timestamptz
-    )
-    ON CONFLICT (email) DO UPDATE SET
-      platform = EXCLUDED.platform,
-      asset_id = EXCLUDED.asset_id,
-      source = EXCLUDED.source,
-      version = EXCLUDED.version,
-      interests = EXCLUDED.interests,
-      updated_at = EXCLUDED.updated_at
-  `;
 }

@@ -41,6 +41,7 @@
     "test:stress": "vitest run src/lib/research/perfStress.test.ts",
     "test:watch": "vitest",
     "test:csp": "node scripts/check-csp-artifacts.mjs",
+    "verify:download-signup": "node --env-file=.env.local scripts/verify-download-signup.mjs",
     "research-proxy": "node server/research-proxy.mjs",
     "latex-compile": "node server/latex-compile.mjs",
     "docker:build": "docker build -t openbentt .",
@@ -72,6 +73,7 @@
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.9.0",
     "@huggingface/transformers": "^4.0.1",
+    "@neon/env": "^2.1.11",
     "@neondatabase/serverless": "^1.2.1",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
@@ -148,6 +150,7 @@
   "devDependencies": {
     "@antithesishq/bombadil": "^0.8.0",
     "@eslint/js": "^9.9.0",
+    "@neon/config": "^1.14.8",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/typography": "^0.5.15",
     "@testing-library/jest-dom": "^7.0.1",

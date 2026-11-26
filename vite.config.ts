@@ -1,14 +1,96 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import type { Plugin } from "vite";
+import type { Connect, Plugin } from "vite";
 import { componentTagger } from "lovable-tagger";
 import { buildCspMetaTag } from "./scripts/csp-policy.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJson = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf-8")) as { version: string };
+
+/** Load `.env.local` / `.env` into process.env for server middleware (DATABASE_URL). */
+function loadLocalEnvFiles() {
+  for (const name of [".env.local", ".env"]) {
+    const file = path.join(__dirname, name);
+    if (!existsSync(file)) continue;
+    for (const line of readFileSync(file, "utf8").split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq < 1) continue;
+      const key = trimmed.slice(0, eq).trim();
+      let val = trimmed.slice(eq + 1).trim();
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
+        val = val.slice(1, -1);
+      }
+      if (!(key in process.env)) process.env[key] = val;
+    }
+  }
+}
+
+loadLocalEnvFiles();
+
+/**
+ * Local `/api/download-signup` for `vite` / `vite preview` (Vercel Edge handler is used in prod).
+ */
+function downloadSignupDevPlugin(): Plugin {
+  const mount = (middlewares: Connect.Server) => {
+    middlewares.use(async (req, res, next) => {
+      const url = req.url?.split("?")[0] ?? "";
+      if (url !== "/api/download-signup") return next();
+      if (req.method === "OPTIONS") {
+        res.statusCode = 204;
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+        res.end();
+        return;
+      }
+      if (req.method !== "POST") {
+        res.statusCode = 405;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ ok: false, error: "method_not_allowed" }));
+        return;
+      }
+      try {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(Buffer.from(chunk));
+        const raw = Buffer.concat(chunks).toString("utf8");
+        const { default: handler } = await import("./api/download-signup.ts");
+        const response = await handler(
+          new Request("http://127.0.0.1/api/download-signup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: raw,
+          })
+        );
+        res.statusCode = response.status;
+        response.headers.forEach((value, key) => res.setHeader(key, value));
+        res.end(Buffer.from(await response.arrayBuffer()));
+      } catch (err) {
+        console.error("[download-signup-dev]", err);
+        res.statusCode = 500;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ ok: false, error: "internal" }));
+      }
+    });
+  };
+
+  return {
+    name: "openbentt-download-signup-dev",
+    configureServer(server) {
+      mount(server.middlewares);
+    },
+    configurePreviewServer(server) {
+      mount(server.middlewares);
+    },
+  };
+}
 
 /** Injects canonical, OG/Twitter, theme-color, robots, manifest, JSON-LD. Set VITE_PUBLIC_SITE_URL for absolute social URLs. */
 function openbenttSeoPlugin(): Plugin {
@@ -140,6 +222,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     openbenttSeoPlugin(),
     openbenttCspPlugin(),
+    downloadSignupDevPlugin(),
     mode === "development" && componentTagger(),
   ].filter(Boolean),
   resolve: {
