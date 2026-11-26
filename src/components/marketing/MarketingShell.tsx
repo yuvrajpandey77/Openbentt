@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { MarketingHeroBackdrop } from "@/components/marketing/MarketingHeroBackdrop";
 import { MarketingTerminalBar } from "@/components/marketing/MarketingTerminalBar";
 import { MarketingAnalytics } from "@/components/marketing/MarketingAnalytics";
+import { DownloadSignupProvider } from "@/components/marketing/DownloadSignupProvider";
 import { trackDownloadClick } from "@/lib/analytics/marketingAnalytics";
 import { Github, Moon, Sun } from "lucide-react";
 
@@ -61,6 +62,7 @@ export function MarketingShell({
   };
 
   return (
+    <DownloadSignupProvider>
     <div
       className={cn(
         "marketing-page relative min-h-screen text-foreground",
@@ -318,5 +320,6 @@ export function MarketingShell({
         )}
       </footer>
     </div>
+    </DownloadSignupProvider>
   );
 }

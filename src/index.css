@@ -2050,12 +2050,82 @@
     color: color-mix(in srgb, var(--ov-yellow) 85%, white);
   }
 
+  .ov-dl__hint {
+    @apply mt-3 max-w-xl text-sm text-white/55 md:text-base;
+  }
+
   .ov-dl__count {
     @apply text-xs font-medium tracking-normal text-white/45;
   }
 
   .ov-dl__note {
     @apply mt-6 text-sm text-white/50;
+  }
+
+  .ov-dl__dl-btn {
+    @apply bg-transparent p-0 text-sm font-semibold underline-offset-4;
+    color: var(--ov-lime);
+  }
+
+  .ov-dl__dl-btn:hover {
+    color: var(--ov-yellow);
+    text-decoration: underline;
+  }
+
+  .ov-signup__form {
+    @apply mt-1 flex flex-col gap-3;
+  }
+
+  .ov-signup__label {
+    @apply text-xs font-semibold uppercase tracking-[0.14em] text-white/50;
+  }
+
+  .ov-signup__input {
+    @apply h-11 rounded-xl border border-white/15 bg-white/[0.04] px-3 text-sm text-white outline-none;
+  }
+
+  .ov-signup__input:focus {
+    border-color: color-mix(in srgb, var(--ov-lime) 55%, white 20%);
+  }
+
+  .ov-signup__input::placeholder {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .ov-signup__interests {
+    @apply space-y-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3;
+  }
+
+  .ov-signup__interests legend {
+    @apply px-1 text-xs font-semibold uppercase tracking-[0.12em] text-white/45;
+  }
+
+  .ov-signup__check {
+    @apply flex cursor-pointer items-center gap-2 text-sm text-white/80;
+  }
+
+  .ov-signup__check input {
+    accent-color: #86efac;
+  }
+
+  .ov-signup__error {
+    @apply text-sm text-amber-300;
+  }
+
+  .ov-signup__actions {
+    @apply mt-1 flex flex-col gap-2 sm:flex-row sm:items-center;
+  }
+
+  .ov-signup__primary {
+    @apply justify-center;
+  }
+
+  .ov-signup__skip {
+    @apply justify-center text-white/70;
+  }
+
+  .ov-signup__fine {
+    @apply text-xs leading-relaxed text-white/40;
   }
 
   .ov-dl__grid {

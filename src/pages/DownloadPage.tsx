@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { MarketingShell } from "@/components/marketing/MarketingShell";
+import { useDownloadSignup } from "@/components/marketing/DownloadSignupProvider";
 import {
   githubReleasesLatestUrl,
   DESKTOP_ASSET_VERSION,
@@ -7,7 +8,6 @@ import {
 import { useLatestReleaseAssets } from "@/hooks/useLatestReleaseAssets";
 import { pickAsset, type ReleaseAssetKind } from "@/lib/fetchLatestReleaseAssets";
 import { getClientPlatform, type ClientPlatform } from "@/lib/detectClientPlatform";
-import { trackDownloadClick } from "@/lib/analytics/marketingAnalytics";
 import { cn } from "@/lib/utils";
 import { applyPageSeo, marketingSeo } from "@/lib/seo/pageSeo";
 
@@ -95,6 +95,9 @@ const DownloadPage: React.FC = () => {
                 {formatCount(totalDownloads)} downloads on this release
               </p>
             ) : null}
+            <p className="ov-dl__hint">
+              Free &amp; open source. Email for updates is optional — you can always skip.
+            </p>
           </header>
 
           {!loading && release && !release.hasInstallers && (
@@ -155,6 +158,8 @@ function PlatformCard({
   version: string;
   options: DownloadOption[];
 }) {
+  const { requestDownload } = useDownloadSignup();
+
   return (
     <article className={cn("ov-dl__card", here && "ov-dl__card--here")}>
       <div className="ov-dl__card-top">
@@ -172,22 +177,21 @@ function PlatformCard({
               ) : null}
             </span>
             {option.href ? (
-              <a
-                href={option.href}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                className="ov-dl__dl-btn"
                 onClick={() =>
-                  trackDownloadClick({
+                  requestDownload({
+                    href: option.href!,
                     assetId: option.id,
                     platform,
                     version,
                     source: "download_page",
-                    href: option.href,
                   })
                 }
               >
                 Download
-              </a>
+              </button>
             ) : (
               <span className="ov-dl__soon">Unavailable</span>
             )}
